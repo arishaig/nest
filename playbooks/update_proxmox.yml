@@ -1,0 +1,36 @@
+---
+- name: Update Proxmox / PBS hosts
+  hosts: proxmox:pbs
+  become: true
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Show pending updates
+      shell: apt list --upgradable 2>/dev/null
+      register: pve_updates
+      changed_when: false
+
+    - name: Display pending updates
+      debug:
+        var: pve_updates.stdout_lines
+
+    - name: Apply updates
+      apt:
+        upgrade: safe
+      when: do_upgrade | default(false) | bool
+
+    - name: Check if reboot required
+      stat:
+        path: /var/run/reboot-required
+      register: reboot_check
+
+    - name: Notify if reboot needed
+      debug:
+        msg: "{{ inventory_hostname }} requires a reboot!"
+      when: reboot_check.stat.exists
+# To check updates
+# ansible-playbook playbooks/update_proxmox.yml
+# To perform updates
+# ansible-playbook playbooks/update_proxmox.yml -e do_upgrade=true

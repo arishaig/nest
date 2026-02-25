@@ -1,0 +1,25 @@
+---
+- name: Check for available apt updates
+  hosts: all:!proxmox:!pbs
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Check upgradable packages
+      shell: apt list --upgradable 2>/dev/null
+      register: upgradable
+      changed_when: false
+
+    - name: Show pending updates
+      debug:
+        msg: "{{ upgradable.stdout_lines | select('ne', 'Listing...') | list }}"
+      when: upgradable.stdout_lines | length > 1
+
+    - name: Report no updates needed
+      debug:
+        msg: "No updates pending"
+      when: upgradable.stdout_lines | length <= 1

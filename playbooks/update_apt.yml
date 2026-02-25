@@ -1,0 +1,36 @@
+---
+- name: Apply apt updates
+  hosts: all:!proxmox:!pbs
+  become: true
+  serial: 1
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Upgrade packages (safe — won't remove packages)
+      apt:
+        upgrade: safe
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      register: upgrade_result
+
+    - name: Show what was upgraded
+      debug:
+        msg: "{{ upgrade_result.stdout_lines }}"
+      when: upgrade_result.changed
+
+    - name: Remove unused packages
+      apt:
+        autoremove: yes
+        purge: yes
+
+    - name: Check if reboot is required
+      stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Notify if reboot needed
+      debug:
+        msg: "REBOOT REQUIRED on {{ inventory_hostname }}"
+      when: reboot_required.stat.exists

@@ -1,0 +1,28 @@
+---
+- name: Update Docker containers
+  hosts: docker_hosts
+  become: true
+  tasks:
+    - name: Pull latest images for all compose stacks
+      command: docker compose pull --ignore-buildable
+      args:
+        chdir: "{{ item }}"
+      loop: "{{ compose_dirs }}"
+
+    - name: Recreate containers with updated images
+      command: docker compose up -d --remove-orphans
+      args:
+        chdir: "{{ item }}"
+      loop: "{{ compose_dirs }}"
+
+    - name: Prune images older than 7 days
+      command: docker image prune -f --filter "until=168h"
+
+    - name: Show disk usage
+      command: docker system df
+      register: df_output
+      changed_when: false
+
+    - name: Docker disk usage
+      debug:
+        var: df_output.stdout_lines
