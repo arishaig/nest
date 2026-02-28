@@ -1,3 +1,4 @@
 ---
 - import_playbook: update_apt.yml
 - import_playbook: update_docker.yml
+- import_playbook: update_proxmox.yml

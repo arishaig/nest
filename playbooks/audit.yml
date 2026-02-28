@@ -1,0 +1,1594 @@
+---
+# audit.yml
+# Run: ansible-playbook -i hosts.yml audit.yml
+#
+# Dumps current state of all infrastructure to ./audit-output/
+# Sensitive values (tokens, passwords) are redacted where possible.
+# Review output before committing to git.
+
+- name: Prepare local output directory
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Create audit output directories
+      file:
+        path: "./audit-output/{{ item }}"
+        state: directory
+      loop:
+        - proxmox
+        - proxmox/lxc-configs
+        - proxmox/vm-configs
+        - proxmox/zfs
+        - proxmox/network
+        - proxmox/firewall
+        - lxc
+        - pbs
+        - docker
+        - integrations
+        - service-configs
+        - service-configs/docker
+        - service-configs/monitoring
+        - service-configs/fileserver
+        - dns
+        - cloudflare
+
+# =========================================================================
+# PLAY 1: Proxmox Host
+# =========================================================================
+- name: Audit Proxmox host
+  hosts: proxmox
+  gather_facts: true
+  tasks:
+    # --- System Info ---
+    - name: Gather system info
+      shell: |
+        echo "=== HOSTNAME ==="
+        hostname -f
+        echo ""
+        echo "=== PROXMOX VERSION ==="
+        pveversion -v
+        echo ""
+        echo "=== KERNEL ==="
+        uname -a
+        echo ""
+        echo "=== UPTIME ==="
+        uptime
+        echo ""
+        echo "=== CPU ==="
+        lscpu | grep -E 'Model name|Socket|Core|Thread|CPU\(s\)'
+        echo ""
+        echo "=== MEMORY ==="
+        free -h
+        echo ""
+        echo "=== BLOCK DEVICES ==="
+        lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,MODEL
+        echo ""
+        echo "=== SATA CONTROLLERS ==="
+        lspci | grep -i sata
+      register: system_info
+
+    - name: Save system info
+      copy:
+        content: "{{ system_info.stdout }}"
+        dest: "./audit-output/proxmox/system-info.txt"
+      delegate_to: localhost
+
+    # --- ZFS ---
+    - name: Gather ZFS pool status
+      shell: zpool status -v
+      register: zpool_status
+
+    - name: Gather ZFS pool properties
+      shell: zpool get all
+      register: zpool_props
+
+    - name: Gather ZFS dataset list with properties
+      shell: zfs list -o name,used,avail,refer,mountpoint,compression,recordsize,quota,reservation -t all
+      register: zfs_list
+
+    - name: Gather ZFS dataset detailed properties
+      shell: |
+        for ds in $(zfs list -H -o name -t filesystem); do
+          echo "=== $ds ==="
+          zfs get all "$ds" | grep -v -E '^\s*$'
+          echo ""
+        done
+      register: zfs_props
+
+    - name: Save ZFS data
+      copy:
+        content: "{{ item.content }}"
+        dest: "./audit-output/proxmox/zfs/{{ item.name }}"
+      delegate_to: localhost
+      loop:
+        - { name: "zpool-status.txt", content: "{{ zpool_status.stdout }}" }
+        - { name: "zpool-properties.txt", content: "{{ zpool_props.stdout }}" }
+        - { name: "zfs-list.txt", content: "{{ zfs_list.stdout }}" }
+        - { name: "zfs-dataset-properties.txt", content: "{{ zfs_props.stdout }}" }
+
+    # --- Network ---
+    - name: Gather network configuration
+      shell: |
+        echo "=== /etc/network/interfaces ==="
+        cat /etc/network/interfaces
+        echo ""
+        echo "=== IP ADDRESSES ==="
+        ip -4 addr show
+        echo ""
+        echo "=== BRIDGES ==="
+        brctl show 2>/dev/null || bridge link show
+        echo ""
+        echo "=== ROUTES ==="
+        ip route show
+        echo ""
+        echo "=== DNS ==="
+        cat /etc/resolv.conf
+      register: network_info
+
+    - name: Save network config
+      copy:
+        content: "{{ network_info.stdout }}"
+        dest: "./audit-output/proxmox/network/network-config.txt"
+      delegate_to: localhost
+
+    # --- LXC Configs ---
+    - name: List LXC config files
+      find:
+        paths: /etc/pve/lxc
+        patterns: "*.conf"
+      register: lxc_configs
+
+    - name: Read LXC configs
+      slurp:
+        src: "{{ item.path }}"
+      register: lxc_config_contents
+      loop: "{{ lxc_configs.files }}"
+
+    - name: Save LXC configs
+      copy:
+        content: "{{ item.content | b64decode }}"
+        dest: "./audit-output/proxmox/lxc-configs/{{ item.source | basename }}"
+      delegate_to: localhost
+      loop: "{{ lxc_config_contents.results }}"
+
+    # --- VM Configs ---
+    - name: List VM config files
+      find:
+        paths: /etc/pve/qemu-server
+        patterns: "*.conf"
+      register: vm_configs
+
+    - name: Read VM configs
+      slurp:
+        src: "{{ item.path }}"
+      register: vm_config_contents
+      loop: "{{ vm_configs.files }}"
+
+    - name: Save VM configs
+      copy:
+        content: "{{ item.content | b64decode }}"
+        dest: "./audit-output/proxmox/vm-configs/{{ item.source | basename }}"
+      delegate_to: localhost
+      loop: "{{ vm_config_contents.results }}"
+
+    # --- Storage Configuration ---
+    - name: Gather Proxmox storage config
+      shell: |
+        echo "=== /etc/pve/storage.cfg ==="
+        cat /etc/pve/storage.cfg
+        echo ""
+        echo "=== pvesm status ==="
+        pvesm status
+      register: storage_config
+
+    - name: Save storage config
+      copy:
+        content: "{{ storage_config.stdout }}"
+        dest: "./audit-output/proxmox/storage-config.txt"
+      delegate_to: localhost
+
+    # --- SSH Keys ---
+    - name: Gather SSH authorized keys
+      shell: |
+        echo "=== /root/.ssh/authorized_keys ==="
+        cat /root/.ssh/authorized_keys 2>/dev/null || echo "(none)"
+        echo ""
+        echo "=== SSH host key fingerprints ==="
+        for f in /etc/ssh/ssh_host_*_key.pub; do
+          ssh-keygen -lf "$f" 2>/dev/null
+        done
+      register: ssh_keys
+
+    - name: Save SSH keys
+      copy:
+        content: "{{ ssh_keys.stdout }}"
+        dest: "./audit-output/proxmox/ssh-keys.txt"
+      delegate_to: localhost
+
+    # --- Startup Order / HA ---
+    - name: Gather container and VM startup order
+      shell: |
+        echo "=== LXC Startup ==="
+        for f in /etc/pve/lxc/*.conf; do
+          id=$(basename "$f" .conf)
+          startup=$(grep '^onboot\|^startup' "$f" 2>/dev/null)
+          echo "LXC $id: $startup"
+        done
+        echo ""
+        echo "=== VM Startup ==="
+        for f in /etc/pve/qemu-server/*.conf; do
+          id=$(basename "$f" .conf)
+          startup=$(grep '^onboot\|^startup' "$f" 2>/dev/null)
+          echo "VM $id: $startup"
+        done
+      register: startup_order
+
+    - name: Save startup order
+      copy:
+        content: "{{ startup_order.stdout }}"
+        dest: "./audit-output/proxmox/startup-order.txt"
+      delegate_to: localhost
+
+    # --- Cron and Systemd Timers ---
+    - name: Gather scheduled tasks on host
+      shell: |
+        echo "=== CRONTABS ==="
+        crontab -l 2>/dev/null || echo "(no root crontab)"
+        echo ""
+        echo "=== /etc/cron.d/ ==="
+        ls -la /etc/cron.d/ 2>/dev/null
+        for f in /etc/cron.d/*; do
+          echo "--- $f ---"
+          cat "$f" 2>/dev/null
+        done
+        echo ""
+        echo "=== SYSTEMD TIMERS ==="
+        systemctl list-timers --all --no-pager
+      register: scheduled_tasks
+
+    - name: Save scheduled tasks
+      copy:
+        content: "{{ scheduled_tasks.stdout }}"
+        dest: "./audit-output/proxmox/scheduled-tasks.txt"
+      delegate_to: localhost
+
+    # --- Firewall Rules ---
+    - name: Gather PVE firewall config directory
+      shell: |
+        echo "=== CLUSTER FIREWALL ==="
+        cat /etc/pve/firewall/cluster.fw 2>/dev/null || echo "(no cluster.fw)"
+        echo ""
+        echo "=== PER-VM/LXC FIREWALL FILES ==="
+        for f in /etc/pve/firewall/*.fw; do
+          [ -f "$f" ] || continue
+          echo "--- $f ---"
+          cat "$f"
+          echo ""
+        done
+      register: pve_firewall
+
+    - name: Save PVE firewall config
+      copy:
+        content: "{{ pve_firewall.stdout }}"
+        dest: "./audit-output/proxmox/firewall/pve-firewall.txt"
+      delegate_to: localhost
+
+    - name: Gather nftables ruleset on PVE host
+      shell: nft list ruleset 2>/dev/null || echo "(nftables not active)"
+      register: pve_nft
+      ignore_errors: true
+
+    - name: Save PVE nftables rules
+      copy:
+        content: "{{ pve_nft.stdout }}"
+        dest: "./audit-output/proxmox/firewall/nft-ruleset.txt"
+      delegate_to: localhost
+
+    # --- Proxmox Users / ACLs / Roles ---
+    - name: Gather PVE user and ACL config
+      shell: |
+        echo "=== USERS ==="
+        pveum user list 2>/dev/null || echo "(pveum not available)"
+        echo ""
+        echo "=== API TOKENS ==="
+        pveum user token list root@pam 2>/dev/null || echo "(no tokens or pveum error)"
+        echo ""
+        echo "=== ROLES ==="
+        pveum role list 2>/dev/null || echo "(pveum not available)"
+        echo ""
+        echo "=== ACLs ==="
+        pveum acl list 2>/dev/null || echo "(pveum not available)"
+      register: pve_users
+
+    - name: Save PVE users/ACLs
+      copy:
+        content: "{{ pve_users.stdout }}"
+        dest: "./audit-output/proxmox/users-acls.txt"
+      delegate_to: localhost
+
+    # --- /etc/hosts ---
+    - name: Gather /etc/hosts
+      slurp:
+        src: /etc/hosts
+      register: pve_hosts
+
+    - name: Save PVE /etc/hosts
+      copy:
+        content: "{{ pve_hosts.content | b64decode }}"
+        dest: "./audit-output/proxmox/etc-hosts.txt"
+      delegate_to: localhost
+
+    # --- Certbot / ACME ---
+    - name: Gather certbot/ACME config
+      shell: |
+        echo "=== CERTBOT CERTIFICATES ==="
+        certbot certificates 2>/dev/null || echo "(certbot not installed)"
+        echo ""
+        echo "=== LETSENCRYPT RENEWAL CONFIGS ==="
+        for f in /etc/letsencrypt/renewal/*.conf; do
+          [ -f "$f" ] || continue
+          echo "--- $f ---"
+          cat "$f"
+          echo ""
+        done 2>/dev/null || echo "(no renewal configs)"
+        echo ""
+        echo "=== PVE ACME ACCOUNT ==="
+        pvenode acme account list 2>/dev/null || echo "(no ACME accounts)"
+      register: pve_certbot
+      ignore_errors: true
+
+    - name: Save certbot/ACME config
+      copy:
+        content: "{{ pve_certbot.stdout }}"
+        dest: "./audit-output/proxmox/certbot-acme.txt"
+      delegate_to: localhost
+
+    # --- PBS Backup Job Definitions (via PVE API) ---
+    - name: Gather PBS backup job definitions from PVE
+      shell: |
+        echo "=== BACKUP JOBS (vzdump.cron / jobs.cfg) ==="
+        cat /etc/pve/jobs.cfg 2>/dev/null || echo "(no jobs.cfg)"
+        echo ""
+        echo "=== VZDUMP DEFAULTS ==="
+        cat /etc/vzdump.conf 2>/dev/null || echo "(no vzdump.conf)"
+        echo ""
+        echo "=== PVESH BACKUP JOBS ==="
+        pvesh get /cluster/backup --output-format text 2>/dev/null || echo "(pvesh not available or no jobs)"
+      register: pve_backup_jobs
+      ignore_errors: true
+
+    - name: Save PVE backup job definitions
+      copy:
+        content: "{{ pve_backup_jobs.stdout }}"
+        dest: "./audit-output/proxmox/backup-jobs.txt"
+      delegate_to: localhost
+
+# =========================================================================
+# PLAY 2: All LXC Containers
+# =========================================================================
+- name: Audit LXC containers
+  hosts: lxcs
+  gather_facts: true
+  tasks:
+    - name: Create per-host output directory
+      file:
+        path: "./audit-output/lxc/{{ inventory_hostname }}"
+        state: directory
+      delegate_to: localhost
+
+    # --- System Info ---
+    - name: Gather LXC system info
+      shell: |
+        echo "=== HOSTNAME ==="
+        hostname
+        echo ""
+        echo "=== OS ==="
+        cat /etc/os-release
+        echo ""
+        echo "=== KERNEL ==="
+        uname -a
+        echo ""
+        echo "=== RESOURCES ==="
+        echo "CPU cores: $(nproc)"
+        free -h
+        echo ""
+        echo "=== DISK USAGE ==="
+        df -h
+        echo ""
+        echo "=== MOUNTS ==="
+        mount | grep -v -E 'proc|sys|cgroup|devpts|tmpfs'
+        echo ""
+        echo "=== FSTAB ==="
+        cat /etc/fstab 2>/dev/null || echo "(no fstab)"
+      register: lxc_system
+      ignore_errors: true
+
+    - name: Save LXC system info
+      copy:
+        content: "{{ lxc_system.stdout }}"
+        dest: "./audit-output/lxc/{{ inventory_hostname }}/system-info.txt"
+      delegate_to: localhost
+
+    # --- Users and Groups ---
+    - name: Gather users and groups
+      shell: |
+        # ... existing commands ...
+        echo "=== SUDOERS ==="
+        cat /etc/sudoers 2>/dev/null
+        ls -la /etc/sudoers.d/ 2>/dev/null
+        for f in /etc/sudoers.d/*; do
+          [ -f "$f" ] || continue
+          echo "--- $f ---"
+          cat "$f" 2>/dev/null
+        done
+      register: users_groups
+      ignore_errors: true
+
+    - name: Save users and groups
+      copy:
+        content: "{{ users_groups.stdout }}"
+        dest: "./audit-output/lxc/{{ inventory_hostname }}/users-groups.txt"
+      delegate_to: localhost
+
+    # --- Installed Packages ---
+    - name: Gather installed packages
+      shell: |
+        if command -v dpkg &>/dev/null; then
+          dpkg -l | grep '^ii'
+        elif command -v apk &>/dev/null; then
+          apk list --installed
+        elif command -v rpm &>/dev/null; then
+          rpm -qa --queryformat '%{NAME} %{VERSION}-%{RELEASE}\n' | sort
+        fi
+      register: packages
+      ignore_errors: true
+
+    - name: Save installed packages
+      copy:
+        content: "{{ packages.stdout }}"
+        dest: "./audit-output/lxc/{{ inventory_hostname }}/packages.txt"
+      delegate_to: localhost
+
+    # --- SSH Keys ---
+    - name: Gather SSH authorized keys for all users
+      shell: |
+        for dir in /root /home/*; do
+          user=$(basename "$dir")
+          keyfile="$dir/.ssh/authorized_keys"
+          if [ -f "$keyfile" ]; then
+            echo "=== $user ($keyfile) ==="
+            cat "$keyfile"
+            echo ""
+          fi
+        done
+      register: ssh_authorized
+      ignore_errors: true
+
+    - name: Save SSH authorized keys
+      copy:
+        content: "{{ ssh_authorized.stdout }}"
+        dest: "./audit-output/lxc/{{ inventory_hostname }}/ssh-authorized-keys.txt"
+      delegate_to: localhost
+
+    # --- Systemd Services and Timers ---
+    - name: Gather enabled systemd services and timers
+      shell: |
+        echo "=== ENABLED SERVICES ==="
+        systemctl list-unit-files --type=service --state=enabled --no-pager 2>/dev/null
+        echo ""
+        echo "=== RUNNING SERVICES ==="
+        systemctl list-units --type=service --state=running --no-pager 2>/dev/null
+        echo ""
+        echo "=== TIMERS ==="
+        systemctl list-timers --all --no-pager 2>/dev/null
+        echo ""
+        echo "=== CRONTAB ==="
+        crontab -l 2>/dev/null || echo "(no root crontab)"
+        echo ""
+        echo "=== /etc/cron.d/ ==="
+        for f in /etc/cron.d/*; do
+          [ -f "$f" ] && echo "--- $f ---" && cat "$f"
+        done 2>/dev/null
+      register: services
+      ignore_errors: true
+
+    - name: Save services
+      copy:
+        content: "{{ services.stdout }}"
+        dest: "./audit-output/lxc/{{ inventory_hostname }}/services.txt"
+      delegate_to: localhost
+
+    # --- Sysctl and Kernel Modules ---
+    - name: Gather sysctl and modules
+      shell: |
+        echo "=== CUSTOM SYSCTL ==="
+        if [ -d /etc/sysctl.d ]; then
+          for f in /etc/sysctl.d/*.conf; do
+            [ -f "$f" ] && echo "--- $f ---" && cat "$f"
+          done
+        fi
+        cat /etc/sysctl.conf 2>/dev/null | grep -v '^#' | grep -v '^$'
+        echo ""
+        echo "=== LOADED MODULES ==="
+        lsmod 2>/dev/null || echo "(lsmod not available in container)"
+      register: sysctl
+      ignore_errors: true
+
+    - name: Save sysctl
+      copy:
+        content: "{{ sysctl.stdout }}"
+        dest: "./audit-output/lxc/{{ inventory_hostname }}/sysctl-modules.txt"
+      delegate_to: localhost
+
+    # --- Network ---
+    - name: Gather network config
+      shell: |
+        echo "=== IP ADDRESSES ==="
+        ip -4 addr show
+        echo ""
+        echo "=== ROUTES ==="
+        ip route show
+        echo ""
+        echo "=== DNS ==="
+        cat /etc/resolv.conf
+        echo ""
+        echo "=== HOSTS ==="
+        cat /etc/hosts
+        echo ""
+        echo "=== LISTENING PORTS ==="
+        ss -tlnp
+      register: network
+      ignore_errors: true
+
+    - name: Save network
+      copy:
+        content: "{{ network.stdout }}"
+        dest: "./audit-output/lxc/{{ inventory_hostname }}/network.txt"
+      delegate_to: localhost
+
+    # --- nftables Rules ---
+    - name: Gather nftables ruleset
+      shell: nft list ruleset 2>/dev/null || echo "(nftables not active)"
+      register: nft_rules
+      ignore_errors: true
+
+    - name: Save nftables rules
+      copy:
+        content: "{{ nft_rules.stdout }}"
+        dest: "./audit-output/lxc/{{ inventory_hostname }}/nft-ruleset.txt"
+      delegate_to: localhost
+
+    # --- Custom Systemd Unit Files ---
+    - name: Find custom systemd unit files
+      shell: |
+        find /etc/systemd/system -maxdepth 1 \( -name '*.service' -o -name '*.timer' \) \
+          ! -name 'dbus-*' -type f 2>/dev/null | sort
+      register: custom_units
+      ignore_errors: true
+
+    - name: Read custom systemd unit files
+      shell: |
+        {% for unit in custom_units.stdout_lines %}
+        echo "=== {{ unit }} ==="
+        cat "{{ unit }}"
+        echo ""
+        {% endfor %}
+        {% if custom_units.stdout_lines | length == 0 %}
+        echo "(no custom units found)"
+        {% endif %}
+      register: custom_unit_contents
+      ignore_errors: true
+
+    - name: Save custom systemd units
+      copy:
+        content: "{{ custom_unit_contents.stdout }}"
+        dest: "./audit-output/lxc/{{ inventory_hostname }}/custom-systemd-units.txt"
+      delegate_to: localhost
+
+    # --- Samba Config (conditional) ---
+    - name: Check if smbd is installed
+      shell: command -v smbd
+      register: smbd_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Gather Samba config
+      shell: |
+        echo "=== /etc/samba/smb.conf ==="
+        cat /etc/samba/smb.conf 2>/dev/null || echo "(not found)"
+        echo ""
+        echo "=== SAMBA USERS ==="
+        pdbedit -L -v 2>/dev/null || echo "(pdbedit not available)"
+      register: samba_config
+      when: smbd_check.rc == 0
+      ignore_errors: true
+
+    - name: Save Samba config
+      copy:
+        content: "{{ samba_config.stdout }}"
+        dest: "./audit-output/lxc/{{ inventory_hostname }}/samba-config.txt"
+      delegate_to: localhost
+      when: smbd_check.rc == 0
+
+# =========================================================================
+# PLAY 3: Docker Hosts — compose files, env, running state
+# =========================================================================
+- name: Audit Docker hosts
+  hosts: docker_hosts
+  gather_facts: false
+  tasks:
+    - name: Create docker output directory
+      file:
+        path: "./audit-output/docker/{{ inventory_hostname }}"
+        state: directory
+      delegate_to: localhost
+
+    # --- Docker System Info ---
+    - name: Gather Docker info
+      shell: |
+        echo "=== DOCKER VERSION ==="
+        docker version 2>/dev/null
+        echo ""
+        echo "=== DOCKER INFO ==="
+        docker info 2>/dev/null
+        echo ""
+        echo "=== DOCKER NETWORKS ==="
+        docker network ls 2>/dev/null
+        echo ""
+        echo "=== DOCKER VOLUMES ==="
+        docker volume ls 2>/dev/null
+      register: docker_info
+      ignore_errors: true
+
+    - name: Save Docker info
+      copy:
+        content: "{{ docker_info.stdout }}"
+        dest: "./audit-output/docker/{{ inventory_hostname }}/docker-info.txt"
+      delegate_to: localhost
+
+    # --- Running Containers ---
+    - name: Gather running containers
+      shell: |
+        docker ps --format 'table {{ "{{" }}.Names{{ "}}" }}\t{{ "{{" }}.Image{{ "}}" }}\t{{ "{{" }}.Status{{ "}}" }}\t{{ "{{" }}.Ports{{ "}}" }}' 2>/dev/null
+        echo ""
+        echo "=== ALL CONTAINERS (including stopped) ==="
+        docker ps -a --format 'table {{ "{{" }}.Names{{ "}}" }}\t{{ "{{" }}.Image{{ "}}" }}\t{{ "{{" }}.Status{{ "}}" }}' 2>/dev/null
+      register: containers
+      ignore_errors: true
+
+    - name: Save container list
+      copy:
+        content: "{{ containers.stdout }}"
+        dest: "./audit-output/docker/{{ inventory_hostname }}/containers.txt"
+      delegate_to: localhost
+
+    # --- Compose Files ---
+    - name: Find compose files
+      find:
+        paths: "{{ compose_dirs }}"
+        patterns:
+          - "docker-compose.yml"
+          - "docker-compose.yaml"
+          - "compose.yml"
+          - "compose.yaml"
+        recurse: yes
+        depth: 3
+      register: compose_files
+
+    - name: Read compose files
+      slurp:
+        src: "{{ item.path }}"
+      register: compose_contents
+      loop: "{{ compose_files.files }}"
+
+    - name: Save compose files
+      copy:
+        content: "{{ item.content | b64decode }}"
+        dest: "./audit-output/docker/{{ inventory_hostname }}/{{ item.source | replace('/', '_') }}"
+      delegate_to: localhost
+      loop: "{{ compose_contents.results }}"
+
+    # --- Env Files (REDACTED) ---
+    - name: Find env files
+      find:
+        paths: "{{ compose_dirs }}"
+        patterns:
+          - ".env"
+          - "*.env"
+        recurse: yes
+        depth: 3
+        hidden: yes
+      register: env_files
+
+    - name: Read and redact env files
+      shell: |
+        echo "=== {{ item.path }} ==="
+        sed -E 's/(TOKEN|KEY|SECRET|PASSWORD|PASS|APIKEY|API_KEY)=.*/\1=REDACTED/gi' "{{ item.path }}"
+        echo ""
+      loop: "{{ env_files.files }}"
+      register: env_contents
+      ignore_errors: true
+
+    - name: Save redacted env files
+      copy:
+        content: "{{ env_contents.results | map(attribute='stdout') | join('\n') }}"
+        dest: "./audit-output/docker/{{ inventory_hostname }}/env-files-redacted.txt"
+      delegate_to: localhost
+
+    # --- Container Inspect (restart policy, mounts, env) ---
+    - name: Gather container details
+      shell: |
+        for c in $(docker ps -a --format '{{ "{{" }}.Names{{ "}}" }}'); do
+          echo "=== $c ==="
+          docker inspect "$c" --format '
+          Image: {{ "{{" }}.Config.Image{{ "}}" }}
+          RestartPolicy: {{ "{{" }}.HostConfig.RestartPolicy.Name{{ "}}" }}
+          NetworkMode: {{ "{{" }}.HostConfig.NetworkMode{{ "}}" }}
+          Mounts: {{ "{{" }}range .Mounts{{ "}}" }}
+            {{ "{{" }}.Type{{ "}}" }}: {{ "{{" }}.Source{{ "}}" }} -> {{ "{{" }}.Destination{{ "}}" }} ({{ "{{" }}.Mode{{ "}}" }}){{ "{{" }}end{{ "}}" }}
+          Ports: {{ "{{" }}json .HostConfig.PortBindings{{ "}}" }}'
+          echo ""
+        done 2>/dev/null
+      register: container_details
+      ignore_errors: true
+
+    - name: Save container details
+      copy:
+        content: "{{ container_details.stdout }}"
+        dest: "./audit-output/docker/{{ inventory_hostname }}/container-details.txt"
+      delegate_to: localhost
+
+    # --- Docker Network Details ---
+    - name: Gather docker network details
+      shell: |
+        for net in $(docker network ls --format '{{ "{{" }}.Name{{ "}}" }}' | grep -v -E '^(bridge|host|none)$'); do
+          echo "=== $net ==="
+          docker network inspect "$net" --format '
+          Name: {{ "{{" }}.Name{{ "}}" }}
+          Driver: {{ "{{" }}.Driver{{ "}}" }}
+          Scope: {{ "{{" }}.Scope{{ "}}" }}
+          IPAM: {{ "{{" }}json .IPAM{{ "}}" }}
+          Options: {{ "{{" }}json .Options{{ "}}" }}
+          Containers: {{ "{{" }}range $k, $v := .Containers{{ "}}" }}
+            {{ "{{" }}$v.Name{{ "}}" }}: {{ "{{" }}$v.IPv4Address{{ "}}" }}{{ "{{" }}end{{ "}}" }}'
+          echo ""
+        done 2>/dev/null
+      register: docker_networks
+      ignore_errors: true
+
+    - name: Save docker network details
+      copy:
+        content: "{{ docker_networks.stdout }}"
+        dest: "./audit-output/docker/{{ inventory_hostname }}/network-details.txt"
+      delegate_to: localhost
+
+# =========================================================================
+# PLAY 4: Service Configuration Files
+# =========================================================================
+- name: Capture service configs — docker LXC
+  hosts: docker
+  gather_facts: false
+  tasks:
+    # --- Traefik ---
+    - name: Read Traefik static config
+      slurp:
+        src: /mnt/app_config/traefik/traefik.yml
+      register: traefik_static
+      ignore_errors: true
+
+    - name: Save Traefik static config
+      copy:
+        content: "{{ traefik_static.content | b64decode }}"
+        dest: "./audit-output/service-configs/docker/traefik.yml"
+      delegate_to: localhost
+      when: traefik_static is succeeded
+
+    - name: Find Traefik dynamic configs
+      find:
+        paths: /mnt/app_config/traefik/dynamic
+        patterns: "*.yml"
+      register: traefik_dynamic_files
+      ignore_errors: true
+
+    - name: Read Traefik dynamic configs
+      slurp:
+        src: "{{ item.path }}"
+      register: traefik_dynamic_contents
+      loop: "{{ traefik_dynamic_files.files | default([]) }}"
+
+    - name: Create Traefik dynamic output dir
+      file:
+        path: "./audit-output/service-configs/docker/traefik-dynamic"
+        state: directory
+      delegate_to: localhost
+
+    - name: Save Traefik dynamic configs
+      copy:
+        content: "{{ item.content | b64decode }}"
+        dest: "./audit-output/service-configs/docker/traefik-dynamic/{{ item.source | basename }}"
+      delegate_to: localhost
+      loop: "{{ traefik_dynamic_contents.results | default([]) }}"
+
+    # --- Authelia ---
+    - name: Read Authelia config
+      shell: |
+        cat /mnt/app_config/authelia/configuration.yml 2>/dev/null || echo "(not found)"
+      register: authelia_raw
+      ignore_errors: true
+
+    - name: Save Authelia config (redacted)
+      copy:
+        content: >-
+          {{ authelia_raw.stdout
+            | regex_replace('(secret|password|key|token|encryption_key|hmac_secret):.*', '\1: REDACTED')
+          }}
+        dest: "./audit-output/service-configs/docker/authelia-configuration.yml"
+      delegate_to: localhost
+
+    # --- Recyclarr ---
+    - name: Read Recyclarr config
+      slurp:
+        src: /mnt/app_config/recyclarr/recyclarr.yml
+      register: recyclarr_config
+      ignore_errors: true
+
+    - name: Save Recyclarr config (redacted)
+      copy:
+        content: >-
+          {{ (recyclarr_config.content | b64decode)
+            | regex_replace('(api_key|base_url):.*', '\1: REDACTED')
+          }}
+        dest: "./audit-output/service-configs/docker/recyclarr.yml"
+      delegate_to: localhost
+      when: recyclarr_config is succeeded
+
+    # --- SSL/TLS ACME domains ---
+    - name: List ACME certificate domains from Traefik
+      shell: |
+        if [ -f /mnt/app_config/traefik/acme.json ]; then
+          python3 -c "
+        import json, sys
+        with open('/mnt/app_config/traefik/acme.json') as f:
+            data = json.load(f)
+        for resolver, info in data.items():
+            print(f'=== Resolver: {resolver} ===')
+            if 'Account' in info:
+                print(f'  Email: {info[\"Account\"].get(\"Email\", \"N/A\")}')
+            for cert in info.get('Certificates', []):
+                domain = cert.get('domain', {})
+                print(f'  Main: {domain.get(\"main\", \"N/A\")}')
+                sans = domain.get('sans', [])
+                if sans:
+                    print(f'  SANs: {sans}')
+        " 2>/dev/null || echo "(python3 parse failed, file exists but unreadable)"
+        else
+          echo "(acme.json not found)"
+        fi
+      register: acme_domains
+      ignore_errors: true
+
+    - name: Save ACME domain list
+      copy:
+        content: "{{ acme_domains.stdout }}"
+        dest: "./audit-output/service-configs/docker/acme-domains.txt"
+      delegate_to: localhost
+
+- name: Capture service configs — monitoring LXC
+  hosts: monitoring
+  gather_facts: false
+  tasks:
+    # --- Prometheus ---
+    - name: Read Prometheus config
+      slurp:
+        src: /opt/monitoring/prometheus/prometheus.yml
+      register: prometheus_config
+      ignore_errors: true
+
+    - name: Save Prometheus config (redacted)
+      copy:
+        content: >-
+          {{ (prometheus_config.content | b64decode)
+            | regex_replace('(password|bearer_token|credentials|token):.*', '\1: REDACTED')
+          }}
+        dest: "./audit-output/service-configs/monitoring/prometheus.yml"
+      delegate_to: localhost
+      when: prometheus_config is succeeded
+
+    - name: Find Prometheus alert rules
+      find:
+        paths: /opt/monitoring/prometheus/rules
+        patterns: "*.yml"
+      register: prom_rule_files
+      ignore_errors: true
+
+    - name: Read Prometheus rules
+      slurp:
+        src: "{{ item.path }}"
+      register: prom_rule_contents
+      loop: "{{ prom_rule_files.files | default([]) }}"
+
+    - name: Create Prometheus rules output dir
+      file:
+        path: "./audit-output/service-configs/monitoring/prometheus-rules"
+        state: directory
+      delegate_to: localhost
+
+    - name: Save Prometheus rules
+      copy:
+        content: "{{ item.content | b64decode }}"
+        dest: "./audit-output/service-configs/monitoring/prometheus-rules/{{ item.source | basename }}"
+      delegate_to: localhost
+      loop: "{{ prom_rule_contents.results | default([]) }}"
+
+    # --- Alertmanager ---
+    - name: Read Alertmanager config
+      slurp:
+        src: /opt/monitoring/alertmanager/alertmanager.yml
+      register: alertmanager_config
+      ignore_errors: true
+
+    - name: Save Alertmanager config (redacted)
+      copy:
+        content: >-
+          {{ (alertmanager_config.content | b64decode)
+            | regex_replace('(api_url|webhook_url|token|secret|password|url):.*', '\1: REDACTED')
+          }}
+        dest: "./audit-output/service-configs/monitoring/alertmanager.yml"
+      delegate_to: localhost
+      when: alertmanager_config is succeeded
+
+    # --- Grafana Provisioning ---
+    - name: Find Grafana provisioning configs
+      find:
+        paths: /opt/monitoring/grafana/provisioning
+        patterns: "*.yml"
+        recurse: yes
+      register: grafana_prov_files
+      ignore_errors: true
+
+    - name: Read Grafana provisioning configs
+      slurp:
+        src: "{{ item.path }}"
+      register: grafana_prov_contents
+      loop: "{{ grafana_prov_files.files | default([]) }}"
+
+    - name: Create Grafana provisioning output dir
+      file:
+        path: "./audit-output/service-configs/monitoring/grafana-provisioning"
+        state: directory
+      delegate_to: localhost
+
+    - name: Save Grafana provisioning configs
+      copy:
+        content: "{{ item.content | b64decode }}"
+        dest: "./audit-output/service-configs/monitoring/grafana-provisioning/{{ item.source | basename }}"
+      delegate_to: localhost
+      loop: "{{ grafana_prov_contents.results | default([]) }}"
+
+    # --- Loki ---
+    - name: Read Loki config
+      slurp:
+        src: /opt/monitoring/loki/loki.yml
+      register: loki_config
+      ignore_errors: true
+
+    - name: Save Loki config
+      copy:
+        content: "{{ loki_config.content | b64decode }}"
+        dest: "./audit-output/service-configs/monitoring/loki.yml"
+      delegate_to: localhost
+      when: loki_config is succeeded
+
+    # --- PVE Exporter (redacted) ---
+    - name: Read PVE exporter config
+      shell: |
+        for f in /opt/monitoring/pve/pve.yml /opt/monitoring/pve-exporter/pve.yml; do
+          if [ -f "$f" ]; then
+            echo "=== $f ==="
+            cat "$f"
+            break
+          fi
+        done 2>/dev/null || echo "(not found)"
+      register: pve_exporter_raw
+      ignore_errors: true
+
+    - name: Save PVE exporter config (redacted)
+      copy:
+        content: >-
+          {{ pve_exporter_raw.stdout
+            | regex_replace('(password|token_value|secret):.*', '\1: REDACTED')
+          }}
+        dest: "./audit-output/service-configs/monitoring/pve-exporter.yml"
+      delegate_to: localhost
+
+    # --- UnPoller (redacted) ---
+    - name: Read UnPoller config
+      shell: |
+        cat /opt/monitoring/unpoller/up.conf 2>/dev/null || echo "(not found)"
+      register: unpoller_raw
+      ignore_errors: true
+
+    - name: Save UnPoller config (redacted)
+      copy:
+        content: >-
+          {{ unpoller_raw.stdout
+            | regex_replace('(pass|password|api_key).*=.*', '\1 = REDACTED')
+          }}
+        dest: "./audit-output/service-configs/monitoring/unpoller.conf"
+      delegate_to: localhost
+
+# =========================================================================
+# PLAY 5: PBS — backup jobs, rclone, retention
+# =========================================================================
+- name: Audit PBS
+  hosts: pbs
+  gather_facts: true
+  tasks:
+    - name: Create PBS output directory
+      file:
+        path: "./audit-output/pbs"
+        state: directory
+      delegate_to: localhost
+
+    - name: Gather PBS info
+      shell: |
+        echo "=== PBS VERSION ==="
+        proxmox-backup-manager version 2>/dev/null || dpkg -l | grep proxmox-backup
+        echo ""
+        echo "=== DATASTORES ==="
+        proxmox-backup-manager datastore list 2>/dev/null || echo "(check via API)"
+        echo ""
+        echo "=== DISK USAGE ==="
+        df -h
+        echo ""
+        echo "=== SYNC/VERIFY JOBS ==="
+        proxmox-backup-manager sync-job list 2>/dev/null || echo "(none or check via API)"
+        proxmox-backup-manager verify-job list 2>/dev/null || echo "(none or check via API)"
+      register: pbs_info
+      ignore_errors: true
+
+    - name: Save PBS info
+      copy:
+        content: "{{ pbs_info.stdout }}"
+        dest: "./audit-output/pbs/pbs-info.txt"
+      delegate_to: localhost
+
+    # --- rclone config ---
+    - name: Check for rclone config
+      shell: |
+        echo "=== RCLONE REMOTES ==="
+        rclone listremotes 2>/dev/null || echo "(rclone not installed)"
+        echo ""
+        echo "=== RCLONE CONFIG (redacted) ==="
+        if [ -f /root/.config/rclone/rclone.conf ]; then
+          sed -E 's/(token|client_id|client_secret|password).*=.*/\1 = REDACTED/gi' /root/.config/rclone/rclone.conf
+        elif [ -f ~/.config/rclone/rclone.conf ]; then
+          sed -E 's/(token|client_id|client_secret|password).*=.*/\1 = REDACTED/gi' ~/.config/rclone/rclone.conf
+        else
+          echo "(no rclone.conf found)"
+        fi
+        echo ""
+        echo "=== RCLONE CRON/TIMERS ==="
+        crontab -l 2>/dev/null | grep -i rclone || echo "(no rclone crontab)"
+        systemctl list-timers --all --no-pager 2>/dev/null | grep -i rclone || echo "(no rclone timers)"
+        echo ""
+        echo "=== RCLONE SYNC SCRIPTS ==="
+        find /root /opt /usr/local/bin -name '*rclone*' -o -name '*backup*' -o -name '*sync*' 2>/dev/null | head -20
+      register: rclone_info
+      ignore_errors: true
+
+    - name: Save rclone info
+      copy:
+        content: "{{ rclone_info.stdout }}"
+        dest: "./audit-output/pbs/rclone-config.txt"
+      delegate_to: localhost
+
+    # --- Sync/Backup Scripts ---
+    - name: Read sync-backup script
+      slurp:
+        src: /root/sync-backup.sh
+      register: sync_backup_script
+      ignore_errors: true
+
+    - name: Save sync-backup script
+      copy:
+        content: "{{ sync_backup_script.content | b64decode }}"
+        dest: "./audit-output/pbs/sync-backup.sh"
+      delegate_to: localhost
+      when: sync_backup_script is succeeded
+
+    # --- PBS Backup Job Definitions ---
+    - name: Gather PBS backup/prune jobs
+      shell: |
+        echo "=== BACKUP GROUPS ==="
+        proxmox-backup-manager datastore list 2>/dev/null
+        echo ""
+        echo "=== GARBAGE COLLECTION JOBS ==="
+        proxmox-backup-manager garbage-collection status 2>/dev/null || echo "(not available)"
+        echo ""
+        echo "=== PRUNE JOBS ==="
+        proxmox-backup-manager prune-job list 2>/dev/null || echo "(not available)"
+        echo ""
+        echo "=== SYNC JOBS ==="
+        proxmox-backup-manager sync-job list 2>/dev/null || echo "(not available)"
+        echo ""
+        echo "=== VERIFY JOBS ==="
+        proxmox-backup-manager verify-job list 2>/dev/null || echo "(not available)"
+      register: pbs_jobs
+      ignore_errors: true
+
+    - name: Save PBS jobs
+      copy:
+        content: "{{ pbs_jobs.stdout }}"
+        dest: "./audit-output/pbs/pbs-jobs.txt"
+      delegate_to: localhost
+
+    # --- Certbot on PBS ---
+    - name: Gather certbot config on PBS
+      shell: |
+        echo "=== CERTBOT CERTIFICATES ==="
+        certbot certificates 2>/dev/null || echo "(certbot not installed)"
+        echo ""
+        echo "=== LETSENCRYPT RENEWAL CONFIGS ==="
+        for f in /etc/letsencrypt/renewal/*.conf; do
+          [ -f "$f" ] || continue
+          echo "--- $f ---"
+          cat "$f"
+          echo ""
+        done 2>/dev/null || echo "(no renewal configs)"
+      register: pbs_certbot
+      ignore_errors: true
+
+    - name: Save PBS certbot config
+      copy:
+        content: "{{ pbs_certbot.stdout }}"
+        dest: "./audit-output/pbs/certbot-acme.txt"
+      delegate_to: localhost
+
+    # --- SSH keys and scheduled tasks ---
+    - name: Gather PBS scheduled tasks and keys
+      shell: |
+        echo "=== AUTHORIZED KEYS ==="
+        cat /root/.ssh/authorized_keys 2>/dev/null || echo "(none)"
+        echo ""
+        echo "=== CRONTAB ==="
+        crontab -l 2>/dev/null || echo "(no crontab)"
+        echo ""
+        echo "=== SYSTEMD TIMERS ==="
+        systemctl list-timers --all --no-pager
+      register: pbs_tasks
+      ignore_errors: true
+
+    - name: Save PBS tasks
+      copy:
+        content: "{{ pbs_tasks.stdout }}"
+        dest: "./audit-output/pbs/scheduled-tasks.txt"
+      delegate_to: localhost
+
+# =========================================================================
+# PLAY 6: Integration-specific checks
+# =========================================================================
+- name: Audit integrations on docker LXC
+  hosts: docker
+  gather_facts: false
+  tasks:
+    # --- Cloudflared ---
+    - name: Gather Cloudflared config
+      shell: |
+        echo "=== CLOUDFLARED CONTAINER ENV (redacted) ==="
+        docker inspect cloudflared --format '{{ "{{" }}range .Config.Env{{ "}}" }}{{ "{{" }}println .{{ "}}" }}{{ "{{" }}end{{ "}}" }}' 2>/dev/null | \
+          sed -E 's/(TOKEN|SECRET|KEY)=.*/\1=REDACTED/gi'
+        echo ""
+        echo "=== CLOUDFLARED CONTAINER CMD ==="
+        docker inspect cloudflared --format '{{ "{{" }}json .Config.Cmd{{ "}}" }}' 2>/dev/null
+        echo ""
+        echo "=== CLOUDFLARED CONFIG FILE ==="
+        for path in /etc/cloudflared/config.yml /root/.cloudflared/config.yml /mnt/app_config/cloudflared/config.yml; do
+          if [ -f "$path" ]; then
+            echo "Found: $path"
+            sed -E 's/(token|secret|credentials):.*/\1: REDACTED/gi' "$path"
+          fi
+        done 2>/dev/null
+      register: cloudflared_info
+      ignore_errors: true
+
+    - name: Save Cloudflared info
+      copy:
+        content: "{{ cloudflared_info.stdout }}"
+        dest: "./audit-output/integrations/cloudflared.txt"
+      delegate_to: localhost
+
+    # --- Inter-service API keys ---
+    - name: Gather arr API keys (keys exist, values redacted)
+      shell: |
+        echo "=== SERVICE API KEY PRESENCE ==="
+        for svc in sonarr radarr lidarr prowlarr bazarr jellyseerr; do
+          if docker exec "$svc" test -f /config/config.xml 2>/dev/null; then
+            has_key=$(docker exec "$svc" grep -c 'ApiKey' /config/config.xml 2>/dev/null || echo 0)
+            echo "$svc: ApiKey present=$has_key"
+          else
+            echo "$svc: config.xml not found or container not running"
+          fi
+        done
+      register: api_keys
+      ignore_errors: true
+
+    - name: Save API key audit
+      copy:
+        content: "{{ api_keys.stdout }}"
+        dest: "./audit-output/integrations/api-keys.txt"
+      delegate_to: localhost
+
+- name: Audit integrations on seedbox
+  hosts: seedbox
+  gather_facts: false
+  tasks:
+    # --- Gluetun/VPN ---
+    - name: Gather VPN config
+      shell: |
+        echo "=== GLUETUN ENV (redacted) ==="
+        docker inspect gluetun --format '{{ "{{" }}range .Config.Env{{ "}}" }}{{ "{{" }}println .{{ "}}" }}{{ "{{" }}end{{ "}}" }}' 2>/dev/null | \
+          sed -E 's/(KEY|TOKEN|PASSWORD|SECRET|PRIVATE)=.*/\1=REDACTED/gi'
+        echo ""
+        echo "=== GLUETUN PORT FORWARDING ==="
+        docker inspect gluetun --format '{{ "{{" }}json .HostConfig.PortBindings{{ "}}" }}' 2>/dev/null
+        echo ""
+        echo "=== QBITTORRENT NETWORK MODE ==="
+        docker inspect qbittorrent --format 'NetworkMode: {{ "{{" }}.HostConfig.NetworkMode{{ "}}" }}' 2>/dev/null
+      register: vpn_info
+      ignore_errors: true
+
+    - name: Save VPN info
+      copy:
+        content: "{{ vpn_info.stdout }}"
+        dest: "./audit-output/integrations/vpn-seedbox.txt"
+      delegate_to: localhost
+
+# =========================================================================
+# PLAY 7: DNS — AdGuard Home + Unbound (Pi)
+# =========================================================================
+- name: Audit DNS (AdGuard Home + Unbound)
+  hosts: dns
+  gather_facts: true
+  tasks:
+    - name: Create DNS output directory
+      file:
+        path: "./audit-output/dns"
+        state: directory
+      delegate_to: localhost
+
+    # --- System Info ---
+    - name: Gather Pi system info
+      shell: |
+        echo "=== HOSTNAME ==="
+        hostname
+        echo ""
+        echo "=== OS ==="
+        cat /etc/os-release
+        echo ""
+        echo "=== KERNEL ==="
+        uname -a
+        echo ""
+        echo "=== RESOURCES ==="
+        echo "CPU cores: $(nproc)"
+        free -h
+        echo ""
+        echo "=== DISK USAGE ==="
+        df -h
+      register: pi_system
+      ignore_errors: true
+
+    - name: Save Pi system info
+      copy:
+        content: "{{ pi_system.stdout }}"
+        dest: "./audit-output/dns/system-info.txt"
+      delegate_to: localhost
+
+    # --- AdGuard Home Config ---
+    - name: Read AdGuard Home config
+      shell: |
+        cat /opt/AdGuardHome/AdGuardHome.yaml 2>/dev/null || echo "(not found)"
+      register: adguard_raw
+      ignore_errors: true
+
+    - name: Save AdGuard Home config (redacted)
+      copy:
+        content: >-
+          {{ adguard_raw.stdout
+            | regex_replace('password:.*', 'password: REDACTED')
+          }}
+        dest: "./audit-output/dns/adguard-config.yml"
+      delegate_to: localhost
+
+    # --- AdGuard Home DNS rewrites (extracted for quick reference) ---
+    - name: Extract DNS rewrites from AdGuard config
+      shell: |
+        python3 -c "
+        import yaml, sys
+        try:
+            with open('/opt/AdGuardHome/AdGuardHome.yaml') as f:
+                cfg = yaml.safe_load(f)
+            rewrites = cfg.get('filtering', {}).get('rewrites', [])
+            if not rewrites:
+                print('(no rewrites found)')
+            else:
+                print(f'Total rewrites: {len(rewrites)}')
+                print()
+                for r in rewrites:
+                    status = 'enabled' if r.get('enabled', True) else 'disabled'
+                    print(f'{r[\"domain\"]:45s} -> {r[\"answer\"]:20s} [{status}]')
+        except Exception as e:
+            print(f'Error: {e}')
+        " 2>/dev/null || echo "(python3 or pyyaml not available)"
+      register: dns_rewrites
+      ignore_errors: true
+
+    - name: Save DNS rewrites
+      copy:
+        content: "{{ dns_rewrites.stdout }}"
+        dest: "./audit-output/dns/adguard-rewrites.txt"
+      delegate_to: localhost
+
+    # --- AdGuard Home version ---
+    - name: Gather AdGuard Home version
+      shell: |
+        /opt/AdGuardHome/AdGuardHome --version 2>/dev/null || echo "(version check failed)"
+      register: adguard_version
+      ignore_errors: true
+
+    - name: Save AdGuard version
+      copy:
+        content: "{{ adguard_version.stdout }}"
+        dest: "./audit-output/dns/adguard-version.txt"
+      delegate_to: localhost
+
+    # --- Unbound Config ---
+    - name: Read Unbound main config
+      shell: |
+        cat /etc/unbound/unbound.conf 2>/dev/null || echo "(not found)"
+      register: unbound_main
+      ignore_errors: true
+
+    - name: Save Unbound main config
+      copy:
+        content: "{{ unbound_main.stdout }}"
+        dest: "./audit-output/dns/unbound.conf"
+      delegate_to: localhost
+
+    - name: Find Unbound include configs
+      find:
+        paths: /etc/unbound/unbound.conf.d
+        patterns: "*.conf"
+      register: unbound_includes
+      ignore_errors: true
+
+    - name: Read Unbound include configs
+      slurp:
+        src: "{{ item.path }}"
+      register: unbound_include_contents
+      loop: "{{ unbound_includes.files | default([]) }}"
+
+    - name: Save Unbound include configs
+      copy:
+        content: "{{ item.content | b64decode }}"
+        dest: "./audit-output/dns/unbound-{{ item.source | basename }}"
+      delegate_to: localhost
+      loop: "{{ unbound_include_contents.results | default([]) }}"
+
+    # --- TLS certs for DNS-over-TLS/HTTPS ---
+    - name: Check AdGuard TLS cert details
+      shell: |
+        if [ -f /opt/AdGuardHome/ssl/fullchain.pem ]; then
+          echo "=== CERTIFICATE INFO ==="
+          openssl x509 -in /opt/AdGuardHome/ssl/fullchain.pem -noout -subject -issuer -dates -ext subjectAltName 2>/dev/null
+          echo ""
+          echo "=== CERTBOT RENEWAL ==="
+          certbot certificates 2>/dev/null || echo "(certbot not installed)"
+          echo ""
+          for f in /etc/letsencrypt/renewal/*.conf; do
+            [ -f "$f" ] || continue
+            echo "--- $f ---"
+            cat "$f"
+            echo ""
+          done 2>/dev/null
+        else
+          echo "(no TLS cert found at /opt/AdGuardHome/ssl/)"
+        fi
+      register: adguard_tls
+      ignore_errors: true
+
+    - name: Save AdGuard TLS info
+      copy:
+        content: "{{ adguard_tls.stdout }}"
+        dest: "./audit-output/dns/adguard-tls.txt"
+      delegate_to: localhost
+
+    # --- Network and services ---
+    - name: Gather Pi network and services
+      shell: |
+        echo "=== IP ADDRESSES ==="
+        ip -4 addr show
+        echo ""
+        echo "=== LISTENING PORTS ==="
+        ss -tlnp
+        echo ""
+        echo "=== ENABLED SERVICES ==="
+        systemctl list-unit-files --type=service --state=enabled --no-pager 2>/dev/null
+        echo ""
+        echo "=== CRONTAB ==="
+        crontab -l 2>/dev/null || echo "(no crontab)"
+      register: pi_network
+      ignore_errors: true
+
+    - name: Save Pi network info
+      copy:
+        content: "{{ pi_network.stdout }}"
+        dest: "./audit-output/dns/network-services.txt"
+      delegate_to: localhost
+
+# =========================================================================
+# PLAY 8: Cloudflare Zero Trust (from localhost via API)
+# =========================================================================
+- name: Audit Cloudflare Zero Trust
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Query Cloudflare tunnels
+      uri:
+        url: "https://api.cloudflare.com/client/v4/accounts/{{ cf_account_id }}/cfd_tunnel?is_deleted=false"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ cf_api_token }}"
+        return_content: yes
+      register: cf_tunnels
+      ignore_errors: true
+
+    - name: Save Cloudflare tunnels
+      copy:
+        content: |
+          === CLOUDFLARE TUNNELS ===
+          {% for tunnel in (cf_tunnels.json.result | default([])) %}
+          Tunnel: {{ tunnel.name }}
+            ID: {{ tunnel.id }}
+            Status: {{ tunnel.status | default('unknown') }}
+            Created: {{ tunnel.created_at | default('N/A') }}
+          {% endfor %}
+        dest: "./audit-output/cloudflare/tunnels.txt"
+      when: cf_tunnels is succeeded
+
+    - name: Query tunnel configurations
+      uri:
+        url: "https://api.cloudflare.com/client/v4/accounts/{{ cf_account_id }}/cfd_tunnel/{{ item.id }}/configurations"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ cf_api_token }}"
+        return_content: yes
+      register: cf_tunnel_configs
+      loop: "{{ cf_tunnels.json.result | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      ignore_errors: true
+
+    - name: Save tunnel configurations
+      copy:
+        content: |
+          {% for result in cf_tunnel_configs.results | default([]) %}
+          === Tunnel: {{ result.item.name }} ===
+          {% if result.json is defined and result.json.result is defined %}
+          {% for ingress in (result.json.result.config.ingress | default([])) %}
+            {{ ingress.hostname | default('catch-all') }} -> {{ ingress.service }}
+          {% endfor %}
+          {% else %}
+          (config not available)
+          {% endif %}
+
+          {% endfor %}
+        dest: "./audit-output/cloudflare/tunnel-routes.txt"
+      when: cf_tunnel_configs is defined
+
+    - name: Query Cloudflare Access applications
+      uri:
+        url: "https://api.cloudflare.com/client/v4/accounts/{{ cf_account_id }}/access/apps"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ cf_api_token }}"
+        return_content: yes
+      register: cf_access_apps
+      ignore_errors: true
+
+    - name: Save Access applications
+      copy:
+        content: |
+          === CLOUDFLARE ACCESS APPLICATIONS ===
+          {% for app in (cf_access_apps.json.result | default([])) %}
+          App: {{ app.name }}
+            Domain: {{ app.domain | default('N/A') }}
+            Type: {{ app.type | default('N/A') }}
+            Session Duration: {{ app.session_duration | default('N/A') }}
+            Created: {{ app.created_at | default('N/A') }}
+          {% endfor %}
+        dest: "./audit-output/cloudflare/access-apps.txt"
+      when: cf_access_apps is succeeded
+
+    - name: Query Access policies for each app
+      uri:
+        url: "https://api.cloudflare.com/client/v4/accounts/{{ cf_account_id }}/access/apps/{{ item.id }}/policies"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ cf_api_token }}"
+        return_content: yes
+      register: cf_access_policies
+      loop: "{{ cf_access_apps.json.result | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      ignore_errors: true
+
+    - name: Save Access policies
+      copy:
+        content: |
+          {% for result in cf_access_policies.results | default([]) %}
+          === {{ result.item.name }} ===
+          {% for policy in (result.json.result | default([])) %}
+            Policy: {{ policy.name }}
+            Decision: {{ policy.decision }}
+            {% for inc in (policy.include | default([])) %}
+            Include: {{ inc | to_nice_json }}
+            {% endfor %}
+          {% endfor %}
+
+          {% endfor %}
+        dest: "./audit-output/cloudflare/access-policies.txt"
+      when: cf_access_policies is defined
+
+# =========================================================================
+# PLAY 9: Summary
+# =========================================================================
+- name: Generate audit summary
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Create summary
+      shell: |
+        echo "========================================="
+        echo " HOMELAB AUDIT COMPLETE"
+        echo " $(date)"
+        echo "========================================="
+        echo ""
+        echo "Output: ./audit-output/"
+        echo ""
+        echo "=== FILES GENERATED ==="
+        find ./audit-output -type f | sort
+        echo ""
+        echo "=== MANUAL CHECKS NEEDED ==="
+        echo ""
+        echo "These cannot be captured via SSH and need"
+        echo "manual documentation or screenshots:"
+        echo ""
+        echo "  1. UniFi firewall rules and VLAN config"
+        echo "     - Export from UDM controller UI"
+        echo "     - Zone-based rules + legacy LAN IN rules"
+        echo "     - Object groups"
+        echo ""
+        echo "  2. Home Assistant integrations"
+        echo "     - Scrutiny webhook config"
+        echo "     - Any other automations tied to infra"
+        echo ""
+        echo "  3. Google Drive OAuth token for rclone"
+        echo "     - Must be re-authorized on rebuild"
+        echo ""
+        echo "  4. ProtonVPN WireGuard key"
+        echo "     - Must be regenerated on rebuild"
+        echo ""
+      register: summary
+
+    - name: Display summary
+      debug:
+        msg: "{{ summary.stdout_lines }}"
+
+    - name: Save summary
+      copy:
+        content: "{{ summary.stdout }}"
+        dest: "./audit-output/SUMMARY.txt"
