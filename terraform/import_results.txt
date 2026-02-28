@@ -1,0 +1,806 @@
+=== Importing PVE Users ===
+  Importing proxmox_virtual_environment_user.prometheus...
+[0m[1mproxmox_virtual_environment_user.prometheus: Importing from ID "prometheus@pve"...[0m
+[0m[1m[32mproxmox_virtual_environment_user.prometheus: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_user for import[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource already managed by Terraform[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mTerraform is already managing a remote object for
+[31m│[0m [0mproxmox_virtual_environment_user.prometheus. To import to this address you
+[31m│[0m [0mmust first remove the existing object from the state.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing proxmox_virtual_environment_user.svc_homeassistant...
+[0m[1mproxmox_virtual_environment_user.svc_homeassistant: Importing from ID "svc_homeassistant@pve"...[0m
+[0m[1m[32mproxmox_virtual_environment_user.svc_homeassistant: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_user for import[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource already managed by Terraform[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mTerraform is already managing a remote object for
+[31m│[0m [0mproxmox_virtual_environment_user.svc_homeassistant. To import to this
+[31m│[0m [0maddress you must first remove the existing object from the state.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+=== Importing PVE Groups ===
+  Importing proxmox_virtual_environment_group.homeassistant...
+[0m[1mproxmox_virtual_environment_group.homeassistant: Importing from ID "HomeAssistant"...[0m
+[0m[1m[32mproxmox_virtual_environment_group.homeassistant: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_group for import[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource already managed by Terraform[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mTerraform is already managing a remote object for
+[31m│[0m [0mproxmox_virtual_environment_group.homeassistant. To import to this address
+[31m│[0m [0myou must first remove the existing object from the state.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+=== Importing PVE ACLs ===
+  Importing proxmox_virtual_environment_acl.prometheus_auditor...
+[0m[1mproxmox_virtual_environment_acl.prometheus_auditor: Importing from ID "/?prometheus@pve?PVEAuditor"...[0m
+[0m[1m[32mproxmox_virtual_environment_acl.prometheus_auditor: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_acl for import[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource already managed by Terraform[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mTerraform is already managing a remote object for
+[31m│[0m [0mproxmox_virtual_environment_acl.prometheus_auditor. To import to this
+[31m│[0m [0maddress you must first remove the existing object from the state.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing proxmox_virtual_environment_acl.homeassistant_auditor...
+[0m[1mproxmox_virtual_environment_acl.homeassistant_auditor: Importing from ID "/?HomeAssistant?PVEAuditor"...[0m
+[0m[1m[32mproxmox_virtual_environment_acl.homeassistant_auditor: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_acl for import[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource already managed by Terraform[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mTerraform is already managing a remote object for
+[31m│[0m [0mproxmox_virtual_environment_acl.homeassistant_auditor. To import to this
+[31m│[0m [0maddress you must first remove the existing object from the state.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+=== Importing PVE API Tokens ===
+  Importing proxmox_virtual_environment_user_token.homarr...
+[0m[1mproxmox_virtual_environment_user_token.homarr: Importing from ID "root@pam!Homarr"...[0m
+[0m[1m[32mproxmox_virtual_environment_user_token.homarr: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_user_token for import[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource already managed by Terraform[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mTerraform is already managing a remote object for
+[31m│[0m [0mproxmox_virtual_environment_user_token.homarr. To import to this address
+[31m│[0m [0myou must first remove the existing object from the state.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing proxmox_virtual_environment_user_token.backup...
+[0m[1mproxmox_virtual_environment_user_token.backup: Importing from ID "root@pam!backup"...[0m
+[0m[1m[32mproxmox_virtual_environment_user_token.backup: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_user_token for import[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource already managed by Terraform[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mTerraform is already managing a remote object for
+[31m│[0m [0mproxmox_virtual_environment_user_token.backup. To import to this address
+[31m│[0m [0myou must first remove the existing object from the state.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+=== Importing OS Template ===
+  Importing proxmox_virtual_environment_download_file.debian12_ct...
+[0m[1mproxmox_virtual_environment_download_file.debian12_ct: Importing from ID "pve/local/vztmpl/debian-12-standard_12.7-1_amd64.tar.zst"...[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource Import Not Implemented[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mThis resource does not support import. Please contact the provider
+[31m│[0m [0mdeveloper for additional information.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+=== Importing LXC Containers ===
+  Importing proxmox_virtual_environment_container.docker...
+[0m[1mproxmox_virtual_environment_container.docker: Importing from ID "pve/lxc/100"...[0m
+[0m[1m[32mproxmox_virtual_environment_container.docker: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_container for import[0m
+[0m[1mproxmox_virtual_environment_container.docker: Refreshing state... [id=lxc/100][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mstrconv.Atoi: parsing "lxc/100": invalid syntax[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing proxmox_virtual_environment_container.musicbrainz...
+[0m[1mproxmox_virtual_environment_container.musicbrainz: Importing from ID "pve/lxc/101"...[0m
+[0m[1m[32mproxmox_virtual_environment_container.musicbrainz: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_container for import[0m
+[0m[1mproxmox_virtual_environment_container.musicbrainz: Refreshing state... [id=lxc/101][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mstrconv.Atoi: parsing "lxc/101": invalid syntax[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing proxmox_virtual_environment_container.fileserver...
+[0m[1mproxmox_virtual_environment_container.fileserver: Importing from ID "pve/lxc/102"...[0m
+[0m[1m[32mproxmox_virtual_environment_container.fileserver: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_container for import[0m
+[0m[1mproxmox_virtual_environment_container.fileserver: Refreshing state... [id=lxc/102][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mstrconv.Atoi: parsing "lxc/102": invalid syntax[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing proxmox_virtual_environment_container.scrutiny...
+[0m[1mproxmox_virtual_environment_container.scrutiny: Importing from ID "pve/lxc/103"...[0m
+[0m[1m[32mproxmox_virtual_environment_container.scrutiny: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_container for import[0m
+[0m[1mproxmox_virtual_environment_container.scrutiny: Refreshing state... [id=lxc/103][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mstrconv.Atoi: parsing "lxc/103": invalid syntax[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing proxmox_virtual_environment_container.seedbox...
+[0m[1mproxmox_virtual_environment_container.seedbox: Importing from ID "pve/lxc/104"...[0m
+[0m[1m[32mproxmox_virtual_environment_container.seedbox: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_container for import[0m
+[0m[1mproxmox_virtual_environment_container.seedbox: Refreshing state... [id=lxc/104][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mstrconv.Atoi: parsing "lxc/104": invalid syntax[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing proxmox_virtual_environment_container.monitoring...
+[0m[1mproxmox_virtual_environment_container.monitoring: Importing from ID "pve/lxc/105"...[0m
+[0m[1m[32mproxmox_virtual_environment_container.monitoring: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_container for import[0m
+[0m[1mproxmox_virtual_environment_container.monitoring: Refreshing state... [id=lxc/105][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mstrconv.Atoi: parsing "lxc/105": invalid syntax[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+=== Importing VMs ===
+  Importing proxmox_virtual_environment_vm.homeassistant...
+[0m[1mproxmox_virtual_environment_vm.homeassistant: Importing from ID "pve/qemu/107"...[0m
+[0m[1m[32mproxmox_virtual_environment_vm.homeassistant: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_vm for import[0m
+[0m[1mproxmox_virtual_environment_vm.homeassistant: Refreshing state... [id=qemu/107][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mstrconv.Atoi: parsing "qemu/107": invalid syntax[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing proxmox_virtual_environment_vm.backup...
+[0m[1mproxmox_virtual_environment_vm.backup: Importing from ID "pve/qemu/500"...[0m
+[0m[1m[32mproxmox_virtual_environment_vm.backup: Import prepared![0m
+[0m[32m  Prepared proxmox_virtual_environment_vm for import[0m
+[0m[1mproxmox_virtual_environment_vm.backup: Refreshing state... [id=qemu/500][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mstrconv.Atoi: parsing "qemu/500": invalid syntax[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+=== Importing AdGuard DNS Rewrites ===
+  Importing adguard_rewrite.dns["docker.local.arishaig.site"]...
+[0m[1madguard_rewrite.dns["docker.local.arishaig.site"]: Importing from ID "docker.local.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["docker.local.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["docker.local.arishaig.site"]: Refreshing state... [id=docker.local.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"docker.local.arishaig.site\"]", the provider
+[31m│[0m [0mdetected that no object exists with the given id. Only pre-existing objects
+[31m│[0m [0mcan be imported; check that the id is correct and that it is associated
+[31m│[0m [0mwith the provider's configured region or endpoint, or use "terraform apply"
+[31m│[0m [0mto create a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["proxmox.local.arishaig.site"]...
+[0m[1madguard_rewrite.dns["proxmox.local.arishaig.site"]: Importing from ID "proxmox.local.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["proxmox.local.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["proxmox.local.arishaig.site"]: Refreshing state... [id=proxmox.local.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"proxmox.local.arishaig.site\"]", the provider
+[31m│[0m [0mdetected that no object exists with the given id. Only pre-existing objects
+[31m│[0m [0mcan be imported; check that the id is correct and that it is associated
+[31m│[0m [0mwith the provider's configured region or endpoint, or use "terraform apply"
+[31m│[0m [0mto create a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["torrent.local.arishaig.site"]...
+[0m[1madguard_rewrite.dns["torrent.local.arishaig.site"]: Importing from ID "torrent.local.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["torrent.local.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["torrent.local.arishaig.site"]: Refreshing state... [id=torrent.local.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"torrent.local.arishaig.site\"]", the provider
+[31m│[0m [0mdetected that no object exists with the given id. Only pre-existing objects
+[31m│[0m [0mcan be imported; check that the id is correct and that it is associated
+[31m│[0m [0mwith the provider's configured region or endpoint, or use "terraform apply"
+[31m│[0m [0mto create a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["scrutiny.local.arishaig.site"]...
+[0m[1madguard_rewrite.dns["scrutiny.local.arishaig.site"]: Importing from ID "scrutiny.local.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["scrutiny.local.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["scrutiny.local.arishaig.site"]: Refreshing state... [id=scrutiny.local.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"scrutiny.local.arishaig.site\"]", the provider
+[31m│[0m [0mdetected that no object exists with the given id. Only pre-existing objects
+[31m│[0m [0mcan be imported; check that the id is correct and that it is associated
+[31m│[0m [0mwith the provider's configured region or endpoint, or use "terraform apply"
+[31m│[0m [0mto create a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["backup.local.arishaig.site"]...
+[0m[1madguard_rewrite.dns["backup.local.arishaig.site"]: Importing from ID "backup.local.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["backup.local.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["backup.local.arishaig.site"]: Refreshing state... [id=backup.local.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"backup.local.arishaig.site\"]", the provider
+[31m│[0m [0mdetected that no object exists with the given id. Only pre-existing objects
+[31m│[0m [0mcan be imported; check that the id is correct and that it is associated
+[31m│[0m [0mwith the provider's configured region or endpoint, or use "terraform apply"
+[31m│[0m [0mto create a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["backlight.local.arishaig.site"]...
+[0m[1madguard_rewrite.dns["backlight.local.arishaig.site"]: Importing from ID "backlight.local.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["backlight.local.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["backlight.local.arishaig.site"]: Refreshing state... [id=backlight.local.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"backlight.local.arishaig.site\"]", the provider
+[31m│[0m [0mdetected that no object exists with the given id. Only pre-existing objects
+[31m│[0m [0mcan be imported; check that the id is correct and that it is associated
+[31m│[0m [0mwith the provider's configured region or endpoint, or use "terraform apply"
+[31m│[0m [0mto create a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["dns.arishaig.site"]...
+[0m[1madguard_rewrite.dns["dns.arishaig.site"]: Importing from ID "dns.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["dns.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["dns.arishaig.site"]: Refreshing state... [id=dns.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"dns.arishaig.site\"]", the provider detected that no
+[31m│[0m [0mobject exists with the given id. Only pre-existing objects can be imported;
+[31m│[0m [0mcheck that the id is correct and that it is associated with the provider's
+[31m│[0m [0mconfigured region or endpoint, or use "terraform apply" to create a new
+[31m│[0m [0mremote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["monitoring.arishaig.site"]...
+[0m[1madguard_rewrite.dns["monitoring.arishaig.site"]: Importing from ID "monitoring.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["monitoring.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["monitoring.arishaig.site"]: Refreshing state... [id=monitoring.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"monitoring.arishaig.site\"]", the provider detected
+[31m│[0m [0mthat no object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["jellyfin.arishaig.site"]...
+[0m[1madguard_rewrite.dns["jellyfin.arishaig.site"]: Importing from ID "jellyfin.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["jellyfin.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["jellyfin.arishaig.site"]: Refreshing state... [id=jellyfin.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"jellyfin.arishaig.site\"]", the provider detected
+[31m│[0m [0mthat no object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["jellyseerr.arishaig.site"]...
+[0m[1madguard_rewrite.dns["jellyseerr.arishaig.site"]: Importing from ID "jellyseerr.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["jellyseerr.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["jellyseerr.arishaig.site"]: Refreshing state... [id=jellyseerr.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"jellyseerr.arishaig.site\"]", the provider detected
+[31m│[0m [0mthat no object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["sonarr.arishaig.site"]...
+[0m[1madguard_rewrite.dns["sonarr.arishaig.site"]: Importing from ID "sonarr.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["sonarr.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["sonarr.arishaig.site"]: Refreshing state... [id=sonarr.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"sonarr.arishaig.site\"]", the provider detected that
+[31m│[0m [0mno object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["radarr.arishaig.site"]...
+[0m[1madguard_rewrite.dns["radarr.arishaig.site"]: Importing from ID "radarr.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["radarr.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["radarr.arishaig.site"]: Refreshing state... [id=radarr.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"radarr.arishaig.site\"]", the provider detected that
+[31m│[0m [0mno object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["bazarr.arishaig.site"]...
+[0m[1madguard_rewrite.dns["bazarr.arishaig.site"]: Importing from ID "bazarr.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["bazarr.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["bazarr.arishaig.site"]: Refreshing state... [id=bazarr.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"bazarr.arishaig.site\"]", the provider detected that
+[31m│[0m [0mno object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["lidarr.arishaig.site"]...
+[0m[1madguard_rewrite.dns["lidarr.arishaig.site"]: Importing from ID "lidarr.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["lidarr.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["lidarr.arishaig.site"]: Refreshing state... [id=lidarr.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"lidarr.arishaig.site\"]", the provider detected that
+[31m│[0m [0mno object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["prowlarr.arishaig.site"]...
+[0m[1madguard_rewrite.dns["prowlarr.arishaig.site"]: Importing from ID "prowlarr.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["prowlarr.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["prowlarr.arishaig.site"]: Refreshing state... [id=prowlarr.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"prowlarr.arishaig.site\"]", the provider detected
+[31m│[0m [0mthat no object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["nzbd.arishaig.site"]...
+[0m[1madguard_rewrite.dns["nzbd.arishaig.site"]: Importing from ID "nzbd.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["nzbd.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["nzbd.arishaig.site"]: Refreshing state... [id=nzbd.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"nzbd.arishaig.site\"]", the provider detected that
+[31m│[0m [0mno object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["calibre.arishaig.site"]...
+[0m[1madguard_rewrite.dns["calibre.arishaig.site"]: Importing from ID "calibre.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["calibre.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["calibre.arishaig.site"]: Refreshing state... [id=calibre.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"calibre.arishaig.site\"]", the provider detected
+[31m│[0m [0mthat no object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["chaptarr.arishaig.site"]...
+[0m[1madguard_rewrite.dns["chaptarr.arishaig.site"]: Importing from ID "chaptarr.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["chaptarr.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["chaptarr.arishaig.site"]: Refreshing state... [id=chaptarr.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"chaptarr.arishaig.site\"]", the provider detected
+[31m│[0m [0mthat no object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["dash.arishaig.site"]...
+[0m[1madguard_rewrite.dns["dash.arishaig.site"]: Importing from ID "dash.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["dash.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["dash.arishaig.site"]: Refreshing state... [id=dash.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"dash.arishaig.site\"]", the provider detected that
+[31m│[0m [0mno object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["uptime.arishaig.site"]...
+[0m[1madguard_rewrite.dns["uptime.arishaig.site"]: Importing from ID "uptime.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["uptime.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["uptime.arishaig.site"]: Refreshing state... [id=uptime.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"uptime.arishaig.site\"]", the provider detected that
+[31m│[0m [0mno object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["glances.arishaig.site"]...
+[0m[1madguard_rewrite.dns["glances.arishaig.site"]: Importing from ID "glances.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["glances.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["glances.arishaig.site"]: Refreshing state... [id=glances.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"glances.arishaig.site\"]", the provider detected
+[31m│[0m [0mthat no object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["mealie.arishaig.site"]...
+[0m[1madguard_rewrite.dns["mealie.arishaig.site"]: Importing from ID "mealie.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["mealie.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["mealie.arishaig.site"]: Refreshing state... [id=mealie.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"mealie.arishaig.site\"]", the provider detected that
+[31m│[0m [0mno object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["copyparty.arishaig.site"]...
+[0m[1madguard_rewrite.dns["copyparty.arishaig.site"]: Importing from ID "copyparty.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["copyparty.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["copyparty.arishaig.site"]: Refreshing state... [id=copyparty.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"copyparty.arishaig.site\"]", the provider detected
+[31m│[0m [0mthat no object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["recommendarr.arishaig.site"]...
+[0m[1madguard_rewrite.dns["recommendarr.arishaig.site"]: Importing from ID "recommendarr.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["recommendarr.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["recommendarr.arishaig.site"]: Refreshing state... [id=recommendarr.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"recommendarr.arishaig.site\"]", the provider
+[31m│[0m [0mdetected that no object exists with the given id. Only pre-existing objects
+[31m│[0m [0mcan be imported; check that the id is correct and that it is associated
+[31m│[0m [0mwith the provider's configured region or endpoint, or use "terraform apply"
+[31m│[0m [0mto create a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["watcharr.arishaig.site"]...
+[0m[1madguard_rewrite.dns["watcharr.arishaig.site"]: Importing from ID "watcharr.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["watcharr.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["watcharr.arishaig.site"]: Refreshing state... [id=watcharr.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"watcharr.arishaig.site\"]", the provider detected
+[31m│[0m [0mthat no object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["auth.arishaig.site"]...
+[0m[1madguard_rewrite.dns["auth.arishaig.site"]: Importing from ID "auth.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["auth.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["auth.arishaig.site"]: Refreshing state... [id=auth.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"auth.arishaig.site\"]", the provider detected that
+[31m│[0m [0mno object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["torrent.arishaig.site"]...
+[0m[1madguard_rewrite.dns["torrent.arishaig.site"]: Importing from ID "torrent.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["torrent.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["torrent.arishaig.site"]: Refreshing state... [id=torrent.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"torrent.arishaig.site\"]", the provider detected
+[31m│[0m [0mthat no object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["proxmox.arishaig.site"]...
+[0m[1madguard_rewrite.dns["proxmox.arishaig.site"]: Importing from ID "proxmox.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["proxmox.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["proxmox.arishaig.site"]: Refreshing state... [id=proxmox.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"proxmox.arishaig.site\"]", the provider detected
+[31m│[0m [0mthat no object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["scrutiny.arishaig.site"]...
+[0m[1madguard_rewrite.dns["scrutiny.arishaig.site"]: Importing from ID "scrutiny.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["scrutiny.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["scrutiny.arishaig.site"]: Refreshing state... [id=scrutiny.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"scrutiny.arishaig.site\"]", the provider detected
+[31m│[0m [0mthat no object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["backup.arishaig.site"]...
+[0m[1madguard_rewrite.dns["backup.arishaig.site"]: Importing from ID "backup.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["backup.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["backup.arishaig.site"]: Refreshing state... [id=backup.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"backup.arishaig.site\"]", the provider detected that
+[31m│[0m [0mno object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["docker.arishaig.site"]...
+[0m[1madguard_rewrite.dns["docker.arishaig.site"]: Importing from ID "docker.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["docker.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["docker.arishaig.site"]: Refreshing state... [id=docker.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"docker.arishaig.site\"]", the provider detected that
+[31m│[0m [0mno object exists with the given id. Only pre-existing objects can be
+[31m│[0m [0mimported; check that the id is correct and that it is associated with the
+[31m│[0m [0mprovider's configured region or endpoint, or use "terraform apply" to
+[31m│[0m [0mcreate a new remote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_rewrite.dns["vpn.arishaig.site"]...
+[0m[1madguard_rewrite.dns["vpn.arishaig.site"]: Importing from ID "vpn.arishaig.site"...[0m
+[0m[1m[32madguard_rewrite.dns["vpn.arishaig.site"]: Import prepared![0m
+[0m[32m  Prepared adguard_rewrite for import[0m
+[0m[1madguard_rewrite.dns["vpn.arishaig.site"]: Refreshing state... [id=vpn.arishaig.site][0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mCannot import non-existent remote object[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mWhile attempting to import an existing object to
+[31m│[0m [0m"adguard_rewrite.dns[\"vpn.arishaig.site\"]", the provider detected that no
+[31m│[0m [0mobject exists with the given id. Only pre-existing objects can be imported;
+[31m│[0m [0mcheck that the id is correct and that it is associated with the provider's
+[31m│[0m [0mconfigured region or endpoint, or use "terraform apply" to create a new
+[31m│[0m [0mremote object for this resource.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+=== Importing AdGuard Config ===
+  Importing adguard_config.main...
+[0m[1madguard_config.main: Importing from ID "1"...[0m
+[0m[1m[32madguard_config.main: Import prepared![0m
+[0m[32m  Prepared adguard_config for import[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource already managed by Terraform[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mTerraform is already managing a remote object for adguard_config.main. To
+[31m│[0m [0mimport to this address you must first remove the existing object from the
+[31m│[0m [0mstate.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+=== Importing AdGuard Filter Lists ===
+  Importing adguard_list_filter.hagezi_pro...
+[0m[1madguard_list_filter.hagezi_pro: Importing from ID "1771729533"...[0m
+[0m[1m[32madguard_list_filter.hagezi_pro: Import prepared![0m
+[0m[32m  Prepared adguard_list_filter for import[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource already managed by Terraform[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mTerraform is already managing a remote object for
+[31m│[0m [0madguard_list_filter.hagezi_pro. To import to this address you must first
+[31m│[0m [0mremove the existing object from the state.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_list_filter.hagezi_gambling...
+[0m[1madguard_list_filter.hagezi_gambling: Importing from ID "1771729534"...[0m
+[0m[1m[32madguard_list_filter.hagezi_gambling: Import prepared![0m
+[0m[32m  Prepared adguard_list_filter for import[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource already managed by Terraform[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mTerraform is already managing a remote object for
+[31m│[0m [0madguard_list_filter.hagezi_gambling. To import to this address you must
+[31m│[0m [0mfirst remove the existing object from the state.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+  Importing adguard_list_filter.hagezi_threat_intel...
+[0m[1madguard_list_filter.hagezi_threat_intel: Importing from ID "1771729535"...[0m
+[0m[1m[32madguard_list_filter.hagezi_threat_intel: Import prepared![0m
+[0m[32m  Prepared adguard_list_filter for import[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource already managed by Terraform[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mTerraform is already managing a remote object for
+[31m│[0m [0madguard_list_filter.hagezi_threat_intel. To import to this address you must
+[31m│[0m [0mfirst remove the existing object from the state.
+[31m╵[0m[0m
+[0m[0m
+  (skipped — may already be imported)
+
+=== Import complete ===
+Run 'terraform plan -var-file=secrets.tfvars' to check for drift.

@@ -1,0 +1,58 @@
+---
+# Deploy nftables rules per host
+# Note: On Docker hosts, nftables rules are managed by Docker itself.
+# This playbook only deploys the base inet filter table.
+# Docker's iptables/nftables rules are created automatically when
+# containers start.
+
+- name: Deploy nftables configuration
+  hosts: lxcs
+  become: true
+  gather_facts: true
+
+  vars:
+    # Base nftables config — accept all (Docker manages its own rules)
+    nftables_base_rules: |
+      #!/usr/sbin/nft -f
+
+      flush ruleset
+
+      table inet filter {
+        chain input {
+          type filter hook input priority filter; policy accept;
+        }
+
+        chain forward {
+          type filter hook forward priority filter; policy accept;
+        }
+
+        chain output {
+          type filter hook output priority filter; policy accept;
+        }
+      }
+
+  tasks:
+    - name: Install nftables
+      ansible.builtin.apt:
+        name: nftables
+        state: present
+
+    - name: Deploy nftables config
+      ansible.builtin.copy:
+        content: "{{ nftables_base_rules }}"
+        dest: /etc/nftables.conf
+        mode: "0755"
+        backup: true
+      notify: Reload nftables
+
+    - name: Enable nftables service
+      ansible.builtin.systemd:
+        name: nftables
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Reload nftables
+      ansible.builtin.systemd:
+        name: nftables
+        state: restarted

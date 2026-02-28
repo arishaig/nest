@@ -1,0 +1,1168 @@
+[0m[1mproxmox_virtual_environment_user_token.backup: Refreshing state... [id=root@pam!backup][0m
+[0m[1mproxmox_virtual_environment_user_token.homarr: Refreshing state... [id=root@pam!Homarr][0m
+[0m[1mproxmox_virtual_environment_group.homeassistant: Refreshing state... [id=HomeAssistant][0m
+[0m[1mproxmox_virtual_environment_user.svc_homeassistant: Refreshing state... [id=svc_homeassistant@pve][0m
+[0m[1mproxmox_virtual_environment_user.prometheus: Refreshing state... [id=prometheus@pve][0m
+[0m[1mproxmox_virtual_environment_acl.prometheus_auditor: Refreshing state... [id=/?prometheus@pve?PVEAuditor][0m
+[0m[1mproxmox_virtual_environment_acl.homeassistant_auditor: Refreshing state... [id=/?HomeAssistant?PVEAuditor][0m
+[0m[1madguard_list_filter.hagezi_gambling: Refreshing state... [id=1771729534][0m
+[0m[1madguard_list_filter.hagezi_pro: Refreshing state... [id=1771729533][0m
+[0m[1madguard_list_filter.hagezi_threat_intel: Refreshing state... [id=1771729535][0m
+[0m[1madguard_config.main: Refreshing state... [id=1][0m
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  [32m+[0m create[0m
+  [33m~[0m update in-place[0m
+
+Terraform will perform the following actions:
+
+[1m  # adguard_config.main[0m will be updated in-place
+[0m  [33m~[0m[0m resource "adguard_config" "main" {
+      [33m~[0m[0m blocked_services_pause_schedule = {
+          [31m-[0m[0m time_zone = "Local" [90m-> null[0m[0m
+            [90m# (7 unchanged attributes hidden)[0m[0m
+        }
+      [33m~[0m[0m dns                             = {
+          [31m-[0m[0m disallowed_clients         = [] [90m-> null[0m[0m
+          [33m~[0m[0m use_private_ptr_resolvers  = true [33m->[0m[0m false
+            [90m# (25 unchanged attributes hidden)[0m[0m
+        }
+        id                              = "1"
+      [32m+[0m[0m last_updated                    = (known after apply)
+      [33m~[0m[0m querylog                        = {
+          [33m~[0m[0m interval            = 2160 [33m->[0m[0m 90
+            [90m# (3 unchanged attributes hidden)[0m[0m
+        }
+      [33m~[0m[0m tls                             = {
+          [33m~[0m[0m dns_names          = [
+              [31m-[0m[0m "dns.arishaig.site",
+            ] -> (known after apply)
+          [33m~[0m[0m issuer             = "CN=E7,O=Let's Encrypt,C=US" -> (known after apply)
+          [33m~[0m[0m key_type           = "ECDSA" -> (known after apply)
+          [33m~[0m[0m not_after          = "2026-05-26T02:36:11Z" -> (known after apply)
+          [33m~[0m[0m not_before         = "2026-02-25T02:36:12Z" -> (known after apply)
+          [33m~[0m[0m private_key_saved  = false -> (known after apply)
+          [33m~[0m[0m subject            = "CN=dns.arishaig.site" -> (known after apply)
+          [33m~[0m[0m valid_cert         = true -> (known after apply)
+          [33m~[0m[0m valid_chain        = true -> (known after apply)
+          [33m~[0m[0m valid_key          = true -> (known after apply)
+          [33m~[0m[0m valid_pair         = true -> (known after apply)
+          [33m~[0m[0m warning_validation = "validating certificate pair: certificates has no IP addresses; DNS-over-TLS won't be advertised via DDR" -> (known after apply)
+            [90m# (9 unchanged attributes hidden)[0m[0m
+        }
+        [90m# (6 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # adguard_rewrite.dns["auth.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "auth.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["backlight.local.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.4.97"
+      [32m+[0m[0m domain       = "backlight.local.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["backup.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "backup.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["backup.local.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.113"
+      [32m+[0m[0m domain       = "backup.local.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["bazarr.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "bazarr.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["calibre.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "calibre.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["chaptarr.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "chaptarr.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["copyparty.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "copyparty.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["dash.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "dash.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["dns.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.7.7"
+      [32m+[0m[0m domain       = "dns.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["docker.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "docker.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["docker.local.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "docker.local.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["glances.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "glances.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["jellyfin.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "jellyfin.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["jellyseerr.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "jellyseerr.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["lidarr.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "lidarr.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["mealie.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "mealie.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["monitoring.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "monitoring.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["nzbd.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "nzbd.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["prowlarr.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "prowlarr.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["proxmox.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "proxmox.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["proxmox.local.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.16"
+      [32m+[0m[0m domain       = "proxmox.local.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["radarr.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "radarr.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["recommendarr.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "recommendarr.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["scrutiny.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "scrutiny.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["scrutiny.local.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.46"
+      [32m+[0m[0m domain       = "scrutiny.local.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["sonarr.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "sonarr.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["torrent.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "torrent.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["torrent.local.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.182"
+      [32m+[0m[0m domain       = "torrent.local.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["uptime.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "uptime.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["vpn.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.1"
+      [32m+[0m[0m domain       = "vpn.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # adguard_rewrite.dns["watcharr.arishaig.site"][0m will be created
+[0m  [32m+[0m[0m resource "adguard_rewrite" "dns" {
+      [32m+[0m[0m answer       = "192.168.1.158"
+      [32m+[0m[0m domain       = "watcharr.arishaig.site"
+      [32m+[0m[0m id           = (known after apply)
+      [32m+[0m[0m last_updated = (known after apply)
+    }
+
+[1m  # proxmox_virtual_environment_container.docker[0m will be created
+[0m  [32m+[0m[0m resource "proxmox_virtual_environment_container" "docker" {
+      [32m+[0m[0m description    = <<-EOT
+            Main Docker host
+        EOT
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m ipv4           = (known after apply)
+      [32m+[0m[0m ipv6           = (known after apply)
+      [32m+[0m[0m node_name      = "pve"
+      [32m+[0m[0m protection     = false
+      [32m+[0m[0m start_on_boot  = true
+      [32m+[0m[0m started        = true
+      [32m+[0m[0m tags           = [
+          [32m+[0m[0m "docker",
+          [32m+[0m[0m "infrastructure",
+        ]
+      [32m+[0m[0m template       = false
+      [32m+[0m[0m timeout_clone  = 1800
+      [32m+[0m[0m timeout_create = 1800
+      [32m+[0m[0m timeout_delete = 60
+      [32m+[0m[0m timeout_start  = 300
+      [32m+[0m[0m timeout_update = 1800
+      [32m+[0m[0m unprivileged   = true
+      [32m+[0m[0m vm_id          = 100
+
+      [32m+[0m[0m cpu {
+          [32m+[0m[0m architecture = "amd64"
+          [32m+[0m[0m cores        = 10
+          [32m+[0m[0m units        = 1024
+        }
+
+      [32m+[0m[0m disk {
+          [32m+[0m[0m acl               = false
+          [32m+[0m[0m datastore_id      = "local-zfs"
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m quota             = false
+          [32m+[0m[0m replicate         = false
+          [32m+[0m[0m size              = 64
+        }
+
+      [32m+[0m[0m features {
+          [32m+[0m[0m fuse    = false
+          [32m+[0m[0m keyctl  = true
+          [32m+[0m[0m nesting = true
+        }
+
+      [32m+[0m[0m initialization {
+          [32m+[0m[0m dns {
+              [32m+[0m[0m servers = [
+                  [32m+[0m[0m "192.168.7.7",
+                ]
+            }
+          [32m+[0m[0m ip_config {
+              [32m+[0m[0m ipv4 {
+                  [32m+[0m[0m address = "192.168.1.158/24"
+                  [32m+[0m[0m gateway = "192.168.1.1"
+                }
+            }
+        }
+
+      [32m+[0m[0m memory {
+          [32m+[0m[0m dedicated = 65536
+          [32m+[0m[0m swap      = 512
+        }
+
+      [32m+[0m[0m mount_point {
+          [32m+[0m[0m acl               = false
+          [32m+[0m[0m backup            = false
+          [32m+[0m[0m path              = "/mnt/media_root"
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m quota             = false
+          [32m+[0m[0m read_only         = false
+          [32m+[0m[0m replicate         = true
+          [32m+[0m[0m shared            = false
+          [32m+[0m[0m volume            = "/Tank/media_root"
+        }
+      [32m+[0m[0m mount_point {
+          [32m+[0m[0m acl               = false
+          [32m+[0m[0m backup            = false
+          [32m+[0m[0m path              = "/mnt/app_config"
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m quota             = false
+          [32m+[0m[0m read_only         = false
+          [32m+[0m[0m replicate         = true
+          [32m+[0m[0m shared            = false
+          [32m+[0m[0m volume            = "/rpool/data/docker-apps"
+        }
+      [32m+[0m[0m mount_point {
+          [32m+[0m[0m acl               = false
+          [32m+[0m[0m backup            = false
+          [32m+[0m[0m path              = "/mnt/personal"
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m quota             = false
+          [32m+[0m[0m read_only         = false
+          [32m+[0m[0m replicate         = true
+          [32m+[0m[0m shared            = false
+          [32m+[0m[0m volume            = "/Tank/personal"
+        }
+
+      [32m+[0m[0m network_interface {
+          [32m+[0m[0m bridge      = "vmbr0"
+          [32m+[0m[0m enabled     = true
+          [32m+[0m[0m firewall    = false
+          [32m+[0m[0m mac_address = (known after apply)
+          [32m+[0m[0m mtu         = 0
+          [32m+[0m[0m name        = "eth0"
+          [32m+[0m[0m rate_limit  = 0
+          [32m+[0m[0m vlan_id     = 0
+        }
+
+      [32m+[0m[0m operating_system {
+          [32m+[0m[0m template_file_id = (known after apply)
+          [32m+[0m[0m type             = "debian"
+        }
+
+      [32m+[0m[0m startup {
+          [32m+[0m[0m down_delay = -1
+          [32m+[0m[0m order      = 1
+          [32m+[0m[0m up_delay   = 15
+        }
+    }
+
+[1m  # proxmox_virtual_environment_container.fileserver[0m will be created
+[0m  [32m+[0m[0m resource "proxmox_virtual_environment_container" "fileserver" {
+      [32m+[0m[0m description    = <<-EOT
+            Samba file server
+        EOT
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m ipv4           = (known after apply)
+      [32m+[0m[0m ipv6           = (known after apply)
+      [32m+[0m[0m node_name      = "pve"
+      [32m+[0m[0m protection     = false
+      [32m+[0m[0m start_on_boot  = true
+      [32m+[0m[0m started        = true
+      [32m+[0m[0m tags           = [
+          [32m+[0m[0m "fileserver",
+        ]
+      [32m+[0m[0m template       = false
+      [32m+[0m[0m timeout_clone  = 1800
+      [32m+[0m[0m timeout_create = 1800
+      [32m+[0m[0m timeout_delete = 60
+      [32m+[0m[0m timeout_start  = 300
+      [32m+[0m[0m timeout_update = 1800
+      [32m+[0m[0m unprivileged   = true
+      [32m+[0m[0m vm_id          = 102
+
+      [32m+[0m[0m cpu {
+          [32m+[0m[0m architecture = "amd64"
+          [32m+[0m[0m cores        = 2
+          [32m+[0m[0m units        = 1024
+        }
+
+      [32m+[0m[0m disk {
+          [32m+[0m[0m acl               = false
+          [32m+[0m[0m datastore_id      = "local-zfs"
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m quota             = false
+          [32m+[0m[0m replicate         = false
+          [32m+[0m[0m size              = 8
+        }
+
+      [32m+[0m[0m features {
+          [32m+[0m[0m fuse    = false
+          [32m+[0m[0m keyctl  = true
+          [32m+[0m[0m nesting = true
+        }
+
+      [32m+[0m[0m initialization {
+          [32m+[0m[0m dns {
+              [32m+[0m[0m servers = [
+                  [32m+[0m[0m "192.168.7.7",
+                ]
+            }
+          [32m+[0m[0m ip_config {
+              [32m+[0m[0m ipv4 {
+                  [32m+[0m[0m address = "192.168.1.17/24"
+                  [32m+[0m[0m gateway = "192.168.1.1"
+                }
+            }
+        }
+
+      [32m+[0m[0m memory {
+          [32m+[0m[0m dedicated = 1024
+          [32m+[0m[0m swap      = 1024
+        }
+
+      [32m+[0m[0m mount_point {
+          [32m+[0m[0m acl               = false
+          [32m+[0m[0m backup            = false
+          [32m+[0m[0m path              = "/mnt/media_root"
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m quota             = false
+          [32m+[0m[0m read_only         = false
+          [32m+[0m[0m replicate         = true
+          [32m+[0m[0m shared            = false
+          [32m+[0m[0m volume            = "/Tank/media_root"
+        }
+
+      [32m+[0m[0m network_interface {
+          [32m+[0m[0m bridge      = "vmbr0"
+          [32m+[0m[0m enabled     = true
+          [32m+[0m[0m firewall    = false
+          [32m+[0m[0m mac_address = (known after apply)
+          [32m+[0m[0m mtu         = 0
+          [32m+[0m[0m name        = "eth0"
+          [32m+[0m[0m rate_limit  = 0
+          [32m+[0m[0m vlan_id     = 0
+        }
+
+      [32m+[0m[0m operating_system {
+          [32m+[0m[0m template_file_id = (known after apply)
+          [32m+[0m[0m type             = "debian"
+        }
+
+      [32m+[0m[0m startup {
+          [32m+[0m[0m down_delay = -1
+          [32m+[0m[0m order      = 2
+          [32m+[0m[0m up_delay   = -1
+        }
+    }
+
+[1m  # proxmox_virtual_environment_container.monitoring[0m will be created
+[0m  [32m+[0m[0m resource "proxmox_virtual_environment_container" "monitoring" {
+      [32m+[0m[0m description    = <<-EOT
+            Monitoring stack (Prometheus, Grafana, Loki)
+        EOT
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m ipv4           = (known after apply)
+      [32m+[0m[0m ipv6           = (known after apply)
+      [32m+[0m[0m node_name      = "pve"
+      [32m+[0m[0m protection     = false
+      [32m+[0m[0m start_on_boot  = true
+      [32m+[0m[0m started        = true
+      [32m+[0m[0m tags           = [
+          [32m+[0m[0m "docker",
+          [32m+[0m[0m "monitoring",
+        ]
+      [32m+[0m[0m template       = false
+      [32m+[0m[0m timeout_clone  = 1800
+      [32m+[0m[0m timeout_create = 1800
+      [32m+[0m[0m timeout_delete = 60
+      [32m+[0m[0m timeout_start  = 300
+      [32m+[0m[0m timeout_update = 1800
+      [32m+[0m[0m unprivileged   = true
+      [32m+[0m[0m vm_id          = 105
+
+      [32m+[0m[0m cpu {
+          [32m+[0m[0m architecture = "amd64"
+          [32m+[0m[0m cores        = 2
+          [32m+[0m[0m units        = 1024
+        }
+
+      [32m+[0m[0m disk {
+          [32m+[0m[0m acl               = false
+          [32m+[0m[0m datastore_id      = "Tank"
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m quota             = false
+          [32m+[0m[0m replicate         = false
+          [32m+[0m[0m size              = 50
+        }
+
+      [32m+[0m[0m features {
+          [32m+[0m[0m fuse    = false
+          [32m+[0m[0m keyctl  = false
+          [32m+[0m[0m nesting = true
+        }
+
+      [32m+[0m[0m initialization {
+          [32m+[0m[0m dns {
+              [32m+[0m[0m servers = [
+                  [32m+[0m[0m "192.168.7.7",
+                ]
+            }
+          [32m+[0m[0m ip_config {
+              [32m+[0m[0m ipv4 {
+                  [32m+[0m[0m address = "192.168.1.44/24"
+                  [32m+[0m[0m gateway = "192.168.1.1"
+                }
+            }
+        }
+
+      [32m+[0m[0m memory {
+          [32m+[0m[0m dedicated = 12288
+          [32m+[0m[0m swap      = 12288
+        }
+
+      [32m+[0m[0m network_interface {
+          [32m+[0m[0m bridge      = "vmbr0"
+          [32m+[0m[0m enabled     = true
+          [32m+[0m[0m firewall    = true
+          [32m+[0m[0m mac_address = (known after apply)
+          [32m+[0m[0m mtu         = 0
+          [32m+[0m[0m name        = "eth0"
+          [32m+[0m[0m rate_limit  = 0
+          [32m+[0m[0m vlan_id     = 0
+        }
+
+      [32m+[0m[0m operating_system {
+          [32m+[0m[0m template_file_id = (known after apply)
+          [32m+[0m[0m type             = "debian"
+        }
+
+      [32m+[0m[0m startup {
+          [32m+[0m[0m down_delay = -1
+          [32m+[0m[0m order      = 2
+          [32m+[0m[0m up_delay   = -1
+        }
+    }
+
+[1m  # proxmox_virtual_environment_container.musicbrainz[0m will be created
+[0m  [32m+[0m[0m resource "proxmox_virtual_environment_container" "musicbrainz" {
+      [32m+[0m[0m description    = <<-EOT
+            MusicBrainz mirror
+        EOT
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m ipv4           = (known after apply)
+      [32m+[0m[0m ipv6           = (known after apply)
+      [32m+[0m[0m node_name      = "pve"
+      [32m+[0m[0m protection     = false
+      [32m+[0m[0m start_on_boot  = true
+      [32m+[0m[0m started        = true
+      [32m+[0m[0m tags           = [
+          [32m+[0m[0m "docker",
+          [32m+[0m[0m "media",
+        ]
+      [32m+[0m[0m template       = false
+      [32m+[0m[0m timeout_clone  = 1800
+      [32m+[0m[0m timeout_create = 1800
+      [32m+[0m[0m timeout_delete = 60
+      [32m+[0m[0m timeout_start  = 300
+      [32m+[0m[0m timeout_update = 1800
+      [32m+[0m[0m unprivileged   = true
+      [32m+[0m[0m vm_id          = 101
+
+      [32m+[0m[0m cpu {
+          [32m+[0m[0m architecture = "amd64"
+          [32m+[0m[0m cores        = 12
+          [32m+[0m[0m units        = 1024
+        }
+
+      [32m+[0m[0m disk {
+          [32m+[0m[0m acl               = false
+          [32m+[0m[0m datastore_id      = "local-zfs"
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m quota             = false
+          [32m+[0m[0m replicate         = false
+          [32m+[0m[0m size              = 350
+        }
+
+      [32m+[0m[0m features {
+          [32m+[0m[0m fuse    = false
+          [32m+[0m[0m keyctl  = true
+          [32m+[0m[0m nesting = true
+        }
+
+      [32m+[0m[0m initialization {
+          [32m+[0m[0m dns {
+              [32m+[0m[0m servers = [
+                  [32m+[0m[0m "192.168.7.7",
+                ]
+            }
+          [32m+[0m[0m ip_config {
+              [32m+[0m[0m ipv4 {
+                  [32m+[0m[0m address = "dhcp"
+                }
+            }
+        }
+
+      [32m+[0m[0m memory {
+          [32m+[0m[0m dedicated = 16384
+          [32m+[0m[0m swap      = 512
+        }
+
+      [32m+[0m[0m network_interface {
+          [32m+[0m[0m bridge      = "vmbr0"
+          [32m+[0m[0m enabled     = true
+          [32m+[0m[0m firewall    = false
+          [32m+[0m[0m mac_address = (known after apply)
+          [32m+[0m[0m mtu         = 0
+          [32m+[0m[0m name        = "eth0"
+          [32m+[0m[0m rate_limit  = 0
+          [32m+[0m[0m vlan_id     = 0
+        }
+
+      [32m+[0m[0m operating_system {
+          [32m+[0m[0m template_file_id = (known after apply)
+          [32m+[0m[0m type             = "debian"
+        }
+
+      [32m+[0m[0m startup {
+          [32m+[0m[0m down_delay = -1
+          [32m+[0m[0m order      = 2
+          [32m+[0m[0m up_delay   = -1
+        }
+    }
+
+[1m  # proxmox_virtual_environment_container.scrutiny[0m will be created
+[0m  [32m+[0m[0m resource "proxmox_virtual_environment_container" "scrutiny" {
+      [32m+[0m[0m description    = <<-EOT
+            Scrutiny disk health monitoring
+        EOT
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m ipv4           = (known after apply)
+      [32m+[0m[0m ipv6           = (known after apply)
+      [32m+[0m[0m node_name      = "pve"
+      [32m+[0m[0m protection     = false
+      [32m+[0m[0m start_on_boot  = true
+      [32m+[0m[0m started        = true
+      [32m+[0m[0m tags           = [
+          [32m+[0m[0m "docker",
+          [32m+[0m[0m "monitoring",
+        ]
+      [32m+[0m[0m template       = false
+      [32m+[0m[0m timeout_clone  = 1800
+      [32m+[0m[0m timeout_create = 1800
+      [32m+[0m[0m timeout_delete = 60
+      [32m+[0m[0m timeout_start  = 300
+      [32m+[0m[0m timeout_update = 1800
+      [32m+[0m[0m unprivileged   = false
+      [32m+[0m[0m vm_id          = 103
+
+      [32m+[0m[0m cpu {
+          [32m+[0m[0m architecture = "amd64"
+          [32m+[0m[0m cores        = 2
+          [32m+[0m[0m units        = 1024
+        }
+
+      [32m+[0m[0m disk {
+          [32m+[0m[0m acl               = false
+          [32m+[0m[0m datastore_id      = "local-zfs"
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m quota             = false
+          [32m+[0m[0m replicate         = false
+          [32m+[0m[0m size              = 8
+        }
+
+      [32m+[0m[0m initialization {
+          [32m+[0m[0m dns {
+              [32m+[0m[0m servers = [
+                  [32m+[0m[0m "192.168.7.7",
+                ]
+            }
+          [32m+[0m[0m ip_config {
+              [32m+[0m[0m ipv4 {
+                  [32m+[0m[0m address = "dhcp"
+                }
+            }
+        }
+
+      [32m+[0m[0m memory {
+          [32m+[0m[0m dedicated = 2048
+          [32m+[0m[0m swap      = 512
+        }
+
+      [32m+[0m[0m network_interface {
+          [32m+[0m[0m bridge      = "vmbr0"
+          [32m+[0m[0m enabled     = true
+          [32m+[0m[0m firewall    = false
+          [32m+[0m[0m mac_address = (known after apply)
+          [32m+[0m[0m mtu         = 0
+          [32m+[0m[0m name        = "eth0"
+          [32m+[0m[0m rate_limit  = 0
+          [32m+[0m[0m vlan_id     = 0
+        }
+
+      [32m+[0m[0m operating_system {
+          [32m+[0m[0m template_file_id = (known after apply)
+          [32m+[0m[0m type             = "debian"
+        }
+
+      [32m+[0m[0m startup {
+          [32m+[0m[0m down_delay = -1
+          [32m+[0m[0m order      = 3
+          [32m+[0m[0m up_delay   = -1
+        }
+    }
+
+[1m  # proxmox_virtual_environment_container.seedbox[0m will be created
+[0m  [32m+[0m[0m resource "proxmox_virtual_environment_container" "seedbox" {
+      [32m+[0m[0m description    = <<-EOT
+            Seedbox with VPN
+        EOT
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m ipv4           = (known after apply)
+      [32m+[0m[0m ipv6           = (known after apply)
+      [32m+[0m[0m node_name      = "pve"
+      [32m+[0m[0m protection     = false
+      [32m+[0m[0m start_on_boot  = true
+      [32m+[0m[0m started        = true
+      [32m+[0m[0m tags           = [
+          [32m+[0m[0m "docker",
+          [32m+[0m[0m "media",
+        ]
+      [32m+[0m[0m template       = false
+      [32m+[0m[0m timeout_clone  = 1800
+      [32m+[0m[0m timeout_create = 1800
+      [32m+[0m[0m timeout_delete = 60
+      [32m+[0m[0m timeout_start  = 300
+      [32m+[0m[0m timeout_update = 1800
+      [32m+[0m[0m unprivileged   = true
+      [32m+[0m[0m vm_id          = 104
+
+      [32m+[0m[0m cpu {
+          [32m+[0m[0m architecture = "amd64"
+          [32m+[0m[0m cores        = 2
+          [32m+[0m[0m units        = 1024
+        }
+
+      [32m+[0m[0m disk {
+          [32m+[0m[0m acl               = false
+          [32m+[0m[0m datastore_id      = "local-zfs"
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m quota             = false
+          [32m+[0m[0m replicate         = false
+          [32m+[0m[0m size              = 8
+        }
+
+      [32m+[0m[0m features {
+          [32m+[0m[0m fuse    = false
+          [32m+[0m[0m keyctl  = false
+          [32m+[0m[0m nesting = true
+        }
+
+      [32m+[0m[0m initialization {
+          [32m+[0m[0m dns {
+              [32m+[0m[0m servers = [
+                  [32m+[0m[0m "192.168.7.7",
+                ]
+            }
+          [32m+[0m[0m ip_config {
+              [32m+[0m[0m ipv4 {
+                  [32m+[0m[0m address = "dhcp"
+                }
+            }
+        }
+
+      [32m+[0m[0m memory {
+          [32m+[0m[0m dedicated = 2048
+          [32m+[0m[0m swap      = 512
+        }
+
+      [32m+[0m[0m mount_point {
+          [32m+[0m[0m acl               = false
+          [32m+[0m[0m backup            = false
+          [32m+[0m[0m path              = "/mnt/data"
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m quota             = false
+          [32m+[0m[0m read_only         = false
+          [32m+[0m[0m replicate         = true
+          [32m+[0m[0m shared            = false
+          [32m+[0m[0m volume            = "/Tank/media_root"
+        }
+
+      [32m+[0m[0m network_interface {
+          [32m+[0m[0m bridge      = "vmbr0"
+          [32m+[0m[0m enabled     = true
+          [32m+[0m[0m firewall    = true
+          [32m+[0m[0m mac_address = (known after apply)
+          [32m+[0m[0m mtu         = 0
+          [32m+[0m[0m name        = "eth0"
+          [32m+[0m[0m rate_limit  = 0
+          [32m+[0m[0m vlan_id     = 0
+        }
+
+      [32m+[0m[0m operating_system {
+          [32m+[0m[0m template_file_id = (known after apply)
+          [32m+[0m[0m type             = "debian"
+        }
+
+      [32m+[0m[0m startup {
+          [32m+[0m[0m down_delay = -1
+          [32m+[0m[0m order      = 3
+          [32m+[0m[0m up_delay   = -1
+        }
+    }
+
+[1m  # proxmox_virtual_environment_download_file.debian12_ct[0m will be created
+[0m  [32m+[0m[0m resource "proxmox_virtual_environment_download_file" "debian12_ct" {
+      [32m+[0m[0m content_type        = "vztmpl"
+      [32m+[0m[0m datastore_id        = "local"
+      [32m+[0m[0m file_name           = (known after apply)
+      [32m+[0m[0m id                  = (known after apply)
+      [32m+[0m[0m node_name           = "pve"
+      [32m+[0m[0m overwrite           = true
+      [32m+[0m[0m overwrite_unmanaged = false
+      [32m+[0m[0m size                = (known after apply)
+      [32m+[0m[0m upload_timeout      = 600
+      [32m+[0m[0m url                 = "http://download.proxmox.com/images/system/debian-12-standard_12.7-1_amd64.tar.zst"
+      [32m+[0m[0m verify              = true
+    }
+
+[1m  # proxmox_virtual_environment_group.homeassistant[0m will be updated in-place
+[0m  [33m~[0m[0m resource "proxmox_virtual_environment_group" "homeassistant" {
+        id       = "HomeAssistant"
+        [90m# (3 unchanged attributes hidden)[0m[0m
+
+      [31m-[0m[0m acl {
+          [31m-[0m[0m path      = "/" [90m-> null[0m[0m
+          [31m-[0m[0m propagate = true [90m-> null[0m[0m
+          [31m-[0m[0m role_id   = "PVEAuditor" [90m-> null[0m[0m
+        }
+    }
+
+[1m  # proxmox_virtual_environment_user.prometheus[0m will be updated in-place
+[0m  [33m~[0m[0m resource "proxmox_virtual_environment_user" "prometheus" {
+        id              = "prometheus@pve"
+        [90m# (9 unchanged attributes hidden)[0m[0m
+
+      [31m-[0m[0m acl {
+          [31m-[0m[0m path      = "/" [90m-> null[0m[0m
+          [31m-[0m[0m propagate = true [90m-> null[0m[0m
+          [31m-[0m[0m role_id   = "PVEAuditor" [90m-> null[0m[0m
+        }
+    }
+
+[1m  # proxmox_virtual_environment_user.svc_homeassistant[0m will be updated in-place
+[0m  [33m~[0m[0m resource "proxmox_virtual_environment_user" "svc_homeassistant" {
+      [33m~[0m[0m groups          = [
+          [31m-[0m[0m "HomeAssistant",
+        ]
+        id              = "svc_homeassistant@pve"
+        [90m# (8 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # proxmox_virtual_environment_vm.backup[0m will be created
+[0m  [32m+[0m[0m resource "proxmox_virtual_environment_vm" "backup" {
+      [32m+[0m[0m acpi                                 = true
+      [32m+[0m[0m bios                                 = "seabios"
+      [32m+[0m[0m boot_order                           = (known after apply)
+      [32m+[0m[0m delete_unreferenced_disks_on_destroy = true
+      [32m+[0m[0m description                          = "Proxmox Backup Server"
+      [32m+[0m[0m hotplug                              = (known after apply)
+      [32m+[0m[0m id                                   = (known after apply)
+      [32m+[0m[0m ipv4_addresses                       = (known after apply)
+      [32m+[0m[0m ipv6_addresses                       = (known after apply)
+      [32m+[0m[0m keyboard_layout                      = "en-us"
+      [32m+[0m[0m mac_addresses                        = (known after apply)
+      [32m+[0m[0m migrate                              = false
+      [32m+[0m[0m name                                 = "backup"
+      [32m+[0m[0m network_interface_names              = (known after apply)
+      [32m+[0m[0m node_name                            = "pve"
+      [32m+[0m[0m on_boot                              = true
+      [32m+[0m[0m protection                           = false
+      [32m+[0m[0m purge_on_destroy                     = true
+      [32m+[0m[0m reboot                               = false
+      [32m+[0m[0m reboot_after_update                  = true
+      [32m+[0m[0m scsi_hardware                        = "virtio-scsi-single"
+      [32m+[0m[0m started                              = true
+      [32m+[0m[0m stop_on_destroy                      = false
+      [32m+[0m[0m tablet_device                        = true
+      [32m+[0m[0m tags                                 = [
+          [32m+[0m[0m "infrastructure",
+        ]
+      [32m+[0m[0m template                             = false
+      [32m+[0m[0m timeout_clone                        = 1800
+      [32m+[0m[0m timeout_create                       = 1800
+      [32m+[0m[0m timeout_migrate                      = 1800
+      [32m+[0m[0m timeout_move_disk                    = 1800
+      [32m+[0m[0m timeout_reboot                       = 1800
+      [32m+[0m[0m timeout_shutdown_vm                  = 1800
+      [32m+[0m[0m timeout_start_vm                     = 1800
+      [32m+[0m[0m timeout_stop_vm                      = 300
+      [32m+[0m[0m vm_id                                = 500
+
+      [32m+[0m[0m agent {
+          [32m+[0m[0m enabled = true
+          [32m+[0m[0m timeout = "15m"
+          [32m+[0m[0m trim    = false
+          [32m+[0m[0m type    = "virtio"
+        }
+
+      [32m+[0m[0m cdrom {
+          [32m+[0m[0m enabled   = false
+          [32m+[0m[0m file_id   = "local:iso/proxmox-backup-server_3.4-1.iso"
+          [32m+[0m[0m interface = "ide2"
+        }
+
+      [32m+[0m[0m cpu {
+          [32m+[0m[0m cores      = 4
+          [32m+[0m[0m hotplugged = 0
+          [32m+[0m[0m limit      = 0
+          [32m+[0m[0m numa       = false
+          [32m+[0m[0m sockets    = 1
+          [32m+[0m[0m type       = "x86-64-v2-AES"
+          [32m+[0m[0m units      = (known after apply)
+        }
+
+      [32m+[0m[0m disk {
+          [32m+[0m[0m aio               = "io_uring"
+          [32m+[0m[0m backup            = true
+          [32m+[0m[0m cache             = "none"
+          [32m+[0m[0m datastore_id      = "local-zfs"
+          [32m+[0m[0m discard           = "ignore"
+          [32m+[0m[0m file_format       = (known after apply)
+          [32m+[0m[0m interface         = "scsi0"
+          [32m+[0m[0m iothread          = true
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m replicate         = true
+          [32m+[0m[0m size              = 64
+          [32m+[0m[0m ssd               = false
+        }
+
+      [32m+[0m[0m memory {
+          [32m+[0m[0m dedicated      = 32768
+          [32m+[0m[0m floating       = 0
+          [32m+[0m[0m keep_hugepages = false
+          [32m+[0m[0m shared         = 0
+        }
+
+      [32m+[0m[0m network_device {
+          [32m+[0m[0m bridge      = "vmbr0"
+          [32m+[0m[0m enabled     = true
+          [32m+[0m[0m firewall    = true
+          [32m+[0m[0m mac_address = (known after apply)
+          [32m+[0m[0m model       = "virtio"
+          [32m+[0m[0m mtu         = 0
+          [32m+[0m[0m queues      = 0
+          [32m+[0m[0m rate_limit  = 0
+          [32m+[0m[0m vlan_id     = 0
+        }
+
+      [32m+[0m[0m operating_system {
+          [32m+[0m[0m type = "l26"
+        }
+
+      [32m+[0m[0m vga (known after apply)
+    }
+
+[1m  # proxmox_virtual_environment_vm.homeassistant[0m will be created
+[0m  [32m+[0m[0m resource "proxmox_virtual_environment_vm" "homeassistant" {
+      [32m+[0m[0m acpi                                 = true
+      [32m+[0m[0m bios                                 = "ovmf"
+      [32m+[0m[0m boot_order                           = (known after apply)
+      [32m+[0m[0m delete_unreferenced_disks_on_destroy = true
+      [32m+[0m[0m description                          = "Home Assistant OS"
+      [32m+[0m[0m hotplug                              = (known after apply)
+      [32m+[0m[0m id                                   = (known after apply)
+      [32m+[0m[0m ipv4_addresses                       = (known after apply)
+      [32m+[0m[0m ipv6_addresses                       = (known after apply)
+      [32m+[0m[0m keyboard_layout                      = "en-us"
+      [32m+[0m[0m mac_addresses                        = (known after apply)
+      [32m+[0m[0m machine                              = "q35"
+      [32m+[0m[0m migrate                              = false
+      [32m+[0m[0m name                                 = "homeassistant"
+      [32m+[0m[0m network_interface_names              = (known after apply)
+      [32m+[0m[0m node_name                            = "pve"
+      [32m+[0m[0m on_boot                              = true
+      [32m+[0m[0m protection                           = false
+      [32m+[0m[0m purge_on_destroy                     = true
+      [32m+[0m[0m reboot                               = false
+      [32m+[0m[0m reboot_after_update                  = true
+      [32m+[0m[0m scsi_hardware                        = "virtio-scsi-pci"
+      [32m+[0m[0m started                              = true
+      [32m+[0m[0m stop_on_destroy                      = false
+      [32m+[0m[0m tablet_device                        = false
+      [32m+[0m[0m tags                                 = [
+          [32m+[0m[0m "homeassistant",
+        ]
+      [32m+[0m[0m template                             = false
+      [32m+[0m[0m timeout_clone                        = 1800
+      [32m+[0m[0m timeout_create                       = 1800
+      [32m+[0m[0m timeout_migrate                      = 1800
+      [32m+[0m[0m timeout_move_disk                    = 1800
+      [32m+[0m[0m timeout_reboot                       = 1800
+      [32m+[0m[0m timeout_shutdown_vm                  = 1800
+      [32m+[0m[0m timeout_start_vm                     = 1800
+      [32m+[0m[0m timeout_stop_vm                      = 300
+      [32m+[0m[0m vm_id                                = 107
+
+      [32m+[0m[0m agent {
+          [32m+[0m[0m enabled = true
+          [32m+[0m[0m timeout = "15m"
+          [32m+[0m[0m trim    = false
+          [32m+[0m[0m type    = "virtio"
+        }
+
+      [32m+[0m[0m cpu {
+          [32m+[0m[0m cores      = 2
+          [32m+[0m[0m hotplugged = 0
+          [32m+[0m[0m limit      = 0
+          [32m+[0m[0m numa       = false
+          [32m+[0m[0m sockets    = 1
+          [32m+[0m[0m type       = "host"
+          [32m+[0m[0m units      = (known after apply)
+        }
+
+      [32m+[0m[0m disk {
+          [32m+[0m[0m aio               = "io_uring"
+          [32m+[0m[0m backup            = true
+          [32m+[0m[0m cache             = "writethrough"
+          [32m+[0m[0m datastore_id      = "local-zfs"
+          [32m+[0m[0m discard           = "on"
+          [32m+[0m[0m file_format       = (known after apply)
+          [32m+[0m[0m interface         = "scsi0"
+          [32m+[0m[0m iothread          = false
+          [32m+[0m[0m path_in_datastore = (known after apply)
+          [32m+[0m[0m replicate         = true
+          [32m+[0m[0m size              = 32
+          [32m+[0m[0m ssd               = true
+        }
+
+      [32m+[0m[0m efi_disk {
+          [32m+[0m[0m datastore_id      = "local-zfs"
+          [32m+[0m[0m file_format       = (known after apply)
+          [32m+[0m[0m pre_enrolled_keys = false
+          [32m+[0m[0m type              = "4m"
+        }
+
+      [32m+[0m[0m memory {
+          [32m+[0m[0m dedicated      = 16384
+          [32m+[0m[0m floating       = 0
+          [32m+[0m[0m keep_hugepages = false
+          [32m+[0m[0m shared         = 0
+        }
+
+      [32m+[0m[0m network_device {
+          [32m+[0m[0m bridge      = "vmbr0"
+          [32m+[0m[0m enabled     = true
+          [32m+[0m[0m firewall    = false
+          [32m+[0m[0m mac_address = (known after apply)
+          [32m+[0m[0m model       = "virtio"
+          [32m+[0m[0m mtu         = 0
+          [32m+[0m[0m queues      = 0
+          [32m+[0m[0m rate_limit  = 0
+          [32m+[0m[0m vlan_id     = 4
+        }
+
+      [32m+[0m[0m operating_system {
+          [32m+[0m[0m type = "l26"
+        }
+
+      [32m+[0m[0m usb {
+          [32m+[0m[0m host = "1-5"
+        }
+      [32m+[0m[0m usb {
+          [32m+[0m[0m host = "3-4"
+        }
+      [32m+[0m[0m usb {
+          [32m+[0m[0m host = "0bda:a728"
+        }
+
+      [32m+[0m[0m vga (known after apply)
+    }
+
+[1mPlan:[0m [0m41 to add, 4 to change, 0 to destroy.
+
+Changes to Outputs:
+  [33m~[0m[0m vm_names           = {
+      [33m~[0m[0m backup        = [90mnull[0m[0m [33m->[0m[0m 500
+      [33m~[0m[0m homeassistant = [90mnull[0m[0m [33m->[0m[0m 107
+    }
+[90m
+─────────────────────────────────────────────────────────────────────────────[0m
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.

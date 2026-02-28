@@ -1,0 +1,74 @@
+---
+# Provision LXC 105: Monitoring stack
+
+- name: Common base setup
+  ansible.builtin.import_playbook: common.yml
+
+- name: Monitoring stack provisioning
+  hosts: monitoring
+  become: true
+  gather_facts: true
+
+  vars:
+    monitoring_dir: /opt/monitoring
+    config_dirs:
+      - "{{ monitoring_dir }}"
+      - "{{ monitoring_dir }}/prometheus"
+      - "{{ monitoring_dir }}/alertmanager"
+      - "{{ monitoring_dir }}/loki"
+      - "{{ monitoring_dir }}/grafana/provisioning/datasources"
+
+  tasks:
+    # --- Docker CE installation ---
+    - name: Add Docker GPG key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/debian/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Add Docker repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker CE packages
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Enable and start Docker
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    # --- Create config directories ---
+    - name: Create monitoring config directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ config_dirs }}"
+
+    # --- Deploy config files ---
+    # These are deployed from the audit-captured configs.
+    # On a fresh provision, the configs should be templated from
+    # the files in playbooks/audit-output/service-configs/monitoring/
+
+    - name: Check if docker-compose.yml exists
+      ansible.builtin.stat:
+        path: "{{ monitoring_dir }}/docker-compose.yml"
+      register: compose_file
+
+    - name: Start monitoring stack
+      ansible.builtin.command:
+        cmd: docker compose up -d
+        chdir: "{{ monitoring_dir }}"
+      when: compose_file.stat.exists
+      changed_when: true

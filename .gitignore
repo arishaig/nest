@@ -1,0 +1,14 @@
+# Audit output
+audit.txt
+playbooks/audit-output/
+
+# Retry files
+*.retry
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/secrets.tfvars
+terraform/.terraform.tfstate.lock.info

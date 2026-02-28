@@ -1,0 +1,98 @@
+---
+# Provision LXC 102: Samba file server
+
+- name: Common base setup
+  ansible.builtin.import_playbook: common.yml
+
+- name: Fileserver provisioning
+  hosts: fileserver
+  become: true
+  gather_facts: true
+
+  vars:
+    samba_users:
+      - name: media
+        uid: 1001
+        group: media
+      - name: mediauser
+        uid: 1000
+        group: media
+
+  tasks:
+    - name: Install Samba
+      ansible.builtin.apt:
+        name:
+          - samba
+          - samba-common-bin
+        state: present
+
+    - name: Create media group
+      ansible.builtin.group:
+        name: media
+        state: present
+
+    - name: Create Samba system users
+      ansible.builtin.user:
+        name: "{{ item.name }}"
+        uid: "{{ item.uid }}"
+        group: "{{ item.group }}"
+        shell: /usr/sbin/nologin
+        create_home: false
+        system: true
+        state: present
+      loop: "{{ samba_users }}"
+
+    - name: Deploy smb.conf
+      ansible.builtin.copy:
+        content: |
+          [global]
+             workgroup = WORKGROUP
+             log file = /var/log/samba/log.%m
+             max log size = 1000
+             logging = file
+             panic action = /usr/share/samba/panic-action %d
+             server role = standalone server
+             obey pam restrictions = yes
+             unix password sync = yes
+             passwd program = /usr/bin/passwd %u
+             passwd chat = *Enter\snew\s*\spassword:* %n\n *Retype\snew\s*\spassword:* %n\n *password\supdated\ssuccessfully* .
+             pam password change = yes
+             map to guest = bad user
+             usershare allow guests = yes
+
+          [media]
+             comment = Media Library
+             path = /mnt/media_root
+             browseable = yes
+             read only = no
+             valid users = media
+             force user = media
+             force group = media
+             create mask = 0664
+             directory mask = 0775
+        dest: /etc/samba/smb.conf
+        mode: "0644"
+        backup: true
+      notify: Restart Samba
+
+    - name: Enable and start Samba services
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop:
+        - smbd
+        - nmbd
+
+    - name: Remind about Samba passwords
+      ansible.builtin.debug:
+        msg: >
+          Samba users created but passwords must be set manually:
+          smbpasswd -a media
+          smbpasswd -a mediauser
+
+  handlers:
+    - name: Restart Samba
+      ansible.builtin.systemd:
+        name: smbd
+        state: restarted

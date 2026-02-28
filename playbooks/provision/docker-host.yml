@@ -1,0 +1,72 @@
+---
+# Provision a Docker host LXC (100: docker)
+# Includes common setup, Docker CE install, and compose deployment
+
+- name: Common base setup
+  ansible.builtin.import_playbook: common.yml
+
+- name: Docker host provisioning
+  hosts: docker
+  become: true
+  gather_facts: true
+
+  vars:
+    compose_dir: /mnt/app_config
+    docker_networks:
+      - name: proxy-net
+      - name: default
+
+  tasks:
+    # --- Docker CE installation ---
+    - name: Add Docker GPG key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/debian/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Add Docker repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker CE packages
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Enable and start Docker
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    # --- Create Docker networks ---
+    - name: Create Docker networks
+      community.docker.docker_network:
+        name: "{{ item.name }}"
+        state: present
+      loop: "{{ docker_networks }}"
+
+    # --- Deploy compose and configs ---
+    # The compose file and service configs (traefik, authelia, etc.)
+    # live on the bind-mounted /mnt/app_config volume.
+    # On a fresh provision, these must be restored from backup or
+    # deployed from templates in a separate step.
+
+    - name: Check if docker-compose.yml exists
+      ansible.builtin.stat:
+        path: "{{ compose_dir }}/docker-compose.yml"
+      register: compose_file
+
+    - name: Start Docker Compose stack
+      ansible.builtin.command:
+        cmd: docker compose up -d
+        chdir: "{{ compose_dir }}"
+      when: compose_file.stat.exists
+      changed_when: true

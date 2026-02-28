@@ -1,0 +1,110 @@
+---
+# Common provisioning tasks for all new LXCs
+# Run as part of other provision playbooks via include
+
+- name: Common base provisioning
+  hosts: "{{ target | default('all') }}"
+  become: true
+  gather_facts: true
+
+  vars:
+    base_packages:
+      - curl
+      - wget
+      - vim
+      - htop
+      - git
+      - gnupg
+      - ca-certificates
+      - apt-transport-https
+      - software-properties-common
+      - sudo
+      - lsb-release
+      - python3
+      - python3-pip
+      - cron
+      - unzip
+      - jq
+
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBM7Y+b/BRai//GJ7Sczob/rX8ck3ArKGQP/jsR5OlWn isaac@isaaclaptop"
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMxOgEao2c+jTY4NdsEp46M9Fs8i1Yx6WiX42rUAXSJh ansible-on-nest"
+
+    node_exporter_version: "1.8.2"
+
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install base packages
+      ansible.builtin.apt:
+        name: "{{ base_packages }}"
+        state: present
+
+    - name: Set DNS resolver
+      ansible.builtin.copy:
+        content: "nameserver 192.168.7.7\n"
+        dest: /etc/resolv.conf
+        mode: "0644"
+
+    - name: Deploy SSH authorized keys for root
+      ansible.posix.authorized_key:
+        user: root
+        key: "{{ item }}"
+        state: present
+      loop: "{{ ssh_authorized_keys }}"
+
+    - name: Install node_exporter
+      block:
+        - name: Download node_exporter
+          ansible.builtin.get_url:
+            url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+            dest: /tmp/node_exporter.tar.gz
+            mode: "0644"
+
+        - name: Extract node_exporter
+          ansible.builtin.unarchive:
+            src: /tmp/node_exporter.tar.gz
+            dest: /tmp
+            remote_src: true
+
+        - name: Install node_exporter binary
+          ansible.builtin.copy:
+            src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+            dest: /usr/local/bin/node_exporter
+            mode: "0755"
+            remote_src: true
+
+        - name: Create node_exporter systemd service
+          ansible.builtin.copy:
+            content: |
+              [Unit]
+              Description=Prometheus Node Exporter
+              After=network.target
+
+              [Service]
+              Type=simple
+              ExecStart=/usr/local/bin/node_exporter
+              Restart=always
+
+              [Install]
+              WantedBy=multi-user.target
+            dest: /etc/systemd/system/node_exporter.service
+            mode: "0644"
+
+        - name: Enable and start node_exporter
+          ansible.builtin.systemd:
+            name: node_exporter
+            enabled: true
+            state: started
+            daemon_reload: true
+
+        - name: Clean up node_exporter download
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /tmp/node_exporter.tar.gz
+            - "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"

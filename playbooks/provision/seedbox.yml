@@ -1,0 +1,62 @@
+---
+# Provision LXC 104: Seedbox with VPN
+
+- name: Common base setup
+  ansible.builtin.import_playbook: common.yml
+
+- name: Seedbox provisioning
+  hosts: seedbox
+  become: true
+  gather_facts: true
+
+  vars:
+    seedbox_dir: /opt/seedbox
+
+  tasks:
+    # --- Docker CE installation ---
+    - name: Add Docker GPG key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/debian/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Add Docker repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker CE packages
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Enable and start Docker
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    # --- Seedbox setup ---
+    - name: Create seedbox directory
+      ansible.builtin.file:
+        path: "{{ seedbox_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Check if docker-compose.yml exists
+      ansible.builtin.stat:
+        path: "{{ seedbox_dir }}/docker-compose.yml"
+      register: compose_file
+
+    - name: Start seedbox stack
+      ansible.builtin.command:
+        cmd: docker compose up -d
+        chdir: "{{ seedbox_dir }}"
+      when: compose_file.stat.exists
+      changed_when: true
