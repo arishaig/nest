@@ -46,12 +46,16 @@ import proxmox_virtual_environment_vm.backup proxmox/500
 
 echo "=== Importing AdGuard DNS Rewrites ==="
 # Format: domain||answer
-import 'adguard_rewrite.dns["docker.local.arishaig.site"]' 'docker.local.arishaig.site||192.168.1.158'
 import 'adguard_rewrite.dns["proxmox.local.arishaig.site"]' 'proxmox.local.arishaig.site||192.168.1.16'
 import 'adguard_rewrite.dns["torrent.local.arishaig.site"]' 'torrent.local.arishaig.site||192.168.1.182'
 import 'adguard_rewrite.dns["scrutiny.local.arishaig.site"]' 'scrutiny.local.arishaig.site||192.168.1.46'
 import 'adguard_rewrite.dns["backup.local.arishaig.site"]' 'backup.local.arishaig.site||192.168.1.113'
-import 'adguard_rewrite.dns["backlight.local.arishaig.site"]' 'backlight.local.arishaig.site||192.168.4.97'
+import 'adguard_rewrite.dns["monitoring.local.arishaig.site"]' 'monitoring.local.arishaig.site||192.168.1.44'
+import 'adguard_rewrite.dns["casa.local.arishaig.site"]' 'casa.local.arishaig.site||192.168.4.50'
+import 'adguard_rewrite.dns["backlight.arishaig.site"]' 'backlight.arishaig.site||192.168.4.97'
+import 'adguard_rewrite.dns["files.arishaig.site"]' 'files.arishaig.site||192.168.1.17'
+import 'adguard_rewrite.dns["musicbrainz.arishaig.site"]' 'musicbrainz.arishaig.site||192.168.1.197'
+import 'adguard_rewrite.dns["adguard.arishaig.site"]' 'adguard.arishaig.site||192.168.7.7'
 import 'adguard_rewrite.dns["dns.arishaig.site"]' 'dns.arishaig.site||192.168.7.7'
 import 'adguard_rewrite.dns["monitoring.arishaig.site"]' 'monitoring.arishaig.site||192.168.1.158'
 import 'adguard_rewrite.dns["jellyfin.arishaig.site"]' 'jellyfin.arishaig.site||192.168.1.158'

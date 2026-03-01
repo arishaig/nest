@@ -14,39 +14,52 @@
     config_dirs:
       - "{{ monitoring_dir }}"
       - "{{ monitoring_dir }}/prometheus"
+      - "{{ monitoring_dir }}/prometheus/rules"
       - "{{ monitoring_dir }}/alertmanager"
       - "{{ monitoring_dir }}/loki"
       - "{{ monitoring_dir }}/grafana/provisioning/datasources"
+      - "{{ monitoring_dir }}/grafana/provisioning/dashboards"
+      - "{{ monitoring_dir }}/pve"
+      - "{{ monitoring_dir }}/unpoller"
 
   tasks:
     # --- Docker CE installation ---
-    - name: Add Docker GPG key
-      ansible.builtin.get_url:
-        url: https://download.docker.com/linux/debian/gpg
-        dest: /etc/apt/keyrings/docker.asc
-        mode: "0644"
+    - name: Check if Docker is already installed
+      ansible.builtin.command: docker --version
+      register: docker_check
+      changed_when: false
+      failed_when: false
 
-    - name: Add Docker repository
-      ansible.builtin.apt_repository:
-        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
-        state: present
+    - name: Install Docker CE
+      when: docker_check.rc != 0
+      block:
+        - name: Add Docker GPG key
+          ansible.builtin.get_url:
+            url: https://download.docker.com/linux/debian/gpg
+            dest: /etc/apt/keyrings/docker.asc
+            mode: "0644"
 
-    - name: Install Docker CE packages
-      ansible.builtin.apt:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-          - docker-buildx-plugin
-          - docker-compose-plugin
-        state: present
-        update_cache: true
+        - name: Add Docker repository
+          ansible.builtin.apt_repository:
+            repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+            state: present
 
-    - name: Enable and start Docker
-      ansible.builtin.systemd:
-        name: docker
-        enabled: true
-        state: started
+        - name: Install Docker CE packages
+          ansible.builtin.apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-buildx-plugin
+              - docker-compose-plugin
+            state: present
+            update_cache: true
+
+        - name: Enable and start Docker
+          ansible.builtin.systemd:
+            name: docker
+            enabled: true
+            state: started
 
     # --- Create config directories ---
     - name: Create monitoring config directories
@@ -57,18 +70,68 @@
       loop: "{{ config_dirs }}"
 
     # --- Deploy config files ---
-    # These are deployed from the audit-captured configs.
-    # On a fresh provision, the configs should be templated from
-    # the files in playbooks/audit-output/service-configs/monitoring/
+    - name: Template .env from vault
+      ansible.builtin.template:
+        src: templates/monitoring/env.j2
+        dest: "{{ monitoring_dir }}/.env"
+        mode: "0600"
 
-    - name: Check if docker-compose.yml exists
-      ansible.builtin.stat:
-        path: "{{ monitoring_dir }}/docker-compose.yml"
-      register: compose_file
+    - name: Template prometheus.yml from vault
+      ansible.builtin.template:
+        src: templates/monitoring/prometheus.yml.j2
+        dest: "{{ monitoring_dir }}/prometheus/prometheus.yml"
+        mode: "0644"
+
+    - name: Template alertmanager.yml from vault
+      ansible.builtin.template:
+        src: templates/monitoring/alertmanager.yml.j2
+        dest: "{{ monitoring_dir }}/alertmanager/alertmanager.yml"
+        mode: "0644"
+
+    - name: Template pve.yml from vault
+      ansible.builtin.template:
+        src: templates/monitoring/pve.yml.j2
+        dest: "{{ monitoring_dir }}/pve/pve.yml"
+        mode: "0600"
+
+    - name: Template up.conf from vault
+      ansible.builtin.template:
+        src: templates/monitoring/up.conf.j2
+        dest: "{{ monitoring_dir }}/unpoller/up.conf"
+        mode: "0600"
+
+    - name: Copy docker-compose.yml
+      ansible.builtin.copy:
+        src: files/monitoring/docker-compose.yml
+        dest: "{{ monitoring_dir }}/docker-compose.yml"
+        mode: "0644"
+
+    - name: Copy loki.yml
+      ansible.builtin.copy:
+        src: files/monitoring/loki/loki.yml
+        dest: "{{ monitoring_dir }}/loki/loki.yml"
+        mode: "0644"
+
+    - name: Copy grafana datasources
+      ansible.builtin.copy:
+        src: files/monitoring/grafana/provisioning/datasources.yml
+        dest: "{{ monitoring_dir }}/grafana/provisioning/datasources/datasources.yml"
+        mode: "0644"
+
+    - name: Copy grafana dashboard provisioning config
+      ansible.builtin.copy:
+        src: files/monitoring/grafana/provisioning/dashboards.yml
+        dest: "{{ monitoring_dir }}/grafana/provisioning/dashboards.yml"
+        mode: "0644"
+
+    - name: Copy grafana dashboard JSON files
+      ansible.builtin.copy:
+        src: files/monitoring/grafana/provisioning/dashboards/
+        dest: "{{ monitoring_dir }}/grafana/provisioning/dashboards/"
+        mode: "0644"
 
     - name: Start monitoring stack
       ansible.builtin.command:
         cmd: docker compose up -d
         chdir: "{{ monitoring_dir }}"
-      when: compose_file.stat.exists
       changed_when: true

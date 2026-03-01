@@ -4,16 +4,20 @@
 
 locals {
   dns_rewrites = {
-    # Local direct-IP entries
-    "docker.local.arishaig.site"    = "192.168.1.158"
-    "proxmox.local.arishaig.site"   = "192.168.1.16"
-    "torrent.local.arishaig.site"   = "192.168.1.182"
-    "scrutiny.local.arishaig.site"  = "192.168.1.46"
-    "backup.local.arishaig.site"    = "192.168.1.113"
-    "backlight.local.arishaig.site" = "192.168.4.97"
+    # Direct-IP entries (*.local.* used only where non-local routes through Traefik)
+    "proxmox.local.arishaig.site"    = "192.168.1.16"
+    "torrent.local.arishaig.site"    = "192.168.1.182"
+    "scrutiny.local.arishaig.site"   = "192.168.1.46"
+    "backup.local.arishaig.site"     = "192.168.1.113"
+    "monitoring.local.arishaig.site" = "192.168.1.44"
+    "casa.local.arishaig.site"       = "192.168.4.50"
 
-    # DNS itself
-    "dns.arishaig.site" = "192.168.7.7"
+    # Direct-IP entries (no Traefik conflict)
+    "backlight.arishaig.site"   = "192.168.4.97"
+    "files.arishaig.site"       = "192.168.1.17"
+    "musicbrainz.arishaig.site" = "192.168.1.197"
+    "adguard.arishaig.site"     = "192.168.7.7"
+    "dns.arishaig.site"         = "192.168.7.7"
 
     # Traefik reverse-proxied services (all -> docker host)
     "monitoring.arishaig.site"   = "192.168.1.158"

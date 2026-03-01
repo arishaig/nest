@@ -40,7 +40,8 @@ resource "proxmox_virtual_environment_container" "musicbrainz" {
     hostname = "musicbrainz"
     ip_config {
       ipv4 {
-        address = "dhcp"
+        address = "192.168.1.197/24"
+        gateway = var.gateway
       }
     }
     dns {
@@ -64,7 +65,6 @@ resource "proxmox_virtual_environment_container" "musicbrainz" {
   lifecycle {
     ignore_changes = [
       operating_system,
-      description,
       console,
     ]
   }

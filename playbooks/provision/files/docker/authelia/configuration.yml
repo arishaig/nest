@@ -1,0 +1,33 @@
+server:
+  address: "tcp://0.0.0.0:9091"
+
+log:
+  level: info
+
+authentication_backend:
+  file:
+    path: /config/users_database.yml
+
+session:
+  cookies:
+    - domain: 'arishaig.site'
+      authelia_url: 'https://auth.arishaig.site'
+  # secret is passed via AUTHELIA_SESSION_SECRET env var
+
+storage:
+  local:
+    path: /config/db.sqlite3
+  # encryption_key is passed via AUTHELIA_STORAGE_ENCRYPTION_KEY env var
+
+access_control:
+  default_policy: two_factor
+  rules:
+    # Jellyfin bypasses Authelia — uses its own auth
+    - domain: jellyfin.arishaig.site
+      policy: bypass
+
+theme: 'dark'
+
+notifier:
+  filesystem:
+    filename: /config/notification.txt

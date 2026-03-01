@@ -1,0 +1,15 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'instance']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'homeassistant'
+
+receivers:
+  - name: 'homeassistant'
+    webhook_configs:
+      - url: {{ alertmanager_webhook_url }}
+        send_resolved: true

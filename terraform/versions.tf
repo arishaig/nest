@@ -10,5 +10,9 @@ terraform {
       source  = "gmichels/adguard"
       version = "~> 1.6"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
+    }
   }
 }

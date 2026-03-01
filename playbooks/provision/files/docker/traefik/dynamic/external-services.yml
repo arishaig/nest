@@ -1,0 +1,73 @@
+http:
+  routers:
+    monitoring:
+      rule: "Host(`monitoring.arishaig.site`)"
+      entryPoints: [websecure]
+      service: monitoring
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
+
+    backup:
+      rule: "Host(`backup.arishaig.site`)"
+      entryPoints: [websecure]
+      service: backup
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
+
+    scrutiny:
+      rule: "Host(`scrutiny.arishaig.site`)"
+      entryPoints: [websecure]
+      service: scrutiny
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
+
+    torrent:
+      rule: "Host(`torrent.arishaig.site`)"
+      entryPoints: [websecure]
+      service: torrent
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
+
+    proxmox:
+      rule: "Host(`proxmox.arishaig.site`)"
+      entryPoints: [websecure]
+      service: proxmox
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
+
+  services:
+    monitoring:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.44:3000"
+
+    backup:
+      loadBalancer:
+        serversTransport: skipVerify
+        servers:
+          - url: "https://192.168.1.113:8007"
+
+    scrutiny:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.46:8888"
+
+    torrent:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.182:8090"
+
+    proxmox:
+      loadBalancer:
+        serversTransport: skipVerify
+        servers:
+          - url: "https://192.168.1.16:8006"
+
+  serversTransports:
+    skipVerify:
+      insecureSkipVerify: true

@@ -84,12 +84,14 @@
         - smbd
         - nmbd
 
-    - name: Remind about Samba passwords
-      ansible.builtin.debug:
-        msg: >
-          Samba users created but passwords must be set manually:
-          smbpasswd -a media
-          smbpasswd -a mediauser
+    - name: Set Samba passwords from vault
+      ansible.builtin.shell: >
+        (echo "{{ item.password }}"; echo "{{ item.password }}") | smbpasswd -a -s {{ item.name }}
+      loop: "{{ samba_users_vault }}"
+      no_log: true
+      changed_when: true
+      vars:
+        samba_users_vault: "{{ samba_users_passwords }}"
 
   handlers:
     - name: Restart Samba

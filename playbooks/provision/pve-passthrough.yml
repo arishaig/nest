@@ -1,0 +1,69 @@
+---
+# Configure LXC device passthrough on the PVE host
+#
+# Usage:
+#   ansible-playbook -i ../inventory/hosts.yml pve-passthrough.yml \
+#     -e lxc_id=103 -e @files/scrutiny/passthrough.yml
+#
+# This appends missing lines to /etc/pve/lxc/<id>.conf and restarts
+# the container so changes take effect.
+
+- name: Configure LXC device passthrough
+  hosts: pve
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - lxc_id is defined
+          - passthrough_lines is defined
+          - passthrough_lines | length > 0
+        fail_msg: "lxc_id and passthrough_lines must be provided"
+
+    - name: Read current LXC config
+      ansible.builtin.slurp:
+        src: "/etc/pve/lxc/{{ lxc_id }}.conf"
+      register: lxc_conf
+
+    - name: Determine missing passthrough lines
+      ansible.builtin.set_fact:
+        missing_lines: >-
+          {{ passthrough_lines | reject('in', lxc_conf.content | b64decode) | list }}
+
+    - name: Append missing passthrough lines
+      ansible.builtin.lineinfile:
+        path: "/etc/pve/lxc/{{ lxc_id }}.conf"
+        line: "{{ item }}"
+        insertafter: EOF
+      loop: "{{ missing_lines }}"
+      when: missing_lines | length > 0
+      register: config_changed
+
+    - name: Stop container for config reload
+      ansible.builtin.command:
+        cmd: "pct stop {{ lxc_id }}"
+      when: config_changed is changed
+      changed_when: true
+
+    - name: Wait for container to stop
+      ansible.builtin.command:
+        cmd: "pct status {{ lxc_id }}"
+      register: ct_status
+      until: "'stopped' in ct_status.stdout"
+      retries: 12
+      delay: 5
+      when: config_changed is changed
+      changed_when: false
+
+    - name: Start container with new config
+      ansible.builtin.command:
+        cmd: "pct start {{ lxc_id }}"
+      when: config_changed is changed
+      changed_when: true
+
+    - name: Wait for container to start
+      ansible.builtin.wait_for:
+        timeout: 15
+      when: config_changed is changed

@@ -14,34 +14,47 @@
 
   tasks:
     # --- Docker CE installation ---
-    - name: Add Docker GPG key
-      ansible.builtin.get_url:
-        url: https://download.docker.com/linux/debian/gpg
-        dest: /etc/apt/keyrings/docker.asc
-        mode: "0644"
+    - name: Check if Docker is already installed
+      ansible.builtin.command: docker --version
+      register: docker_check
+      changed_when: false
+      failed_when: false
 
-    - name: Add Docker repository
-      ansible.builtin.apt_repository:
-        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
-        state: present
+    - name: Install Docker CE
+      when: docker_check.rc != 0
+      block:
+        - name: Add Docker GPG key
+          ansible.builtin.get_url:
+            url: https://download.docker.com/linux/debian/gpg
+            dest: /etc/apt/keyrings/docker.asc
+            mode: "0644"
 
-    - name: Install Docker CE and smartmontools
+        - name: Add Docker repository
+          ansible.builtin.apt_repository:
+            repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+            state: present
+
+        - name: Install Docker CE packages
+          ansible.builtin.apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-buildx-plugin
+              - docker-compose-plugin
+            state: present
+            update_cache: true
+
+        - name: Enable and start Docker
+          ansible.builtin.systemd:
+            name: docker
+            enabled: true
+            state: started
+
+    - name: Install smartmontools
       ansible.builtin.apt:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-          - docker-buildx-plugin
-          - docker-compose-plugin
-          - smartmontools
+        name: smartmontools
         state: present
-        update_cache: true
-
-    - name: Enable and start Docker
-      ansible.builtin.systemd:
-        name: docker
-        enabled: true
-        state: started
 
     # --- Scrutiny setup ---
     - name: Create scrutiny directory
@@ -50,14 +63,14 @@
         state: directory
         mode: "0755"
 
-    - name: Check if docker-compose.yml exists
-      ansible.builtin.stat:
-        path: "{{ scrutiny_dir }}/docker-compose.yml"
-      register: compose_file
+    - name: Copy docker-compose.yml
+      ansible.builtin.copy:
+        src: files/scrutiny/docker-compose.yml
+        dest: "{{ scrutiny_dir }}/docker-compose.yml"
+        mode: "0644"
 
     - name: Start Scrutiny stack
       ansible.builtin.command:
         cmd: docker compose up -d
         chdir: "{{ scrutiny_dir }}"
-      when: compose_file.stat.exists
       changed_when: true

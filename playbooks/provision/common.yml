@@ -31,8 +31,17 @@
       - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMxOgEao2c+jTY4NdsEp46M9Fs8i1Yx6WiX42rUAXSJh ansible-on-nest"
 
     node_exporter_version: "1.8.2"
+    arch_map:
+      x86_64: amd64
+      aarch64: arm64
+    node_exporter_arch: "{{ arch_map[ansible_architecture] | default('amd64') }}"
 
   tasks:
+    - name: Remove old Docker repo signed with docker.gpg
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+        state: absent
+
     - name: Update apt cache
       ansible.builtin.apt:
         update_cache: true
@@ -45,7 +54,7 @@
 
     - name: Set DNS resolver
       ansible.builtin.copy:
-        content: "nameserver 192.168.7.7\n"
+        content: "nameserver {{ '127.0.0.1' if inventory_hostname in groups.get('dns', []) else '192.168.7.7' }}\n"
         dest: /etc/resolv.conf
         mode: "0644"
 
@@ -60,7 +69,7 @@
       block:
         - name: Download node_exporter
           ansible.builtin.get_url:
-            url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+            url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}.tar.gz"
             dest: /tmp/node_exporter.tar.gz
             mode: "0644"
 
@@ -72,7 +81,7 @@
 
         - name: Install node_exporter binary
           ansible.builtin.copy:
-            src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+            src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}/node_exporter"
             dest: /usr/local/bin/node_exporter
             mode: "0755"
             remote_src: true
@@ -107,4 +116,4 @@
             state: absent
           loop:
             - /tmp/node_exporter.tar.gz
-            - "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"
+            - "/tmp/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}"

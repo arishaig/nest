@@ -8,14 +8,7 @@ resource "proxmox_virtual_environment_vm" "homeassistant" {
   node_name   = var.pve_node
   vm_id       = 107
   name        = "homeassistant"
-  description = <<-EOT
-    <div align='center'><a href='https://Helper-Scripts.com' target='_blank' rel='noopener noreferrer'><img src='https://raw.githubusercontent.com/tteck/Proxmox/main/misc/images/logo-81x112.png'/></a>
-
-    # Home Assistant OS
-
-    <a href='https://ko-fi.com/D1D7EP4GF'><img src='https://img.shields.io/badge/&#x2615;-Buy me a coffee-blue' /></a>
-    </div>
-  EOT
+  description = "Home automation management."
   tags        = ["proxmox-helper-scripts"]
   pool_id     = "IoT"
 
@@ -79,7 +72,6 @@ resource "proxmox_virtual_environment_vm" "homeassistant" {
     ignore_changes = [
       disk,
       efi_disk,
-      description,
       network_device,
     ]
   }

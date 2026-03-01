@@ -1,0 +1,27 @@
+server:
+    verbosity: 0
+    interface: 127.0.0.1
+    port: 5335
+    do-ip4: yes
+    do-udp: yes
+    do-tcp: yes
+    do-ip6: yes
+
+    root-hints: /var/lib/unbound/root.hints
+
+    harden-glue: yes
+    harden-dnssec-stripped: yes
+    use-caps-for-id: yes
+    edns-buffer-size: 1232
+
+    qname-minimisation: yes
+    hide-identity: yes
+    hide-version: yes
+
+    prefetch: yes
+    num-threads: 1
+    cache-min-ttl: 300
+    cache-max-ttl: 86400
+
+    access-control: 127.0.0.1/32 allow
+    access-control: 0.0.0.0/0 refuse

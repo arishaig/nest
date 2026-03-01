@@ -1,0 +1,42 @@
+api:
+  dashboard: true
+  insecure: false
+
+entryPoints:
+  # Redirects all HTTP traffic to HTTPS
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "tcp://socket-proxy:2375"
+    exposedByDefault: false
+    network: proxy-net
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+certificatesResolvers:
+  cloudflare:
+    acme:
+      email: izakizak@gmail.com
+      storage: /etc/traefik/acme.json
+      dnsChallenge:
+        provider: cloudflare
+        resolvers:
+          - "1.1.1.1:53"
+          - "1.0.0.1:53"
+
+log:
+  level: INFO
+
+accessLog:
+  filePath: /var/log/traefik/access.log

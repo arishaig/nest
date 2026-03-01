@@ -88,7 +88,6 @@ resource "proxmox_virtual_environment_container" "docker" {
   lifecycle {
     ignore_changes = [
       operating_system,
-      description,
       console,
     ]
   }

@@ -20,9 +20,11 @@ SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=5 -i $SSH_KEY"
 DOCKER_HOST="root@192.168.1.158"
 MONITORING_HOST="root@192.168.1.44"
 SEEDBOX_HOST="root@192.168.1.182"
+MUSICBRAINZ_HOST="root@192.168.1.197"
 PBS_HOST="root@192.168.1.113"
 ADGUARD_HOST="adguard@192.168.7.7"
 PVE_HOST="root@192.168.1.16"
+FILESERVER_HOST="root@192.168.1.17"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
@@ -81,34 +83,39 @@ echo ""
 declare -A EXISTING=()
 if [[ -f "$VAULT_FILE" ]]; then
     info "Loading existing vault values from $VAULT_FILE ..."
-    while IFS= read -r line; do
-        [[ "$line" =~ ^[[:space:]]*# ]] && continue
-        [[ "$line" =~ ^[[:space:]]*$ ]] && continue
-        [[ "$line" =~ ^[[:space:]]*- ]] && continue
-        # Standard format: key: "value" or key: 'value'
-        if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*):\ *(.*) ]]; then
-            key="${BASH_REMATCH[1]}"
-            val="${BASH_REMATCH[2]}"
-            # Handle broken yq JSON format: { \n "x": "actual_value" \n }
-            if [[ "$val" == "{" ]]; then
-                read -r nextline || true
-                if [[ "${nextline:-}" =~ \"x\":\ *\"(.*)\" ]]; then
-                    val="${BASH_REMATCH[1]}"
-                else
-                    read -r _ || true  # skip closing }
-                    continue
+
+    # Determine if the vault file is encrypted
+    VAULT_CONTENT=""
+    if head -1 "$VAULT_FILE" | grep -q '^\$ANSIBLE_VAULT'; then
+        info "  Vault file is encrypted, decrypting..."
+        VAULT_CONTENT=$(ansible-vault decrypt --output=- "$VAULT_FILE" 2>/dev/null) || {
+            warn "  Could not decrypt vault file — will re-extract all secrets"
+            VAULT_CONTENT=""
+        }
+    else
+        VAULT_CONTENT=$(cat "$VAULT_FILE")
+    fi
+
+    if [[ -n "$VAULT_CONTENT" ]]; then
+        while IFS= read -r line; do
+            [[ "$line" =~ ^[[:space:]]*# ]] && continue
+            [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+            [[ "$line" =~ ^[[:space:]]*- ]] && continue
+            # Standard format: key: "value" or key: 'value'
+            if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*):\ *(.*) ]]; then
+                key="${BASH_REMATCH[1]}"
+                val="${BASH_REMATCH[2]}"
+                # Strip surrounding quotes
+                val="${val#\"}" ; val="${val%\"}"
+                val="${val#\"}" ; val="${val%\"}"
+                val="${val#\'}" ; val="${val%\'}"
+                if [[ -n "$val" && "$val" != "CHANGEME" && "$val" != "null" && "$val" != '""' ]]; then
+                    EXISTING["$key"]="$val"
                 fi
-                read -r _ || true  # skip closing }
             fi
-            # Strip surrounding quotes
-            val="${val#\"}" ; val="${val%\"}"
-            val="${val#\"}" ; val="${val%\"}"
-            val="${val#\'}" ; val="${val%\'}"
-            if [[ -n "$val" && "$val" != "CHANGEME" && "$val" != "null" && "$val" != '""' ]]; then
-                EXISTING["$key"]="$val"
-            fi
-        fi
-    done < "$VAULT_FILE"
+        done <<< "$VAULT_CONTENT"
+    fi
+
     info "  Found ${#EXISTING[@]} existing values — these will be kept"
     echo ""
 fi
@@ -136,7 +143,7 @@ prompt_or_existing() {
     local prompt_text="$2"
     local cached="${EXISTING[$key]:-}"
     if [[ -n "$cached" ]]; then
-        info "  $prompt_text: already in vault, skipping"
+        info "  $prompt_text: already in vault, skipping" >&2
         echo "$cached"
     else
         read -p "  $prompt_text: " val
@@ -358,14 +365,44 @@ fi
 # =====================================================================
 # Seedbox LXC — VPN credentials
 # =====================================================================
-PROTONVPN_KEY=$(existing "protonvpn_private_key")
-if [[ -n "$PROTONVPN_KEY" ]]; then
-    info "Seedbox LXC ($SEEDBOX_HOST): ProtonVPN key in vault, skipping SSH"
+SEEDBOX_KEYS=(protonvpn_private_key gluetun_control_server_key)
+
+if all_cached "${SEEDBOX_KEYS[@]}"; then
+    info "Seedbox LXC ($SEEDBOX_HOST): all values in vault, skipping SSH"
+    PROTONVPN_KEY=$(existing "protonvpn_private_key")
+    GLUETUN_KEY=$(existing "gluetun_control_server_key")
 else
     info "Pulling secrets from Seedbox LXC ($SEEDBOX_HOST)..."
     SEEDBOX_ENV=$(ssh_cmd "$SEEDBOX_HOST" "cat /opt/seedbox/.env 2>/dev/null") || true
-    PROTONVPN_KEY=$(echo "$SEEDBOX_ENV" | grep -iE '^WIREGUARD_PRIVATE_KEY=|^VPN_PRIVATE_KEY=|^PRIVATE_KEY=' | head -1 | cut -d= -f2- | tr -d '"') || true
+    PROTONVPN_KEY=$(or_existing "protonvpn_private_key" "$(echo "$SEEDBOX_ENV" | grep -iE '^WIREGUARD_PRIVATE_KEY=|^VPN_PRIVATE_KEY=|^PRIVATE_KEY=' | head -1 | cut -d= -f2- | tr -d '"')")
     log_result "ProtonVPN WireGuard key" "$PROTONVPN_KEY"
+
+    GLUETUN_KEY=$(or_existing "gluetun_control_server_key" "$(echo "$SEEDBOX_ENV" | grep -E '^GLUETUN_CONTROL_SERVER_KEY=' | head -1 | cut -d= -f2- | tr -d '"')")
+    log_result "Gluetun control server key" "$GLUETUN_KEY"
+fi
+
+# =====================================================================
+# MusicBrainz LXC — postgres password
+# =====================================================================
+MUSICBRAINZ_PG_PASS=$(existing "musicbrainz_postgres_password")
+if [[ -n "$MUSICBRAINZ_PG_PASS" ]]; then
+    info "MusicBrainz LXC ($MUSICBRAINZ_HOST): postgres password in vault, skipping SSH"
+else
+    info "Pulling secrets from MusicBrainz LXC ($MUSICBRAINZ_HOST)..."
+    MUSICBRAINZ_PG_PASS=$(ssh_cmd "$MUSICBRAINZ_HOST" "cat /home/svc_musicbrainz/musicbrainz-docker/default/postgres.env 2>/dev/null" | grep -E '^POSTGRES_PASSWORD=' | head -1 | cut -d= -f2- | tr -d '"') || true
+    log_result "MusicBrainz postgres password" "$MUSICBRAINZ_PG_PASS"
+fi
+
+# =====================================================================
+# Monitoring LXC — Home Assistant bearer token (from prometheus.yml)
+# =====================================================================
+HA_BEARER_TOKEN=$(existing "homeassistant_bearer_token")
+if [[ -n "$HA_BEARER_TOKEN" ]]; then
+    info "Home Assistant bearer token: in vault, skipping"
+else
+    info "Pulling Home Assistant bearer token from Monitoring LXC ($MONITORING_HOST)..."
+    HA_BEARER_TOKEN=$(ssh_cmd "$MONITORING_HOST" "cat /opt/monitoring/prometheus/prometheus.yml 2>/dev/null" | grep -A0 'bearer_token:' | head -1 | sed 's/.*bearer_token:\s*//' | tr -d ' "'"'" ) || true
+    log_result "Home Assistant bearer token" "$HA_BEARER_TOKEN"
 fi
 
 # =====================================================================
@@ -400,26 +437,81 @@ else
 fi
 
 # =====================================================================
-# AdGuard Pi — admin password hash
+# AdGuard Pi — admin password hash, plaintext password, DNS-edit CF token, certbot email
 # =====================================================================
-ADGUARD_HASH=$(existing "adguard_admin_password_hash")
-if [[ -n "$ADGUARD_HASH" ]]; then
-    info "AdGuard Pi ($ADGUARD_HOST): password hash in vault, skipping SSH"
+ADGUARD_KEYS=(adguard_admin_password_hash adguard_admin_password cf_dns_edit_api_token certbot_email)
+
+if all_cached "${ADGUARD_KEYS[@]}"; then
+    info "AdGuard Pi ($ADGUARD_HOST): all values in vault, skipping SSH"
+    ADGUARD_HASH=$(existing "adguard_admin_password_hash")
+    ADGUARD_PASSWORD=$(existing "adguard_admin_password")
+    CF_DNS_EDIT_TOKEN=$(existing "cf_dns_edit_api_token")
+    CERTBOT_EMAIL=$(existing "certbot_email")
 else
     info "Pulling secrets from AdGuard Pi ($ADGUARD_HOST)..."
-    ADGUARD_HASH=$(ssh_cmd "$ADGUARD_HOST" "sudo cat /opt/AdGuardHome/AdGuardHome.yaml 2>/dev/null" | yq '.users[0].password // ""' 2>/dev/null) || true
+
+    ADGUARD_HASH=$(or_existing "adguard_admin_password_hash" "$(ssh_cmd "$ADGUARD_HOST" "sudo cat /opt/AdGuardHome/AdGuardHome.yaml 2>/dev/null" | yq '.users[0].password // ""' 2>/dev/null || true)")
     log_result "AdGuard password hash" "$ADGUARD_HASH"
+
+    # Plaintext password + CF DNS-edit token from Docker .env
+    ADGUARD_DOCKER_ENV=$(ssh_cmd "$ADGUARD_HOST" "sudo cat /opt/docker/.env 2>/dev/null") || true
+    _adguard_pw=$(echo "$ADGUARD_DOCKER_ENV" | grep -E '^ADGUARD_PASSWORD=' | head -1 | cut -d= -f2- | tr -d '"')
+    ADGUARD_PASSWORD=$(or_existing "adguard_admin_password" "$_adguard_pw")
+    _cf_dns_edit=$(echo "$ADGUARD_DOCKER_ENV" | grep -E '^CLOUDFLARE_DNS_EDIT_API_KEY=' | head -1 | cut -d= -f2- | tr -d '"')
+    CF_DNS_EDIT_TOKEN=$(or_existing "cf_dns_edit_api_token" "$_cf_dns_edit")
+    log_result "AdGuard plaintext password" "$ADGUARD_PASSWORD"
+    log_result "Cloudflare DNS-edit token" "$CF_DNS_EDIT_TOKEN"
+
+    # Certbot email from renewal config
+    _certbot_email=$(ssh_cmd "$ADGUARD_HOST" "sudo grep -r email /etc/letsencrypt/renewal/ 2>/dev/null" | head -1 | sed 's/.*=\s*//' | tr -d ' ')
+    CERTBOT_EMAIL=$(or_existing "certbot_email" "$_certbot_email")
+    if [[ -z "$CERTBOT_EMAIL" || "$CERTBOT_EMAIL" == "CHANGEME" ]]; then
+        CERTBOT_EMAIL=$(prompt_or_existing "certbot_email" "Certbot/Let's Encrypt email")
+    fi
+    log_result "Certbot email" "$CERTBOT_EMAIL"
 fi
 
 # =====================================================================
 # Samba — user list (passwords can't be extracted, just names)
 # =====================================================================
-info "Pulling Samba user list from Fileserver (root@192.168.1.17)..."
+# Preserve existing samba passwords from the vault
+declare -A SAMBA_EXISTING_PW=()
+if [[ -n "${VAULT_CONTENT:-}" ]]; then
+    # Parse the samba_users_passwords list from decrypted vault
+    in_samba=false
+    current_user=""
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^samba_users_passwords: ]]; then
+            in_samba=true
+            continue
+        fi
+        if $in_samba; then
+            # Stop at the next top-level key
+            if [[ "$line" =~ ^[a-zA-Z_] ]]; then
+                break
+            fi
+            if [[ "$line" =~ name:\ *\"?([^\"]+)\"? ]]; then
+                current_user="${BASH_REMATCH[1]}"
+            fi
+            if [[ "$line" =~ password:\ *\"?([^\"]+)\"? && -n "$current_user" ]]; then
+                pw="${BASH_REMATCH[1]}"
+                if [[ "$pw" != "CHANGEME" ]]; then
+                    SAMBA_EXISTING_PW["$current_user"]="$pw"
+                fi
+                current_user=""
+            fi
+        fi
+    done <<< "$VAULT_CONTENT"
+fi
 
-SAMBA_USERS=$(ssh_cmd "root@192.168.1.17" "pdbedit -L 2>/dev/null" | cut -d: -f1) || true
+info "Pulling Samba user list from Fileserver ($FILESERVER_HOST)..."
+
+SAMBA_USERS=$(ssh_cmd "$FILESERVER_HOST" "pdbedit -L 2>/dev/null" | cut -d: -f1) || true
 if [[ -n "$SAMBA_USERS" ]]; then
     info "  Samba users found: $(echo "$SAMBA_USERS" | tr '\n' ', ')"
-    warn "  Samba passwords cannot be extracted — you'll need to enter them manually"
+    if [[ ${#SAMBA_EXISTING_PW[@]} -gt 0 ]]; then
+        info "  Samba passwords preserved from vault for: ${!SAMBA_EXISTING_PW[*]}"
+    fi
 else
     warn "  Samba: pdbedit not available or no users"
 fi
@@ -495,18 +587,27 @@ yml recyclarr_radarr_api_key "$RECYCLARR_RADARR_KEY"
 echo ""
 echo "# --- VPN (seedbox) ---"
 yml protonvpn_private_key "$PROTONVPN_KEY"
+yml gluetun_control_server_key "$GLUETUN_KEY"
+echo ""
+echo "# --- MusicBrainz ---"
+yml musicbrainz_postgres_password "$MUSICBRAINZ_PG_PASS"
+echo ""
+echo "# --- Home Assistant ---"
+yml homeassistant_bearer_token "$HA_BEARER_TOKEN"
 echo ""
 echo "# --- Samba ---"
-echo "# Samba passwords cannot be extracted — enter manually"
-echo "samba_users:"
+echo "samba_users_passwords:"
 if [[ -n "$SAMBA_USERS" ]]; then
     while IFS= read -r user; do
+        pw="${SAMBA_EXISTING_PW[$user]:-CHANGEME}"
         echo "  - name: \"$user\""
-        echo "    password: \"CHANGEME\""
+        echo "    password: \"$pw\""
     done <<< "$SAMBA_USERS"
 else
-    echo '  - name: "CHANGEME"'
-    echo '    password: "CHANGEME"'
+    echo '  - name: "media"'
+    echo "    password: \"${SAMBA_EXISTING_PW[media]:-CHANGEME}\""
+    echo '  - name: "mediauser"'
+    echo "    password: \"${SAMBA_EXISTING_PW[mediauser]:-CHANGEME}\""
 fi
 echo ""
 echo "# --- rclone (PBS) ---"
@@ -518,6 +619,9 @@ echo ""
 echo "# --- AdGuard Home ---"
 # bcrypt hash contains $, force single quotes
 printf 'adguard_admin_password_hash: '\''%s'\''\n' "$(safe "$ADGUARD_HASH")"
+yml adguard_admin_password "$ADGUARD_PASSWORD"
+yml cf_dns_edit_api_token "$CF_DNS_EDIT_TOKEN"
+yml certbot_email "$CERTBOT_EMAIL"
 echo ""
 } > "$VAULT_TMP"
 

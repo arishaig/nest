@@ -1,0 +1,6 @@
+#!/bin/bash
+# Certbot renewal deploy hook — copy certs to AdGuard Home and restart
+cp /etc/letsencrypt/live/dns.arishaig.site/fullchain.pem /opt/AdGuardHome/ssl/fullchain.pem
+cp /etc/letsencrypt/live/dns.arishaig.site/privkey.pem /opt/AdGuardHome/ssl/privkey.pem
+chmod 600 /opt/AdGuardHome/ssl/privkey.pem
+systemctl restart AdGuardHome

@@ -18,33 +18,42 @@
 
   tasks:
     # --- Docker CE installation ---
-    - name: Add Docker GPG key
-      ansible.builtin.get_url:
-        url: https://download.docker.com/linux/debian/gpg
-        dest: /etc/apt/keyrings/docker.asc
-        mode: "0644"
+    - name: Check if Docker is already installed
+      ansible.builtin.command: docker --version
+      register: docker_check
+      changed_when: false
+      failed_when: false
 
-    - name: Add Docker repository
-      ansible.builtin.apt_repository:
-        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
-        state: present
+    - name: Install Docker CE
+      when: docker_check.rc != 0
+      block:
+        - name: Add Docker GPG key
+          ansible.builtin.get_url:
+            url: https://download.docker.com/linux/debian/gpg
+            dest: /etc/apt/keyrings/docker.asc
+            mode: "0644"
 
-    - name: Install Docker CE packages
-      ansible.builtin.apt:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-          - docker-buildx-plugin
-          - docker-compose-plugin
-        state: present
-        update_cache: true
+        - name: Add Docker repository
+          ansible.builtin.apt_repository:
+            repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+            state: present
 
-    - name: Enable and start Docker
-      ansible.builtin.systemd:
-        name: docker
-        enabled: true
-        state: started
+        - name: Install Docker CE packages
+          ansible.builtin.apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-buildx-plugin
+              - docker-compose-plugin
+            state: present
+            update_cache: true
+
+        - name: Enable and start Docker
+          ansible.builtin.systemd:
+            name: docker
+            enabled: true
+            state: started
 
     # --- Create Docker networks ---
     - name: Create Docker networks
@@ -53,20 +62,65 @@
         state: present
       loop: "{{ docker_networks }}"
 
-    # --- Deploy compose and configs ---
-    # The compose file and service configs (traefik, authelia, etc.)
-    # live on the bind-mounted /mnt/app_config volume.
-    # On a fresh provision, these must be restored from backup or
-    # deployed from templates in a separate step.
+    # --- Deploy configs ---
+    - name: Create config directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ compose_dir }}/traefik"
+        - "{{ compose_dir }}/traefik/dynamic"
+        - "{{ compose_dir }}/authelia"
 
-    - name: Check if docker-compose.yml exists
-      ansible.builtin.stat:
-        path: "{{ compose_dir }}/docker-compose.yml"
-      register: compose_file
+    - name: Template .env from vault
+      ansible.builtin.template:
+        src: templates/docker/env.j2
+        dest: "{{ compose_dir }}/.env"
+        mode: "0600"
+
+    - name: Copy docker-compose.yml
+      ansible.builtin.copy:
+        src: files/docker/docker-compose.yml
+        dest: "{{ compose_dir }}/docker-compose.yml"
+        mode: "0644"
+
+    - name: Copy traefik static config
+      ansible.builtin.copy:
+        src: files/docker/traefik/traefik.yml
+        dest: "{{ compose_dir }}/traefik/traefik.yml"
+        mode: "0644"
+
+    - name: Copy traefik dynamic configs
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ compose_dir }}/traefik/dynamic/"
+        mode: "0644"
+      with_fileglob:
+        - files/docker/traefik/dynamic/*.yml
+
+    - name: Copy authelia config
+      ansible.builtin.copy:
+        src: files/docker/authelia/configuration.yml
+        dest: "{{ compose_dir }}/authelia/configuration.yml"
+        mode: "0644"
+
+    - name: Ensure acme.json exists with correct permissions
+      ansible.builtin.file:
+        path: "{{ compose_dir }}/traefik/acme.json"
+        state: touch
+        mode: "0600"
+        modification_time: preserve
+        access_time: preserve
+
+    - name: Create traefik log directory
+      ansible.builtin.file:
+        path: /var/log/traefik
+        state: directory
+        mode: "0755"
 
     - name: Start Docker Compose stack
       ansible.builtin.command:
         cmd: docker compose up -d
         chdir: "{{ compose_dir }}"
-      when: compose_file.stat.exists
       changed_when: true

@@ -2,8 +2,8 @@
 # LXC 104: seedbox — Torrent client with VPN
 # ──────────────────────────────────────────────
 # Requires TUN device passthrough for VPN (WireGuard/OpenVPN).
-# The lxc.* options must be added to /etc/pve/lxc/104.conf after
-# Terraform creates the container.
+# Passthrough is automated via null_resource.seedbox_passthrough
+# which runs pve-passthrough.yml on the PVE host.
 
 resource "proxmox_virtual_environment_container" "seedbox" {
   node_name   = var.pve_node
@@ -43,7 +43,8 @@ resource "proxmox_virtual_environment_container" "seedbox" {
     hostname = "seedbox"
     ip_config {
       ipv4 {
-        address = "dhcp"
+        address = "192.168.1.182/24"
+        gateway = var.gateway
       }
     }
     dns {
@@ -64,20 +65,34 @@ resource "proxmox_virtual_environment_container" "seedbox" {
     order = 3
   }
 
-  provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/seedbox.yml --limit seedbox"
-  }
-
   lifecycle {
     ignore_changes = [
       operating_system,
-      description,
       console,
     ]
   }
 }
 
-# Post-creation manual step for TUN device:
-# Add to /etc/pve/lxc/104.conf:
-#   lxc.cgroup2.devices.allow: c 10:200 rwm
-#   lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
+resource "null_resource" "seedbox_passthrough" {
+  depends_on = [proxmox_virtual_environment_container.seedbox]
+
+  triggers = {
+    container_id = proxmox_virtual_environment_container.seedbox.id
+  }
+
+  provisioner "local-exec" {
+    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/pve-passthrough.yml -e lxc_id=104 -e @../playbooks/provision/files/seedbox/passthrough.yml"
+  }
+}
+
+resource "null_resource" "seedbox_provision" {
+  depends_on = [null_resource.seedbox_passthrough]
+
+  triggers = {
+    container_id = proxmox_virtual_environment_container.seedbox.id
+  }
+
+  provisioner "local-exec" {
+    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/seedbox.yml --limit seedbox"
+  }
+}

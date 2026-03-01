@@ -70,7 +70,6 @@ resource "proxmox_virtual_environment_container" "fileserver" {
   lifecycle {
     ignore_changes = [
       operating_system,
-      description,
       console,
     ]
   }

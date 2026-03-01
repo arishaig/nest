@@ -1,0 +1,278 @@
+---
+# Provision the AdGuard Pi (Raspberry Pi at 192.168.7.7)
+# Installs: Unbound, AdGuard Home, Certbot (Cloudflare DNS), Docker stack, unbound-exporter
+
+- name: Common base setup
+  ansible.builtin.import_playbook: common.yml
+
+- name: AdGuard Pi provisioning
+  hosts: dns
+  become: true
+  gather_facts: true
+
+  vars:
+    unbound_exporter_version: "0.5.0"
+    certbot_domain: "dns.arishaig.site"
+    docker_dir: /opt/docker
+
+  tasks:
+    # ── Unbound (recursive resolver on 127.0.0.1:5335) ──
+
+    - name: Install unbound
+      ansible.builtin.apt:
+        name: unbound
+        state: present
+
+    - name: Download root hints
+      ansible.builtin.get_url:
+        url: https://www.internic.net/domain/named.root
+        dest: /var/lib/unbound/root.hints
+        mode: "0644"
+
+    - name: Deploy unbound server config
+      ansible.builtin.template:
+        src: templates/adguard/unbound.conf.j2
+        dest: /etc/unbound/unbound.conf.d/adguard.conf
+        mode: "0644"
+      notify: Restart unbound
+
+    - name: Enable and start unbound
+      ansible.builtin.systemd:
+        name: unbound
+        enabled: true
+        state: started
+
+    # ── AdGuard Home (official install script) ──
+
+    - name: Check if AdGuard Home is installed
+      ansible.builtin.stat:
+        path: /opt/AdGuardHome/AdGuardHome
+      register: adguard_binary
+
+    - name: Install AdGuard Home
+      when: not adguard_binary.stat.exists
+      block:
+        - name: Download AdGuard Home install script
+          ansible.builtin.get_url:
+            url: https://raw.githubusercontent.com/AdguardTeam/AdGuardHome/master/scripts/install.sh
+            dest: /tmp/adguard_install.sh
+            mode: "0755"
+
+        - name: Run AdGuard Home install script
+          ansible.builtin.command: /tmp/adguard_install.sh
+          changed_when: true
+
+        - name: Clean up install script
+          ansible.builtin.file:
+            path: /tmp/adguard_install.sh
+            state: absent
+
+    - name: Ensure AdGuardHome service enabled and started
+      ansible.builtin.systemd:
+        name: AdGuardHome
+        enabled: true
+        state: started
+
+    # ── Certbot (Cloudflare DNS challenge for dns.arishaig.site) ──
+
+    - name: Install certbot and Cloudflare plugin
+      ansible.builtin.apt:
+        name:
+          - certbot
+          - python3-certbot-dns-cloudflare
+        state: present
+
+    - name: Create secrets directory
+      ansible.builtin.file:
+        path: /root/.secrets
+        state: directory
+        mode: "0700"
+
+    - name: Deploy Cloudflare credentials
+      ansible.builtin.template:
+        src: templates/adguard/cloudflare.ini.j2
+        dest: /root/.secrets/cloudflare.ini
+        mode: "0600"
+
+    - name: Check if cert already exists
+      ansible.builtin.stat:
+        path: "/etc/letsencrypt/live/{{ certbot_domain }}/fullchain.pem"
+      register: cert_file
+
+    - name: Obtain TLS certificate
+      when: not cert_file.stat.exists
+      ansible.builtin.command: >
+        certbot certonly
+        --dns-cloudflare
+        --dns-cloudflare-credentials /root/.secrets/cloudflare.ini
+        --non-interactive
+        --agree-tos
+        --email {{ certbot_email }}
+        -d {{ certbot_domain }}
+      changed_when: true
+
+    - name: Create AdGuard SSL directory
+      ansible.builtin.file:
+        path: /opt/AdGuardHome/ssl
+        state: directory
+        mode: "0755"
+
+    - name: Copy certs to AdGuard SSL directory
+      when: not cert_file.stat.exists
+      ansible.builtin.shell: |
+        cp /etc/letsencrypt/live/{{ certbot_domain }}/fullchain.pem /opt/AdGuardHome/ssl/fullchain.pem
+        cp /etc/letsencrypt/live/{{ certbot_domain }}/privkey.pem /opt/AdGuardHome/ssl/privkey.pem
+        chmod 600 /opt/AdGuardHome/ssl/privkey.pem
+      changed_when: true
+
+    - name: Deploy certbot renewal hook
+      ansible.builtin.template:
+        src: templates/adguard/certbot-deploy-hook.sh.j2
+        dest: /etc/letsencrypt/renewal-hooks/deploy/adguardhome.sh
+        mode: "0755"
+
+    - name: Ensure certbot timer is enabled
+      ansible.builtin.systemd:
+        name: certbot.timer
+        enabled: true
+        state: started
+
+    # ── Docker (adguard-exporter + cloudflare-ddns) ──
+
+    - name: Check if Docker is installed
+      ansible.builtin.command: docker --version
+      register: docker_check
+      changed_when: false
+      failed_when: false
+
+    - name: Install Docker CE
+      when: docker_check.rc != 0
+      block:
+        - name: Add Docker GPG key
+          ansible.builtin.get_url:
+            url: https://download.docker.com/linux/debian/gpg
+            dest: /etc/apt/keyrings/docker.asc
+            mode: "0644"
+
+        - name: Add Docker repository
+          ansible.builtin.apt_repository:
+            repo: "deb [arch={{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+            state: present
+
+        - name: Install Docker CE packages
+          ansible.builtin.apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-buildx-plugin
+              - docker-compose-plugin
+            state: present
+            update_cache: true
+
+        - name: Enable and start Docker
+          ansible.builtin.systemd:
+            name: docker
+            enabled: true
+            state: started
+
+    - name: Create Docker compose directory
+      ansible.builtin.file:
+        path: "{{ docker_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Deploy docker-compose.yml
+      ansible.builtin.template:
+        src: templates/adguard/docker-compose.yml.j2
+        dest: "{{ docker_dir }}/docker-compose.yml"
+        mode: "0644"
+
+    - name: Deploy .env for Docker compose
+      ansible.builtin.template:
+        src: templates/adguard/env.j2
+        dest: "{{ docker_dir }}/.env"
+        mode: "0600"
+
+    - name: Start Docker compose stack
+      ansible.builtin.command:
+        cmd: docker compose up -d
+        chdir: "{{ docker_dir }}"
+      changed_when: true
+
+    # ── unbound-exporter (port 9167, systemd) ──
+
+    - name: Check if unbound_exporter is installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/unbound_exporter
+      register: unbound_exporter_binary
+
+    - name: Build and install unbound_exporter from source
+      when: not unbound_exporter_binary.stat.exists
+      block:
+        - name: Install golang for building unbound_exporter
+          ansible.builtin.apt:
+            name: golang
+            state: present
+
+        - name: Build unbound_exporter
+          ansible.builtin.command: go install github.com/letsencrypt/unbound_exporter@v{{ unbound_exporter_version }}
+          environment:
+            GOPATH: /tmp/go
+            GOBIN: /tmp/go/bin
+          changed_when: true
+
+        - name: Install unbound_exporter binary
+          ansible.builtin.copy:
+            src: /tmp/go/bin/unbound_exporter
+            dest: /usr/local/bin/unbound_exporter
+            mode: "0755"
+            remote_src: true
+
+        - name: Clean up Go build artifacts
+          ansible.builtin.file:
+            path: /tmp/go
+            state: absent
+
+        - name: Remove golang (no longer needed)
+          ansible.builtin.apt:
+            name: golang
+            state: absent
+            autoremove: true
+
+    - name: Create unbound_exporter systemd service
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Unbound Prometheus Exporter
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/local/bin/unbound_exporter -unbound.host unix:///run/unbound.ctl -web.listen-address :9167
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/unbound_exporter.service
+        mode: "0644"
+      notify: Restart unbound_exporter
+
+    - name: Enable and start unbound_exporter
+      ansible.builtin.systemd:
+        name: unbound_exporter
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: Restart unbound
+      ansible.builtin.systemd:
+        name: unbound
+        state: restarted
+
+    - name: Restart unbound_exporter
+      ansible.builtin.systemd:
+        name: unbound_exporter
+        state: restarted
+        daemon_reload: true

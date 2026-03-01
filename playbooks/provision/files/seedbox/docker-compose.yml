@@ -1,0 +1,94 @@
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - "${WEBUI_PORT}:${WEBUI_PORT}"
+    volumes:
+      - ./gluetun:/gluetun
+    environment:
+      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER}
+      - VPN_TYPE=${VPN_TYPE}
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
+      - SERVER_COUNTRIES=${SERVER_COUNTRIES}
+      - VPN_PORT_FORWARDING=${VPN_PORT_FORWARDING}
+      - VPN_PORT_FORWARDING_PROVIDER=protonvpn
+      - |
+        VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh -c '
+        echo "Port forwarding enabled on port: {{PORTS}}";
+        wget -qO- --retry-connrefused --tries=10 --waitretry=5 \
+          --post-data "json={\"listen_port\":{{PORTS}},\"random_port\":false,\"upnp\":false}" \
+          http://127.0.0.1:${WEBUI_PORT}/api/v2/app/setPreferences 2>&1 || echo "Failed to update qBittorrent port";
+        '
+      - FIREWALL_VPN_INPUT_PORTS=${WEBUI_PORT}
+      - FIREWALL_OUTBOUND_SUBNETS=${LAN_NETWORK}
+      - DOT=off
+      - DNS_ADDRESS=10.2.0.1
+      - TZ=${TZ}
+      - HTTPPROXY=off
+      - SHADOWSOCKS=off
+      - HTTP_CONTROL_SERVER_ADDRESS=:8000
+      - HTTP_CONTROL_SERVER_LOG=on
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "sh", "-c", "ping -c 1 1.1.1.1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=${WEBUI_PORT}
+    volumes:
+      - ./qbittorrent:/config
+      - /mnt/data:/data
+    restart: unless-stopped
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: node_exporter
+    restart: unless-stopped
+    pid: host
+    network_mode: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.systemd'
+      - '--collector.processes'
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
