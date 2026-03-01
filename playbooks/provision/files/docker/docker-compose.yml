@@ -1,453 +1,538 @@
+# =============================================================================
+# REMOVED SERVICES (retrieve full config from git history)
+# =============================================================================
+# satisfactory-server (wolveix/satisfactory-server:latest)
+#   - Game server, removed 2025-02-11
+#   - Ports: 7777/tcp+udp, 8888/tcp
+#   - Config: /mnt/app_config/satisfactory-server
+#   - Memory: 4-12GB reserved
+#
+# qbittorrent (linuxserver/qbittorrent:latest)
+#   - Torrent client, removed 2025-02-11
+#   - Ports: 8080, 6881/tcp+udp
+#   - Config: /mnt/app_config/qbittorrent
+#
+# calibre (lscr.io/linuxserver/calibre:latest)
+#   - Desktop GUI for ebook management, removed 2025-02-11
+#   - Ports: 8082, 8081
+#   - Config: /mnt/app_config/calibre
+# =============================================================================
+
 services:
+  ##### *arr Stack Media Apps #####
 
-  # =========================================================================
-  #  Media *arr Stack
-  # =========================================================================
-
+  # Bazarr - Subtitle Management
   bazarr:
     image: linuxserver/bazarr:latest
     container_name: bazarr
-    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
+      - PUID=1000
+      - PGID=1000
       - TZ=America/Los_Angeles
     volumes:
-      - ./bazarr:/config
+      - /mnt/app_config/bazarr:/config
       - /mnt/media_root:/data
-    ports:
-      - "6767:6767"
+    expose:
+      - "6767"
+    networks:
+      - default
+      - proxy-net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.bazarr.rule=Host(`bazarr.arishaig.site`)"
       - "traefik.http.routers.bazarr.entrypoints=websecure"
-      - "traefik.http.routers.bazarr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.bazarr.tls=true"
       - "traefik.http.routers.bazarr.middlewares=authelia@file"
       - "traefik.http.services.bazarr.loadbalancer.server.port=6767"
-    networks:
-      - default
-      - proxy-net
+    restart: unless-stopped
 
+  # Jellyfin - Media Server
   jellyfin:
     image: linuxserver/jellyfin:latest
     container_name: jellyfin
-    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
+      - PUID=1000
+      - PGID=1000
       - TZ=America/Los_Angeles
     volumes:
-      - ./jellyfin:/config
+      - /mnt/app_config/jellyfin:/config
       - /mnt/media_root:/data
     ports:
-      - "8096:8096"
+      - 8096:8096
+    networks:
+      - default
+      - proxy-net
     labels:
+      # No Authelia middleware in otder to support clients that cannot handle auth redirects
       - "traefik.enable=true"
       - "traefik.http.routers.jellyfin.rule=Host(`jellyfin.arishaig.site`)"
       - "traefik.http.routers.jellyfin.entrypoints=websecure"
-      - "traefik.http.routers.jellyfin.tls.certresolver=cloudflare"
+      - "traefik.http.routers.jellyfin.tls=true"
+      #- "traefik.http.routers.jellyfin.middlewares=authelia@file"
       - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
-    networks:
-      - default
-      - proxy-net
+    restart: unless-stopped
 
+  # Jellyseerr - Request management
   jellyseerr:
     image: fallenbagel/jellyseerr:latest
     container_name: jellyseerr
-    restart: unless-stopped
     environment:
       - TZ=America/Los_Angeles
     volumes:
-      - ./jellyseerr:/app/config
-    ports:
-      - "5055:5055"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.jellyseerr.rule=Host(`request.arishaig.site`)"
-      - "traefik.http.routers.jellyseerr.entrypoints=websecure"
-      - "traefik.http.routers.jellyseerr.tls.certresolver=cloudflare"
-      - "traefik.http.routers.jellyseerr.middlewares=authelia@file"
-      - "traefik.http.services.jellyseerr.loadbalancer.server.port=5055"
+      - /mnt/app_config/jellyseerr:/app/config
+    expose:
+      - "5055"
     networks:
       - default
       - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jellyseerr.rule=Host(`jellyseerr.arishaig.site`)"
+      - "traefik.http.routers.jellyseerr.entrypoints=websecure"
+      - "traefik.http.routers.jellyseerr.tls=true"
+      - "traefik.http.routers.jellyseerr.middlewares=authelia@file"
+      - "traefik.http.services.jellyseerr.loadbalancer.server.port=5055"
+    restart: unless-stopped
 
+  # Lidarr - Music Management
   lidarr:
     image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins
     container_name: lidarr
-    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
+      - PUID=1000
+      - PGID=1000
       - TZ=America/Los_Angeles
     volumes:
-      - ./lidarr:/config
+      - /mnt/app_config/lidarr:/config
       - /mnt/media_root:/data
-    ports:
-      - "8686:8686"
+    expose:
+      - "8686"
+    networks:
+      - default
+      - proxy-net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.lidarr.rule=Host(`lidarr.arishaig.site`)"
       - "traefik.http.routers.lidarr.entrypoints=websecure"
-      - "traefik.http.routers.lidarr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.lidarr.tls=true"
       - "traefik.http.routers.lidarr.middlewares=authelia@file"
       - "traefik.http.services.lidarr.loadbalancer.server.port=8686"
-    networks:
-      - default
-      - proxy-net
+    restart: unless-stopped
 
+  # Prowlarr - Indexer Management
   prowlarr:
     image: linuxserver/prowlarr:latest
     container_name: prowlarr
-    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
+      - PUID=1000
+      - PGID=1000
       - TZ=America/Los_Angeles
     volumes:
-      - ./prowlarr:/config
-    ports:
-      - "9696:9696"
+      - /mnt/app_config/prowlarr:/config
+    expose:
+      - "9696"
+    networks:
+      - default
+      - proxy-net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.arishaig.site`)"
       - "traefik.http.routers.prowlarr.entrypoints=websecure"
-      - "traefik.http.routers.prowlarr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.prowlarr.tls=true"
       - "traefik.http.routers.prowlarr.middlewares=authelia@file"
       - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
-    networks:
-      - default
-      - proxy-net
+    restart: unless-stopped
 
+  # Radarr - Movie Management
   radarr:
     image: linuxserver/radarr:latest
     container_name: radarr
-    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
+      - PUID=1000
+      - PGID=1000
       - TZ=America/Los_Angeles
     volumes:
-      - ./radarr:/config
+      - /mnt/app_config/radarr:/config
       - /mnt/media_root:/data
-    ports:
-      - "7878:7878"
+    expose:
+      - "7878"
+    networks:
+      - default
+      - proxy-net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.radarr.rule=Host(`radarr.arishaig.site`)"
       - "traefik.http.routers.radarr.entrypoints=websecure"
-      - "traefik.http.routers.radarr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.radarr.tls=true"
       - "traefik.http.routers.radarr.middlewares=authelia@file"
       - "traefik.http.services.radarr.loadbalancer.server.port=7878"
-    networks:
-      - default
-      - proxy-net
+    restart: unless-stopped
 
+  # Recommendarr - Recommends content
   recommendarr:
     image: tannermiddleton/recommendarr:latest
     container_name: recommendarr
-    restart: unless-stopped
-    environment:
-      - TZ=America/Los_Angeles
+    user: "1000:1000"
+    expose:
+      - "3000"
     volumes:
-      - ./recommendarr:/app/data
-    ports:
-      - "3000:3000"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.recommendarr.rule=Host(`recommend.arishaig.site`)"
-      - "traefik.http.routers.recommendarr.entrypoints=websecure"
-      - "traefik.http.routers.recommendarr.tls.certresolver=cloudflare"
-      - "traefik.http.routers.recommendarr.middlewares=authelia@file"
-      - "traefik.http.services.recommendarr.loadbalancer.server.port=3000"
+      - /mnt/app_config/recommendarr:/app/server/data
     networks:
       - default
       - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.recommendarr.rule=Host(`recommendarr.arishaig.site`)"
+      - "traefik.http.routers.recommendarr.entrypoints=websecure"
+      - "traefik.http.routers.recommendarr.tls=true"
+      - "traefik.http.routers.recommendarr.middlewares=authelia@file"
+      - "traefik.http.services.recommendarr.loadbalancer.server.port=3000"
+    restart: unless-stopped
 
+  # Recyclarr - TRaSH Guide Settings Sync
   recyclarr:
     image: ghcr.io/recyclarr/recyclarr:latest
     container_name: recyclarr
-    restart: unless-stopped
+    user: 1000:1000
     environment:
       - TZ=America/Los_Angeles
     volumes:
-      - ./recyclarr:/config
+      - /mnt/app_config/recyclarr:/config
+    restart: unless-stopped
 
+  # SABnzbd - Usenet Download Client
   sabnzbd:
     image: linuxserver/sabnzbd:latest
     container_name: sabnzbd
-    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
+      - PUID=1000
+      - PGID=1000
       - TZ=America/Los_Angeles
     volumes:
-      - ./sabnzbd:/config
+      - /mnt/app_config/sabnzbd:/config
       - /mnt/media_root:/data
-    ports:
-      - "8080:8080"
+      - /opt/sabnzbd-incomplete:/incomplete
+    expose:
+      - "8080"
+    networks:
+      - default
+      - proxy-net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.sabnzbd.rule=Host(`nzbd.arishaig.site`)"
       - "traefik.http.routers.sabnzbd.entrypoints=websecure"
-      - "traefik.http.routers.sabnzbd.tls.certresolver=cloudflare"
+      - "traefik.http.routers.sabnzbd.tls=true"
       - "traefik.http.routers.sabnzbd.middlewares=authelia@file"
       - "traefik.http.services.sabnzbd.loadbalancer.server.port=8080"
-    networks:
-      - default
-      - proxy-net
+    restart: unless-stopped
 
+  # Sonarr - TV Series Management
   sonarr:
     image: linuxserver/sonarr:latest
     container_name: sonarr
-    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
+      - PUID=1000
+      - PGID=1000
       - TZ=America/Los_Angeles
     volumes:
-      - ./sonarr:/config
+      - /mnt/app_config/sonarr:/config
       - /mnt/media_root:/data
-    ports:
-      - "8989:8989"
+    expose:
+      - "8989"
+    networks:
+      - default
+      - proxy-net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.sonarr.rule=Host(`sonarr.arishaig.site`)"
       - "traefik.http.routers.sonarr.entrypoints=websecure"
-      - "traefik.http.routers.sonarr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.sonarr.tls=true"
       - "traefik.http.routers.sonarr.middlewares=authelia@file"
       - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
+    restart: unless-stopped
+
+  # Tunarr - Create TV channels from local media
+  tunarr:
+    image: chrisbenincasa/tunarr:latest
+    container_name: tunarr
+    # Uncomment if using the Nvidia container
+    # runtime: nvidia
+    environment:
+      - LOG_LEVEL=${TUNARR_LOG_LEVEL:-INFO}
+      - TZ=America/Los_Angeles
+      # Uncomment if you'd like to adjust default config path
+      # - TUNARR_DATABASE_PATH=/your/path/tunarr
+    volumes:
+      - /mnt/app_config/tunarr/data:/config/tunarr
+    expose:
+      - "8000"
     networks:
       - default
       - proxy-net
+    labels:
+      # Remove Authelia so that Jellyfin can communicate with Tunarr
+      - "traefik.enable=true"
+      - "traefik.http.routers.tunarr.rule=Host(`tunarr.arishaig.site`)"
+      - "traefik.http.routers.tunarr.entrypoints=websecure"
+      - "traefik.http.routers.tunarr.tls=true"
+      # - "traefik.http.routers.tunarr.middlewares=authelia@file"
+      - "traefik.http.services.tunarr.loadbalancer.server.port=8000"
+    restart: unless-stopped
 
+  # Watcharr - Watchlist and view tracking
   watcharr:
     image: ghcr.io/sbondco/watcharr:latest
     container_name: watcharr
-    restart: unless-stopped
-    environment:
-      - TZ=America/Los_Angeles
+    expose:
+      - "3080"
     volumes:
-      - ./watcharr:/data
-    ports:
-      - "3080:3080"
+      - /mnt/app_config/watcharr:/data
+    networks:
+      - default
+      - proxy-net
     labels:
+      # No Authelia middleware because Watcharr login breaks with it enabled
       - "traefik.enable=true"
       - "traefik.http.routers.watcharr.rule=Host(`watcharr.arishaig.site`)"
       - "traefik.http.routers.watcharr.entrypoints=websecure"
-      - "traefik.http.routers.watcharr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.watcharr.tls=true"
       - "traefik.http.services.watcharr.loadbalancer.server.port=3080"
-    networks:
-      - default
-      - proxy-net
+    restart: unless-stopped
 
-  # =========================================================================
-  #  Book Media Apps
-  # =========================================================================
+  ##### Book Media Apps #####
 
+  # Calibre Auto-Import - Monitors folder and imports books automatically
   calibre-auto-import:
     image: lscr.io/linuxserver/calibre:latest
     container_name: calibre-auto-import
-    restart: unless-stopped
-    security_opt:
-      - seccomp:unconfined
     environment:
-      - PUID=0
-      - PGID=0
+      - PUID=1000
+      - PGID=1000
       - TZ=America/Los_Angeles
-      - CLI_ARGS=--with-library /config/Calibre Library
     volumes:
-      - ./calibre-auto-import:/config
-      - /mnt/media_root/books:/books
+      - /mnt/media_root/media/calibre-books:/books
+      - /mnt/media_root/manual-downloads/books:/imports
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        apt-get update && apt-get install -y inotify-tools
+        echo "Calibre Auto-Import started. Watching /imports for new books..."
+        while inotifywait -e close_write,moved_to -r /imports; do
+          echo "New file detected, waiting 5 seconds..."
+          sleep 5
+          if [ -n "$$(find /imports -type f \( -name '*.epub' -o -name '*.mobi' -o -name '*.azw*' -o -name '*.pdf' -o -name '*.cbz' -o -name '*.cbr' \) 2>/dev/null)" ]; then
+            echo "Importing books to Calibre library..."
+            calibredb add /imports/* --library-path=/books --recurse --duplicates
+            echo "Import complete, cleaning up import folder..."
+            find /imports -type f \( -name '*.epub' -o -name '*.mobi' -o -name '*.azw*' -o -name '*.pdf' -o -name '*.cbz' -o -name '*.cbr' \) -delete
+            echo "Ready for next import."
+          fi
+        done
+    restart: unless-stopped
 
+  # Calibre Web - Frontend for Calibre
   calibre-web:
     image: lscr.io/linuxserver/calibre-web:latest
     container_name: calibre-web
-    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
+      - PUID=1000
+      - PGID=1000
       - TZ=America/Los_Angeles
       - DOCKER_MODS=linuxserver/mods:universal-calibre
     volumes:
-      - ./calibre-web:/config
-      - /mnt/media_root/books:/books
-    ports:
-      - "8083:8083"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.calibre-web.rule=Host(`books.arishaig.site`)"
-      - "traefik.http.routers.calibre-web.entrypoints=websecure"
-      - "traefik.http.routers.calibre-web.tls.certresolver=cloudflare"
-      - "traefik.http.routers.calibre-web.middlewares=authelia@file"
-      - "traefik.http.services.calibre-web.loadbalancer.server.port=8083"
+      - /mnt/app_config/calibre-web/config:/config
+      - /mnt/media_root/media/calibre-books:/books
+    expose:
+      - "8083"
     networks:
       - default
       - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.calibre.rule=Host(`calibre.arishaig.site`)"
+      - "traefik.http.routers.calibre.entrypoints=websecure"
+      - "traefik.http.routers.calibre.tls=true"
+      - "traefik.http.routers.calibre.middlewares=authelia@file"
+      - "traefik.http.services.calibre.loadbalancer.server.port=8083"
+    restart: unless-stopped
 
+  # Chaptarr - Book Management
   chaptarr:
     image: robertlordhood/chaptarr:latest
     container_name: chaptarr
-    restart: unless-stopped
     environment:
+      - PUID=1000
+      - PGID=1000
       - TZ=America/Los_Angeles
     volumes:
-      - ./chaptarr:/config
-    ports:
-      - "8787:8787"
+      - /mnt/app_config/chaptarr:/config
+      - /mnt/media_root:/data
+    expose:
+      - "8787"
+    networks:
+      - default
+      - proxy-net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.chaptarr.rule=Host(`chaptarr.arishaig.site`)"
       - "traefik.http.routers.chaptarr.entrypoints=websecure"
-      - "traefik.http.routers.chaptarr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.chaptarr.tls=true"
       - "traefik.http.routers.chaptarr.middlewares=authelia@file"
       - "traefik.http.services.chaptarr.loadbalancer.server.port=8787"
-    networks:
-      - default
-      - proxy-net
+    restart: unless-stopped
 
-  # =========================================================================
-  #  Monitoring & Dashboard
-  # =========================================================================
+  ##### Monitoring and Dashboard Apps #####
 
+  # Glances - System monitoring
   glances:
     image: nicolargo/glances:latest
     container_name: glances
-    restart: unless-stopped
-    pid: host
-    privileged: true
-    network_mode: host
-    environment:
-      - TZ=America/Los_Angeles
-      - "GLANCES_OPT=-w"
+    expose:
+      - "61208"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /etc/os-release:/etc/os-release:ro
+      - /:/rootfs:ro
+    environment:
+      - GLANCES_OPT=-w
+    networks:
+      - default
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.glances.rule=Host(`glances.arishaig.site`)"
+      - "traefik.http.routers.glances.entrypoints=websecure"
+      - "traefik.http.routers.glances.tls=true"
+      - "traefik.http.routers.glances.middlewares=authelia@file"
+      - "traefik.http.services.glances.loadbalancer.server.port=61208"
+    restart: unless-stopped
 
+  # Homarr - Dashboard
   homarr:
     image: ghcr.io/homarr-labs/homarr:latest
     container_name: homarr
-    restart: unless-stopped
     environment:
-      - TZ=America/Los_Angeles
       - SECRET_ENCRYPTION_KEY=${HOMARR_SECRET_KEY}
     volumes:
-      - ./homarr/appdata:/appdata
-    ports:
-      - "7575:7575"
+      # Removed access for security hardening, services will show "Fetch Failed" in their tiles
+      # - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/app_config/homarr:/appdata
+    expose:
+      - "7575"
+    networks:
+      - default
+      - proxy-net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.homarr.rule=Host(`dash.arishaig.site`)"
       - "traefik.http.routers.homarr.entrypoints=websecure"
-      - "traefik.http.routers.homarr.tls.certresolver=cloudflare"
+      - "traefik.http.routers.homarr.tls=true"
       - "traefik.http.routers.homarr.middlewares=authelia@file"
       - "traefik.http.services.homarr.loadbalancer.server.port=7575"
-    networks:
-      - default
-      - proxy-net
+    restart: unless-stopped
 
+  # Uptime Kuma - System monitor and alerts
   uptime-kuma:
     image: louislam/uptime-kuma:1
     container_name: uptime-kuma
-    restart: unless-stopped
     volumes:
-      - ./uptime-kuma:/app/data
-    ports:
-      - "3001:3001"
+      - /mnt/app_config/uptime-kuma:/app/data
+    expose:
+      - "3001"
+    networks:
+      - default
+      - proxy-net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.uptime-kuma.rule=Host(`uptime.arishaig.site`)"
       - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
-      - "traefik.http.routers.uptime-kuma.tls.certresolver=cloudflare"
+      - "traefik.http.routers.uptime-kuma.tls=true"
       - "traefik.http.routers.uptime-kuma.middlewares=authelia@file"
       - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
-    networks:
-      - default
-      - proxy-net
+    restart: unless-stopped
 
-  # =========================================================================
-  #  Other Apps
-  # =========================================================================
+  ##### Other Apps #####
 
+  # Copyparty - Simple file access
   copyparty:
     image: copyparty/ac
     container_name: copyparty
-    restart: unless-stopped
-    environment:
-      - TZ=America/Los_Angeles
+    command: --acao https://copyparty.arishaig.site
+    expose:
+      - "3923"
     volumes:
-      - ./copyparty:/cfg
-      - /mnt/personal:/w/personal
-    ports:
-      - "3923:3923"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.copyparty.rule=Host(`files.arishaig.site`)"
-      - "traefik.http.routers.copyparty.entrypoints=websecure"
-      - "traefik.http.routers.copyparty.tls.certresolver=cloudflare"
-      - "traefik.http.routers.copyparty.middlewares=authelia@file"
-      - "traefik.http.services.copyparty.loadbalancer.server.port=3923"
+      - /mnt/app_config/copyparty:/cfg
+      - /mnt/media_root:/w
     networks:
       - default
       - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.copyparty.rule=Host(`copyparty.arishaig.site`)"
+      - "traefik.http.routers.copyparty.entrypoints=websecure"
+      - "traefik.http.routers.copyparty.tls=true"
+      - "traefik.http.routers.copyparty.middlewares=authelia@file"
+      - "traefik.http.services.copyparty.loadbalancer.server.port=3923"
+    restart: unless-stopped
 
+  # Mealie - Recipe tracker
   mealie:
     image: ghcr.io/mealie-recipes/mealie:latest
     container_name: mealie
-    restart: unless-stopped
+    expose:
+      - "9000"
+    deploy:
+      resources:
+        limits:
+          memory: 1000M
+    volumes:
+      - /mnt/app_config/mealie-data:/app/data/
     environment:
+      - ALLOW_SIGNUP=false
+      - PUID=1000
+      - PGID=1000
       - TZ=America/Los_Angeles
+      - BASE_URL=https://mealie.arishaig.site
       - DB_ENGINE=postgres
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_SERVER=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=mealie
-    volumes:
-      - ./mealie:/app/data
-    ports:
-      - "9000:9000"
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks:
+      - default
+      - proxy-net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.mealie.rule=Host(`mealie.arishaig.site`)"
       - "traefik.http.routers.mealie.entrypoints=websecure"
-      - "traefik.http.routers.mealie.tls.certresolver=cloudflare"
+      - "traefik.http.routers.mealie.tls=true"
       - "traefik.http.routers.mealie.middlewares=authelia@file"
       - "traefik.http.services.mealie.loadbalancer.server.port=9000"
-    networks:
-      - default
-      - proxy-net
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
 
-  # =========================================================================
-  #  Database
-  # =========================================================================
-
+  # Postgres - Database for Mealie
   postgres:
     image: postgres:15
     container_name: postgres
     restart: unless-stopped
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
-      - ./postgres:/var/lib/postgresql/data
-    expose:
-      - "5432"
-    ports:
-      - "9187:9187"
+      - /mnt/app_config/mealie-pgdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - PGUSER=${POSTGRES_USER}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "pg_isready"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
-  # =========================================================================
-  #  Monitoring Exporters
-  # =========================================================================
+  ##### Monitoring Exporters #####
 
+  # Docker monitoring
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor
@@ -464,66 +549,72 @@ services:
     devices:
       - /dev/kmsg
 
+  # Export Bazarr logs to Grafana
   exportarr-bazarr:
     image: ghcr.io/onedr0p/exportarr:latest
     container_name: exportarr-bazarr
     restart: unless-stopped
+    command: bazarr
     environment:
       - PORT=9711
       - URL=http://bazarr:6767
       - APIKEY=${API_KEY_BAZARR}
-    command: ["bazarr"]
     ports:
       - "9711:9711"
 
+  # Export Lidarr logs to Grafana
   exportarr-lidarr:
     image: ghcr.io/onedr0p/exportarr:latest
     container_name: exportarr-lidarr
     restart: unless-stopped
+    command: lidarr
     environment:
       - PORT=9709
       - URL=http://lidarr:8686
       - APIKEY=${API_KEY_LIDARR}
-    command: ["lidarr"]
     ports:
       - "9709:9709"
 
+  # Export Prowlarr logs to Grafana
   exportarr-prowlarr:
     image: ghcr.io/onedr0p/exportarr:latest
     container_name: exportarr-prowlarr
     restart: unless-stopped
+    command: prowlarr
     environment:
       - PORT=9710
       - URL=http://prowlarr:9696
       - APIKEY=${API_KEY_PROWLARR}
-    command: ["prowlarr"]
     ports:
       - "9710:9710"
 
+  # Export Radarr logs to Grafana
   exportarr-radarr:
     image: ghcr.io/onedr0p/exportarr:latest
     container_name: exportarr-radarr
     restart: unless-stopped
+    command: radarr
     environment:
       - PORT=9708
       - URL=http://radarr:7878
       - APIKEY=${API_KEY_RADARR}
-    command: ["radarr"]
     ports:
       - "9708:9708"
 
+  # Export Sonarr logs to Grafana
   exportarr-sonarr:
     image: ghcr.io/onedr0p/exportarr:latest
     container_name: exportarr-sonarr
     restart: unless-stopped
+    command: sonarr
     environment:
       - PORT=9707
       - URL=http://sonarr:8989
       - APIKEY=${API_KEY_SONARR}
-    command: ["sonarr"]
     ports:
       - "9707:9707"
 
+  # Proxmox node monitoring
   node_exporter:
     image: prom/node-exporter:latest
     container_name: node_exporter
@@ -535,126 +626,112 @@ services:
       - /sys:/host/sys:ro
       - /:/rootfs:ro
     command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--path.rootfs=/rootfs'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-      - '--collector.systemd'
-      - '--collector.processes'
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+      - "--collector.systemd"
+      - "--collector.processes"
 
-  # =========================================================================
-  #  Networking & Auth Infrastructure
-  # =========================================================================
+  ##### Networking and Auth Infrastructure #####
 
   authelia:
     image: authelia/authelia
     container_name: authelia
-    restart: unless-stopped
+    networks:
+      - proxy-net
+    expose:
+      - "9091"
     environment:
-      - TZ=America/Los_Angeles
       - AUTHELIA_SESSION_SECRET=${AUTHELIA_SESSION_SECRET}
       - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY}
       - AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET=${AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET}
     volumes:
-      - ./authelia:/config
-    expose:
-      - "9091"
+      - /mnt/app_config/authelia:/config
+    restart: unless-stopped
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.authelia.rule=Host(`auth.arishaig.site`)"
       - "traefik.http.routers.authelia.entrypoints=websecure"
+      - "traefik.http.routers.authelia.tls=true"
       - "traefik.http.routers.authelia.tls.certresolver=cloudflare"
-      - "traefik.http.services.authelia.loadbalancer.server.port=9091"
-    networks:
-      - default
-      - proxy-net
+      - "traefik.http.routers.authelia.tls.domains[0].main=arishaig.site"
+      - "traefik.http.routers.authelia.tls.domains[0].sans=*.arishaig.site"
 
+  # Cloudflared - Secure external connection
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
     restart: unless-stopped
-    command: tunnel run
+    command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
       - default
       - proxy-net
 
+  # Dynamic DNS
   cloudflare-ddns:
     image: favonia/cloudflare-ddns:latest
     container_name: cloudflare-ddns
-    restart: unless-stopped
-    network_mode: host
-    cap_add:
-      - SETUID
-      - SETGID
-    cap_drop:
-      - all
+    restart: always
     read_only: true
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
     environment:
-      - PUID=1000
-      - PGID=1000
       - CF_API_TOKEN=${CLOUDFLARE_DYNAMIC_DNS_API_TOKEN}
       - DOMAINS=vpn.arishaig.site
       - PROXIED=false
-      - IP6_PROVIDER=none
+      - TTL=300
 
+  # Flare Solver - Cloudflare circumvention for prowlarr
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     container_name: flaresolverr
-    restart: unless-stopped
     environment:
+      - LOG_LEVEL=info
       - TZ=America/Los_Angeles
-    ports:
-      - "8191:8191"
+    expose:
+      - "8191"
+    restart: unless-stopped
 
   traefik:
     image: traefik:v3
     container_name: traefik
-    restart: unless-stopped
     ports:
-      - "80:80"
       - "443:443"
+      - "80:80"
+    networks:
+      - proxy-net
     environment:
       - CF_DNS_API_TOKEN=${CLOUDFLARE_TRAEFIK_API_TOKEN}
     volumes:
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/dynamic:/etc/traefik/dynamic:ro
-      - ./traefik/acme.json:/etc/traefik/acme.json
-      - /var/log/traefik:/var/log/traefik
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.traefik.rule=Host(`traefik.arishaig.site`)"
-      - "traefik.http.routers.traefik.entrypoints=websecure"
-      - "traefik.http.routers.traefik.tls.certresolver=cloudflare"
-      - "traefik.http.routers.traefik.middlewares=authelia@file"
-      - "traefik.http.routers.traefik.service=api@internal"
-    depends_on:
-      - socket-proxy
-    networks:
-      - default
-      - proxy-net
+      - /mnt/app_config/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - /mnt/app_config/traefik/dynamic:/etc/traefik/dynamic:ro
+      - /mnt/app_config/traefik/acme.json:/etc/traefik/acme.json
+      - /mnt/app_config/traefik/logs:/var/log/traefik
+    restart: unless-stopped
 
   socket-proxy:
     image: tecnativa/docker-socket-proxy
     container_name: socket-proxy
-    restart: unless-stopped
     environment:
       - CONTAINERS=1
       - SERVICES=0
       - TASKS=0
-      - NETWORKS=1
+      - NETWORKS=0
+      - NODES=0
+      - VOLUMES=0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    expose:
-      - "2375"
     networks:
       - proxy-net
+    expose:
+      - "2375"
+    restart: unless-stopped
 
 networks:
   proxy-net:
-    external: true
-  default:
-    external: true
+    name: proxy-net

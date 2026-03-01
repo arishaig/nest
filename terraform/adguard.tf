@@ -38,6 +38,7 @@ locals {
     "copyparty.arishaig.site"    = "192.168.1.158"
     "recommendarr.arishaig.site" = "192.168.1.158"
     "watcharr.arishaig.site"     = "192.168.1.158"
+    "tunarr.arishaig.site"       = "192.168.1.158"
     "auth.arishaig.site"         = "192.168.1.158"
     "torrent.arishaig.site"      = "192.168.1.158"
     "proxmox.arishaig.site"      = "192.168.1.158"
