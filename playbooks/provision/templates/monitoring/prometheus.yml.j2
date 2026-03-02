@@ -29,7 +29,7 @@ scrape_configs:
           - 'musicbrainz.arishaig.site:9100'
           - 'backup.local.arishaig.site:9100'
           - 'casa.local.arishaig.site:9100'
-          - 'adguard.arishaig.site:9100'
+          - 'dns.arishaig.site:9100'
     relabel_configs:
       - source_labels: [__address__]
         regex: '([^:]+):\d+'
@@ -62,11 +62,11 @@ scrape_configs:
 
   - job_name: 'adguard'
     static_configs:
-      - targets: ['adguard.arishaig.site:9618']
+      - targets: ['dns.arishaig.site:9618']
 
   - job_name: 'unbound'
     static_configs:
-      - targets: ['adguard.arishaig.site:9167']
+      - targets: ['dns.arishaig.site:9167']
 
   - job_name: 'unpoller'
     static_configs:
@@ -120,3 +120,9 @@ scrape_configs:
     static_configs:
       - targets: ['backlight.arishaig.site:80']
     metrics_path: /json
+
+  - job_name: 'speedtest'
+    scrape_interval: 1h
+    scrape_timeout: 90s
+    static_configs:
+      - targets: ['speedtest-exporter:9798']

@@ -11,12 +11,17 @@ locals {
     "backup.local.arishaig.site"     = "192.168.1.113"
     "monitoring.local.arishaig.site" = "192.168.1.44"
     "casa.local.arishaig.site"       = "192.168.4.50"
+    "docker.local.arishaig.site"     = "docker.arishaig.site"
+    "adguard.local.arishaig.site"    = "dns.arishaig.site"
+    "backlight.local.arishaig.site"  = "backlight.arishaig.site"
+    "files.local.arishaig.site"      = "files.arishaig.site"
+    "musicbrainz.local.arishaig.site" = "musicbrainz.arishaig.site"
 
     # Direct-IP entries (no Traefik conflict)
     "backlight.arishaig.site"   = "192.168.4.97"
     "files.arishaig.site"       = "192.168.1.17"
     "musicbrainz.arishaig.site" = "192.168.1.197"
-    "adguard.arishaig.site"     = "192.168.7.7"
+    "adguard.arishaig.site"     = "dns.arishaig.site"
     "dns.arishaig.site"         = "192.168.7.7"
 
     # Traefik reverse-proxied services (all -> docker host)

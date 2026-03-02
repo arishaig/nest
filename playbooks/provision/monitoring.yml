@@ -81,6 +81,7 @@
         src: templates/monitoring/prometheus.yml.j2
         dest: "{{ monitoring_dir }}/prometheus/prometheus.yml"
         mode: "0644"
+      notify: Restart prometheus
 
     - name: Template alertmanager.yml from vault
       ansible.builtin.template:
@@ -117,21 +118,37 @@
         src: files/monitoring/grafana/provisioning/datasources.yml
         dest: "{{ monitoring_dir }}/grafana/provisioning/datasources/datasources.yml"
         mode: "0644"
+      notify: Restart grafana
 
     - name: Copy grafana dashboard provisioning config
       ansible.builtin.copy:
         src: files/monitoring/grafana/provisioning/dashboards.yml
-        dest: "{{ monitoring_dir }}/grafana/provisioning/dashboards.yml"
+        dest: "{{ monitoring_dir }}/grafana/provisioning/dashboards/dashboards.yml"
         mode: "0644"
+      notify: Restart grafana
 
     - name: Copy grafana dashboard JSON files
       ansible.builtin.copy:
         src: files/monitoring/grafana/provisioning/dashboards/
         dest: "{{ monitoring_dir }}/grafana/provisioning/dashboards/"
         mode: "0644"
+      notify: Restart grafana
 
     - name: Start monitoring stack
       ansible.builtin.command:
         cmd: docker compose up -d
         chdir: "{{ monitoring_dir }}"
       changed_when: true
+
+  handlers:
+    - name: Restart prometheus
+      ansible.builtin.command:
+        cmd: docker compose restart prometheus
+        chdir: "{{ monitoring_dir }}"
+      changed_when: false
+
+    - name: Restart grafana
+      ansible.builtin.command:
+        cmd: docker compose restart grafana
+        chdir: "{{ monitoring_dir }}"
+      changed_when: false

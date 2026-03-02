@@ -17,7 +17,6 @@
       - gnupg
       - ca-certificates
       - apt-transport-https
-      - software-properties-common
       - sudo
       - lsb-release
       - python3
@@ -54,7 +53,7 @@
 
     - name: Set DNS resolver
       ansible.builtin.copy:
-        content: "nameserver {{ '127.0.0.1' if inventory_hostname in groups.get('dns', []) else '192.168.7.7' }}\n"
+        content: "nameserver 192.168.7.7\n"
         dest: /etc/resolv.conf
         mode: "0644"
 
