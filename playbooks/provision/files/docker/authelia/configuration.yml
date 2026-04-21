@@ -25,6 +25,12 @@ access_control:
     # Jellyfin bypasses Authelia — uses its own auth
     - domain: jellyfin.arishaig.site
       policy: bypass
+    # Kobo sync endpoints are auth'd by the per-device token in the URL;
+    # the Kobo eReader cannot perform 2FA, so bypass authelia for /kobo/*.
+    - domain: calibre.arishaig.site
+      resources:
+        - "^/kobo/.*"
+      policy: bypass
 
 theme: 'dark'
 

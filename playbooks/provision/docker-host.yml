@@ -71,6 +71,7 @@
         - "{{ compose_dir }}/traefik"
         - "{{ compose_dir }}/traefik/dynamic"
         - "{{ compose_dir }}/authelia"
+        - "{{ compose_dir }}/calibre-auto-import"
 
     - name: Template .env from vault
       ansible.builtin.template:
@@ -103,6 +104,12 @@
         src: files/docker/authelia/configuration.yml
         dest: "{{ compose_dir }}/authelia/configuration.yml"
         mode: "0644"
+
+    - name: Copy calibre-auto-import script
+      ansible.builtin.copy:
+        src: files/docker/calibre-auto-import/import.sh
+        dest: "{{ compose_dir }}/calibre-auto-import/import.sh"
+        mode: "0755"
 
     - name: Ensure acme.json exists with correct permissions
       ansible.builtin.file:

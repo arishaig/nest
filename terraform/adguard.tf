@@ -49,6 +49,8 @@ locals {
     "proxmox.arishaig.site"      = "192.168.1.158"
     "scrutiny.arishaig.site"     = "192.168.1.158"
     "backup.arishaig.site"       = "192.168.1.158"
+    "watchback.arishaig.site"    = "192.168.1.158"
+    "medialyze.arishaig.site"    = "192.168.1.158"
     "docker.arishaig.site"       = "192.168.1.158"
 
     # UDM VPN
@@ -84,6 +86,11 @@ resource "adguard_config" "main" {
       "192.168.4.0/24",
       "192.168.7.0/24",
     ]
+  }
+
+  stats = {
+    enabled  = true
+    interval = 2160
   }
 
   filtering = {
