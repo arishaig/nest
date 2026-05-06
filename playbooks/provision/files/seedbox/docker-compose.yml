@@ -8,6 +8,7 @@ services:
       - /dev/net/tun:/dev/net/tun
     ports:
       - "${WEBUI_PORT}:${WEBUI_PORT}"
+      - "${HTTPPROXY_PORT}:${HTTPPROXY_PORT}"
     volumes:
       - ./gluetun:/gluetun
     environment:
@@ -30,7 +31,10 @@ services:
       - DOT=off
       - DNS_ADDRESS=10.2.0.1
       - TZ=${TZ}
-      - HTTPPROXY=off
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=on
+      - HTTPPROXY_LISTENING_ADDRESS=:${HTTPPROXY_PORT}
+      - FIREWALL_INPUT_PORTS=${HTTPPROXY_PORT},${WEBUI_PORT}
       - SHADOWSOCKS=off
       - HTTP_CONTROL_SERVER_ADDRESS=:8000
       - HTTP_CONTROL_SERVER_LOG=on
