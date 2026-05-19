@@ -1,16 +1,5 @@
 http:
   routers:
-    # Kobo sync bypasses Authelia entirely — Authelia's 4KB read buffer can't
-    # handle the large x-kobo-synctoken header sent by library/sync. The Kobo
-    # device authenticates via a per-device token embedded in the URL path.
-    calibre-kobo:
-      rule: "Host(`calibre.arishaig.site`) && PathPrefix(`/kobo/`)"
-      entryPoints: [websecure]
-      service: calibre@docker
-      priority: 100
-      tls:
-        certResolver: cloudflare
-
     monitoring:
       rule: "Host(`monitoring.arishaig.site`)"
       entryPoints: [websecure]

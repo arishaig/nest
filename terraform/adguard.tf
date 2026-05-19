@@ -27,7 +27,7 @@ locals {
     # Traefik reverse-proxied services (all -> docker host)
     "monitoring.arishaig.site"   = "192.168.1.158"
     "jellyfin.arishaig.site"     = "192.168.1.158"
-    "jellyseerr.arishaig.site"   = "192.168.1.158"
+    "seerr.arishaig.site"        = "192.168.1.158"
     "requests.arishaig.site"     = "192.168.1.158"
     "sonarr.arishaig.site"       = "192.168.1.158"
     "radarr.arishaig.site"       = "192.168.1.158"
@@ -35,8 +35,6 @@ locals {
     "lidarr.arishaig.site"       = "192.168.1.158"
     "prowlarr.arishaig.site"     = "192.168.1.158"
     "nzbd.arishaig.site"         = "192.168.1.158"
-    "calibre.arishaig.site"      = "192.168.1.158"
-    "chaptarr.arishaig.site"     = "192.168.1.158"
     "storyteller.arishaig.site"  = "192.168.1.158"
     "dash.arishaig.site"         = "192.168.1.158"
     "uptime.arishaig.site"       = "192.168.1.158"

@@ -1,53 +1,5 @@
-# =============================================================================
-# REMOVED SERVICES (retrieve full config from git history)
-# =============================================================================
-# satisfactory-server (wolveix/satisfactory-server:latest)
-#   - Game server, removed 2025-02-11
-#   - Ports: 7777/tcp+udp, 8888/tcp
-#   - Config: /mnt/app_config/satisfactory-server
-#   - Memory: 4-12GB reserved
-#
-# qbittorrent (linuxserver/qbittorrent:latest)
-#   - Torrent client, removed 2025-02-11
-#   - Ports: 8080, 6881/tcp+udp
-#   - Config: /mnt/app_config/qbittorrent
-#
-# calibre (lscr.io/linuxserver/calibre:latest)
-#   - Desktop GUI for ebook management, removed 2025-02-11
-#   - Ports: 8082, 8081
-#   - Config: /mnt/app_config/calibre
-# =============================================================================
-
 services:
   ##### *arr Stack Media Apps #####
-
-  # Audiobookshelf - Audiobook Hosting
-  audiobookshelf:
-    image: ghcr.io/advplyr/audiobookshelf:latest
-    container_name: audiobookshelf
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
-    expose:
-      - "80"
-    volumes:
-      - /mnt/media_root/media/audiobooks:/audiobooks
-      - /mnt/media_root/media/podcasts:/podcasts
-      - /mnt/app_config/audiobookshelf/config:/config
-      - /mnt/app_config/audiobookshelf/metadata:/metadata
-    networks:
-      - default
-      - proxy-net
-    labels:
-      # No Authelia middleware to support mobile app
-      - "traefik.enable=true"
-      - "traefik.http.routers.audiobookshelf.rule=Host(`audiobooks.arishaig.site`)"
-      - "traefik.http.routers.audiobookshelf.entrypoints=websecure"
-      - "traefik.http.routers.audiobookshelf.tls=true"
-      # - "traefik.http.routers.audiobookshelf.middlewares=authelia@file"
-      - "traefik.http.services.audiobookshelf.loadbalancer.server.port=80"
-    restart: unless-stopped
 
   # Bazarr - Subtitle Management
   bazarr:
@@ -72,6 +24,12 @@ services:
       - "traefik.http.routers.bazarr.tls=true"
       - "traefik.http.routers.bazarr.middlewares=authelia@file"
       - "traefik.http.services.bazarr.loadbalancer.server.port=6767"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:6767/ || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   # Jellyfin - Media Server
@@ -98,28 +56,12 @@ services:
       - "traefik.http.routers.jellyfin.tls=true"
       #- "traefik.http.routers.jellyfin.middlewares=authelia@file"
       - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
-    restart: unless-stopped
-
-  # Jellyseerr - Request management
-  jellyseerr:
-    image: fallenbagel/jellyseerr:latest
-    container_name: jellyseerr
-    environment:
-      - TZ=America/Los_Angeles
-    volumes:
-      - /mnt/app_config/jellyseerr:/app/config
-    expose:
-      - "5055"
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.jellyseerr.rule=Host(`jellyseerr.arishaig.site`) || Host(`requests.arishaig.site`)"
-      - "traefik.http.routers.jellyseerr.entrypoints=websecure"
-      - "traefik.http.routers.jellyseerr.tls=true"
-      - "traefik.http.routers.jellyseerr.middlewares=authelia@file"
-      - "traefik.http.services.jellyseerr.loadbalancer.server.port=5055"
+    healthcheck:
+      test: curl -sf http://localhost:8096/System/Ping
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
 
   # Lidarr - Music Management
@@ -145,6 +87,12 @@ services:
       - "traefik.http.routers.lidarr.tls=true"
       - "traefik.http.routers.lidarr.middlewares=authelia@file"
       - "traefik.http.services.lidarr.loadbalancer.server.port=8686"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8686/ping || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   # MediaLyze - Analyze media formats and sizes
@@ -167,7 +115,7 @@ services:
       - "traefik.http.routers.medialyze.entrypoints=websecure"
       - "traefik.http.routers.medialyze.tls=true"
       - "traefik.http.routers.medialyze.middlewares=authelia@file"
-      - "traefik.http.services.medialyze.loadbalancer.server.port=9696"
+      - "traefik.http.services.medialyze.loadbalancer.server.port=8080"
     restart: unless-stopped
 
   # Prowlarr - Indexer Management
@@ -192,6 +140,12 @@ services:
       - "traefik.http.routers.prowlarr.tls=true"
       - "traefik.http.routers.prowlarr.middlewares=authelia@file"
       - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:9696/ping || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   # Radarr - Movie Management
@@ -217,6 +171,12 @@ services:
       - "traefik.http.routers.radarr.tls=true"
       - "traefik.http.routers.radarr.middlewares=authelia@file"
       - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:7878/ping || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   # Recommendarr - Recommends content
@@ -275,6 +235,41 @@ services:
       - "traefik.http.routers.sabnzbd.tls=true"
       - "traefik.http.routers.sabnzbd.middlewares=authelia@file"
       - "traefik.http.services.sabnzbd.loadbalancer.server.port=8080"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8080/api?mode=version || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  # Seerr - Request management
+  seerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    container_name: seerr
+    init: true
+    environment:
+      - TZ=America/Los_Angeles
+    volumes:
+      - /mnt/app_config/seerr:/app/config
+    expose:
+      - "5055"
+    networks:
+      - default
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.seerr.rule=Host(`seerr.arishaig.site`) || Host(`requests.arishaig.site`)"
+      - "traefik.http.routers.seerr.entrypoints=websecure"
+      - "traefik.http.routers.seerr.tls=true"
+      # No Authelia middleware to support external users
+      - "traefik.http.services.seerr.loadbalancer.server.port=5055"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/settings/public || exit 1
+      start_period: 20s
+      timeout: 3s
+      interval: 15s
+      retries: 3
     restart: unless-stopped
 
   # Sonarr - TV Series Management
@@ -300,6 +295,12 @@ services:
       - "traefik.http.routers.sonarr.tls=true"
       - "traefik.http.routers.sonarr.middlewares=authelia@file"
       - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8989/ping || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   # Subtitle generation powered by Whisper, used by Bazarr
@@ -450,83 +451,14 @@ services:
       - "traefik.http.services.watchback.loadbalancer.server.port=8484"
     restart: unless-stopped
 
-  ##### Book Media Apps #####
-
-  # Calibre Auto-Import - Monitors folder and imports books automatically.
-  # Also ensures the "Synced to Kobo" calibre-web shelf exists (creates on
-  # startup if missing) and adds each newly-imported book to it.
-  calibre-auto-import:
-    image: lscr.io/linuxserver/calibre:latest
-    container_name: calibre-auto-import
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
-    volumes:
-      - /mnt/media_root/media/calibre-books:/books
-      - /mnt/media_root/manual-downloads/books:/imports
-      - /mnt/app_config/calibre-web/config:/calibre-web-config
-      - /mnt/app_config/calibre-auto-import/import.sh:/usr/local/bin/import.sh:ro
-    entrypoint: ["/bin/bash", "/usr/local/bin/import.sh"]
-    restart: unless-stopped
-
-  # Calibre Web - Frontend for Calibre
-  calibre-web:
-    image: lscr.io/linuxserver/calibre-web:latest
-    container_name: calibre-web
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
-      - DOCKER_MODS=linuxserver/mods:universal-calibre
-    volumes:
-      - /mnt/app_config/calibre-web/config:/config
-      - /mnt/media_root/media/calibre-books:/books
-    expose:
-      - "8083"
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.calibre.rule=Host(`calibre.arishaig.site`)"
-      - "traefik.http.routers.calibre.entrypoints=websecure"
-      - "traefik.http.routers.calibre.tls=true"
-      - "traefik.http.routers.calibre.middlewares=authelia@file"
-      - "traefik.http.services.calibre.loadbalancer.server.port=8083"
-    restart: unless-stopped
-
-  # Chaptarr - Book Management
-  chaptarr:
-    image: robertlordhood/chaptarr:latest
-    container_name: chaptarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
-    volumes:
-      - /mnt/app_config/chaptarr:/config
-      - /mnt/media_root:/data
-    expose:
-      - "8787"
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.chaptarr.rule=Host(`chaptarr.arishaig.site`)"
-      - "traefik.http.routers.chaptarr.entrypoints=websecure"
-      - "traefik.http.routers.chaptarr.tls=true"
-      - "traefik.http.routers.chaptarr.middlewares=authelia@file"
-      - "traefik.http.services.chaptarr.loadbalancer.server.port=8787"
-    restart: unless-stopped
-
+  # Storyteller - Ebook/audiobook library and readalong processor
   storyteller:
     image: registry.gitlab.com/storyteller-platform/storyteller:latest
     container_name: storyteller
     volumes:
       - /mnt/app_config/storyteller:/config:rw
       - /mnt/media_root/storyteller:/data:rw
+      - /mnt/media_root/media/books:/books:rw
     environment:
       - STORYTELLER_DB_DIR=/config
       - STORYTELLER_DATA_DIR=/data
@@ -568,6 +500,12 @@ services:
       - "traefik.http.routers.glances.tls=true"
       - "traefik.http.routers.glances.middlewares=authelia@file"
       - "traefik.http.services.glances.loadbalancer.server.port=61208"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:61208/ || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   # Homarr - Dashboard
@@ -672,6 +610,12 @@ services:
       - "traefik.http.routers.mealie.tls=true"
       - "traefik.http.routers.mealie.middlewares=authelia@file"
       - "traefik.http.services.mealie.loadbalancer.server.port=9000"
+    healthcheck:
+      test: curl -sf http://localhost:9000/api/app/about
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
     depends_on:
       postgres:
@@ -812,6 +756,12 @@ services:
       - AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET=${AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET}
     volumes:
       - /mnt/app_config/authelia:/config
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:9091/api/health || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
     labels:
       - "traefik.enable=true"

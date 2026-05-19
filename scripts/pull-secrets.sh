@@ -264,8 +264,8 @@ else
         BAZARR_API_KEY=$(existing "bazarr_api_key")
     fi
 
-    # Jellyseerr — not in .env, lives in container config
-    JELLYSEERR_API_KEY=$(or_existing "jellyseerr_api_key" "$(ssh_cmd "$DOCKER_HOST" "docker exec jellyseerr cat /app/config/settings.json 2>/dev/null" | jq -r '.main.apiKey // empty' 2>/dev/null || true)")
+    # Seerr — not in .env, lives in container config
+    JELLYSEERR_API_KEY=$(or_existing "jellyseerr_api_key" "$(ssh_cmd "$DOCKER_HOST" "docker exec seerr cat /app/config/settings.json 2>/dev/null" | jq -r '.main.apiKey // empty' 2>/dev/null || true)")
     log_result "jellyseerr API key" "$JELLYSEERR_API_KEY"
 
     # Recyclarr API keys

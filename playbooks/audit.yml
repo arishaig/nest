@@ -1203,7 +1203,7 @@
     - name: Gather arr API keys (keys exist, values redacted)
       shell: |
         echo "=== SERVICE API KEY PRESENCE ==="
-        for svc in sonarr radarr lidarr prowlarr bazarr jellyseerr; do
+        for svc in sonarr radarr lidarr prowlarr bazarr seerr; do
           if docker exec "$svc" test -f /config/config.xml 2>/dev/null; then
             has_key=$(docker exec "$svc" grep -c 'ApiKey' /config/config.xml 2>/dev/null || echo 0)
             echo "$svc: ApiKey present=$has_key"
