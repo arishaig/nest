@@ -303,6 +303,32 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # Storyteller - Ebook/audiobook library and readalong processor
+  storyteller:
+    image: registry.gitlab.com/storyteller-platform/storyteller:latest
+    container_name: storyteller
+    volumes:
+      - /mnt/app_config/storyteller:/config:rw
+      - /mnt/media_root/storyteller:/data:rw
+      - /mnt/media_root/media/books:/books:rw
+    environment:
+      - STORYTELLER_DB_DIR=/config
+      - STORYTELLER_DATA_DIR=/data
+      - STORYTELLER_SECRET_KEY=${STORYTELLER_SECRET_KEY}
+    expose:
+      - "8001"
+    networks:
+      - default
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.storyteller.rule=Host(`storyteller.arishaig.site`)"
+      - "traefik.http.routers.storyteller.entrypoints=websecure"
+      - "traefik.http.routers.storyteller.tls=true"
+      - "traefik.http.routers.storyteller.middlewares=authelia@file"
+      - "traefik.http.services.storyteller.loadbalancer.server.port=8001"
+    restart: unless-stopped
+
   # Subtitle generation powered by Whisper, used by Bazarr
   subgen:
     image: 'mccloud/subgen:cpu'
@@ -449,32 +475,6 @@ services:
       - "traefik.http.routers.watchback.tls=true"
       - "traefik.http.routers.watchback.middlewares=authelia@file"
       - "traefik.http.services.watchback.loadbalancer.server.port=8484"
-    restart: unless-stopped
-
-  # Storyteller - Ebook/audiobook library and readalong processor
-  storyteller:
-    image: registry.gitlab.com/storyteller-platform/storyteller:latest
-    container_name: storyteller
-    volumes:
-      - /mnt/app_config/storyteller:/config:rw
-      - /mnt/media_root/storyteller:/data:rw
-      - /mnt/media_root/media/books:/books:rw
-    environment:
-      - STORYTELLER_DB_DIR=/config
-      - STORYTELLER_DATA_DIR=/data
-      - STORYTELLER_SECRET_KEY=${STORYTELLER_SECRET_KEY}
-    expose:
-      - "8001"
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.storyteller.rule=Host(`storyteller.arishaig.site`)"
-      - "traefik.http.routers.storyteller.entrypoints=websecure"
-      - "traefik.http.routers.storyteller.tls=true"
-      - "traefik.http.routers.storyteller.middlewares=authelia@file"
-      - "traefik.http.services.storyteller.loadbalancer.server.port=8001"
     restart: unless-stopped
 
   ##### Monitoring and Dashboard Apps #####
