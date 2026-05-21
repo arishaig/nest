@@ -30,13 +30,13 @@ groups:
           description: "CPU usage is {{ printf \"%.0f\" $value }}% for 10 minutes."
 
       - alert: HighMemory
-        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
-        for: 5m
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        for: 2h
         labels:
           severity: warning
         annotations:
           summary: "High memory on {{ $labels.instance }}"
-          description: "Memory usage is {{ printf \"%.0f\" $value }}% for 5 minutes."
+          description: "Memory usage is {{ printf \"%.0f\" $value }}% for 2 hours."
 
       - alert: DiskSpaceLow
         expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs"} / node_filesystem_size_bytes)) * 100 > 85
@@ -130,3 +130,41 @@ groups:
         annotations:
           summary: "SMART warning on {{ $labels.device_name }}"
           description: "Scrutiny reports a SMART issue on {{ $labels.device_name }} ({{ $labels.host_id }})."
+
+      - alert: ZFSPoolDegraded
+        expr: node_zfs_zpool_state{instance="proxmox.local.arishaig.site", state=~"degraded|faulted|suspended|unavail"} == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ZFS pool {{ $labels.zpool }} is {{ $labels.state }}"
+          description: "ZFS pool {{ $labels.zpool }} on proxmox entered state {{ $labels.state }}."
+
+      - alert: UnboundDown
+        expr: unbound_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Unbound is down on {{ $labels.instance }}"
+          description: "Unbound recursive resolver on {{ $labels.instance }} has been unreachable for 2 minutes. DNS resolution may be degraded."
+
+      - alert: OOMKill
+        expr: increase(node_vmstat_oom_kill[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OOM kill on {{ $labels.instance }}"
+          description: "A process was OOM-killed on {{ $labels.instance }}."
+
+  - name: media
+    rules:
+      - alert: MediaAppDown
+        expr: up{job=~"sonarr|radarr|lidarr|prowlarr|bazarr"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} is down"
+          description: "{{ $labels.job }} on {{ $labels.instance }} has been unreachable for 5 minutes."

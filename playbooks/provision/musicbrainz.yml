@@ -52,6 +52,42 @@
             enabled: true
             state: started
 
+    # --- Docker daemon: listen on the unix socket only ---
+    # daemon.json and the systemd override are a matched pair: the override
+    # clears `-H fd://` from ExecStart so daemon.json's `hosts` key applies.
+    # The daemon must never listen on tcp:// — that is unauthenticated root.
+    - name: Ensure docker.service.d directory exists
+      ansible.builtin.file:
+        path: /etc/systemd/system/docker.service.d
+        state: directory
+        mode: "0755"
+
+    - name: Configure Docker daemon (unix socket only)
+      ansible.builtin.copy:
+        content: |
+          {
+            "log-driver": "journald",
+            "hosts": [
+              "unix:///var/run/docker.sock"
+            ]
+          }
+        dest: /etc/docker/daemon.json
+        mode: "0600"
+      notify: Restart docker
+
+    - name: Install Docker systemd override so daemon.json hosts applies
+      ansible.builtin.copy:
+        content: |
+          [Service]
+          ExecStart=
+          ExecStart=/usr/bin/dockerd
+        dest: /etc/systemd/system/docker.service.d/override.conf
+        mode: "0644"
+      notify: Restart docker
+
+    - name: Apply pending Docker daemon config before starting containers
+      ansible.builtin.meta: flush_handlers
+
     # --- MusicBrainz setup ---
     - name: Create MusicBrainz service user
       ansible.builtin.user:
@@ -95,3 +131,10 @@
         cmd: docker compose up -d
         chdir: "{{ musicbrainz_dir }}"
       changed_when: true
+
+  handlers:
+    - name: Restart docker
+      ansible.builtin.systemd:
+        name: docker
+        state: restarted
+        daemon_reload: true

@@ -94,13 +94,14 @@
 
               [Service]
               Type=simple
-              ExecStart=/usr/local/bin/node_exporter
+              ExecStart=/usr/local/bin/node_exporter --collector.systemd --collector.processes
               Restart=always
 
               [Install]
               WantedBy=multi-user.target
             dest: /etc/systemd/system/node_exporter.service
             mode: "0644"
+          notify: Restart node_exporter
 
         - name: Enable and start node_exporter
           ansible.builtin.systemd:
@@ -116,3 +117,10 @@
           loop:
             - /tmp/node_exporter.tar.gz
             - "/tmp/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}"
+
+  handlers:
+    - name: Restart node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        state: restarted
+        daemon_reload: true

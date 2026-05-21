@@ -71,6 +71,6 @@
 
     - name: Start Scrutiny stack
       ansible.builtin.command:
-        cmd: docker compose up -d
+        cmd: docker compose up -d --remove-orphans
         chdir: "{{ scrutiny_dir }}"
       changed_when: true
