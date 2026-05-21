@@ -158,6 +158,15 @@ groups:
           summary: "OOM kill on {{ $labels.instance }}"
           description: "A process was OOM-killed on {{ $labels.instance }}."
 
+      - alert: PBSBackupStale
+        expr: time() - pbs_backup_last_snapshot_timestamp_seconds > 30 * 3600
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PBS backup stale for {{ $labels.guest_type }}/{{ $labels.guest }}"
+          description: "No new PBS backup for {{ $labels.guest_type }}/{{ $labels.guest }} in over 30 hours (newest is {{ $value | humanizeDuration }} old)."
+
   - name: media
     rules:
       - alert: MediaAppDown

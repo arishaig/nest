@@ -1,0 +1,67 @@
+---
+# Provision PBS (VM 500): backup-freshness monitoring for Prometheus.
+#
+# PBS's node_exporter is already scraped by Prometheus (the `node` job). This
+# play enables node_exporter's textfile collector and installs a script that
+# records each backup group's newest-snapshot timestamp, so the PBSBackupStale
+# alert in prometheus/rules/homelab.yml fires when a backup stops landing.
+
+- name: PBS backup-freshness monitoring
+  hosts: pbs
+  become: true
+  gather_facts: false
+
+  vars:
+    textfile_dir: /var/lib/node_exporter/textfile_collector
+
+  tasks:
+    - name: Create node_exporter textfile collector directory
+      ansible.builtin.file:
+        path: "{{ textfile_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Enable textfile collector on node_exporter
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Prometheus Node Exporter
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/local/bin/node_exporter --collector.systemd --collector.processes --collector.textfile.directory={{ textfile_dir }}
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/node_exporter.service
+        mode: "0644"
+      notify: Restart node_exporter
+
+    - name: Install PBS backup-freshness exporter script
+      ansible.builtin.copy:
+        src: files/pbs/pbs-backup-freshness.sh
+        dest: /usr/local/bin/pbs-backup-freshness.sh
+        mode: "0755"
+
+    - name: Apply node_exporter changes before generating metrics
+      ansible.builtin.meta: flush_handlers
+
+    - name: Schedule the backup-freshness exporter
+      ansible.builtin.cron:
+        name: pbs-backup-freshness
+        minute: "*/15"
+        job: /usr/local/bin/pbs-backup-freshness.sh
+        user: root
+
+    - name: Generate backup-freshness metrics now
+      ansible.builtin.command: /usr/local/bin/pbs-backup-freshness.sh
+      changed_when: true
+
+  handlers:
+    - name: Restart node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        state: restarted
+        daemon_reload: true
