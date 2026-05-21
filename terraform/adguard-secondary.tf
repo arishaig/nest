@@ -51,6 +51,13 @@ resource "adguard_config" "secondary" {
     interval = 2160
   }
 
+  tls = {
+    enabled           = false
+    server_name       = ""
+    certificate_chain = ""
+    private_key       = ""
+  }
+
   depends_on = [proxmox_virtual_environment_container.dns_secondary]
 }
 

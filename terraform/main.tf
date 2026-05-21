@@ -22,12 +22,11 @@ provider "adguard" {
   insecure = true
 }
 
-# secondary adguard provider — uncomment after LXC 106 is provisioned
-# provider "adguard" {
-#   alias    = "secondary"
-#   host     = "${var.adguard_secondary_host}:3000"
-#   username = var.adguard_username
-#   password = var.adguard_password
-#   scheme   = "http"
-#   insecure = true
-# }
+provider "adguard" {
+  alias    = "secondary"
+  host     = "${var.adguard_secondary_host}:80"
+  username = var.adguard_username
+  password = var.adguard_password
+  scheme   = "http"
+  insecure = true
+}

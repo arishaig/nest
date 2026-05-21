@@ -11,11 +11,11 @@
   gather_facts: true
 
   vars:
-    unbound_exporter_version: "0.5.0"
+    unbound_exporter_version: "0.6.0"
     certbot_domain: "dns.arishaig.site"
     docker_dir: /opt/docker
     adguard_self_url: "{{ 'https://dns.arishaig.site' if adguard_primary | default(false) else 'http://127.0.0.1:3000' }}"
-    adguard_exporter_username: "{{ 'adguard' if adguard_primary | default(false) else vault_adguard_username }}"
+    adguard_exporter_username: "adguard"
 
   tasks:
     # ── Unbound (recursive resolver on 127.0.0.1:5335) ──
@@ -213,41 +213,26 @@
 
     - name: Check if unbound_exporter is installed
       ansible.builtin.stat:
-        path: /usr/local/bin/unbound_exporter
+        path: /usr/bin/unbound_exporter
       register: unbound_exporter_binary
 
-    - name: Build and install unbound_exporter from source
+    - name: Install unbound_exporter from deb package
       when: not unbound_exporter_binary.stat.exists
       block:
-        - name: Install golang for building unbound_exporter
+        - name: Download unbound_exporter deb
+          ansible.builtin.get_url:
+            url: "https://github.com/letsencrypt/unbound_exporter/releases/download/v{{ unbound_exporter_version }}/unbound_exporter-v{{ unbound_exporter_version }}.x86_64.deb"
+            dest: /tmp/unbound_exporter.deb
+            mode: "0644"
+
+        - name: Install unbound_exporter deb
           ansible.builtin.apt:
-            name: golang
-            state: present
+            deb: /tmp/unbound_exporter.deb
 
-        - name: Build unbound_exporter
-          ansible.builtin.command: go install github.com/letsencrypt/unbound_exporter@v{{ unbound_exporter_version }}
-          environment:
-            GOPATH: /tmp/go
-            GOBIN: /tmp/go/bin
-          changed_when: true
-
-        - name: Install unbound_exporter binary
-          ansible.builtin.copy:
-            src: /tmp/go/bin/unbound_exporter
-            dest: /usr/local/bin/unbound_exporter
-            mode: "0755"
-            remote_src: true
-
-        - name: Clean up Go build artifacts
+        - name: Clean up deb package
           ansible.builtin.file:
-            path: /tmp/go
+            path: /tmp/unbound_exporter.deb
             state: absent
-
-        - name: Remove golang (no longer needed)
-          ansible.builtin.apt:
-            name: golang
-            state: absent
-            autoremove: true
 
     - name: Create unbound_exporter systemd service
       ansible.builtin.copy:
@@ -258,7 +243,7 @@
 
           [Service]
           Type=simple
-          ExecStart=/usr/local/bin/unbound_exporter -unbound.host unix:///run/unbound.ctl -web.listen-address :9167
+          ExecStart=/usr/bin/unbound_exporter -unbound.host unix:///run/unbound.ctl -web.listen-address :9167
           Restart=always
 
           [Install]

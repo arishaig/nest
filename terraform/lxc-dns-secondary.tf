@@ -21,7 +21,7 @@ resource "proxmox_virtual_environment_container" "dns_secondary" {
   }
 
   memory {
-    dedicated = 512
+    dedicated = 1024
     swap      = 512
   }
 
@@ -50,6 +50,10 @@ resource "proxmox_virtual_environment_container" "dns_secondary" {
     user_account {
       keys = var.ssh_public_keys
     }
+  }
+
+  features {
+    nesting = true
   }
 
   startup {
