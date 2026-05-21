@@ -33,7 +33,6 @@ resource "proxmox_virtual_environment_container" "dns_secondary" {
   network_interface {
     name     = "eth0"
     bridge   = "vmbr0"
-    vlan_id  = 7
     firewall = true
   }
 
@@ -41,8 +40,8 @@ resource "proxmox_virtual_environment_container" "dns_secondary" {
     hostname = "dns-secondary"
     ip_config {
       ipv4 {
-        address = "192.168.7.8/24"
-        gateway = "192.168.7.1"
+        address = "192.168.1.53/24"
+        gateway = var.gateway
       }
     }
     dns {

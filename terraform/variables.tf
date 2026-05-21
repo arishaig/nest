@@ -51,7 +51,7 @@ variable "adguard_password" {
 variable "adguard_secondary_host" {
   description = "Secondary AdGuard Home IP address"
   type        = string
-  default     = "192.168.7.8"
+  default     = "192.168.1.53"
 }
 
 # --- Network ---
