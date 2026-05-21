@@ -29,7 +29,7 @@ resource "proxmox_virtual_environment_vm" "backup" {
   disk {
     datastore_id = "local-zfs"
     interface    = "scsi0"
-    size         = 64
+    size         = 500
     iothread     = true
   }
 

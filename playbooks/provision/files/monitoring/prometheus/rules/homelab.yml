@@ -1,0 +1,94 @@
+groups:
+  - name: hosts
+    rules:
+      - alert: HostDown
+        expr: up{job="node"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host {{ $labels.instance }} is down"
+          description: "node_exporter on {{ $labels.instance }} has been unreachable for 2 minutes."
+
+      - alert: HighCPU
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU on {{ $labels.instance }}"
+          description: "CPU usage is {{ printf \"%.0f\" $value }}% for 10 minutes."
+
+      - alert: HighMemory
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory on {{ $labels.instance }}"
+          description: "Memory usage is {{ printf \"%.0f\" $value }}% for 5 minutes."
+
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs"} / node_filesystem_size_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space low on {{ $labels.instance }}"
+          description: "{{ $labels.mountpoint }} is {{ printf \"%.0f\" $value }}% full."
+
+      - alert: DiskSpaceCritical
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs"} / node_filesystem_size_bytes)) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk space critical on {{ $labels.instance }}"
+          description: "{{ $labels.mountpoint }} is {{ printf \"%.0f\" $value }}% full."
+
+      - alert: DiskReadonly
+        expr: node_filesystem_readonly{fstype!~"tmpfs|fuse.lxcfs|squashfs"} == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Filesystem read-only on {{ $labels.instance }}"
+          description: "{{ $labels.mountpoint }} has been mounted read-only."
+
+  - name: services
+    rules:
+      - alert: ContainerDown
+        expr: up{job="cadvisor"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "cAdvisor unreachable on {{ $labels.instance }}"
+          description: "Cannot scrape container metrics from {{ $labels.instance }}."
+
+      - alert: ProxmoxNodeDown
+        expr: up{job="proxmox"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Proxmox exporter unreachable"
+          description: "pve-exporter has been unreachable for 2 minutes."
+
+      - alert: AdGuardDown
+        expr: up{job="adguard"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AdGuard Home is down"
+          description: "AdGuard Home exporter has been unreachable for 2 minutes. DNS may be failing."
+
+      - alert: ScrutinyDiskWarning
+        expr: scrutiny_smart_device_status > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SMART warning on {{ $labels.device_name }}"
+          description: "Scrutiny reports a SMART issue on {{ $labels.device_name }} ({{ $labels.host_id }})."

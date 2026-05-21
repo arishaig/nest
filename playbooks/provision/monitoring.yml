@@ -101,6 +101,13 @@
         dest: "{{ monitoring_dir }}/unpoller/up.conf"
         mode: "0600"
 
+    - name: Copy prometheus alert rules
+      ansible.builtin.copy:
+        src: files/monitoring/prometheus/rules/
+        dest: "{{ monitoring_dir }}/prometheus/rules/"
+        mode: "0644"
+      notify: Restart prometheus
+
     - name: Copy docker-compose.yml
       ansible.builtin.copy:
         src: files/monitoring/docker-compose.yml
