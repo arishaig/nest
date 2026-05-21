@@ -17,6 +17,27 @@
         mode: "0644"
       when: inventory_hostname == 'seedbox'
 
+    - name: Copy Traefik static config
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/provision/files/docker/traefik/traefik.yml"
+        dest: /mnt/app_config/traefik/traefik.yml
+        mode: "0644"
+      when: inventory_hostname == 'docker'
+
+    - name: Copy Traefik dynamic configs
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/provision/files/docker/traefik/dynamic/"
+        dest: /mnt/app_config/traefik/dynamic/
+        mode: "0644"
+      when: inventory_hostname == 'docker'
+
+    - name: Copy Authelia configuration
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/provision/files/docker/authelia/configuration.yml"
+        dest: /mnt/app_config/authelia/configuration.yml
+        mode: "0644"
+      when: inventory_hostname == 'docker'
+
     - name: Pull latest images for all compose stacks
       command: docker compose pull --ignore-buildable
       args:
