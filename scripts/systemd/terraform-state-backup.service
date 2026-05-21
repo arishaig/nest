@@ -1,0 +1,9 @@
+# Triggered by terraform-state-backup.path — not enabled on its own.
+# Encrypts terraform.tfstate and copies it to the NAS.
+
+[Unit]
+Description=Encrypt Terraform state and back it up to the NAS
+
+[Service]
+Type=oneshot
+ExecStart=/home/isaac/Projects/ansible-on-nest/scripts/backup-state.sh

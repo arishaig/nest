@@ -1,0 +1,31 @@
+# Watches the Terraform state file and triggers an encrypted backup to the NAS
+# whenever it changes — i.e. after every `terraform apply`. No workflow change:
+# keep running `terraform apply` as usual.
+#
+# Install once, as your normal user (NOT root):
+#
+#   mkdir -p ~/.config/systemd/user
+#   ln -sf /home/isaac/Projects/ansible-on-nest/scripts/systemd/terraform-state-backup.path    ~/.config/systemd/user/
+#   ln -sf /home/isaac/Projects/ansible-on-nest/scripts/systemd/terraform-state-backup.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now terraform-state-backup.path
+#
+# Prerequisite: a vault password file — see scripts/backup-state.sh header.
+#
+# Verify the path -> service trigger actually fires (do this once after install):
+#   touch /home/isaac/Projects/ansible-on-nest/terraform/terraform.tfstate
+#   sleep 2
+#   journalctl --user -u terraform-state-backup.service -n 20
+# A backup run in the log confirms the chain works. Terraform writes state via
+# atomic rename, so confirm with a real `terraform apply` too before relying
+# on this for disaster recovery.
+
+[Unit]
+Description=Watch Terraform state file for changes
+
+[Path]
+PathChanged=/home/isaac/Projects/ansible-on-nest/terraform/terraform.tfstate
+Unit=terraform-state-backup.service
+
+[Install]
+WantedBy=default.target
