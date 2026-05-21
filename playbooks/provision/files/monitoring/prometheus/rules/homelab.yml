@@ -67,7 +67,7 @@ groups:
 
   - name: services
     rules:
-      - alert: ContainerDown
+      - alert: CAdvisorDown
         expr: up{job="cadvisor"} == 0
         for: 2m
         labels:
@@ -75,6 +75,34 @@ groups:
         annotations:
           summary: "cAdvisor unreachable on {{ $labels.instance }}"
           description: "Cannot scrape container metrics from {{ $labels.instance }}."
+
+      - alert: ContainerDown
+        expr: |
+          time() - container_last_seen{
+            job="cadvisor",
+            image!="",
+            name=~"/.+"
+          } > 120
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} is down"
+          description: "Container {{ $labels.name }} on {{ $labels.instance }} has not been seen for over 2 minutes."
+
+      - alert: ContainerRestarting
+        expr: |
+          changes(container_start_time_seconds{
+            job="cadvisor",
+            image!="",
+            name=~"/.+"
+          }[15m]) > 2
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} is crash-looping"
+          description: "Container {{ $labels.name }} on {{ $labels.instance }} has restarted {{ $value | printf \"%.0f\" }} times in the last 15 minutes."
 
       - alert: ProxmoxNodeDown
         expr: up{job="proxmox"} == 0
