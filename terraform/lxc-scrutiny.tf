@@ -48,7 +48,7 @@ resource "proxmox_virtual_environment_container" "scrutiny" {
       }
     }
     dns {
-      servers = [var.dns_server]
+      servers = var.dns_servers
     }
     user_account {
       keys = [

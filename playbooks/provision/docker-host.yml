@@ -61,6 +61,15 @@
         state: present
       loop: "{{ docker_networks }}"
 
+    # --- Docker daemon config ---
+    - name: Configure Docker daemon DNS and live-restore
+      ansible.builtin.copy:
+        content: |
+          {"dns": ["192.168.7.7", "192.168.1.53"], "live-restore": true}
+        dest: /etc/docker/daemon.json
+        mode: "0644"
+      notify: Restart Docker
+
     # --- Deploy configs ---
     - name: Create config directories
       ansible.builtin.file:
@@ -123,3 +132,9 @@
         cmd: docker compose up -d
         chdir: "{{ compose_dir }}"
       changed_when: true
+
+  handlers:
+    - name: Restart Docker
+      ansible.builtin.systemd:
+        name: docker
+        state: restarted

@@ -61,10 +61,10 @@ variable "gateway" {
   default     = "192.168.1.1"
 }
 
-variable "dns_server" {
-  description = "DNS server IP"
-  type        = string
-  default     = "192.168.7.7"
+variable "dns_servers" {
+  description = "DNS server IPs (primary and secondary)"
+  type        = list(string)
+  default     = ["192.168.7.7", "192.168.1.53"]
 }
 
 # --- SSH ---

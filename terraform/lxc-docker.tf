@@ -52,7 +52,7 @@ resource "proxmox_virtual_environment_container" "docker" {
       }
     }
     dns {
-      servers = [var.dns_server]
+      servers = var.dns_servers
     }
   }
 

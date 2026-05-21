@@ -45,7 +45,7 @@ resource "proxmox_virtual_environment_container" "dns_secondary" {
       }
     }
     dns {
-      servers = [var.dns_server]
+      servers = var.dns_servers
     }
     user_account {
       keys = var.ssh_public_keys
