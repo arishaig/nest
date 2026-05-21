@@ -366,6 +366,7 @@ services:
       - "LRC_FOR_AUDIO_FILES=True"
       - "CUSTOM_REGROUP=cm_sl=84_sl=42++++++1"
       - "HF_TOKEN=${HUGGING_FACE_ACCESS_TOKEN}"
+    restart: unless-stopped
 
   # Tdarr - Automated transcoding server
   tdarr:
