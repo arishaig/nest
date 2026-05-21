@@ -1,18 +1,18 @@
 services:
-  # Grafana exporter
   adguard-exporter:
     image: ghcr.io/henrywhitaker3/adguard-exporter:latest
     container_name: adguard-exporter
     restart: unless-stopped
     environment:
-      - ADGUARD_SERVERS=https://dns.arishaig.site
-      - ADGUARD_USERNAMES=adguard
+      - ADGUARD_SERVERS={{ adguard_self_url }}
+      - ADGUARD_USERNAMES={{ adguard_exporter_username }}
       - ADGUARD_PASSWORDS=${ADGUARD_PASSWORD}
       - INTERVAL=30s
     ports:
       - "9618:9618"
 
-  # Dynamic DNS
+{% if adguard_primary | default(false) %}
+  # Dynamic DNS — primary only
   cloudflare-ddns:
     image: favonia/cloudflare-ddns:latest
     container_name: cloudflare-ddns
@@ -27,3 +27,4 @@ services:
       - DOMAINS=vpn.arishaig.site,dns.arishaig.site
       - PROXIED=false
       - TTL=300
+{% endif %}

@@ -21,3 +21,12 @@ provider "adguard" {
   scheme   = var.adguard_scheme
   insecure = true
 }
+
+provider "adguard" {
+  alias    = "secondary"
+  host     = "${var.adguard_secondary_host}:3000"
+  username = var.adguard_username
+  password = var.adguard_password
+  scheme   = "http"
+  insecure = true
+}

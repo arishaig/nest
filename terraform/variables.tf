@@ -48,6 +48,12 @@ variable "adguard_password" {
   sensitive   = true
 }
 
+variable "adguard_secondary_host" {
+  description = "Secondary AdGuard Home IP address"
+  type        = string
+  default     = "192.168.7.8"
+}
+
 # --- Network ---
 variable "gateway" {
   description = "Default gateway IP"

@@ -14,6 +14,8 @@
     unbound_exporter_version: "0.5.0"
     certbot_domain: "dns.arishaig.site"
     docker_dir: /opt/docker
+    adguard_self_url: "{{ 'https://dns.arishaig.site' if adguard_primary | default(false) else 'http://127.0.0.1:3000' }}"
+    adguard_exporter_username: "{{ 'adguard' if adguard_primary | default(false) else vault_adguard_username }}"
 
   tasks:
     # ── Unbound (recursive resolver on 127.0.0.1:5335) ──
@@ -73,9 +75,10 @@
         enabled: true
         state: started
 
-    # ── Certbot (Cloudflare DNS challenge for dns.arishaig.site) ──
+    # ── Certbot (primary only — dns.arishaig.site TLS cert) ──
 
     - name: Install certbot and Cloudflare plugin
+      when: adguard_primary | default(false)
       ansible.builtin.apt:
         name:
           - certbot
@@ -83,24 +86,27 @@
         state: present
 
     - name: Create secrets directory
+      when: adguard_primary | default(false)
       ansible.builtin.file:
         path: /root/.secrets
         state: directory
         mode: "0700"
 
     - name: Deploy Cloudflare credentials
+      when: adguard_primary | default(false)
       ansible.builtin.template:
         src: templates/adguard/cloudflare.ini.j2
         dest: /root/.secrets/cloudflare.ini
         mode: "0600"
 
     - name: Check if cert already exists
+      when: adguard_primary | default(false)
       ansible.builtin.stat:
         path: "/etc/letsencrypt/live/{{ certbot_domain }}/fullchain.pem"
       register: cert_file
 
     - name: Obtain TLS certificate
-      when: not cert_file.stat.exists
+      when: (adguard_primary | default(false)) and not cert_file.stat.exists
       ansible.builtin.command: >
         certbot certonly
         --dns-cloudflare
@@ -112,13 +118,14 @@
       changed_when: true
 
     - name: Create AdGuard SSL directory
+      when: adguard_primary | default(false)
       ansible.builtin.file:
         path: /opt/AdGuardHome/ssl
         state: directory
         mode: "0755"
 
     - name: Copy certs to AdGuard SSL directory
-      when: not cert_file.stat.exists
+      when: (adguard_primary | default(false)) and not cert_file.stat.exists
       ansible.builtin.shell: |
         cp /etc/letsencrypt/live/{{ certbot_domain }}/fullchain.pem /opt/AdGuardHome/ssl/fullchain.pem
         cp /etc/letsencrypt/live/{{ certbot_domain }}/privkey.pem /opt/AdGuardHome/ssl/privkey.pem
@@ -126,12 +133,14 @@
       changed_when: true
 
     - name: Deploy certbot renewal hook
+      when: adguard_primary | default(false)
       ansible.builtin.template:
         src: templates/adguard/certbot-deploy-hook.sh.j2
         dest: /etc/letsencrypt/renewal-hooks/deploy/adguardhome.sh
         mode: "0755"
 
     - name: Ensure certbot timer is enabled
+      when: adguard_primary | default(false)
       ansible.builtin.systemd:
         name: certbot.timer
         enabled: true
