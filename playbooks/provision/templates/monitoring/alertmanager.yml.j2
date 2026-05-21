@@ -7,6 +7,12 @@ route:
   group_interval: 5m
   repeat_interval: 4h
   receiver: 'homeassistant'
+  routes:
+    - match:
+        severity: watchdog
+      group_wait: 0s
+      repeat_interval: 168h
+      receiver: 'homeassistant'
 
 receivers:
   - name: 'homeassistant'

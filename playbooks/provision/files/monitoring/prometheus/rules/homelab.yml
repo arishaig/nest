@@ -1,4 +1,14 @@
 groups:
+  - name: watchdog
+    rules:
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: watchdog
+        annotations:
+          summary: "Alerting pipeline is operational"
+          description: "Weekly confirmation that Prometheus → Alertmanager → HA → phone is working."
+
   - name: hosts
     rules:
       - alert: HostDown
