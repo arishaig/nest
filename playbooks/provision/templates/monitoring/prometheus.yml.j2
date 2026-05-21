@@ -61,11 +61,11 @@ scrape_configs:
 
   - job_name: 'adguard'
     static_configs:
-      - targets: ['dns.arishaig.site:9618']
+      - targets: ['dns.arishaig.site:9618', '192.168.1.53:9618']
 
   - job_name: 'unbound'
     static_configs:
-      - targets: ['dns.arishaig.site:9167']
+      - targets: ['dns.arishaig.site:9167', '192.168.1.53:9167']
 
   - job_name: 'unpoller'
     static_configs:
