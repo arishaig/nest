@@ -10,6 +10,13 @@
         mode: "0644"
       when: inventory_hostname == 'docker'
 
+    - name: Copy seedbox docker-compose.yml
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/provision/files/seedbox/docker-compose.yml"
+        dest: /opt/seedbox/docker-compose.yml
+        mode: "0644"
+      when: inventory_hostname == 'seedbox'
+
     - name: Pull latest images for all compose stacks
       command: docker compose pull --ignore-buildable
       args:
