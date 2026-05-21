@@ -7,7 +7,7 @@ playbooks/audit-output/
 
 # Terraform
 terraform/.terraform/
-terraform/.terraform.lock.hcl
+# .terraform.lock.hcl is intentionally committed — pins provider versions
 terraform/*.tfstate
 terraform/*.tfstate.*
 terraform/secrets.tfvars
