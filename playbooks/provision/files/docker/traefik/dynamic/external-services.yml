@@ -40,6 +40,35 @@ http:
       tls:
         certResolver: cloudflare
 
+    # --- Authelia-free .local. routes (direct app access) ---
+    torrent-local:
+      rule: "Host(`torrent.local.arishaig.site`)"
+      entryPoints: [websecure]
+      service: torrent
+      tls:
+        certResolver: cloudflare
+
+    scrutiny-local:
+      rule: "Host(`scrutiny.local.arishaig.site`)"
+      entryPoints: [websecure]
+      service: scrutiny
+      tls:
+        certResolver: cloudflare
+
+    backlight-local:
+      rule: "Host(`backlight.local.arishaig.site`)"
+      entryPoints: [websecure]
+      service: backlight
+      tls:
+        certResolver: cloudflare
+
+    musicbrainz-local:
+      rule: "Host(`musicbrainz.local.arishaig.site`)"
+      entryPoints: [websecure]
+      service: musicbrainz
+      tls:
+        certResolver: cloudflare
+
   services:
     monitoring:
       loadBalancer:
@@ -67,6 +96,16 @@ http:
         serversTransport: skipVerify
         servers:
           - url: "https://192.168.1.16:8006"
+
+    backlight:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.4.97:80"
+
+    musicbrainz:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.197:80"
 
   serversTransports:
     skipVerify:

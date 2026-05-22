@@ -4,18 +4,21 @@
 
 locals {
   dns_rewrites = {
-    # Direct-IP entries (*.local.* used only where non-local routes through Traefik)
+    # Local-access names — direct IP, bypass Traefik entirely (infra break-glass)
     "proxmox.local.arishaig.site"    = "192.168.1.16"
-    "torrent.local.arishaig.site"    = "192.168.1.182"
-    "scrutiny.local.arishaig.site"   = "192.168.1.46"
     "backup.local.arishaig.site"     = "192.168.1.113"
     "monitoring.local.arishaig.site" = "192.168.1.44"
     "casa.local.arishaig.site"       = "192.168.4.50"
     "docker.local.arishaig.site"     = "docker.arishaig.site"
     "adguard.local.arishaig.site"    = "dns.arishaig.site"
-    "backlight.local.arishaig.site"  = "backlight.arishaig.site"
     "files.local.arishaig.site"      = "files.arishaig.site"
-    "musicbrainz.local.arishaig.site" = "musicbrainz.arishaig.site"
+
+    # Local-access names — Traefik route without Authelia (see external-services.yml)
+    "torrent.local.arishaig.site"     = "192.168.1.158"
+    "scrutiny.local.arishaig.site"    = "192.168.1.158"
+    "backlight.local.arishaig.site"   = "192.168.1.158"
+    "musicbrainz.local.arishaig.site" = "192.168.1.158"
+    "storyteller.local.arishaig.site" = "192.168.1.158"
 
     # Direct-IP entries (no Traefik conflict)
     "backlight.arishaig.site"   = "192.168.4.97"
@@ -69,18 +72,18 @@ resource "adguard_rewrite" "dns" {
 
 resource "adguard_config" "main" {
   dns = {
-    upstream_dns     = ["127.0.0.1:5335"]
-    bootstrap_dns    = ["127.0.0.1:5335", "::1:5335"]
-    rate_limit       = 0
-    blocking_mode    = "refused"
-    cache_size       = 4194304
-    cache_ttl_min    = 0
-    cache_ttl_max    = 0
+    upstream_dns              = ["127.0.0.1:5335"]
+    bootstrap_dns             = ["127.0.0.1:5335", "::1:5335"]
+    rate_limit                = 0
+    blocking_mode             = "refused"
+    cache_size                = 4194304
+    cache_ttl_min             = 0
+    cache_ttl_max             = 0
     cache_optimistic          = true
     dnssec_enabled            = true
     use_private_ptr_resolvers = true
     local_ptr_upstreams       = ["127.0.0.1:5335"]
-    allowed_clients  = [
+    allowed_clients = [
       "192.168.1.0/24",
       "192.168.2.0/24",
       "192.168.3.0/24",

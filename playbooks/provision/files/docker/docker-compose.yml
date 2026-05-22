@@ -327,6 +327,11 @@ services:
       - "traefik.http.routers.storyteller.tls=true"
       - "traefik.http.routers.storyteller.middlewares=authelia@file"
       - "traefik.http.services.storyteller.loadbalancer.server.port=8001"
+      - "traefik.http.routers.storyteller-local.rule=Host(`storyteller.local.arishaig.site`)"
+      - "traefik.http.routers.storyteller-local.entrypoints=websecure"
+      - "traefik.http.routers.storyteller-local.tls=true"
+      - "traefik.http.routers.storyteller-local.tls.certresolver=cloudflare"
+      - "traefik.http.routers.storyteller-local.service=storyteller"
     restart: unless-stopped
 
   # Subtitle generation powered by Whisper, used by Bazarr
