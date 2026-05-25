@@ -59,7 +59,7 @@ resource "proxmox_virtual_environment_container" "musicbrainz" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/musicbrainz.yml --limit musicbrainz"
+    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/musicbrainz.yml --limit musicbrainz"
   }
 
   lifecycle {

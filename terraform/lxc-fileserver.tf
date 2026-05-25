@@ -64,7 +64,7 @@ resource "proxmox_virtual_environment_container" "fileserver" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/fileserver.yml --limit fileserver"
+    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/fileserver.yml --limit fileserver"
   }
 
   lifecycle {

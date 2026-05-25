@@ -58,7 +58,7 @@ resource "proxmox_virtual_environment_container" "monitoring" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/monitoring.yml --limit monitoring"
+    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/monitoring.yml --limit monitoring"
   }
 
   lifecycle {

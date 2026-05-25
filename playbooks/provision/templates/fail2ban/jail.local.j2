@@ -1,0 +1,15 @@
+[DEFAULT]
+bantime  = 1h
+findtime = 10m
+maxretry = 10
+banaction = nftables-multiport
+banaction_allports = nftables-allports
+
+[traefik]
+enabled  = true
+port     = http,https
+filter   = traefik
+logpath  = /mnt/app_config/traefik/logs/access.log
+maxretry = 15
+findtime = 5m
+bantime  = 1h

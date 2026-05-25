@@ -91,6 +91,6 @@ resource "null_resource" "scrutiny_provision" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/scrutiny.yml --limit scrutiny"
+    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/scrutiny.yml --limit scrutiny"
   }
 }

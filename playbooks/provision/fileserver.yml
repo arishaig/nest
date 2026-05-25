@@ -1,8 +1,6 @@
 ---
 # Provision LXC 102: Samba file server
-
-- name: Common base setup
-  ansible.builtin.import_playbook: common.yml
+# common.yml must run first (handled by site.yml and the Terraform provisioner).
 
 - name: Fileserver provisioning
   hosts: fileserver
@@ -12,10 +10,10 @@
   vars:
     samba_users:
       - name: media
-        uid: 1001
+        uid: 1000
         group: media
       - name: mediauser
-        uid: 1000
+        uid: 1001
         group: media
 
   tasks:

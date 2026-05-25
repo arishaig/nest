@@ -26,6 +26,11 @@ access_control:
     - domain: jellyfin.arishaig.site
       policy: bypass
 
+regulation:
+  max_retries: 5
+  find_time: 2m
+  ban_time: 10m
+
 theme: 'dark'
 
 notifier:

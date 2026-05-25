@@ -1,8 +1,6 @@
 ---
 # Provision LXC 101: MusicBrainz mirror
-
-- name: Common base setup
-  ansible.builtin.import_playbook: common.yml
+# common.yml must run first (handled by site.yml and the Terraform provisioner).
 
 - name: MusicBrainz provisioning
   hosts: musicbrainz
@@ -32,7 +30,7 @@
 
         - name: Add Docker repository
           ansible.builtin.apt_repository:
-            repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+            repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_facts['distribution_release'] }} stable"
             state: present
 
         - name: Install Docker CE packages

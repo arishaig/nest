@@ -835,5 +835,9 @@ services:
     restart: unless-stopped
 
 networks:
+  default:
+    name: internal-net
+    external: true
   proxy-net:
     name: proxy-net
+    external: true
