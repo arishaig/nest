@@ -128,9 +128,11 @@
       ],
       "options": {
         "showTime": true,
-        "showLabels": false,
+        "showLabels": true,
         "wrapLogMessage": false,
-        "sortOrder": "Descending"
+        "sortOrder": "Descending",
+        "dedupStrategy": "none",
+        "enableLogDetails": true
       }
     },
     {

@@ -1,0 +1,58 @@
+// Push to Loki on monitoring LXC
+loki.write "loki" {
+  endpoint {
+    url = "http://192.168.1.44:3100/loki/api/v1/push"
+  }
+}
+
+// Traefik access log
+local.file_match "traefik_access" {
+  path_targets = [{
+    __address__ = "localhost",
+    __path__    = "/var/log/traefik/access.log",
+    job         = "traefik-access",
+    host        = "vps-proxy",
+  }]
+}
+
+loki.process "traefik_access_json" {
+  forward_to = [loki.write.loki.receiver]
+
+  stage.json {
+    expressions = {
+      router = "RouterName",
+      status = "DownstreamStatus",
+    }
+  }
+
+  stage.labels {
+    values = {
+      router = "router",
+      status = "status",
+    }
+  }
+}
+
+loki.source.file "traefik_access" {
+  targets    = local.file_match.traefik_access.targets
+  forward_to = [loki.process.traefik_access_json.receiver]
+}
+
+// journald — relabel systemd unit name to 'unit' label
+loki.relabel "journal" {
+  forward_to = [loki.write.loki.receiver]
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+}
+
+loki.source.journal "vps_journal" {
+  max_age    = "12h"
+  forward_to = [loki.relabel.journal.receiver]
+  labels = {
+    job  = "vps-journal",
+    host = "vps-proxy",
+  }
+}

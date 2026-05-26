@@ -12,7 +12,7 @@
     traefik_version: "3.7.1"
     traefik_arch: "amd64"
     node_exporter_version: "1.11.1"
-    promtail_version: "3.7.2"
+    alloy_version: "1.16.1"
 
   tasks:
     # --- Bootstrap ---
@@ -229,20 +229,20 @@
         - /tmp/node_exporter.tar.gz
         - "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"
 
-    # --- Promtail ---
-    - name: Create Promtail directories
+    # --- Alloy (log shipper, replaces Promtail) ---
+    - name: Create Alloy directories
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
         mode: "0755"
       loop:
-        - /etc/promtail
-        - /var/lib/promtail
+        - /etc/alloy
+        - /var/lib/alloy
 
-    - name: Download Promtail
+    - name: Download Alloy binary
       ansible.builtin.get_url:
-        url: "https://github.com/grafana/loki/releases/download/v{{ promtail_version }}/promtail-linux-amd64.zip"
-        dest: /tmp/promtail.zip
+        url: "https://github.com/grafana/alloy/releases/download/v{{ alloy_version }}/alloy-linux-amd64.zip"
+        dest: /var/tmp/alloy.zip
         mode: "0644"
 
     - name: Install unzip
@@ -250,49 +250,74 @@
         name: unzip
         state: present
 
-    - name: Extract Promtail binary
+    - name: Extract Alloy binary
       ansible.builtin.unarchive:
-        src: /tmp/promtail.zip
-        dest: /tmp
+        src: /var/tmp/alloy.zip
+        dest: /var/tmp
         remote_src: true
 
-    - name: Install Promtail binary
+    - name: Install Alloy binary
       ansible.builtin.copy:
-        src: /tmp/promtail-linux-amd64
-        dest: /usr/local/bin/promtail
+        src: /var/tmp/alloy-linux-amd64
+        dest: /usr/local/bin/alloy
         mode: "0755"
         remote_src: true
 
-    - name: Deploy Promtail config
+    - name: Deploy Alloy config
       ansible.builtin.copy:
-        src: files/vps/promtail/config.yml
-        dest: /etc/promtail/config.yml
+        src: files/vps/alloy/config.alloy
+        dest: /etc/alloy/config.alloy
         mode: "0644"
-      notify: Restart Promtail
+      notify: Restart Alloy
 
-    - name: Deploy Promtail systemd unit
+    - name: Deploy Alloy systemd unit
       ansible.builtin.copy:
-        src: files/vps/promtail.service
-        dest: /etc/systemd/system/promtail.service
+        content: |
+          [Unit]
+          Description=Grafana Alloy
+          After=network.target wg-quick@wg0.service
+
+          [Service]
+          ExecStart=/usr/local/bin/alloy run --storage.path=/var/lib/alloy /etc/alloy/config.alloy
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/alloy.service
         mode: "0644"
       notify:
         - Reload systemd
-        - Restart Promtail
+        - Restart Alloy
 
-    - name: Enable and start Promtail
+    - name: Enable and start Alloy
       ansible.builtin.systemd:
-        name: promtail
+        name: alloy
         enabled: true
         state: started
         daemon_reload: true
 
-    - name: Clean up Promtail download
+    - name: Clean up Alloy download
       ansible.builtin.file:
         path: "{{ item }}"
         state: absent
       loop:
-        - /tmp/promtail.zip
-        - /tmp/promtail-linux-amd64
+        - /var/tmp/alloy.zip
+        - /var/tmp/alloy-linux-amd64
+
+    # --- BBR congestion control ---
+    - name: Enable BBR congestion control and tune socket buffers
+      ansible.builtin.copy:
+        content: |
+          net.core.default_qdisc = fq
+          net.ipv4.tcp_congestion_control = bbr
+          net.core.rmem_max = 16777216
+          net.core.wmem_max = 16777216
+          net.core.rmem_default = 262144
+          net.core.wmem_default = 262144
+        dest: /etc/sysctl.d/99-bbr.conf
+        mode: "0644"
+      notify: Apply sysctl
 
     # --- logrotate ---
     - name: Configure Traefik log rotation
@@ -349,8 +374,12 @@
         state: restarted
         daemon_reload: true
 
-    - name: Restart Promtail
+    - name: Restart Alloy
       ansible.builtin.systemd:
-        name: promtail
+        name: alloy
         state: restarted
         daemon_reload: true
+
+    - name: Apply sysctl
+      ansible.builtin.command: sysctl --system
+      changed_when: true
