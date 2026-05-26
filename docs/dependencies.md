@@ -220,9 +220,9 @@ HAOS is self-contained; no Ansible provisioner. Restored from PBS backup after V
 - USB passthrough: Zigbee controller (host `1-5`), Z-Wave controller (host `3-4`), USB WiFi adapter (`0bda:a728`)
 - Remote access via Nabu Casa (`casa.arishaig.site` managed externally, not in Terraform)
 
-### VM 500 — Proxmox Backup Server 3.4-1
+### VM 500 — Proxmox Backup Server 4.2.0
 
-ISO: `proxmox-backup-server_3.4-1.iso`. 4 vCPU, 32 GB RAM, 500 GB NVMe (ZFS).
+ISO: `proxmox-backup-server_3.4-1.iso` (original install). 4 vCPU, 32 GB RAM, 500 GB NVMe (ZFS). Upgraded in-place to PBS 4.2.0 / Debian 13 Trixie.
 
 Ansible (`pbs.yml`) adds:
 - **node_exporter** with textfile collector (`--collector.textfile.directory`)
