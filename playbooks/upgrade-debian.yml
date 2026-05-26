@@ -1,0 +1,70 @@
+---
+# In-place Debian Bookworm → Trixie dist-upgrade for all managed hosts.
+#
+# Targets: all LXCs + DNS hosts (Pi included). Does NOT cover the VPS
+# (already on Trixie), HAOS VM (self-managed), or PBS VM (separate path).
+#
+# Usage:
+#   ansible-playbook playbooks/upgrade-debian.yml --ask-vault-pass
+#
+# Safe to run on already-upgraded hosts — skips if already on Trixie.
+
+- name: Upgrade Debian Bookworm → Trixie
+  hosts: lxcs:dns
+  become: true
+  gather_facts: true
+  serial: 1
+
+  tasks:
+    - name: Check current Debian release
+      ansible.builtin.command: lsb_release -cs
+      register: current_release
+      changed_when: false
+
+    - name: Skip if already on Trixie
+      ansible.builtin.meta: end_host
+      when: current_release.stdout == "trixie"
+
+    - name: Replace bookworm with trixie in sources.list
+      ansible.builtin.replace:
+        path: /etc/apt/sources.list
+        regexp: '\bbookworm\b'
+        replace: trixie
+      register: sources_main
+
+    - name: Replace bookworm with trixie in sources.list.d
+      ansible.builtin.replace:
+        path: "{{ item }}"
+        regexp: '\bbookworm\b'
+        replace: trixie
+      loop: "{{ query('fileglob', '/etc/apt/sources.list.d/*.list') }}"
+      register: sources_d
+      when: item is file
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Run dist-upgrade
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: true
+        autoclean: true
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+    - name: Reboot into Trixie
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+        msg: "Rebooting after Debian Trixie dist-upgrade"
+
+    - name: Confirm upgraded release
+      ansible.builtin.command: lsb_release -cs
+      register: post_release
+      changed_when: false
+
+    - name: Verify Trixie
+      ansible.builtin.assert:
+        that: post_release.stdout == "trixie"
+        fail_msg: "Expected trixie, got {{ post_release.stdout }}"
+        success_msg: "{{ inventory_hostname }} is now on Trixie"

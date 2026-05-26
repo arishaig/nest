@@ -167,9 +167,9 @@ Many services run via [LinuxServer.io](https://github.com/linuxserver) images (`
 
 ## Operating Systems & Host Components
 
-### LXC Containers — all Debian 12 (Bookworm)
+### LXC Containers — all Debian 13 (Trixie)
 
-Template: `debian-12-standard_12.12-1_amd64.tar.zst` (downloaded by Terraform via `proxmox_download_file`).
+Template: `debian-13-standard_13.1-2_amd64.tar.zst` (downloaded by Terraform via `proxmox_download_file`).
 
 All LXCs receive the following via `playbooks/provision/common.yml`:
 - Base packages: `curl wget vim htop git`
@@ -200,7 +200,7 @@ Vultr `vc2-1c-1gb`, Seattle. All services run as systemd units (no Docker).
 | logrotate | distro | Traefik access log rotation |
 | BBR + fq | kernel | Same sysctl tuning as LXCs |
 
-### Raspberry Pi — Raspberry Pi OS (Bookworm)
+### Raspberry Pi — Raspberry Pi OS (Trixie)
 
 Primary DNS host, on VLAN 7. Not provisioned by Terraform — Ansible manages config only.
 

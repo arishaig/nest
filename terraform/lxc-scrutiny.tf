@@ -15,7 +15,7 @@ resource "proxmox_virtual_environment_container" "scrutiny" {
   start_on_boot = true
 
   operating_system {
-    template_file_id = proxmox_download_file.debian12_ct.id
+    template_file_id = proxmox_download_file.debian_ct.id
     type             = "debian"
   }
 
@@ -67,6 +67,7 @@ resource "proxmox_virtual_environment_container" "scrutiny" {
       operating_system,
       console,
       initialization,
+      template_file_id,
     ]
   }
 }

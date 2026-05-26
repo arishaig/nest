@@ -15,7 +15,7 @@ resource "proxmox_virtual_environment_container" "seedbox" {
   start_on_boot = true
 
   operating_system {
-    template_file_id = proxmox_download_file.debian12_ct.id
+    template_file_id = proxmox_download_file.debian_ct.id
     type             = "debian"
   }
 
@@ -69,6 +69,7 @@ resource "proxmox_virtual_environment_container" "seedbox" {
     ignore_changes = [
       operating_system,
       console,
+      template_file_id,
     ]
   }
 }
