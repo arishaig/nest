@@ -4,6 +4,8 @@ Private home lab managed as code. Terraform provisions the infrastructure;
 Ansible converges configuration. Both are triggered together via Terraform
 `local-exec` provisioners on first create, then re-run independently for day-to-day changes.
 
+See [docs/dependencies.md](dependencies.md) for a full dependency inventory with licenses and GitHub links.
+
 ## Diagrams
 
 Full infrastructure: `docs/architecture.png`
