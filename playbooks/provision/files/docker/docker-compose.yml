@@ -760,18 +760,6 @@ services:
       - "traefik.http.routers.authelia.tls.domains[0].main=arishaig.site"
       - "traefik.http.routers.authelia.tls.domains[0].sans=*.arishaig.site"
 
-  # Cloudflared - Secure external connection
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-    networks:
-      - default
-      - proxy-net
-
   # Dynamic DNS
   cloudflare-ddns:
     image: favonia/cloudflare-ddns:latest
@@ -835,5 +823,9 @@ services:
     restart: unless-stopped
 
 networks:
+  default:
+    name: internal-net
+    external: true
   proxy-net:
     name: proxy-net
+    external: true

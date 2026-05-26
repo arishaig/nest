@@ -1,9 +1,7 @@
 ---
 # Provision a Docker host LXC (100: docker)
-# Includes common setup, Docker CE install, and compose deployment
-
-- name: Common base setup
-  ansible.builtin.import_playbook: common.yml
+# Docker CE install and compose deployment.
+# common.yml must run first (handled by site.yml and the Terraform provisioner).
 
 - name: Docker host provisioning
   hosts: docker
@@ -14,6 +12,9 @@
     compose_dir: /mnt/app_config
     docker_networks:
       - name: proxy-net
+        subnet: "172.20.0.0/16"
+      - name: internal-net
+        subnet: "172.18.0.0/16"
 
   tasks:
     # --- Docker CE installation ---
@@ -34,7 +35,7 @@
 
         - name: Add Docker repository
           ansible.builtin.apt_repository:
-            repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+            repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_facts['distribution_release'] }} stable"
             state: present
 
         - name: Install Docker CE packages
@@ -58,6 +59,8 @@
     - name: Create Docker networks
       community.docker.docker_network:
         name: "{{ item.name }}"
+        ipam_config:
+          - subnet: "{{ item.subnet }}"
         state: present
       loop: "{{ docker_networks }}"
 
@@ -123,7 +126,7 @@
 
     - name: Create traefik log directory
       ansible.builtin.file:
-        path: /var/log/traefik
+        path: "{{ compose_dir }}/traefik/logs"
         state: directory
         mode: "0755"
 
@@ -133,8 +136,80 @@
         chdir: "{{ compose_dir }}"
       changed_when: true
 
+    # --- WireGuard (tunnel to VPS proxy) ---
+    - name: Install wireguard-tools
+      ansible.builtin.apt:
+        name: wireguard-tools
+        state: present
+      tags: wireguard
+
+    - name: Deploy Nest WireGuard config
+      ansible.builtin.template:
+        src: templates/wireguard/wg0-nest.conf.j2
+        dest: /etc/wireguard/wg0.conf
+        mode: "0600"
+      notify: Restart WireGuard nest
+      tags: wireguard
+
+    - name: Enable and start WireGuard
+      ansible.builtin.systemd:
+        name: wg-quick@wg0
+        enabled: true
+        state: started
+      tags: wireguard
+
+    # --- fail2ban ---
+    - name: Install fail2ban and rsyslog
+      ansible.builtin.apt:
+        name:
+          - fail2ban
+          - rsyslog
+        state: present
+        update_cache: true
+      tags: fail2ban
+
+    - name: Enable and start rsyslog
+      ansible.builtin.systemd:
+        name: rsyslog
+        enabled: true
+        state: started
+      tags: fail2ban
+
+    - name: Deploy fail2ban jail config
+      ansible.builtin.template:
+        src: templates/fail2ban/jail.local.j2
+        dest: /etc/fail2ban/jail.local
+        mode: "0644"
+      notify: Reload fail2ban
+      tags: fail2ban
+
+    - name: Deploy fail2ban traefik filter
+      ansible.builtin.template:
+        src: templates/fail2ban/filter.d/traefik.conf.j2
+        dest: /etc/fail2ban/filter.d/traefik.conf
+        mode: "0644"
+      notify: Reload fail2ban
+      tags: fail2ban
+
+    - name: Enable and start fail2ban
+      ansible.builtin.systemd:
+        name: fail2ban
+        enabled: true
+        state: started
+      tags: fail2ban
+
   handlers:
     - name: Restart Docker
       ansible.builtin.systemd:
         name: docker
+        state: restarted
+
+    - name: Reload fail2ban
+      ansible.builtin.systemd:
+        name: fail2ban
+        state: reloaded
+
+    - name: Restart WireGuard nest
+      ansible.builtin.systemd:
+        name: wg-quick@wg0
         state: restarted

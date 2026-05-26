@@ -1,0 +1,10 @@
+[Interface]
+PrivateKey = {{ nest_wg_private_key }}
+Address = 10.10.0.2/24
+
+[Peer]
+# Vultr VPS proxy
+PublicKey = {{ vps_wg_public_key }}
+AllowedIPs = 10.10.0.1/32
+Endpoint = {{ vps_public_ip }}:51820
+PersistentKeepalive = 25

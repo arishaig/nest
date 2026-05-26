@@ -3,7 +3,8 @@
 # Run as part of other provision playbooks via include
 
 - name: Common base provisioning
-  hosts: "{{ target | default('all') }}"
+  # Scope is lxcs:dns (not 'all') — the PVE host and PBS are not provisioned here.
+  hosts: "{{ target | default('lxcs:dns') }}"
   become: true
   gather_facts: true
 
@@ -33,12 +34,12 @@
     arch_map:
       x86_64: amd64
       aarch64: arm64
-    node_exporter_arch: "{{ arch_map[ansible_architecture] | default('amd64') }}"
+    node_exporter_arch: "{{ arch_map[ansible_facts['architecture']] | default('amd64') }}"
 
   tasks:
     - name: Remove old Docker repo signed with docker.gpg
       ansible.builtin.apt_repository:
-        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian {{ ansible_facts['distribution_release'] }} stable"
         state: absent
 
     - name: Update apt cache

@@ -1,5 +1,14 @@
 http:
   middlewares:
+    rate-limit:
+      rateLimit:
+        average: 200
+        burst: 100
+        period: 1s
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
     authelia:
       forwardAuth:
         address: "http://authelia:9091/api/authz/forward-auth"

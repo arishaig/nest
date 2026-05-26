@@ -93,6 +93,6 @@ resource "null_resource" "seedbox_provision" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/seedbox.yml --limit seedbox"
+    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/seedbox.yml --limit seedbox"
   }
 }

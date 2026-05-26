@@ -14,5 +14,13 @@ terraform {
       source  = "hashicorp/null"
       version = "~> 3.2"
     }
+    vultr = {
+      source  = "vultr/vultr"
+      version = "~> 2.23"
+    }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.0"
+    }
   }
 }

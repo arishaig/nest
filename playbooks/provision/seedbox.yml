@@ -1,8 +1,6 @@
 ---
 # Provision LXC 104: Seedbox with VPN
-
-- name: Common base setup
-  ansible.builtin.import_playbook: common.yml
+# common.yml must run first (handled by site.yml and the Terraform provisioner).
 
 - name: Seedbox provisioning
   hosts: seedbox
@@ -31,7 +29,7 @@
 
         - name: Add Docker repository
           ansible.builtin.apt_repository:
-            repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+            repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_facts['distribution_release'] }} stable"
             state: present
 
         - name: Install Docker CE packages

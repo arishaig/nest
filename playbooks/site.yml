@@ -1,4 +1,32 @@
 ---
+# site.yml — full converge of the whole estate.
+#
+# Runs every host's provision playbook (applies all repo-defined config:
+# packages, services, compose stacks, Traefik, monitoring rules, firewall),
+# then refreshes OS packages, container images, and the Proxmox host.
+#
+# Usage:  ansible-playbook playbooks/site.yml --ask-vault-pass
+#
+# Not covered here — run separately:
+#   - Terraform (LXC/VM definitions, AdGuard DNS rewrites): `terraform apply`
+#   - provision/pve-passthrough.yml: parametrized (lxc_id), run per-container
+#     by Terraform, not as part of a full converge.
+
+# --- Provision: converge each host to the configuration in this repo ---
+# common.yml runs once here; the provision playbooks no longer import it.
+- import_playbook: provision/common.yml
+- import_playbook: provision/adguard.yml
+- import_playbook: provision/docker-host.yml
+- import_playbook: provision/vps.yml
+- import_playbook: provision/fileserver.yml
+- import_playbook: provision/monitoring.yml
+- import_playbook: provision/musicbrainz.yml
+- import_playbook: provision/scrutiny.yml
+- import_playbook: provision/seedbox.yml
+- import_playbook: provision/pbs.yml
+- import_playbook: provision/nftables.yml
+
+# --- Update: refresh OS packages, container images, and Proxmox ---
 - import_playbook: update_apt.yml
 - import_playbook: update_docker.yml
 - import_playbook: update_proxmox.yml

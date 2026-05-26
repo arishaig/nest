@@ -1,0 +1,220 @@
+---
+# Provision the Vultr VPS proxy (Debian 13 trixie)
+# Runs Traefik (native binary) + WireGuard tunnel to Nest docker LXC
+# WireGuard: private keys in vault.yml, public keys in group_vars/all/vars.yml
+
+- name: VPS proxy provisioning
+  hosts: vps-proxy
+  become: true
+  gather_facts: true
+
+  vars:
+    traefik_version: "3.4.0"
+    traefik_arch: "amd64"
+
+  tasks:
+    # --- Bootstrap ---
+    - name: Update apt cache and upgrade
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+        cache_valid_time: 3600
+
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - wireguard-tools
+          - curl
+          - ca-certificates
+          - nftables
+          - logrotate
+          - unattended-upgrades
+          - fail2ban
+        state: present
+
+    - name: Set authorized SSH keys
+      ansible.posix.authorized_key:
+        user: root
+        key: "{{ item }}"
+        state: present
+      loop:
+        - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBM7Y+b/BRai//GJ7Sczob/rX8ck3ArKGQP/jsR5OlWn isaac@isaaclaptop"
+        - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMxOgEao2c+jTY4NdsEp46M9Fs8i1Yx6WiX42rUAXSJh ansible-on-nest"
+
+    # --- SSH hardening ---
+    - name: Disable password authentication and enforce key-only root login
+      ansible.builtin.copy:
+        content: |
+          PasswordAuthentication no
+          PermitRootLogin prohibit-password
+        dest: /etc/ssh/sshd_config.d/99-hardened.conf
+        mode: "0600"
+      notify: Restart sshd
+
+    # --- fail2ban ---
+    - name: Deploy fail2ban jail config
+      ansible.builtin.copy:
+        content: |
+          [sshd]
+          enabled  = true
+          maxretry = 5
+          bantime  = 1h
+          findtime = 10m
+        dest: /etc/fail2ban/jail.d/sshd.conf
+        mode: "0644"
+      notify: Restart fail2ban
+
+    - name: Enable and start fail2ban
+      ansible.builtin.systemd:
+        name: fail2ban
+        enabled: true
+        state: started
+
+    # --- nftables firewall ---
+    - name: Deploy nftables ruleset
+      ansible.builtin.copy:
+        content: |
+          table inet filter {
+            chain input {
+              type filter hook input priority 0; policy drop;
+              iif lo accept
+              ct state established,related accept
+              tcp dport 22 accept
+              tcp dport { 80, 443 } accept
+              udp dport 51820 accept
+              icmp type echo-request accept
+            }
+            chain forward {
+              type filter hook forward priority 0; policy drop;
+            }
+            chain output {
+              type filter hook output priority 0; policy accept;
+            }
+          }
+        dest: /etc/nftables.conf
+        mode: "0600"
+      notify: Reload nftables
+
+    - name: Enable and start nftables
+      ansible.builtin.systemd:
+        name: nftables
+        enabled: true
+        state: started
+
+    # --- WireGuard ---
+    - name: Deploy WireGuard config
+      ansible.builtin.template:
+        src: templates/wireguard/wg0-vps.conf.j2
+        dest: /etc/wireguard/wg0.conf
+        mode: "0600"
+      notify: Restart WireGuard
+
+    - name: Enable and start WireGuard
+      ansible.builtin.systemd:
+        name: wg-quick@wg0
+        enabled: true
+        state: started
+
+    # --- Traefik binary ---
+    - name: Download Traefik binary
+      ansible.builtin.get_url:
+        url: "https://github.com/traefik/traefik/releases/download/v{{ traefik_version }}/traefik_v{{ traefik_version }}_linux_{{ traefik_arch }}.tar.gz"
+        dest: /tmp/traefik.tar.gz
+        mode: "0644"
+
+    - name: Extract Traefik binary
+      ansible.builtin.unarchive:
+        src: /tmp/traefik.tar.gz
+        dest: /usr/local/bin
+        include: traefik
+        remote_src: true
+        mode: "0755"
+
+    - name: Create Traefik config directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /etc/traefik
+        - /etc/traefik/dynamic
+        - /var/log/traefik
+
+    - name: Deploy Traefik static config
+      ansible.builtin.copy:
+        src: files/vps/traefik/traefik.yml
+        dest: /etc/traefik/traefik.yml
+        mode: "0644"
+      notify: Restart Traefik
+
+    - name: Deploy Traefik dynamic configs
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: /etc/traefik/dynamic/
+        mode: "0644"
+      with_fileglob:
+        - files/vps/traefik/dynamic/*.yml
+      notify: Restart Traefik
+
+    - name: Deploy Traefik systemd unit
+      ansible.builtin.copy:
+        src: files/vps/traefik.service
+        dest: /etc/systemd/system/traefik.service
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart Traefik
+
+    - name: Enable and start Traefik
+      ansible.builtin.systemd:
+        name: traefik
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # --- logrotate ---
+    - name: Configure Traefik log rotation
+      ansible.builtin.copy:
+        content: |
+          /var/log/traefik/*.log {
+            daily
+            rotate 7
+            compress
+            missingok
+            notifempty
+            postrotate
+              systemctl restart traefik > /dev/null 2>&1 || true
+            endscript
+          }
+        dest: /etc/logrotate.d/traefik
+        mode: "0644"
+
+  handlers:
+    - name: Restart sshd
+      ansible.builtin.systemd:
+        name: sshd
+        state: restarted
+
+    - name: Restart fail2ban
+      ansible.builtin.systemd:
+        name: fail2ban
+        state: restarted
+
+    - name: Reload nftables
+      ansible.builtin.systemd:
+        name: nftables
+        state: restarted
+
+    - name: Restart WireGuard
+      ansible.builtin.systemd:
+        name: wg-quick@wg0
+        state: restarted
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart Traefik
+      ansible.builtin.systemd:
+        name: traefik
+        state: restarted
