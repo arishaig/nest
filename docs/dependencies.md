@@ -142,7 +142,7 @@ All software this lab depends on, with license, FOSS status, and upstream links.
 | **Storyteller** | MIT | ✅ FOSS | [storyteller-platform/storyteller](https://gitlab.com/storyteller-platform/storyteller) |
 | **Recommendarr** | MIT | ✅ FOSS | [tannermiddleton/recommendarr](https://github.com/tannermiddleton/recommendarr) |
 | **Watcharr** | MIT | ✅ FOSS | [sbondCo/Watcharr](https://github.com/sbondCo/Watcharr) |
-| **Homarr** | MIT | ✅ FOSS | [homarr-labs/homarr](https://github.com/homarr-labs/homarr) |
+| **Homepage** | GPL-3.0 | ✅ FOSS | [gethomepage/homepage](https://github.com/gethomepage/homepage) |
 | **MediaLyze** | MIT | ✅ FOSS | [FrederikEmmer/medialyze](https://github.com/FrederikEmmer/medialyze) |
 | **Watchback** | — | Private (Isaac's own) | [arishaig/watchback](https://github.com/arishaig/watchback) |
 

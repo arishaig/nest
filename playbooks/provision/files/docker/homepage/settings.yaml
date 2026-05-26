@@ -1,0 +1,21 @@
+title: arishaig.site
+favicon: https://www.google.com/s2/favicons?domain=arishaig.site
+theme: dark
+color: slate
+headerStyle: clean
+layout:
+  Media:
+    style: row
+    columns: 4
+  Downloads:
+    style: row
+    columns: 3
+  Apps:
+    style: row
+    columns: 4
+  Monitoring:
+    style: row
+    columns: 4
+  Infrastructure:
+    style: row
+    columns: 4

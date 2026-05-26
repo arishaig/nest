@@ -130,6 +130,20 @@
         state: directory
         mode: "0755"
 
+    - name: Create homepage config directory
+      ansible.builtin.file:
+        path: "{{ compose_dir }}/homepage"
+        state: directory
+        mode: "0755"
+
+    - name: Deploy homepage config files
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ compose_dir }}/homepage/"
+        mode: "0644"
+      with_fileglob:
+        - files/docker/homepage/*.yaml
+
     - name: Start Docker Compose stack
       ansible.builtin.command:
         cmd: docker compose up -d

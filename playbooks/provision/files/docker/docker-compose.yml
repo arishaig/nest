@@ -514,28 +514,26 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # Homarr - Dashboard
-  homarr:
-    image: ghcr.io/homarr-labs/homarr:latest
-    container_name: homarr
+  # Homepage - Dashboard
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
     environment:
-      - SECRET_ENCRYPTION_KEY=${HOMARR_SECRET_KEY}
+      - HOMEPAGE_ALLOWED_HOSTS=dash.arishaig.site
     volumes:
-      # Removed access for security hardening, services will show "Fetch Failed" in their tiles
-      # - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt/app_config/homarr:/appdata
+      - /mnt/app_config/homepage:/app/config
     expose:
-      - "7575"
+      - "3000"
     networks:
       - default
       - proxy-net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.homarr.rule=Host(`dash.arishaig.site`)"
-      - "traefik.http.routers.homarr.entrypoints=websecure"
-      - "traefik.http.routers.homarr.tls=true"
-      - "traefik.http.routers.homarr.middlewares=authelia@file"
-      - "traefik.http.services.homarr.loadbalancer.server.port=7575"
+      - "traefik.http.routers.homepage.rule=Host(`dash.arishaig.site`)"
+      - "traefik.http.routers.homepage.entrypoints=websecure"
+      - "traefik.http.routers.homepage.tls=true"
+      - "traefik.http.routers.homepage.middlewares=authelia@file"
+      - "traefik.http.services.homepage.loadbalancer.server.port=3000"
     restart: unless-stopped
 
   # Uptime Kuma - System monitor and alerts

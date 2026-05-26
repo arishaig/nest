@@ -1,0 +1,155 @@
+- Media:
+    - Jellyfin:
+        href: https://jellyfin.arishaig.site
+        description: Media server
+        icon: jellyfin.svg
+        server: my-docker
+        container: jellyfin
+
+    - Sonarr:
+        href: https://sonarr.arishaig.site
+        description: TV series
+        icon: sonarr.svg
+        server: my-docker
+        container: sonarr
+
+    - Radarr:
+        href: https://radarr.arishaig.site
+        description: Movies
+        icon: radarr.svg
+        server: my-docker
+        container: radarr
+
+    - Lidarr:
+        href: https://lidarr.arishaig.site
+        description: Music
+        icon: lidarr.svg
+        server: my-docker
+        container: lidarr
+
+- Downloads:
+    - SABnzbd:
+        href: https://nzbd.arishaig.site
+        description: Usenet
+        icon: sabnzbd.svg
+        server: my-docker
+        container: sabnzbd
+
+    - qBittorrent:
+        href: https://torrent.arishaig.site
+        description: Torrents
+        icon: qbittorrent.svg
+        server: my-docker
+        container: qbittorrent
+
+    - Prowlarr:
+        href: https://prowlarr.arishaig.site
+        description: Indexers
+        icon: prowlarr.svg
+        server: my-docker
+        container: prowlarr
+
+- Apps:
+    - Seerr:
+        href: https://seerr.arishaig.site
+        description: Requests
+        icon: overseerr.svg
+        server: my-docker
+        container: seerr
+
+    - Mealie:
+        href: https://mealie.arishaig.site
+        description: Recipes
+        icon: mealie.svg
+        server: my-docker
+        container: mealie
+
+    - Storyteller:
+        href: https://storyteller.arishaig.site
+        description: Ebooks & audiobooks
+        icon: mdi-book-open-page-variant
+        server: my-docker
+        container: storyteller
+
+    - Watcharr:
+        href: https://watcharr.arishaig.site
+        description: Watch tracking
+        icon: mdi-television-play
+        server: my-docker
+        container: watcharr
+
+    - Copyparty:
+        href: https://copyparty.arishaig.site
+        description: File access
+        icon: mdi-folder-open
+        server: my-docker
+        container: copyparty
+
+    - MusicBrainz:
+        href: https://musicbrainz.local.arishaig.site
+        description: Music database
+        icon: mdi-music-circle
+        server: my-docker
+        container: musicbrainz
+
+    - Bazarr:
+        href: https://bazarr.arishaig.site
+        description: Subtitles
+        icon: bazarr.svg
+        server: my-docker
+        container: bazarr
+
+    - Tdarr:
+        href: http://192.168.1.158:8265
+        description: Transcoding
+        icon: tdarr.svg
+        server: my-docker
+        container: tdarr
+
+- Monitoring:
+    - Grafana:
+        href: https://monitoring.arishaig.site
+        description: Metrics & logs
+        icon: grafana.svg
+        server: my-docker
+        container: grafana
+
+    - Uptime Kuma:
+        href: https://uptime.arishaig.site
+        description: Uptime monitoring
+        icon: uptime-kuma.svg
+        server: my-docker
+        container: uptime-kuma
+
+    - Glances:
+        href: https://glances.arishaig.site
+        description: System stats
+        icon: mdi-chart-line
+        server: my-docker
+        container: glances
+
+    - Scrutiny:
+        href: https://scrutiny.arishaig.site
+        description: Disk health
+        icon: mdi-harddisk
+
+- Infrastructure:
+    - Proxmox:
+        href: https://proxmox.arishaig.site
+        description: Hypervisor
+        icon: proxmox.svg
+
+    - PBS:
+        href: https://backup.arishaig.site
+        description: Backup server
+        icon: proxmox.svg
+
+    - AdGuard Home:
+        href: https://dns.arishaig.site
+        description: DNS & ad blocking
+        icon: adguard-home.svg
+
+    - Home Assistant:
+        href: https://casa.arishaig.site
+        description: Home automation
+        icon: home-assistant.svg
