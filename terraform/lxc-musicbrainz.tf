@@ -66,7 +66,6 @@ resource "proxmox_virtual_environment_container" "musicbrainz" {
     ignore_changes = [
       operating_system,
       console,
-      template_file_id,
     ]
   }
 }

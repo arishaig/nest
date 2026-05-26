@@ -67,7 +67,6 @@ resource "proxmox_virtual_environment_container" "scrutiny" {
       operating_system,
       console,
       initialization,
-      template_file_id,
     ]
   }
 }

@@ -65,7 +65,6 @@ resource "proxmox_virtual_environment_container" "monitoring" {
     ignore_changes = [
       operating_system,
       console,
-      template_file_id,
     ]
   }
 }
