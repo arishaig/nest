@@ -15,7 +15,7 @@ resource "proxmox_virtual_environment_container" "seedbox" {
   start_on_boot = true
 
   operating_system {
-    template_file_id = proxmox_virtual_environment_download_file.debian12_ct.id
+    template_file_id = proxmox_download_file.debian12_ct.id
     type             = "debian"
   }
 
@@ -81,7 +81,7 @@ resource "null_resource" "seedbox_passthrough" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/pve-passthrough.yml -e lxc_id=104 -e @../playbooks/provision/files/seedbox/passthrough.yml"
+    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/pve-passthrough.yml --vault-password-file ~/.config/ansible-on-nest/vault-pass -e lxc_id=104 -e @../playbooks/provision/files/seedbox/passthrough.yml"
   }
 }
 
@@ -93,6 +93,6 @@ resource "null_resource" "seedbox_provision" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/seedbox.yml --limit seedbox"
+    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/seedbox.yml --vault-password-file ~/.config/ansible-on-nest/vault-pass --limit seedbox"
   }
 }

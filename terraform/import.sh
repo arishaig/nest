@@ -22,14 +22,14 @@ echo "=== Importing PVE Groups ==="
 import proxmox_virtual_environment_group.homeassistant HomeAssistant
 
 echo "=== Importing PVE ACLs ==="
-import proxmox_virtual_environment_acl.prometheus_auditor '/?prometheus@pve?PVEAuditor'
-import proxmox_virtual_environment_acl.homeassistant_auditor '/?HomeAssistant?PVEAuditor'
+import proxmox_acl.prometheus_auditor '/?prometheus@pve?PVEAuditor'
+import proxmox_acl.homeassistant_auditor '/?HomeAssistant?PVEAuditor'
 
 echo "=== Importing PVE API Tokens ==="
 import proxmox_virtual_environment_user_token.homarr 'root@pam!Homarr'
 import proxmox_virtual_environment_user_token.backup 'root@pam!backup'
 
-# NOTE: proxmox_virtual_environment_download_file does not support import.
+# NOTE: proxmox_download_file does not support import.
 # Terraform will download the template on first apply if not present.
 
 echo "=== Importing LXC Containers ==="

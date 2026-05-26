@@ -37,8 +37,9 @@ resource "adguard_config" "secondary" {
   }
 
   stats = {
-    enabled  = true
-    interval = 2160
+    enabled         = true
+    interval        = 2160
+    ignored_enabled = false
   }
 
   filtering = {
@@ -46,9 +47,26 @@ resource "adguard_config" "secondary" {
     update_interval = 24
   }
 
+  dhcp = {
+    enabled   = false
+    interface = ""
+    ipv4_settings = {
+      gateway_ip     = "10.0.0.1"
+      subnet_mask    = "255.255.255.0"
+      range_start    = "10.0.0.100"
+      range_end      = "10.0.0.200"
+      lease_duration = 86400
+    }
+    ipv6_settings = {
+      range_start    = "fe80::"
+      lease_duration = 86400
+    }
+  }
+
   querylog = {
-    enabled  = true
-    interval = 2160
+    enabled         = true
+    interval        = 2160
+    ignored_enabled = false
   }
 
   tls = {

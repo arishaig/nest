@@ -12,7 +12,7 @@ resource "proxmox_virtual_environment_container" "dns_secondary" {
   start_on_boot = true
 
   operating_system {
-    template_file_id = proxmox_virtual_environment_download_file.debian12_ct.id
+    template_file_id = proxmox_download_file.debian12_ct.id
     type             = "debian"
   }
 
@@ -61,7 +61,7 @@ resource "proxmox_virtual_environment_container" "dns_secondary" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/adguard.yml --limit dns-secondary"
+    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/adguard.yml --vault-password-file ~/.config/ansible-on-nest/vault-pass --limit dns-secondary"
   }
 
   lifecycle {

@@ -9,10 +9,10 @@
   gather_facts: true
 
   vars:
-    traefik_version: "3.4.0"
+    traefik_version: "3.7.1"
     traefik_arch: "amd64"
-    node_exporter_version: "1.8.2"
-    promtail_version: "3.3.2"
+    node_exporter_version: "1.11.1"
+    promtail_version: "3.7.2"
 
   tasks:
     # --- Bootstrap ---

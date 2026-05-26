@@ -4,19 +4,19 @@ terraform {
   required_providers {
     proxmox = {
       source  = "bpg/proxmox"
-      version = "~> 0.78"
+      version = "~> 0.107"
     }
     adguard = {
       source  = "gmichels/adguard"
-      version = "~> 1.6"
+      version = "~> 1.7"
     }
     null = {
       source  = "hashicorp/null"
-      version = "~> 3.2"
+      version = "~> 3.3"
     }
     vultr = {
       source  = "vultr/vultr"
-      version = "~> 2.23"
+      version = "~> 2.31"
     }
     cloudflare = {
       source  = "cloudflare/cloudflare"

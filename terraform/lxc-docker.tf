@@ -2,11 +2,13 @@
 # LXC 100: docker — Main Docker host
 # ──────────────────────────────────────────────
 
-resource "proxmox_virtual_environment_download_file" "debian12_ct" {
+resource "proxmox_download_file" "debian12_ct" {
   node_name    = var.pve_node
   content_type = "vztmpl"
   datastore_id = "local"
   url          = "http://download.proxmox.com/images/system/debian-12-standard_12.12-1_amd64.tar.zst"
+  overwrite    = false
+  overwrite_unmanaged = false
 }
 
 resource "proxmox_virtual_environment_container" "docker" {
@@ -19,7 +21,7 @@ resource "proxmox_virtual_environment_container" "docker" {
   start_on_boot = true
 
   operating_system {
-    template_file_id = proxmox_virtual_environment_download_file.debian12_ct.id
+    template_file_id = proxmox_download_file.debian12_ct.id
     type             = "debian"
   }
 
