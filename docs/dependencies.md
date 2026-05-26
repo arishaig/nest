@@ -165,6 +165,73 @@ Many services run via [LinuxServer.io](https://github.com/linuxserver) images (`
 
 ---
 
+## Operating Systems & Host Components
+
+### LXC Containers — all Debian 12 (Bookworm)
+
+Template: `debian-12-standard_12.12-1_amd64.tar.zst` (downloaded by Terraform via `proxmox_download_file`).
+
+All LXCs receive the following via `playbooks/provision/common.yml`:
+- Base packages: `curl wget vim htop git`
+- **node_exporter v1.11.1** (Prometheus metrics, systemd service)
+- **BBR congestion control** (`/etc/sysctl.d/99-bbr.conf`) + `fq` qdisc + tuned socket buffers
+
+| VMID | Host | Additional components |
+|---|---|---|
+| 100 | docker | Docker CE (latest stable), Docker Compose plugin, Traefik v3 (container), Authelia, all app containers |
+| 101 | musicbrainz | Docker CE, musicbrainz-docker stack (MusicBrainz Server, Solr, PostgreSQL 16, Redis) |
+| 102 | fileserver | `samba` `samba-common-bin` |
+| 103 | scrutiny | Docker CE, Scrutiny omnibus (web + collector + InfluxDB), cAdvisor |
+| 104 | seedbox | Docker CE, qBittorrent, Gluetun (ProtonVPN), cAdvisor, qbittorrent-exporter |
+| 105 | monitoring | Docker CE, Prometheus, Grafana, Loki, Alertmanager, cAdvisor, pve-exporter, speedtest-exporter, unpoller |
+| 106 | dns-secondary | AdGuard Home (install script), Unbound, unbound_exporter v0.6.0, Docker CE |
+
+### VPS — Debian 13 (Trixie)
+
+Vultr `vc2-1c-1gb`, Seattle. All services run as systemd units (no Docker).
+
+| Component | Version | Notes |
+|---|---|---|
+| Traefik | 3.7.1 | TCP passthrough proxy, metrics on WireGuard interface |
+| WireGuard | kernel | `wg-quick@wg0`, MTU 1420 |
+| node_exporter | 1.11.1 | Scraped by Prometheus over WireGuard |
+| Grafana Alloy | 1.16.1 | Ships logs to Loki over WireGuard |
+| fail2ban | distro | SSH + Traefik jails |
+| logrotate | distro | Traefik access log rotation |
+| BBR + fq | kernel | Same sysctl tuning as LXCs |
+
+### Raspberry Pi — Raspberry Pi OS (Bookworm)
+
+Primary DNS host, on VLAN 7. Not provisioned by Terraform — Ansible manages config only.
+
+| Component | Version | Notes |
+|---|---|---|
+| AdGuard Home | latest (install script) | Primary DNS, HTTPS admin |
+| Unbound | distro | Recursive upstream resolver |
+| unbound_exporter | 0.6.0 | Prometheus metrics |
+| node_exporter | 1.11.1 | Prometheus metrics |
+| Docker CE | latest stable | Runs adguard-exporter |
+
+### VM 107 — Home Assistant OS (HAOS)
+
+HAOS is self-contained; no Ansible provisioner. Restored from PBS backup after VM creation.
+
+- UEFI boot (OVMF), 2 vCPU, 16 GB RAM, 32 GB NVMe (ZFS), VLAN 4
+- USB passthrough: Zigbee controller (host `1-5`), Z-Wave controller (host `3-4`), USB WiFi adapter (`0bda:a728`)
+- Remote access via Nabu Casa (`casa.arishaig.site` managed externally, not in Terraform)
+
+### VM 500 — Proxmox Backup Server 3.4-1
+
+ISO: `proxmox-backup-server_3.4-1.iso`. 4 vCPU, 32 GB RAM, 500 GB NVMe (ZFS).
+
+Ansible (`pbs.yml`) adds:
+- **node_exporter** with textfile collector (`--collector.textfile.directory`)
+- **pbs-backup-freshness.sh** cron (every 15 min) — writes per-group newest-snapshot timestamps for the `PBSBackupStale` Prometheus alert
+
+PBS → PVE storage connection is in `/etc/pve/storage.cfg` (managed manually; provider has no `storage_pbs` resource type — see `terraform/pve-storage.tf`).
+
+---
+
 ## Dependency Graph
 
 ```
