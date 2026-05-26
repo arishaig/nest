@@ -136,6 +136,28 @@
         chdir: "{{ compose_dir }}"
       changed_when: true
 
+    # --- WireGuard (tunnel to VPS proxy) ---
+    - name: Install wireguard-tools
+      ansible.builtin.apt:
+        name: wireguard-tools
+        state: present
+      tags: wireguard
+
+    - name: Deploy Nest WireGuard config
+      ansible.builtin.template:
+        src: templates/wireguard/wg0-nest.conf.j2
+        dest: /etc/wireguard/wg0.conf
+        mode: "0600"
+      notify: Restart WireGuard nest
+      tags: wireguard
+
+    - name: Enable and start WireGuard
+      ansible.builtin.systemd:
+        name: wg-quick@wg0
+        enabled: true
+        state: started
+      tags: wireguard
+
     # --- fail2ban ---
     - name: Install fail2ban and rsyslog
       ansible.builtin.apt:
@@ -186,3 +208,8 @@
       ansible.builtin.systemd:
         name: fail2ban
         state: reloaded
+
+    - name: Restart WireGuard nest
+      ansible.builtin.systemd:
+        name: wg-quick@wg0
+        state: restarted

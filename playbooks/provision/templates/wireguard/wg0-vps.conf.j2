@@ -1,0 +1,9 @@
+[Interface]
+PrivateKey = {{ vps_wg_private_key }}
+Address = 10.10.0.1/24
+ListenPort = 51820
+
+[Peer]
+# Nest docker LXC
+PublicKey = {{ nest_wg_public_key }}
+AllowedIPs = 10.10.0.2/32

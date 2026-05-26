@@ -1,3 +1,10 @@
+# --- Cloudflare ---
+variable "cf_api_token" {
+  description = "Cloudflare API token with Zone:DNS:Edit permissions"
+  type        = string
+  sensitive   = true
+}
+
 # --- Proxmox VE ---
 variable "pve_endpoint" {
   description = "Proxmox VE API endpoint URL"
@@ -76,6 +83,14 @@ variable "ssh_public_keys" {
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMxOgEao2c+jTY4NdsEp46M9Fs8i1Yx6WiX42rUAXSJh ansible-on-nest",
   ]
 }
+
+# --- Vultr VPS ---
+variable "vultr_api_key" {
+  description = "Vultr API key"
+  type        = string
+  sensitive   = true
+}
+
 
 # --- PBS ---
 variable "pbs_fingerprint" {

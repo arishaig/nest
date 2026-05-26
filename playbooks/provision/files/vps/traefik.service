@@ -1,0 +1,15 @@
+[Unit]
+Description=Traefik reverse proxy
+After=network.target wg-quick@wg0.service
+Requires=wg-quick@wg0.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/traefik --configFile=/etc/traefik/traefik.yml
+StandardOutput=append:/var/log/traefik/traefik.log
+StandardError=append:/var/log/traefik/traefik-error.log
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

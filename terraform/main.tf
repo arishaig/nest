@@ -22,6 +22,16 @@ provider "adguard" {
   insecure = true
 }
 
+provider "vultr" {
+  api_key     = var.vultr_api_key
+  rate_limit  = 100
+  retry_limit = 3
+}
+
+provider "cloudflare" {
+  api_token = var.cf_api_token
+}
+
 provider "adguard" {
   alias    = "secondary"
   host     = "${var.adguard_secondary_host}:80"

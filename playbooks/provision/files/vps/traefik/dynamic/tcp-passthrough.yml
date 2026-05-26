@@ -1,0 +1,16 @@
+tcp:
+  routers:
+    https-passthrough:
+      rule: "HostSNI(`*`)"
+      entryPoints: [websecure]
+      service: nest-https
+      tls:
+        passthrough: true
+
+  services:
+    nest-https:
+      loadBalancer:
+        proxyProtocol:
+          version: 2
+        servers:
+          - address: "10.10.0.2:443"
