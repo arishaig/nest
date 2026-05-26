@@ -31,7 +31,7 @@
         - service-configs/monitoring
         - service-configs/fileserver
         - dns
-        - cloudflare
+        - vps
 
 # =========================================================================
 # PLAY 1: Proxmox Host
@@ -1173,32 +1173,6 @@
   hosts: docker
   gather_facts: false
   tasks:
-    # --- Cloudflared ---
-    - name: Gather Cloudflared config
-      shell: |
-        echo "=== CLOUDFLARED CONTAINER ENV (redacted) ==="
-        docker inspect cloudflared --format '{{ "{{" }}range .Config.Env{{ "}}" }}{{ "{{" }}println .{{ "}}" }}{{ "{{" }}end{{ "}}" }}' 2>/dev/null | \
-          sed -E 's/(TOKEN|SECRET|KEY)=.*/\1=REDACTED/gi'
-        echo ""
-        echo "=== CLOUDFLARED CONTAINER CMD ==="
-        docker inspect cloudflared --format '{{ "{{" }}json .Config.Cmd{{ "}}" }}' 2>/dev/null
-        echo ""
-        echo "=== CLOUDFLARED CONFIG FILE ==="
-        for path in /etc/cloudflared/config.yml /root/.cloudflared/config.yml /mnt/app_config/cloudflared/config.yml; do
-          if [ -f "$path" ]; then
-            echo "Found: $path"
-            sed -E 's/(token|secret|credentials):.*/\1: REDACTED/gi' "$path"
-          fi
-        done 2>/dev/null
-      register: cloudflared_info
-      ignore_errors: true
-
-    - name: Save Cloudflared info
-      copy:
-        content: "{{ cloudflared_info.stdout }}"
-        dest: "./audit-output/integrations/cloudflared.txt"
-      delegate_to: localhost
-
     # --- Inter-service API keys ---
     - name: Gather arr API keys (keys exist, values redacted)
       shell: |
@@ -1428,119 +1402,134 @@
       delegate_to: localhost
 
 # =========================================================================
-# PLAY 8: Cloudflare Zero Trust (from localhost via API)
+# PLAY 8: VPS Proxy
 # =========================================================================
-- name: Audit Cloudflare Zero Trust
-  hosts: localhost
-  connection: local
+- name: Audit VPS proxy (Vultr)
+  hosts: vps
   gather_facts: false
   tasks:
-    - name: Query Cloudflare tunnels
-      uri:
-        url: "https://api.cloudflare.com/client/v4/accounts/{{ cf_account_id }}/cfd_tunnel?is_deleted=false"
-        method: GET
-        headers:
-          Authorization: "Bearer {{ cf_api_token }}"
-        return_content: yes
-      register: cf_tunnels
+    - name: Create VPS output directory
+      file:
+        path: "./audit-output/vps"
+        state: directory
+      delegate_to: localhost
+
+    - name: Gather VPS system info
+      shell: |
+        echo "=== HOSTNAME ==="
+        hostname
+        echo ""
+        echo "=== OS ==="
+        cat /etc/os-release
+        echo ""
+        echo "=== KERNEL ==="
+        uname -a
+        echo ""
+        echo "=== RESOURCES ==="
+        echo "CPU cores: $(nproc)"
+        free -h
+        echo ""
+        echo "=== DISK USAGE ==="
+        df -h
+        echo ""
+        echo "=== SYSCTL (BBR / socket buffers) ==="
+        sysctl net.ipv4.tcp_congestion_control net.core.default_qdisc \
+               net.core.rmem_max net.core.wmem_max 2>/dev/null
+      register: vps_system
       ignore_errors: true
 
-    - name: Save Cloudflare tunnels
+    - name: Save VPS system info
       copy:
-        content: |
-          === CLOUDFLARE TUNNELS ===
-          {% for tunnel in (cf_tunnels.json.result | default([])) %}
-          Tunnel: {{ tunnel.name }}
-            ID: {{ tunnel.id }}
-            Status: {{ tunnel.status | default('unknown') }}
-            Created: {{ tunnel.created_at | default('N/A') }}
-          {% endfor %}
-        dest: "./audit-output/cloudflare/tunnels.txt"
-      when: cf_tunnels is succeeded
+        content: "{{ vps_system.stdout }}"
+        dest: "./audit-output/vps/system-info.txt"
+      delegate_to: localhost
 
-    - name: Query tunnel configurations
-      uri:
-        url: "https://api.cloudflare.com/client/v4/accounts/{{ cf_account_id }}/cfd_tunnel/{{ item.id }}/configurations"
-        method: GET
-        headers:
-          Authorization: "Bearer {{ cf_api_token }}"
-        return_content: yes
-      register: cf_tunnel_configs
-      loop: "{{ cf_tunnels.json.result | default([]) }}"
-      loop_control:
-        label: "{{ item.name }}"
+    - name: Gather Traefik config
+      shell: |
+        echo "=== TRAEFIK STATIC CONFIG ==="
+        cat /etc/traefik/traefik.yml 2>/dev/null || echo "(not found)"
+        echo ""
+        echo "=== TRAEFIK DYNAMIC CONFIG ==="
+        for f in /etc/traefik/dynamic/*.yml; do
+          [ -f "$f" ] || continue
+          echo "--- $f ---"
+          cat "$f"
+          echo ""
+        done
+        echo "=== TRAEFIK VERSION ==="
+        traefik version 2>/dev/null || /usr/local/bin/traefik version 2>/dev/null || echo "(version check failed)"
+        echo ""
+        echo "=== TRAEFIK SERVICE STATUS ==="
+        systemctl status traefik --no-pager 2>/dev/null
+      register: traefik_config
       ignore_errors: true
 
-    - name: Save tunnel configurations
+    - name: Save Traefik config
       copy:
-        content: |
-          {% for result in cf_tunnel_configs.results | default([]) %}
-          === Tunnel: {{ result.item.name }} ===
-          {% if result.json is defined and result.json.result is defined %}
-          {% for ingress in (result.json.result.config.ingress | default([])) %}
-            {{ ingress.hostname | default('catch-all') }} -> {{ ingress.service }}
-          {% endfor %}
-          {% else %}
-          (config not available)
-          {% endif %}
+        content: "{{ traefik_config.stdout }}"
+        dest: "./audit-output/vps/traefik.txt"
+      delegate_to: localhost
 
-          {% endfor %}
-        dest: "./audit-output/cloudflare/tunnel-routes.txt"
-      when: cf_tunnel_configs is defined
-
-    - name: Query Cloudflare Access applications
-      uri:
-        url: "https://api.cloudflare.com/client/v4/accounts/{{ cf_account_id }}/access/apps"
-        method: GET
-        headers:
-          Authorization: "Bearer {{ cf_api_token }}"
-        return_content: yes
-      register: cf_access_apps
+    - name: Gather WireGuard status
+      shell: |
+        echo "=== WG0 STATUS ==="
+        wg show wg0 2>/dev/null || echo "(wg show failed)"
+        echo ""
+        echo "=== WG0 INTERFACE ==="
+        ip addr show wg0 2>/dev/null || echo "(interface not found)"
+        echo ""
+        echo "=== WG SERVICE ==="
+        systemctl status wg-quick@wg0 --no-pager 2>/dev/null
+      register: vps_wg
       ignore_errors: true
 
-    - name: Save Access applications
+    - name: Save WireGuard status
       copy:
-        content: |
-          === CLOUDFLARE ACCESS APPLICATIONS ===
-          {% for app in (cf_access_apps.json.result | default([])) %}
-          App: {{ app.name }}
-            Domain: {{ app.domain | default('N/A') }}
-            Type: {{ app.type | default('N/A') }}
-            Session Duration: {{ app.session_duration | default('N/A') }}
-            Created: {{ app.created_at | default('N/A') }}
-          {% endfor %}
-        dest: "./audit-output/cloudflare/access-apps.txt"
-      when: cf_access_apps is succeeded
+        content: "{{ vps_wg.stdout }}"
+        dest: "./audit-output/vps/wireguard.txt"
+      delegate_to: localhost
 
-    - name: Query Access policies for each app
-      uri:
-        url: "https://api.cloudflare.com/client/v4/accounts/{{ cf_account_id }}/access/apps/{{ item.id }}/policies"
-        method: GET
-        headers:
-          Authorization: "Bearer {{ cf_api_token }}"
-        return_content: yes
-      register: cf_access_policies
-      loop: "{{ cf_access_apps.json.result | default([]) }}"
-      loop_control:
-        label: "{{ item.name }}"
+    - name: Gather Alloy status
+      shell: |
+        echo "=== ALLOY VERSION ==="
+        alloy --version 2>/dev/null || /usr/local/bin/alloy --version 2>/dev/null || echo "(version check failed)"
+        echo ""
+        echo "=== ALLOY SERVICE ==="
+        systemctl status alloy --no-pager 2>/dev/null
+        echo ""
+        echo "=== ALLOY CONFIG ==="
+        cat /etc/alloy/config.alloy 2>/dev/null || echo "(not found)"
+      register: vps_alloy
       ignore_errors: true
 
-    - name: Save Access policies
+    - name: Save Alloy status
       copy:
-        content: |
-          {% for result in cf_access_policies.results | default([]) %}
-          === {{ result.item.name }} ===
-          {% for policy in (result.json.result | default([])) %}
-            Policy: {{ policy.name }}
-            Decision: {{ policy.decision }}
-            {% for inc in (policy.include | default([])) %}
-            Include: {{ inc | to_nice_json }}
-            {% endfor %}
-          {% endfor %}
+        content: "{{ vps_alloy.stdout }}"
+        dest: "./audit-output/vps/alloy.txt"
+      delegate_to: localhost
 
-          {% endfor %}
-        dest: "./audit-output/cloudflare/access-policies.txt"
-      when: cf_access_policies is defined
+    - name: Gather VPS network and services
+      shell: |
+        echo "=== LISTENING PORTS ==="
+        ss -tlnp
+        echo ""
+        echo "=== ENABLED SERVICES ==="
+        systemctl list-unit-files --type=service --state=enabled --no-pager 2>/dev/null
+        echo ""
+        echo "=== FAIL2BAN STATUS ==="
+        fail2ban-client status 2>/dev/null || echo "(fail2ban not running)"
+        echo ""
+        echo "=== FAIL2BAN JAILS ==="
+        fail2ban-client status sshd 2>/dev/null || true
+        fail2ban-client status traefik 2>/dev/null || true
+      register: vps_network
+      ignore_errors: true
+
+    - name: Save VPS network info
+      copy:
+        content: "{{ vps_network.stdout }}"
+        dest: "./audit-output/vps/network-services.txt"
+      delegate_to: localhost
 
 # =========================================================================
 # PLAY 9: Summary

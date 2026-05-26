@@ -2,6 +2,8 @@
 
 Terraform + Ansible IaC for a Proxmox home lab with a Vultr VPS proxy.
 
+See [docs/design.md](docs/design.md) for the full technical design and architecture overview.
+
 ## Architecture
 
 ### Full diagram
