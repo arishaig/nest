@@ -11,6 +11,8 @@
   vars:
     traefik_version: "3.4.0"
     traefik_arch: "amd64"
+    node_exporter_version: "1.8.2"
+    promtail_version: "3.3.2"
 
   tasks:
     # --- Bootstrap ---
@@ -83,6 +85,8 @@
               tcp dport { 80, 443 } accept
               udp dport 51820 accept
               icmp type echo-request accept
+              # node_exporter and Traefik metrics — WireGuard peers only
+              tcp dport { 8080, 9100 } ip saddr 10.10.0.0/24 accept
             }
             chain forward {
               type filter hook forward priority 0; policy drop;
@@ -172,6 +176,124 @@
         state: started
         daemon_reload: true
 
+    # --- node_exporter ---
+    - name: Download node_exporter
+      ansible.builtin.get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+        dest: /tmp/node_exporter.tar.gz
+        mode: "0644"
+
+    - name: Extract node_exporter
+      ansible.builtin.unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: Install node_exporter binary
+      ansible.builtin.copy:
+        src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+        dest: /usr/local/bin/node_exporter
+        mode: "0755"
+        remote_src: true
+
+    - name: Create node_exporter systemd service
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Prometheus Node Exporter
+          After=network.target wg-quick@wg0.service
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/local/bin/node_exporter --collector.systemd --collector.processes --web.listen-address=10.10.0.1:9100
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/node_exporter.service
+        mode: "0644"
+      notify: Restart node_exporter
+
+    - name: Enable and start node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Clean up node_exporter download
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/node_exporter.tar.gz
+        - "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"
+
+    # --- Promtail ---
+    - name: Create Promtail directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /etc/promtail
+        - /var/lib/promtail
+
+    - name: Download Promtail
+      ansible.builtin.get_url:
+        url: "https://github.com/grafana/loki/releases/download/v{{ promtail_version }}/promtail-linux-amd64.zip"
+        dest: /tmp/promtail.zip
+        mode: "0644"
+
+    - name: Install unzip
+      ansible.builtin.apt:
+        name: unzip
+        state: present
+
+    - name: Extract Promtail binary
+      ansible.builtin.unarchive:
+        src: /tmp/promtail.zip
+        dest: /tmp
+        remote_src: true
+
+    - name: Install Promtail binary
+      ansible.builtin.copy:
+        src: /tmp/promtail-linux-amd64
+        dest: /usr/local/bin/promtail
+        mode: "0755"
+        remote_src: true
+
+    - name: Deploy Promtail config
+      ansible.builtin.copy:
+        src: files/vps/promtail/config.yml
+        dest: /etc/promtail/config.yml
+        mode: "0644"
+      notify: Restart Promtail
+
+    - name: Deploy Promtail systemd unit
+      ansible.builtin.copy:
+        src: files/vps/promtail.service
+        dest: /etc/systemd/system/promtail.service
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart Promtail
+
+    - name: Enable and start Promtail
+      ansible.builtin.systemd:
+        name: promtail
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Clean up Promtail download
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/promtail.zip
+        - /tmp/promtail-linux-amd64
+
     # --- logrotate ---
     - name: Configure Traefik log rotation
       ansible.builtin.copy:
@@ -180,10 +302,12 @@
             daily
             rotate 7
             compress
+            delaycompress
             missingok
             notifempty
+            sharedscripts
             postrotate
-              systemctl restart traefik > /dev/null 2>&1 || true
+              kill -USR1 $(systemctl show -p MainPID traefik | cut -d= -f2) 2>/dev/null || true
             endscript
           }
         dest: /etc/logrotate.d/traefik
@@ -218,3 +342,15 @@
       ansible.builtin.systemd:
         name: traefik
         state: restarted
+
+    - name: Restart node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        state: restarted
+        daemon_reload: true
+
+    - name: Restart Promtail
+      ansible.builtin.systemd:
+        name: promtail
+        state: restarted
+        daemon_reload: true

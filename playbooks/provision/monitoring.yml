@@ -139,6 +139,20 @@
         mode: "0644"
       notify: Restart grafana
 
+    # --- Routing: allow Prometheus to reach VPS node_exporter via WireGuard tunnel ---
+    - name: Persist route to VPS WireGuard subnet
+      ansible.builtin.copy:
+        content: |
+          #!/bin/sh
+          ip route add 10.10.0.0/24 via 192.168.1.158 2>/dev/null || true
+        dest: /etc/network/if-up.d/99-wg-vps-route
+        mode: "0755"
+
+    - name: Apply VPS WireGuard route now
+      ansible.builtin.command: ip route add 10.10.0.0/24 via 192.168.1.158
+      changed_when: true
+      failed_when: false
+
     - name: Start monitoring stack
       ansible.builtin.command:
         cmd: docker compose up -d

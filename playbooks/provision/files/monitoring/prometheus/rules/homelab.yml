@@ -12,7 +12,7 @@ groups:
   - name: hosts
     rules:
       - alert: HostDown
-        expr: up{job="node"} == 0
+        expr: up{job=~"node|vps"} == 0
         for: 2m
         labels:
           severity: critical
@@ -157,6 +157,15 @@ groups:
         annotations:
           summary: "OOM kill on {{ $labels.instance }}"
           description: "A process was OOM-killed on {{ $labels.instance }}."
+
+      - alert: TraefikVPSDown
+        expr: up{job="traefik-vps"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "VPS Traefik proxy is down"
+          description: "Traefik on the VPS proxy has been unreachable for 2 minutes. All inbound traffic through the VPS is broken."
 
       - alert: PBSBackupStale
         expr: time() - pbs_backup_last_snapshot_timestamp_seconds > 30 * 3600

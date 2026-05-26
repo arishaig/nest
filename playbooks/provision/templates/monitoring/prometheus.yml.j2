@@ -34,6 +34,18 @@ scrape_configs:
         regex: '([^:]+):\d+'
         target_label: instance
 
+  - job_name: 'vps'
+    static_configs:
+      - targets: ['10.10.0.1:9100']
+        labels:
+          instance: 'vps-proxy'
+
+  - job_name: 'traefik-vps'
+    static_configs:
+      - targets: ['10.10.0.1:8080']
+        labels:
+          instance: 'vps-proxy'
+
   - job_name: 'cadvisor'
     static_configs:
       - targets:
