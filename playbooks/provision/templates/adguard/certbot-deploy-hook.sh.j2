@@ -1,6 +1,18 @@
 #!/bin/bash
-# Certbot renewal deploy hook — copy certs to AdGuard Home and restart
-cp /etc/letsencrypt/live/dns.arishaig.site/fullchain.pem /opt/AdGuardHome/ssl/fullchain.pem
-cp /etc/letsencrypt/live/dns.arishaig.site/privkey.pem /opt/AdGuardHome/ssl/privkey.pem
-chmod 600 /opt/AdGuardHome/ssl/privkey.pem
+set -euo pipefail
+
+LIVE=/etc/letsencrypt/live/{{ certbot_domain }}
+DEST=/opt/AdGuardHome/ssl
+
+# Verify the new cert and key match before touching AdGuard
+cert_pub=$(openssl x509 -in "$LIVE/fullchain.pem" -noout -pubkey)
+key_pub=$(openssl pkey -in "$LIVE/privkey.pem" -pubout 2>/dev/null)
+if [ "$cert_pub" != "$key_pub" ]; then
+  echo "ERROR: cert/key mismatch in $LIVE — not deploying" >&2
+  exit 1
+fi
+
+cp "$LIVE/fullchain.pem" "$DEST/fullchain.pem"
+cp "$LIVE/privkey.pem"   "$DEST/privkey.pem"
+chmod 600 "$DEST/privkey.pem"
 systemctl restart AdGuardHome

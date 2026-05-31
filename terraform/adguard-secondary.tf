@@ -1,6 +1,6 @@
 # ──────────────────────────────────────────────
 # AdGuard Secondary — DNS Rewrites & Configuration
-# Mirrors adguard.tf exactly; no TLS (internal-only resolver)
+# Mirrors adguard.tf exactly
 # ──────────────────────────────────────────────
 
 resource "adguard_rewrite" "dns_secondary" {
@@ -70,10 +70,14 @@ resource "adguard_config" "secondary" {
   }
 
   tls = {
-    enabled           = false
-    server_name       = ""
-    certificate_chain = ""
-    private_key       = ""
+    enabled           = true
+    server_name       = "dns2.arishaig.site"
+    force_https       = true
+    port_https        = 443
+    port_dns_over_tls = 853
+    certificate_chain = "/opt/AdGuardHome/ssl/fullchain.pem"
+    private_key       = "/opt/AdGuardHome/ssl/privkey.pem"
+    serve_plain_dns   = true
   }
 
   depends_on = [proxmox_virtual_environment_container.dns_secondary]

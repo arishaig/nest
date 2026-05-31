@@ -21,7 +21,7 @@ resource "proxmox_virtual_environment_container" "dns_secondary" {
   }
 
   memory {
-    dedicated = 1024
+    dedicated = 2048
     swap      = 512
   }
 

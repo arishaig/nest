@@ -32,6 +32,18 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # Bazarr-Sync - Bulk subtitle sync CLI for Bazarr
+  bazarr-sync:
+    image: ghcr.io/ajmandourah/bazarr-sync:latest
+    container_name: bazarr-sync
+    profiles:
+      - tools
+    volumes:
+      - /mnt/app_config/bazarr-sync/config.yaml:/usr/src/app/config.yaml:ro
+    networks:
+      - default
+    restart: "no"
+
   # Jellyfin - Media Server
   jellyfin:
     image: linuxserver/jellyfin:latest
@@ -338,11 +350,12 @@ services:
   subgen:
     image: 'mccloud/subgen:cpu'
     container_name: subgenai
+    user: "1000:1000"
     networks:
       - default
       - proxy-net
-    expose:
-      - "9000"
+    ports:
+      - "127.0.0.1:9000:9000"
     volumes:
       - '/mnt/app_config/subgen/models:/subgen/models'
       - '/mnt/app_config/subgen/subgen.env:/subgen/subgen.env:ro'
@@ -352,7 +365,8 @@ services:
       - "WHISPER_MODEL=medium"
       - "WHISPER_THREADS=4"
       - "NAMESUBLANG=en"
-      - "SKIPIFINTERNALSUBLANG=eng"
+      - "SKIP_ONLY_SUBGEN_SUBTITLES=True"
+      - "SKIP_IF_INTERNAL_SUBTITLES_LANGUAGE="
       - "DETECT_LANGUAGE_LENGTH=30"
       - "DETECT_LANGUAGE_OFFSET=60"
       - "SHOULD_WHISPER_DETECT_AUDIO_LANGUAGE=True"
@@ -506,12 +520,6 @@ services:
       - "traefik.http.routers.glances.tls=true"
       - "traefik.http.routers.glances.middlewares=authelia@file"
       - "traefik.http.services.glances.loadbalancer.server.port=61208"
-    healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:61208/ || exit 1
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
     restart: unless-stopped
 
   # Homepage - Dashboard
@@ -522,6 +530,8 @@ services:
       - HOMEPAGE_ALLOWED_HOSTS=dash.arishaig.site
     volumes:
       - /mnt/app_config/homepage:/app/config
+      - /mnt/app_config:/mnt/app_config:ro
+      - /mnt/media_root:/mnt/media_root:ro
     expose:
       - "3000"
     networks:
@@ -534,6 +544,12 @@ services:
       - "traefik.http.routers.homepage.tls=true"
       - "traefik.http.routers.homepage.middlewares=authelia@file"
       - "traefik.http.services.homepage.loadbalancer.server.port=3000"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:3000/api/healthcheck || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     restart: unless-stopped
 
   # Uptime Kuma - System monitor and alerts
@@ -554,6 +570,12 @@ services:
       - "traefik.http.routers.uptime-kuma.tls=true"
       - "traefik.http.routers.uptime-kuma.middlewares=authelia@file"
       - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
+    healthcheck:
+      test: node extra/healthcheck.js
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     restart: unless-stopped
 
   ##### Other Apps #####
@@ -649,6 +671,12 @@ services:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor
     restart: unless-stopped
+    healthcheck:
+      test: curl -sf http://localhost:8080/healthz
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     privileged: true
     ports:
       - "8081:8080"
@@ -783,6 +811,12 @@ services:
       - TZ=America/Los_Angeles
     expose:
       - "8191"
+    healthcheck:
+      test: curl -sf http://localhost:8191/health
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   traefik:

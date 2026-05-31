@@ -135,8 +135,9 @@
 
   handlers:
     - name: Apply sysctl
-      ansible.builtin.command: sysctl --system
+      ansible.builtin.command: sysctl -p /etc/sysctl.d/99-bbr.conf
       changed_when: true
+      failed_when: false
 
     - name: Restart node_exporter
       ansible.builtin.systemd:

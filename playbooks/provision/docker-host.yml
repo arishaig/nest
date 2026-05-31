@@ -34,8 +34,14 @@
             mode: "0644"
 
         - name: Add Docker repository
-          ansible.builtin.apt_repository:
-            repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_facts['distribution_release'] }} stable"
+          ansible.builtin.deb822_repository:
+            name: docker
+            types: deb
+            uris: https://download.docker.com/linux/debian
+            suites: "{{ ansible_facts['distribution_release'] }}"
+            components: stable
+            architectures: amd64
+            signed_by: /etc/apt/keyrings/docker.asc
             state: present
 
         - name: Install Docker CE packages
@@ -88,6 +94,18 @@
       ansible.builtin.template:
         src: templates/docker/env.j2
         dest: "{{ compose_dir }}/.env"
+        mode: "0600"
+
+    - name: Create bazarr-sync config directory
+      ansible.builtin.file:
+        path: "{{ compose_dir }}/bazarr-sync"
+        state: directory
+        mode: "0755"
+
+    - name: Template bazarr-sync config from vault
+      ansible.builtin.template:
+        src: templates/docker/bazarr-sync-config.yaml.j2
+        dest: "{{ compose_dir }}/bazarr-sync/config.yaml"
         mode: "0600"
 
     - name: Copy docker-compose.yml
