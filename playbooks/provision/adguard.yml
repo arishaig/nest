@@ -10,9 +10,8 @@
 
   vars:
     unbound_exporter_version: "0.6.0"
-    certbot_domain: "dns.arishaig.site"
     docker_dir: /opt/docker
-    adguard_self_url: "{{ 'https://dns.arishaig.site' if adguard_primary | default(false) else 'http://127.0.0.1:3000' }}"
+    adguard_self_url: "{{ 'https://' + certbot_domain if adguard_tls | default(false) else 'http://127.0.0.1:3000' }}"
     adguard_exporter_username: "adguard"
 
   tasks:
@@ -73,10 +72,10 @@
         enabled: true
         state: started
 
-    # ── Certbot (primary only — dns.arishaig.site TLS cert) ──
+    # ── Certbot (TLS cert via Cloudflare DNS challenge) ──
 
     - name: Install certbot and Cloudflare plugin
-      when: adguard_primary | default(false)
+      when: adguard_tls | default(false)
       ansible.builtin.apt:
         name:
           - certbot
@@ -84,27 +83,27 @@
         state: present
 
     - name: Create secrets directory
-      when: adguard_primary | default(false)
+      when: adguard_tls | default(false)
       ansible.builtin.file:
         path: /root/.secrets
         state: directory
         mode: "0700"
 
     - name: Deploy Cloudflare credentials
-      when: adguard_primary | default(false)
+      when: adguard_tls | default(false)
       ansible.builtin.template:
         src: templates/adguard/cloudflare.ini.j2
         dest: /root/.secrets/cloudflare.ini
         mode: "0600"
 
     - name: Check if cert already exists
-      when: adguard_primary | default(false)
+      when: adguard_tls | default(false)
       ansible.builtin.stat:
         path: "/etc/letsencrypt/live/{{ certbot_domain }}/fullchain.pem"
       register: cert_file
 
     - name: Obtain TLS certificate
-      when: (adguard_primary | default(false)) and not cert_file.stat.exists
+      when: (adguard_tls | default(false)) and not cert_file.stat.exists
       ansible.builtin.command: >
         certbot certonly
         --dns-cloudflare
@@ -116,14 +115,14 @@
       changed_when: true
 
     - name: Create AdGuard SSL directory
-      when: adguard_primary | default(false)
+      when: adguard_tls | default(false)
       ansible.builtin.file:
         path: /opt/AdGuardHome/ssl
         state: directory
         mode: "0755"
 
     - name: Copy certs to AdGuard SSL directory
-      when: (adguard_primary | default(false)) and not cert_file.stat.exists
+      when: (adguard_tls | default(false)) and not cert_file.stat.exists
       ansible.builtin.shell: |
         cp /etc/letsencrypt/live/{{ certbot_domain }}/fullchain.pem /opt/AdGuardHome/ssl/fullchain.pem
         cp /etc/letsencrypt/live/{{ certbot_domain }}/privkey.pem /opt/AdGuardHome/ssl/privkey.pem
@@ -131,14 +130,14 @@
       changed_when: true
 
     - name: Deploy certbot renewal hook
-      when: adguard_primary | default(false)
+      when: adguard_tls | default(false)
       ansible.builtin.template:
         src: templates/adguard/certbot-deploy-hook.sh.j2
         dest: /etc/letsencrypt/renewal-hooks/deploy/adguardhome.sh
         mode: "0755"
 
     - name: Ensure certbot timer is enabled
-      when: adguard_primary | default(false)
+      when: adguard_tls | default(false)
       ansible.builtin.systemd:
         name: certbot.timer
         enabled: true
@@ -147,13 +146,14 @@
     # ── Docker (adguard-exporter + cloudflare-ddns) ──
 
     - name: Check if Docker is installed
+      when: adguard_exporter | default(true)
       ansible.builtin.command: docker --version
       register: docker_check
       changed_when: false
       failed_when: false
 
     - name: Install Docker CE
-      when: docker_check.rc != 0
+      when: (adguard_exporter | default(true)) and docker_check.rc != 0
       block:
         - name: Add Docker GPG key
           ansible.builtin.get_url:
@@ -184,24 +184,28 @@
             state: started
 
     - name: Create Docker compose directory
+      when: adguard_exporter | default(true)
       ansible.builtin.file:
         path: "{{ docker_dir }}"
         state: directory
         mode: "0755"
 
     - name: Deploy docker-compose.yml
+      when: adguard_exporter | default(true)
       ansible.builtin.template:
         src: templates/adguard/docker-compose.yml.j2
         dest: "{{ docker_dir }}/docker-compose.yml"
         mode: "0644"
 
     - name: Deploy .env for Docker compose
+      when: adguard_exporter | default(true)
       ansible.builtin.template:
         src: templates/adguard/env.j2
         dest: "{{ docker_dir }}/.env"
         mode: "0600"
 
     - name: Start Docker compose stack
+      when: adguard_exporter | default(true)
       ansible.builtin.command:
         cmd: docker compose up -d
         chdir: "{{ docker_dir }}"
@@ -213,9 +217,10 @@
       ansible.builtin.stat:
         path: /usr/bin/unbound_exporter
       register: unbound_exporter_binary
+      when: ansible_facts['architecture'] == 'x86_64'
 
     - name: Install unbound_exporter from deb package
-      when: not unbound_exporter_binary.stat.exists
+      when: ansible_facts['architecture'] == 'x86_64' and not unbound_exporter_binary.stat.exists
       block:
         - name: Download unbound_exporter deb
           ansible.builtin.get_url:
@@ -233,6 +238,7 @@
             state: absent
 
     - name: Create unbound_exporter systemd service
+      when: ansible_facts['architecture'] == 'x86_64'
       ansible.builtin.copy:
         content: |
           [Unit]
@@ -251,6 +257,7 @@
       notify: Restart unbound_exporter
 
     - name: Enable and start unbound_exporter
+      when: ansible_facts['architecture'] == 'x86_64'
       ansible.builtin.systemd:
         name: unbound_exporter
         enabled: true

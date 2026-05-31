@@ -14,6 +14,10 @@ resource "proxmox_virtual_environment_container" "scrutiny" {
   unprivileged  = false # Needs device access
   start_on_boot = true
 
+  features {
+    nesting = true
+  }
+
   operating_system {
     template_file_id = proxmox_download_file.debian_ct.id
     type             = "debian"

@@ -61,6 +61,24 @@ variable "adguard_secondary_host" {
   default     = "192.168.1.53"
 }
 
+variable "adguard_tertiary_host" {
+  description = "Tertiary AdGuard Home host — use 127.0.0.1 with SSH tunnel: ssh -L 13000:localhost:3000 root@<vps>"
+  type        = string
+  default     = "127.0.0.1"
+}
+
+variable "adguard_tertiary_port" {
+  description = "Tertiary AdGuard Home port — tunnel local port to VPS: ssh -L <port>:localhost:<port> root@<vps>"
+  type        = number
+  default     = 8443
+}
+
+variable "adguard_tertiary_scheme" {
+  description = "Tertiary AdGuard Home scheme (https when tunneled to :8443)"
+  type        = string
+  default     = "https"
+}
+
 # --- Network ---
 variable "gateway" {
   description = "Default gateway IP"

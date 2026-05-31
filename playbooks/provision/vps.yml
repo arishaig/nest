@@ -84,6 +84,8 @@
               tcp dport 22 accept
               tcp dport { 80, 443 } accept
               udp dport 51820 accept
+              tcp dport 853 accept
+              udp dport 853 accept
               icmp type echo-request accept
               # node_exporter and Traefik metrics — WireGuard peers only
               tcp dport { 8080, 9100 } ip saddr 10.10.0.0/24 accept

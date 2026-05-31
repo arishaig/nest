@@ -1,5 +1,12 @@
 tcp:
   routers:
+    adguard-doh:
+      rule: "HostSNI(`dns3.arishaig.site`)"
+      entryPoints: [websecure]
+      priority: 10
+      service: adguard-doh
+      tls:
+        passthrough: true
     https-passthrough:
       rule: "HostSNI(`*`)"
       entryPoints: [websecure]
@@ -8,6 +15,10 @@ tcp:
         passthrough: true
 
   services:
+    adguard-doh:
+      loadBalancer:
+        servers:
+          - address: "127.0.0.1:8443"
     nest-https:
       loadBalancer:
         proxyProtocol:
