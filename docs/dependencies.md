@@ -192,9 +192,12 @@ Vultr `vc2-1c-1gb`, Seattle. All services run as systemd units (no Docker).
 
 | Component | Version | Notes |
 |---|---|---|
-| Traefik | 3.7.1 | TCP passthrough proxy, metrics on WireGuard interface |
+| Traefik | 3.7.1 | TCP passthrough proxy, SNI routes dns3.arishaig.site to local AdGuard |
 | WireGuard | kernel | `wg-quick@wg0`, MTU 1420 |
+| AdGuard Home | latest (install script) | Tertiary DNS, DoH (:8443) + DoT (:853), no plain DNS |
+| Unbound | distro | Recursive upstream for AdGuard on 127.0.0.1:5335 |
 | node_exporter | 1.11.1 | Scraped by Prometheus over WireGuard |
+| unbound_exporter | 0.6.0 | Scraped by Prometheus over WireGuard |
 | Grafana Alloy | 1.16.1 | Ships logs to Loki over WireGuard |
 | fail2ban | distro | SSH + Traefik jails |
 | logrotate | distro | Traefik access log rotation |
@@ -285,4 +288,8 @@ Proxmox VE (192.168.1.16)
 Raspberry Pi (192.168.7.7, VLAN 7)
 └── AdGuard Home (primary DNS) + Unbound
     └── Terraform (gmichels/adguard) manages rewrites
+
+Vultr VPS — dns3.arishaig.site (public)
+└── AdGuard Home (tertiary DNS, DoH :8443 + DoT :853, no local rewrites)
+    └── Unbound (recursive resolver)
 ```

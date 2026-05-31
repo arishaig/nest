@@ -66,6 +66,8 @@ tunnel to `10.10.0.2:443` using PROXY protocol v2 to preserve the real client IP
 
 Port 80 → 443 redirect is the only HTTP-layer operation.
 
+Exception: `dns3.arishaig.site` is SNI-routed to local AdGuard Home (DoH on `127.0.0.1:8443`) rather than forwarded over WireGuard. All other hostnames fall through to the WireGuard passthrough.
+
 Metrics endpoint listens on `10.10.0.1:8080` (WireGuard interface, not public).
 
 ### WireGuard Tunnel
@@ -110,8 +112,10 @@ All records are unproxied (Cloudflare orange cloud off).
 
 Primary: Raspberry Pi at 192.168.7.7, Unbound upstream.
 Secondary: LXC 106 at 192.168.1.53, its own Unbound upstream, failover from primary.
+Tertiary: VPS at 66.42.79.175 (`dns3.arishaig.site`), DoH/DoT only (no plain UDP/53), no local rewrites. For phone/laptop use outside the house — no VPN required.
 
 Internal rewrites (`.arishaig.site` → LAN IPs) managed by Terraform (`gmichels/adguard ~> 1.7`).
+Tertiary has no rewrites — public DNS via Unbound resolves `*.arishaig.site` correctly via the Cloudflare wildcard.
 The Traefik `certresolver=cloudflare` handles TLS for `.local.arishaig.site` names using
 the same wildcard cert — no separate cert infrastructure needed for internal access.
 
@@ -174,7 +178,7 @@ App configs are at `/mnt/app_config/<service>`.
 | watcharr | ghcr.io/sbondco/watcharr | — | Watch history |
 | watchback | ghcr.io/arishaig/watchback | ✓ | Custom app (Isaac's own image) |
 | copyparty | copyparty/ac | ✓ | File browser |
-| homarr | ghcr.io/homarr-labs/homarr | ✓ | Dashboard (Docker socket removed for security) |
+| homepage | ghcr.io/gethomepage/homepage | ✓ | Dashboard |
 | uptime-kuma | louislam/uptime-kuma:1 | ✓ | Uptime monitoring |
 | glances | nicolargo/glances | ✓ | System stats |
 | flaresolverr | ghcr.io/flaresolverr/flaresolverr | — | Cloudflare bypass for Prowlarr |
@@ -256,9 +260,12 @@ fires when any backup group has not received a new snapshot within the expected 
 Plan: `vc2-1c-1gb` (1 vCPU, 1 GB RAM), Seattle region, Debian 13 (trixie).
 
 Services (all systemd, no Docker):
-- `traefik` — TCP passthrough proxy
+- `traefik` — TCP passthrough proxy (SNI routes `dns3.arishaig.site` to local AdGuard)
 - `wg-quick@wg0` — WireGuard tunnel to Docker LXC
+- `AdGuardHome` — tertiary DNS, DoH (:8443) + DoT (:853), Unbound upstream
+- `unbound` — recursive resolver on `127.0.0.1:5335`
 - `node_exporter` — scraped by Prometheus over WireGuard
+- `unbound_exporter` — scraped by Prometheus over WireGuard
 - `alloy` — ships logs to Loki over WireGuard
 - `fail2ban` — SSH and Traefik jails
 
@@ -350,3 +357,4 @@ WireGuard MTU is explicitly set to 1420 on both sides of the tunnel to avoid fra
 | Cloudflare zone settings | Only DNS records are managed | |
 | TLS certificates | Issued by Traefik ACME, stored in acme.json | Lost on Docker LXC rebuild; re-issued automatically |
 | `casa.arishaig.site` | Managed by Nabu Casa | Not in Terraform |
+| Tertiary AdGuard TLS config | Provider bug: switches to https mid-apply via tunnel | Configured once via web UI; cert managed by certbot |
