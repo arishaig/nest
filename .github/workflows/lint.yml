@@ -88,7 +88,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Run shellcheck
-        run: shellcheck scripts/*.sh
+        # Pinned docker image instead of the runner's apt shellcheck, whose
+        # version drifts (0.10.0 flagged SC2015 on benign set-e guards that
+        # 0.11.0 no longer does). Pinning keeps CI == local and at default
+        # severity so info-level checks like SC2086 (unquoted vars) stay on.
+        run: docker run --rm -v "$PWD:/mnt" -w /mnt koalaman/shellcheck:v0.11.0 scripts/*.sh
 
   terraform:
     runs-on: self-hosted
