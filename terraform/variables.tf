@@ -58,7 +58,7 @@ variable "adguard_password" {
 variable "adguard_secondary_host" {
   description = "Secondary AdGuard Home IP address"
   type        = string
-  default     = "192.168.1.53"
+  default     = "192.168.7.8"
 }
 
 variable "adguard_tertiary_host" {
@@ -70,13 +70,13 @@ variable "adguard_tertiary_host" {
 variable "adguard_tertiary_port" {
   description = "Tertiary AdGuard Home port — tunnel local port to VPS: ssh -L <port>:localhost:<port> root@<vps>"
   type        = number
-  default     = 8443
+  default     = 13000
 }
 
 variable "adguard_tertiary_scheme" {
-  description = "Tertiary AdGuard Home scheme (https when tunneled to :8443)"
+  description = "Tertiary AdGuard Home scheme (http — AdGuard listens on :3000, tunneled to :13000)"
   type        = string
-  default     = "https"
+  default     = "http"
 }
 
 # --- Network ---
@@ -89,7 +89,7 @@ variable "gateway" {
 variable "dns_servers" {
   description = "DNS server IPs (primary and secondary)"
   type        = list(string)
-  default     = ["192.168.7.7", "192.168.1.53"]
+  default     = ["192.168.7.7", "192.168.7.8"]
 }
 
 # --- SSH ---

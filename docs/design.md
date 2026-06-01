@@ -37,7 +37,7 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 | 103 | scrutiny | 192.168.1.46 (DHCP) | SMART disk monitoring |
 | 104 | seedbox | 192.168.1.182 (DHCP) | qBittorrent behind Gluetun VPN |
 | 105 | monitoring | 192.168.1.44 (static) | Prometheus · Grafana · Loki · Alertmanager |
-| 106 | dns-secondary | 192.168.1.53 | AdGuard Home + Unbound (secondary DNS) |
+| 106 | dns-secondary | 192.168.7.8 (VLAN 7, static) | AdGuard Home + Unbound (secondary DNS) |
 
 ### VMs (Proxmox)
 
@@ -111,7 +111,7 @@ All records are unproxied (Cloudflare orange cloud off).
 ### Internal (AdGuard Home)
 
 Primary: Raspberry Pi at 192.168.7.7, Unbound upstream.
-Secondary: LXC 106 at 192.168.1.53, its own Unbound upstream, failover from primary.
+Secondary: LXC 106 at 192.168.7.8 (VLAN 7), its own Unbound upstream, failover from primary.
 Tertiary: VPS at 66.42.79.175 (`dns3.arishaig.site`), DoH/DoT only (no plain UDP/53), no local rewrites. For phone/laptop use outside the house — no VPN required.
 
 Internal rewrites (`.arishaig.site` → LAN IPs) managed by Terraform (`gmichels/adguard ~> 1.7`).

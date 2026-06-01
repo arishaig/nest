@@ -41,9 +41,8 @@ provider "adguard" {
   insecure = true
 }
 
-# Tertiary (VPS) — requires SSH tunnel before apply:
-# ssh -f -N -L 13000:localhost:3000 -i ~/.ssh/ansible-on-nest root@66.42.79.175  (before TLS)
-# ssh -f -N -L 13000:localhost:8443 -i ~/.ssh/ansible-on-nest root@66.42.79.175  (after TLS)
+# Tertiary (VPS) — use scripts/apply-tertiary.sh which manages the tunnel automatically.
+# AdGuard listens on localhost:3000 (HTTP); tunnel forwards to local :13000.
 provider "adguard" {
   alias    = "tertiary"
   host     = "${var.adguard_tertiary_host}:${var.adguard_tertiary_port}"

@@ -53,8 +53,9 @@
         state: present
 
     - name: Set DNS resolver
+      when: local_network | default(true)
       ansible.builtin.copy:
-        content: "nameserver 192.168.7.7\nnameserver 192.168.1.53\n"
+        content: "nameserver 192.168.7.7\nnameserver 192.168.7.8\n"
         dest: /etc/resolv.conf
         mode: "0644"
 

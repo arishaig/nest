@@ -1,0 +1,93 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  changes:
+    runs-on: self-hosted
+    outputs:
+      docker: ${{ steps.filter.outputs.docker }}
+      vps: ${{ steps.filter.outputs.vps }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            docker:
+              - 'playbooks/provision/files/docker/**'
+              - 'playbooks/provision/files/seedbox/**'
+              - 'playbooks/provision/files/monitoring/**'
+              - 'playbooks/provision/files/scrutiny/**'
+              - 'playbooks/update_docker.yml'
+            vps:
+              - 'playbooks/provision/vps.yml'
+              - 'playbooks/provision/files/vps/**'
+              - 'playbooks/provision/templates/wireguard/**'
+
+  deploy-docker:
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write SSH key
+        run: |
+          install -d -m 700 ~/.ssh
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > ~/.ssh/ansible-on-nest
+          chmod 600 ~/.ssh/ansible-on-nest
+          ssh-keyscan -H 192.168.1.158 192.168.1.182 192.168.1.44 192.168.1.46 192.168.1.197 >> ~/.ssh/known_hosts
+
+      - name: Write vault password
+        run: |
+          echo "${{ secrets.ANSIBLE_VAULT_PASS }}" > /tmp/vault-pass
+          chmod 600 /tmp/vault-pass
+
+      - name: Run update_docker playbook
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          ansible-playbook \
+            -i inventory/hosts.yml \
+            playbooks/update_docker.yml \
+            --vault-password-file /tmp/vault-pass \
+            --private-key ~/.ssh/ansible-on-nest
+
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/ansible-on-nest /tmp/vault-pass
+
+  deploy-vps:
+    needs: changes
+    if: needs.changes.outputs.vps == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write SSH key
+        run: |
+          install -d -m 700 ~/.ssh
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > ~/.ssh/ansible-on-nest
+          chmod 600 ~/.ssh/ansible-on-nest
+          ssh-keyscan -H 66.42.79.175 >> ~/.ssh/known_hosts
+
+      - name: Write vault password
+        run: |
+          echo "${{ secrets.ANSIBLE_VAULT_PASS }}" > /tmp/vault-pass
+          chmod 600 /tmp/vault-pass
+
+      - name: Run vps playbook
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          ansible-playbook \
+            -i inventory/hosts.yml \
+            playbooks/provision/vps.yml \
+            --vault-password-file /tmp/vault-pass \
+            --private-key ~/.ssh/ansible-on-nest \
+            --limit vps-proxy
+
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/ansible-on-nest /tmp/vault-pass

@@ -73,11 +73,27 @@ scrape_configs:
 
   - job_name: 'adguard'
     static_configs:
-      - targets: ['dns.arishaig.site:9618', '192.168.1.53:9618']
+      - targets: ['dns.arishaig.site:9618']
+        labels:
+          dns_role: primary
+      - targets: ['192.168.7.8:9618']
+        labels:
+          dns_role: secondary
+      - targets: ['10.10.0.1:9618']
+        labels:
+          dns_role: tertiary
 
   - job_name: 'unbound'
     static_configs:
-      - targets: ['dns.arishaig.site:9167', '192.168.1.53:9167']
+      - targets: ['dns.arishaig.site:9167']
+        labels:
+          dns_role: primary
+      - targets: ['192.168.7.8:9167']
+        labels:
+          dns_role: secondary
+      - targets: ['10.10.0.1:9167']
+        labels:
+          dns_role: tertiary
 
   - job_name: 'unpoller'
     static_configs:

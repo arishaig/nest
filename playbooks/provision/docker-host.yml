@@ -74,7 +74,7 @@
     - name: Configure Docker daemon DNS and live-restore
       ansible.builtin.copy:
         content: |
-          {"dns": ["192.168.7.7", "192.168.1.53"], "live-restore": true}
+          {"dns": ["192.168.7.7", "192.168.7.8"], "live-restore": true}
         dest: /etc/docker/daemon.json
         mode: "0644"
       notify: Restart Docker

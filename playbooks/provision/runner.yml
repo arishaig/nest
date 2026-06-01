@@ -1,0 +1,125 @@
+---
+# Installs and registers a GitHub Actions self-hosted runner on the monitoring LXC.
+# Re-running this playbook is safe — registration uses --replace to update an existing runner.
+# Requires vault_github_runner_pat (fine-grained PAT with Actions: read/write on arishaig/nest).
+
+- name: GitHub Actions runner setup
+  hosts: monitoring
+  become: true
+  gather_facts: true
+
+  vars:
+    runner_version: "2.334.0"
+    runner_arch: "linux-x64"
+    runner_dir: /opt/github-runner
+    runner_user: github-runner
+    runner_repo_url: "https://github.com/arishaig/nest"
+    ansible_venv: /opt/ansible-runner/venv
+
+  tasks:
+    - name: Install runner and Ansible dependencies
+      ansible.builtin.apt:
+        name:
+          - git
+          - python3-pip
+          - python3-venv
+          - curl
+          - jq
+          - sshpass
+        state: present
+        update_cache: true
+
+    - name: Create Ansible venv
+      ansible.builtin.command:
+        cmd: python3 -m venv {{ ansible_venv }}
+        creates: "{{ ansible_venv }}/bin/activate"
+
+    - name: Install ansible in venv
+      ansible.builtin.pip:
+        name:
+          - ansible
+          - ansible-lint
+        virtualenv: "{{ ansible_venv }}"
+        state: present
+
+    - name: Install ansible collections in venv
+      ansible.builtin.command:
+        cmd: "{{ ansible_venv }}/bin/ansible-galaxy collection install ansible.posix community.general"
+      changed_when: true
+
+    - name: Create github-runner user
+      ansible.builtin.user:
+        name: "{{ runner_user }}"
+        system: true
+        shell: /usr/sbin/nologin
+        home: "{{ runner_dir }}"
+        create_home: true
+
+    - name: Create runner directory
+      ansible.builtin.file:
+        path: "{{ runner_dir }}"
+        state: directory
+        owner: "{{ runner_user }}"
+        group: "{{ runner_user }}"
+        mode: "0755"
+
+    - name: Download runner tarball
+      ansible.builtin.get_url:
+        url: "https://github.com/actions/runner/releases/download/v{{ runner_version }}/actions-runner-{{ runner_arch }}-{{ runner_version }}.tar.gz"
+        dest: "/tmp/actions-runner-{{ runner_version }}.tar.gz"
+        mode: "0644"
+
+    - name: Extract runner tarball
+      ansible.builtin.unarchive:
+        src: "/tmp/actions-runner-{{ runner_version }}.tar.gz"
+        dest: "{{ runner_dir }}"
+        remote_src: true
+        owner: "{{ runner_user }}"
+        group: "{{ runner_user }}"
+      args:
+        creates: "{{ runner_dir }}/config.sh"
+
+    - name: Fetch runner registration token from GitHub API
+      ansible.builtin.uri:
+        url: "https://api.github.com/repos/arishaig/nest/actions/runners/registration-token"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ vault_github_runner_pat }}"
+          Accept: "application/vnd.github+json"
+          X-GitHub-Api-Version: "2022-11-28"
+        status_code: 201
+      register: runner_token_response
+      no_log: true
+
+    - name: Configure runner (replaces existing registration)
+      ansible.builtin.command:
+        cmd: >
+          ./config.sh
+          --url {{ runner_repo_url }}
+          --token {{ runner_token_response.json.token }}
+          --name monitoring-runner
+          --labels self-hosted,linux,homelab
+          --unattended
+          --replace
+        chdir: "{{ runner_dir }}"
+      become_user: "{{ runner_user }}"
+      no_log: true
+
+    - name: Install runner as systemd service
+      ansible.builtin.command:
+        cmd: ./svc.sh install {{ runner_user }}
+        chdir: "{{ runner_dir }}"
+      args:
+        creates: /etc/systemd/system/actions.runner.arishaig-nest.monitoring-runner.service
+
+    - name: Start and enable runner service
+      ansible.builtin.systemd:
+        name: "actions.runner.arishaig-nest.monitoring-runner"
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Clean up tarball
+      ansible.builtin.file:
+        path: "/tmp/actions-runner-{{ runner_version }}.tar.gz"
+        state: absent

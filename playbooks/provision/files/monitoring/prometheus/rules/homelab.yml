@@ -119,8 +119,8 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "AdGuard Home is down"
-          description: "AdGuard Home exporter has been unreachable for 2 minutes. DNS may be failing."
+          summary: "AdGuard Home down ({{ $labels.dns_role }})"
+          description: "AdGuard Home exporter ({{ $labels.dns_role }}, {{ $labels.instance }}) has been unreachable for 2 minutes."
 
       - alert: ScrutinyDiskWarning
         expr: scrutiny_smart_device_status > 0
@@ -146,8 +146,8 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Unbound is down on {{ $labels.instance }}"
-          description: "Unbound recursive resolver on {{ $labels.instance }} has been unreachable for 2 minutes. DNS resolution may be degraded."
+          summary: "Unbound is down ({{ $labels.dns_role }}, {{ $labels.instance }})"
+          description: "Unbound recursive resolver ({{ $labels.dns_role }}, {{ $labels.instance }}) has been unreachable for 2 minutes. DNS resolution may be degraded."
 
       - alert: OOMKill
         expr: increase(node_vmstat_oom_kill[5m]) > 0

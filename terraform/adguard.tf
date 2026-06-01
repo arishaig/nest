@@ -26,7 +26,7 @@ locals {
     "musicbrainz.arishaig.site" = "192.168.1.197"
     "adguard.arishaig.site"     = "dns.arishaig.site"
     "dns.arishaig.site"         = "192.168.7.7"
-    "dns2.arishaig.site"        = "192.168.1.53"
+    "dns2.arishaig.site"        = "192.168.7.8"
 
     # Traefik reverse-proxied services (all -> docker host)
     "monitoring.arishaig.site"   = "192.168.1.158"
