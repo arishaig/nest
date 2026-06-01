@@ -16,12 +16,83 @@ jobs:
           source /opt/ansible-runner/venv/bin/activate
           ansible-lint playbooks/
 
+  yamllint:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run yamllint
+        # Covers the GitOps service payload under playbooks/provision/files/,
+        # which ansible-lint deliberately excludes. Lenient by design — see
+        # .yamllint — so it flags only deploy-breaking errors (unparsable
+        # YAML, duplicate keys), not cosmetic style.
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          yamllint .
+
+  config-validate:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate Docker Compose schemas
+        # --no-interpolate validates structure without substituting the
+        # vault-derived env vars (which aren't present in CI).
+        run: |
+          rc=0
+          while IFS= read -r f; do
+            if docker compose -f "$f" config --no-interpolate -q; then
+              echo "[ok] $f"
+            else
+              echo "[FAIL] $f"
+              rc=1
+            fi
+          done < <(find playbooks/provision/files -name docker-compose.yml | sort)
+          exit $rc
+      - name: Validate Grafana dashboard JSON
+        run: |
+          rc=0
+          while IFS= read -r f; do
+            if jq empty "$f" 2>/dev/null; then
+              echo "[ok] $f"
+            else
+              echo "[FAIL] $f"
+              rc=1
+            fi
+          done < <(find playbooks/provision/files -name '*.json' | sort)
+          exit $rc
+
+  deploy-coverage:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check deploy filter covers all services
+        run: scripts/check-deploy-coverage.sh
+
+  prometheus-validate:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate Prometheus alerting rules
+        run: promtool check rules playbooks/provision/files/monitoring/prometheus/rules/*.yml
+      - name: Validate Alertmanager config
+        # The config is a Jinja template; substitute every {{ ... }} with a
+        # placeholder so amtool can check the structure without vault values.
+        run: |
+          tmp=$(mktemp)
+          sed -E 's#\{\{[^}]*\}\}#http://example.invalid/placeholder#g' \
+            playbooks/provision/templates/monitoring/alertmanager.yml.j2 > "$tmp"
+          amtool check-config "$tmp"
+          rm -f "$tmp"
+
   shellcheck:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6
       - name: Run shellcheck
-        run: shellcheck scripts/*.sh
+        # The runner's shellcheck is 0.10.0, which flags SC2015 on the benign
+        # `[[ -z x ]] && x=... || true` set-e guards in pull-secrets.sh (0.11.0
+        # dropped that). Exclude only SC2015 and keep default severity so
+        # info-level checks like SC2086 (unquoted vars) stay enforced.
+        run: shellcheck --exclude=SC2015 scripts/*.sh
 
   terraform:
     runs-on: self-hosted

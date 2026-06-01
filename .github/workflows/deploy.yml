@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
 
+# Serialize deploys: never let two ansible runs hit the same hosts at once.
+# Queue rather than cancel — interrupting a half-applied playbook is worse
+# than waiting.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   changes:
     runs-on: self-hosted

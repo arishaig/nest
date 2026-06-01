@@ -15,7 +15,7 @@ resource "proxmox_virtual_environment_vm" "homeassistant" {
   on_boot = true
   started = true
 
-  bios    = "ovmf"
+  bios = "ovmf"
 
   agent {
     enabled = true

@@ -55,9 +55,12 @@ resource "proxmox_virtual_environment_container" "scrutiny" {
       servers = var.dns_servers
     }
     user_account {
+      # Read local public keys when present. pathexpand resolves ~, and the
+      # fileexists guard lets `terraform validate` pass in CI (and anywhere the
+      # keys are absent) instead of erroring on file().
       keys = [
-        trimspace(file("~/.ssh/id_ed25519.pub")),        # Personal key
-        trimspace(file("~/.ssh/ansible-on-nest.pub")),   # Ansible key
+        for k in ["~/.ssh/id_ed25519.pub", "~/.ssh/ansible-on-nest.pub"] :
+        trimspace(file(pathexpand(k))) if fileexists(pathexpand(k))
       ]
     }
   }

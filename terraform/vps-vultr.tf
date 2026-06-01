@@ -28,17 +28,17 @@ data "vultr_plan" "small" {
 }
 
 resource "vultr_instance" "vps_proxy" {
-  plan      = data.vultr_plan.small.id
-  region    = "sea"
-  os_id     = data.vultr_os.debian.id
-  label     = "vps-proxy"
-  hostname  = "vps-proxy"
+  plan        = data.vultr_plan.small.id
+  region      = "sea"
+  os_id       = data.vultr_os.debian.id
+  label       = "vps-proxy"
+  hostname    = "vps-proxy"
   ssh_key_ids = [vultr_ssh_key.isaac_laptop.id, vultr_ssh_key.ansible_on_nest.id]
 
-  enable_ipv6           = false
-  backups               = "disabled"
-  ddos_protection       = false
-  activation_email      = false
+  enable_ipv6      = false
+  backups          = "disabled"
+  ddos_protection  = false
+  activation_email = false
 }
 
 resource "null_resource" "vps_provision" {

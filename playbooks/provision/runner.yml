@@ -15,6 +15,10 @@
     runner_user: github-runner
     runner_repo_url: "https://github.com/arishaig/nest"
     ansible_venv: /opt/ansible-runner/venv
+    # promtool/amtool back the prometheus-validate CI job (lint.yml). Versions
+    # are renovate-managed; bumping them re-installs via the checksum-aware copy.
+    prometheus_version: "3.12.0"
+    alertmanager_version: "0.32.1"
 
   tasks:
     - name: Install runner and Ansible dependencies
@@ -50,6 +54,56 @@
         name: terraform
         state: present
         update_cache: true
+
+    - name: Install promtool and amtool for CI config validation
+      block:
+        - name: Download Prometheus tarball
+          ansible.builtin.get_url:
+            url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+            dest: /tmp/prometheus.tar.gz
+            mode: "0644"
+
+        - name: Extract Prometheus tarball
+          ansible.builtin.unarchive:
+            src: /tmp/prometheus.tar.gz
+            dest: /tmp
+            remote_src: true
+
+        - name: Install promtool binary
+          ansible.builtin.copy:
+            src: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64/promtool"
+            dest: /usr/local/bin/promtool
+            mode: "0755"
+            remote_src: true
+
+        - name: Download Alertmanager tarball
+          ansible.builtin.get_url:
+            url: "https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/alertmanager-{{ alertmanager_version }}.linux-amd64.tar.gz"
+            dest: /tmp/alertmanager.tar.gz
+            mode: "0644"
+
+        - name: Extract Alertmanager tarball
+          ansible.builtin.unarchive:
+            src: /tmp/alertmanager.tar.gz
+            dest: /tmp
+            remote_src: true
+
+        - name: Install amtool binary
+          ansible.builtin.copy:
+            src: "/tmp/alertmanager-{{ alertmanager_version }}.linux-amd64/amtool"
+            dest: /usr/local/bin/amtool
+            mode: "0755"
+            remote_src: true
+
+        - name: Clean up promtool/amtool downloads
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /tmp/prometheus.tar.gz
+            - /tmp/alertmanager.tar.gz
+            - "/tmp/prometheus-{{ prometheus_version }}.linux-amd64"
+            - "/tmp/alertmanager-{{ alertmanager_version }}.linux-amd64"
 
     - name: Create Ansible venv
       ansible.builtin.command:
@@ -103,6 +157,18 @@
       args:
         creates: "{{ runner_dir }}/config.sh"
 
+    - name: Check if runner is already configured
+      ansible.builtin.stat:
+        path: "{{ runner_dir }}/.runner"
+      register: runner_configured
+
+    - name: Stop runner service before reconfiguring (if already registered)
+      ansible.builtin.systemd:
+        name: "actions.runner.arishaig-nest.monitoring-runner"
+        state: stopped
+      failed_when: false
+      when: runner_configured.stat.exists
+
     - name: Fetch runner registration token from GitHub API
       ansible.builtin.uri:
         url: "https://api.github.com/repos/arishaig/nest/actions/runners/registration-token"
@@ -114,8 +180,9 @@
         status_code: 201
       register: runner_token_response
       no_log: true
+      when: not runner_configured.stat.exists
 
-    - name: Configure runner (replaces existing registration)
+    - name: Configure runner (first-time registration only)
       ansible.builtin.command:
         cmd: >
           ./config.sh
@@ -126,8 +193,10 @@
           --unattended
           --replace
         chdir: "{{ runner_dir }}"
+      become: true
       become_user: "{{ runner_user }}"
       no_log: true
+      when: not runner_configured.stat.exists
 
     - name: Install runner as systemd service
       ansible.builtin.command:
