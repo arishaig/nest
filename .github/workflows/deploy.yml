@@ -43,7 +43,7 @@ jobs:
 
       - name: Write vault password
         run: |
-          echo "${{ secrets.ANSIBLE_VAULT_PASS }}" > /tmp/vault-pass
+          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > /tmp/vault-pass
           chmod 600 /tmp/vault-pass
 
       - name: Run update_docker playbook
@@ -75,7 +75,7 @@ jobs:
 
       - name: Write vault password
         run: |
-          echo "${{ secrets.ANSIBLE_VAULT_PASS }}" > /tmp/vault-pass
+          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > /tmp/vault-pass
           chmod 600 /tmp/vault-pass
 
       - name: Run vps playbook
