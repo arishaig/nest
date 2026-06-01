@@ -62,6 +62,22 @@
       "depNameTemplate": "prometheus/node_exporter",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "description": "promtool version pin (CI) in runner.yml",
+      "fileMatch": ["playbooks/provision/runner\\.yml"],
+      "matchStrings": ["prometheus_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "prometheus/prometheus",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "description": "amtool version pin (CI) in runner.yml",
+      "fileMatch": ["playbooks/provision/runner\\.yml"],
+      "matchStrings": ["alertmanager_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "prometheus/alertmanager",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
     }
   ]
 }

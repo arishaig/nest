@@ -1,0 +1,31 @@
+# yamllint config for the GitOps payload and Ansible content.
+# Intentionally lenient: we care about errors that break a deploy
+# (unparseable YAML, duplicate keys), not cosmetic style. ansible-lint
+# already covers playbook conventions; this extends coverage to the
+# service config files under playbooks/provision/files/ which ansible-lint
+# deliberately ignores.
+extends: relaxed
+
+ignore: |
+  playbooks/audit-output/
+  terraform/
+  .cache/
+
+rules:
+  line-length: disable
+  comments: disable
+  comments-indentation: disable
+  document-start: disable
+  truthy: disable
+  trailing-spaces: disable
+  empty-lines: disable
+  indentation: disable
+  key-duplicates: enable
+  new-line-at-end-of-file: disable
+  empty-values: disable
+  octal-values: disable
+  brackets: disable
+  braces: disable
+  colons: disable
+  commas: disable
+  hyphens: disable
