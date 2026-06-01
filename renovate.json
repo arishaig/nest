@@ -2,21 +2,26 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
   "automerge": false,
-  "stabilityDays": 3,
+  "minimumReleaseAge": "3 days",
   "labels": ["dependencies"],
   "commitMessagePrefix": "chore(deps):",
 
   "packageRules": [
     {
       "description": "Ignore all prerelease tags",
-      "matchPackagePatterns": ["*"],
       "ignoreUnstable": true,
-      "allowedVersions": "!/^.*(-alpha|-beta|-rc|-dev|-nightly|-preview)/"
+      "allowedVersions": "!/^.*(-alpha|-beta|-rc|-dev|-nightly|-preview)/",
+      "matchPackageNames": [
+        "*"
+      ]
     },
     {
       "description": "linuxserver images use date-based build tags alongside semver — track semver only",
-      "matchPackagePatterns": ["^linuxserver/", "^lscr.io/linuxserver/"],
-      "allowedVersions": "/^\\d+\\.\\d+\\.\\d+$/"
+      "allowedVersions": "/^\\d+\\.\\d+\\.\\d+$/",
+      "matchPackageNames": [
+        "/^linuxserver//",
+        "/^lscr.io/linuxserver//"
+      ]
     },
     {
       "description": "Postgres major upgrades require pg_upgrade — ignore them",
@@ -26,54 +31,56 @@
   ],
 
   "docker-compose": {
-    "fileMatch": [
-      "playbooks/provision/files/docker/docker-compose\\.yml",
-      "playbooks/provision/files/seedbox/docker-compose\\.yml",
-      "playbooks/provision/files/scrutiny/docker-compose\\.yml",
-      "playbooks/provision/files/monitoring/docker-compose\\.yml",
-      "playbooks/provision/templates/adguard/docker-compose\\.yml\\.j2"
+    "managerFilePatterns": [
+      "/playbooks/provision/files/docker/docker-compose\\.yml/",
+      "/playbooks/provision/files/seedbox/docker-compose\\.yml/",
+      "/playbooks/provision/files/scrutiny/docker-compose\\.yml/",
+      "/playbooks/provision/files/monitoring/docker-compose\\.yml/",
+      "/playbooks/provision/templates/adguard/docker-compose\\.yml\\.j2/"
     ]
   },
 
-  "regexManagers": [
+  "customManagers": [
     {
+      "customType": "regex",
       "description": "traefik binary version pin in vps.yml",
-      "fileMatch": ["playbooks/provision/vps\\.yml"],
+      "managerFilePatterns": ["/playbooks/provision/vps\\.yml/"],
       "matchStrings": ["traefik_version:\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "traefik/traefik",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
     },
     {
+      "customType": "regex",
       "description": "alloy binary version pin in vps.yml",
-      "fileMatch": ["playbooks/provision/vps\\.yml"],
+      "managerFilePatterns": ["/playbooks/provision/vps\\.yml/"],
       "matchStrings": ["alloy_version:\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "grafana/alloy",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
     },
     {
+      "customType": "regex",
       "description": "node_exporter version pin in vps.yml and common.yml",
-      "fileMatch": [
-        "playbooks/provision/vps\\.yml",
-        "playbooks/provision/common\\.yml"
-      ],
+      "managerFilePatterns": ["/playbooks/provision/vps\\.yml/", "/playbooks/provision/common\\.yml/"],
       "matchStrings": ["node_exporter_version:\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "prometheus/node_exporter",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
     },
     {
+      "customType": "regex",
       "description": "promtool version pin (CI) in runner.yml",
-      "fileMatch": ["playbooks/provision/runner\\.yml"],
+      "managerFilePatterns": ["/playbooks/provision/runner\\.yml/"],
       "matchStrings": ["prometheus_version:\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "prometheus/prometheus",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
     },
     {
+      "customType": "regex",
       "description": "amtool version pin (CI) in runner.yml",
-      "fileMatch": ["playbooks/provision/runner\\.yml"],
+      "managerFilePatterns": ["/playbooks/provision/runner\\.yml/"],
       "matchStrings": ["alertmanager_version:\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "prometheus/alertmanager",
       "datasourceTemplate": "github-releases",
