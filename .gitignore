@@ -12,3 +12,6 @@ terraform/*.tfstate
 terraform/*.tfstate.*
 terraform/secrets.tfvars
 terraform/.terraform.tfstate.lock.info
+
+# MCP server config (contains credentials)
+.mcp.json
