@@ -193,6 +193,7 @@
           --unattended
           --replace
         chdir: "{{ runner_dir }}"
+      become: true
       become_user: "{{ runner_user }}"
       no_log: true
       when: not runner_configured.stat.exists

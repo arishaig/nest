@@ -76,15 +76,15 @@
 
     # --- ZFS ---
     - name: Gather ZFS pool status
-      shell: zpool status -v
+      command: zpool status -v
       register: zpool_status
 
     - name: Gather ZFS pool properties
-      shell: zpool get all
+      command: zpool get all
       register: zpool_props
 
     - name: Gather ZFS dataset list with properties
-      shell: zfs list -o name,used,avail,refer,mountpoint,compression,recordsize,quota,reservation -t all
+      command: zfs list -o name,used,avail,refer,mountpoint,compression,recordsize,quota,reservation -t all
       register: zfs_list
 
     - name: Gather ZFS dataset detailed properties
@@ -588,7 +588,7 @@
 
     # --- Samba Config (conditional) ---
     - name: Check if smbd is installed
-      shell: command -v smbd
+      shell: command -v smbd  # noqa: command-instead-of-shell - command builtin needs a shell
       register: smbd_check
       ignore_errors: true
       changed_when: false

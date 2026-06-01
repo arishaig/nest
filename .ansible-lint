@@ -3,6 +3,7 @@ profile: basic
 exclude_paths:
   - .cache/
   - playbooks/provision/files/
+  - playbooks/audit-output/
 
 warn_list:
   - yaml[truthy]

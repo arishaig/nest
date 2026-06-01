@@ -101,6 +101,7 @@
         repo: https://github.com/metabrainz/musicbrainz-docker.git
         dest: "{{ musicbrainz_dir }}"
         version: master
+      become: true
       become_user: "{{ musicbrainz_user }}"
 
     - name: Template .env

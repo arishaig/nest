@@ -13,8 +13,9 @@ ignore: |
 
 rules:
   line-length: disable
-  comments: disable
-  comments-indentation: disable
+  comments:
+    min-spaces-from-content: 1
+    require-starting-space: false
   document-start: disable
   truthy: disable
   trailing-spaces: disable
@@ -23,9 +24,12 @@ rules:
   key-duplicates: enable
   new-line-at-end-of-file: disable
   empty-values: disable
-  octal-values: disable
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
   brackets: disable
-  braces: disable
+  braces:
+    max-spaces-inside: 1
   colons: disable
   commas: disable
   hyphens: disable

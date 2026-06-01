@@ -14,19 +14,33 @@
 
 # --- Provision: converge each host to the configuration in this repo ---
 # common.yml runs once here; the provision playbooks no longer import it.
-- import_playbook: provision/common.yml
-- import_playbook: provision/adguard.yml
-- import_playbook: provision/docker-host.yml
-- import_playbook: provision/vps.yml
-- import_playbook: provision/fileserver.yml
-- import_playbook: provision/monitoring.yml
-- import_playbook: provision/musicbrainz.yml
-- import_playbook: provision/scrutiny.yml
-- import_playbook: provision/seedbox.yml
-- import_playbook: provision/pbs.yml
-- import_playbook: provision/nftables.yml
+- name: "Provision: common base config"
+  import_playbook: provision/common.yml
+- name: "Provision: AdGuard DNS"
+  import_playbook: provision/adguard.yml
+- name: "Provision: Docker host"
+  import_playbook: provision/docker-host.yml
+- name: "Provision: VPS proxy"
+  import_playbook: provision/vps.yml
+- name: "Provision: file server"
+  import_playbook: provision/fileserver.yml
+- name: "Provision: monitoring stack"
+  import_playbook: provision/monitoring.yml
+- name: "Provision: MusicBrainz"
+  import_playbook: provision/musicbrainz.yml
+- name: "Provision: Scrutiny"
+  import_playbook: provision/scrutiny.yml
+- name: "Provision: seedbox"
+  import_playbook: provision/seedbox.yml
+- name: "Provision: Proxmox Backup Server"
+  import_playbook: provision/pbs.yml
+- name: "Provision: nftables firewall"
+  import_playbook: provision/nftables.yml
 
 # --- Update: refresh OS packages, container images, and Proxmox ---
-- import_playbook: update_apt.yml
-- import_playbook: update_docker.yml
-- import_playbook: update_proxmox.yml
+- name: "Update: OS packages"
+  import_playbook: update_apt.yml
+- name: "Update: container images"
+  import_playbook: update_docker.yml
+- name: "Update: Proxmox host"
+  import_playbook: update_proxmox.yml
