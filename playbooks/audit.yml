@@ -1542,7 +1542,7 @@
     - name: Create summary
       shell: |
         echo "========================================="
-        echo " HOMELAB AUDIT COMPLETE"
+        echo " NEST AUDIT COMPLETE"
         echo " $(date)"
         echo "========================================="
         echo ""

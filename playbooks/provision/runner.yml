@@ -1,17 +1,21 @@
 ---
-# Installs and registers a GitHub Actions self-hosted runner on the monitoring LXC.
+# Installs and registers a GitHub Actions self-hosted runner on the ci LXC.
 # Re-running this playbook is safe — registration uses --replace to update an existing runner.
+# To provision additional runners: ansible-playbook runner.yml -e runner_name=nest-runner-2
 # Requires vault_github_runner_pat (fine-grained PAT with Actions: read/write on arishaig/nest).
 
 - name: GitHub Actions runner setup
-  hosts: monitoring
+  hosts: ci
   become: true
   gather_facts: true
 
   vars:
     runner_version: "2.334.0"
     runner_arch: "linux-x64"
-    runner_dir: /opt/github-runner
+    runner_name: "nest-runner-1"
+    runner_dir: "/opt/{{ runner_name }}"
+    runner_home: "/opt/nest-runner-1"
+    runner_service: "actions.runner.arishaig-nest.{{ runner_name }}"
     runner_user: github-runner
     runner_repo_url: "https://github.com/arishaig/nest"
     ansible_venv: /opt/ansible-runner/venv
@@ -32,7 +36,6 @@
           - sshpass
           - shellcheck
           - gnupg
-          - software-properties-common
           - graphviz
         state: present
         update_cache: true
@@ -52,6 +55,26 @@
     - name: Install Terraform
       ansible.builtin.apt:
         name: terraform
+        state: present
+        update_cache: true
+
+    - name: Add Docker apt signing key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/debian/gpg
+        dest: /usr/share/keyrings/docker-archive-keyring.asc
+        mode: "0644"
+
+    - name: Add Docker apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/docker-archive-keyring.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+        filename: docker
+        state: present
+
+    - name: Install Docker CLI and Compose plugin
+      ansible.builtin.apt:
+        name:
+          - docker-ce-cli
+          - docker-compose-plugin
         state: present
         update_cache: true
 
@@ -130,7 +153,7 @@
         name: "{{ runner_user }}"
         system: true
         shell: /usr/sbin/nologin
-        home: "{{ runner_dir }}"
+        home: "{{ runner_home }}"
         create_home: true
 
     - name: Create runner directory
@@ -164,7 +187,7 @@
 
     - name: Stop runner service before reconfiguring (if already registered)
       ansible.builtin.systemd:
-        name: "actions.runner.arishaig-nest.monitoring-runner"
+        name: "{{ runner_service }}"
         state: stopped
       failed_when: false
       when: runner_configured.stat.exists
@@ -188,8 +211,8 @@
           ./config.sh
           --url {{ runner_repo_url }}
           --token {{ runner_token_response.json.token }}
-          --name monitoring-runner
-          --labels self-hosted,linux,homelab
+          --name {{ runner_name }}
+          --labels self-hosted,linux,nest
           --unattended
           --replace
         chdir: "{{ runner_dir }}"
@@ -203,11 +226,11 @@
         cmd: ./svc.sh install {{ runner_user }}
         chdir: "{{ runner_dir }}"
       args:
-        creates: /etc/systemd/system/actions.runner.arishaig-nest.monitoring-runner.service
+        creates: /etc/systemd/system/{{ runner_service }}.service
 
     - name: Start and enable runner service
       ansible.builtin.systemd:
-        name: "actions.runner.arishaig-nest.monitoring-runner"
+        name: "{{ runner_service }}"
         state: started
         enabled: true
         daemon_reload: true

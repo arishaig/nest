@@ -6,6 +6,7 @@ locals {
   dns_rewrites = {
     # Local-access names — direct IP, bypass Traefik entirely (infra break-glass)
     "proxmox.local.arishaig.site"    = "192.168.1.16"
+    "ci.local.arishaig.site"         = "192.168.1.18"
     "backup.local.arishaig.site"     = "192.168.1.113"
     "monitoring.local.arishaig.site" = "192.168.1.44"
     "casa.local.arishaig.site"       = "192.168.4.50"

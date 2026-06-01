@@ -41,6 +41,7 @@
       ansible.builtin.apt_repository:
         repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian {{ ansible_facts['distribution_release'] }} stable"
         state: absent
+      ignore_errors: true
 
     - name: Update apt cache
       ansible.builtin.apt:

@@ -4,7 +4,7 @@
 # PBS's node_exporter is already scraped by Prometheus (the `node` job). This
 # play enables node_exporter's textfile collector and installs a script that
 # records each backup group's newest-snapshot timestamp, so the PBSBackupStale
-# alert in prometheus/rules/homelab.yml fires when a backup stops landing.
+# alert in prometheus/rules/nest.yml fires when a backup stops landing.
 
 - name: PBS backup-freshness monitoring
   hosts: pbs
