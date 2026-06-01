@@ -649,7 +649,7 @@ services:
 
   # Postgres - Database for Mealie
   postgres:
-    image: postgres:15
+    image: postgres:18
     container_name: postgres
     restart: unless-stopped
     volumes:
