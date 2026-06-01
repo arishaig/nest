@@ -18,7 +18,7 @@ TUNNEL_PID=$(pgrep -fn "ssh -f -N -L ${LOCAL_PORT}")
 trap 'kill "$TUNNEL_PID" 2>/dev/null' EXIT
 
 # Wait for tunnel to be ready
-for i in $(seq 1 10); do
+for _ in $(seq 1 10); do
   nc -z 127.0.0.1 "$LOCAL_PORT" 2>/dev/null && break
   sleep 1
 done

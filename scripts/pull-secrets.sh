@@ -15,7 +15,7 @@ set -euo pipefail
 
 # --- Config ---
 SSH_KEY="$HOME/.ssh/ansible-on-nest"
-SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=5 -i $SSH_KEY"
+SSH_OPTS=(-o StrictHostKeyChecking=no -o ConnectTimeout=5 -i "$SSH_KEY")
 
 DOCKER_HOST="root@192.168.1.158"
 MONITORING_HOST="root@192.168.1.44"
@@ -23,7 +23,6 @@ SEEDBOX_HOST="root@192.168.1.182"
 MUSICBRAINZ_HOST="root@192.168.1.197"
 PBS_HOST="root@192.168.1.113"
 ADGUARD_HOST="adguard@192.168.7.7"
-PVE_HOST="root@192.168.1.16"
 FILESERVER_HOST="root@192.168.1.17"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -42,7 +41,8 @@ fail()  { echo -e "${RED}[-]${NC} $*"; }
 
 ssh_cmd() {
     local host="$1"; shift
-    ssh $SSH_OPTS "$host" "$@" 2>/dev/null
+    # shellcheck disable=SC2029  # remote command ("$@") is built from trusted local args by design
+    ssh "${SSH_OPTS[@]}" "$host" "$@" 2>/dev/null
 }
 
 # Helper: safely extract a value, return CHANGEME if it fails
@@ -64,7 +64,7 @@ echo ""
 echo "This will pull secrets from your infrastructure"
 echo "and write them to: $VAULT_FILE"
 echo ""
-read -p "Continue? [y/N] " confirm
+read -r -p "Continue? [y/N] " confirm
 [[ "$confirm" =~ ^[Yy]$ ]] || exit 0
 
 # Check dependencies
@@ -86,7 +86,7 @@ if [[ -f "$VAULT_FILE" ]]; then
 
     # Determine if the vault file is encrypted
     VAULT_CONTENT=""
-    if head -1 "$VAULT_FILE" | grep -q '^\$ANSIBLE_VAULT'; then
+    if head -1 "$VAULT_FILE" | grep -q '^[$]ANSIBLE_VAULT'; then
         info "  Vault file is encrypted, decrypting..."
         VAULT_CONTENT=$(ansible-vault decrypt --output=- "$VAULT_FILE" 2>/dev/null) || {
             warn "  Could not decrypt vault file — will re-extract all secrets"
@@ -146,7 +146,7 @@ prompt_or_existing() {
         info "  $prompt_text: already in vault, skipping" >&2
         echo "$cached"
     else
-        read -p "  $prompt_text: " val
+        read -r -p "  $prompt_text: " val
         safe "${val:-}"
     fi
 }

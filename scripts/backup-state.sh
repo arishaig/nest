@@ -52,15 +52,18 @@ ansible-vault encrypt --vault-password-file "$VAULT_PASS_FILE" \
     || fail "ansible-vault encrypt failed"
 
 log "copying to $NAS_HOST:$NAS_DIR"
+# shellcheck disable=SC2029  # $NAS_DIR is a trusted local config value, intended to expand client-side
 ssh "${SSH_OPTS[@]}" "$NAS_HOST" "mkdir -p '$NAS_DIR'" \
     || fail "could not create $NAS_DIR on the NAS"
 scp "${SSH_OPTS[@]}" "$tmp" "$NAS_HOST:$NAS_DIR/terraform.tfstate.$stamp.vault" \
     || fail "scp to NAS failed"
+# shellcheck disable=SC2029  # $NAS_DIR/$stamp are trusted local values, intended to expand client-side
 ssh "${SSH_OPTS[@]}" "$NAS_HOST" \
     "cp '$NAS_DIR/terraform.tfstate.$stamp.vault' '$NAS_DIR/terraform.tfstate.latest.vault'" \
     || fail "could not update latest copy"
 
 log "pruning to the last $KEEP timestamped copies"
+# shellcheck disable=SC2029  # $NAS_DIR/$KEEP are trusted local values, intended to expand client-side
 ssh "${SSH_OPTS[@]}" "$NAS_HOST" \
     "ls -1t '$NAS_DIR'/terraform.tfstate.*.vault 2>/dev/null \
        | grep -v '\.latest\.vault\$' \

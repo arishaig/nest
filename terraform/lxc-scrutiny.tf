@@ -56,8 +56,8 @@ resource "proxmox_virtual_environment_container" "scrutiny" {
     }
     user_account {
       keys = [
-        trimspace(file("~/.ssh/id_ed25519.pub")),        # Personal key
-        trimspace(file("~/.ssh/ansible-on-nest.pub")),   # Ansible key
+        trimspace(file("~/.ssh/id_ed25519.pub")),      # Personal key
+        trimspace(file("~/.ssh/ansible-on-nest.pub")), # Ansible key
       ]
     }
   }
