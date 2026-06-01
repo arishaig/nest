@@ -26,6 +26,28 @@
           - curl
           - jq
           - sshpass
+          - shellcheck
+          - gnupg
+          - software-properties-common
+          - graphviz
+        state: present
+        update_cache: true
+
+    - name: Add HashiCorp apt signing key
+      ansible.builtin.get_url:
+        url: https://apt.releases.hashicorp.com/gpg
+        dest: /usr/share/keyrings/hashicorp-archive-keyring.asc
+        mode: "0644"
+
+    - name: Add HashiCorp apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.asc] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+        filename: hashicorp
+        state: present
+
+    - name: Install Terraform
+      ansible.builtin.apt:
+        name: terraform
         state: present
         update_cache: true
 
@@ -39,6 +61,8 @@
         name:
           - ansible
           - ansible-lint
+          - diagrams
+          - pyyaml
         virtualenv: "{{ ansible_venv }}"
         state: present
 

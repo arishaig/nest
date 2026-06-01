@@ -1,0 +1,36 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ansible-lint:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run ansible-lint
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          ansible-lint playbooks/
+
+  shellcheck:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run shellcheck
+        run: shellcheck scripts/*.sh
+
+  terraform:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check Terraform formatting
+        run: terraform -chdir=terraform fmt -check -recursive
+      - name: Validate Terraform configuration
+        run: |
+          cd terraform
+          terraform init -backend=false -input=false
+          terraform validate

@@ -1,0 +1,32 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'inventory/hosts.yml'
+      - 'terraform/lxc-*.tf'
+      - 'scripts/generate_diagram.py'
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate-diagrams:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Regenerate architecture diagrams
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          python3 scripts/generate_diagram.py
+
+      - name: Commit updated diagrams if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/arishaig/nest.git"
+          git add docs/architecture.png docs/architecture-flow.png
+          git diff --staged --quiet || git commit -m "chore: regenerate architecture diagrams [skip ci]"
+          git push

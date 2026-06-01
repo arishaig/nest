@@ -1,0 +1,10 @@
+profile: basic
+
+exclude_paths:
+  - .cache/
+  - playbooks/provision/files/
+
+warn_list:
+  - yaml[truthy]
+  - name[casing]
+  - name[template]
