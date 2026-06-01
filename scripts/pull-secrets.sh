@@ -184,7 +184,8 @@ DOCKER_KEYS=(cf_tunnel_token traefik_cf_dns_api_token cf_ddns_api_token
     homarr_secret_key mealie_postgres_user mealie_postgres_password
     authelia_session_secret authelia_storage_encryption_key authelia_jwt_secret
     sonarr_api_key radarr_api_key lidarr_api_key prowlarr_api_key bazarr_api_key
-    jellyseerr_api_key recyclarr_sonarr_api_key recyclarr_radarr_api_key)
+    jellyseerr_api_key jellyfin_api_key recyclarr_sonarr_api_key recyclarr_radarr_api_key
+    nest_mcp_pve_token)
 
 if all_cached "${DOCKER_KEYS[@]}"; then
     info "Docker LXC ($DOCKER_HOST): all values in vault, skipping SSH"
@@ -203,8 +204,10 @@ if all_cached "${DOCKER_KEYS[@]}"; then
     PROWLARR_API_KEY=$(existing "prowlarr_api_key")
     BAZARR_API_KEY=$(existing "bazarr_api_key")
     JELLYSEERR_API_KEY=$(existing "jellyseerr_api_key")
+    JELLYFIN_API_KEY=$(existing "jellyfin_api_key")
     RECYCLARR_SONARR_KEY=$(existing "recyclarr_sonarr_api_key")
     RECYCLARR_RADARR_KEY=$(existing "recyclarr_radarr_api_key")
+    NEST_MCP_PVE_TOKEN=$(existing "nest_mcp_pve_token")
 else
     info "Pulling secrets from Docker LXC ($DOCKER_HOST)..."
 
@@ -268,6 +271,10 @@ else
     JELLYSEERR_API_KEY=$(or_existing "jellyseerr_api_key" "$(ssh_cmd "$DOCKER_HOST" "docker exec seerr cat /app/config/settings.json 2>/dev/null" | jq -r '.main.apiKey // empty' 2>/dev/null || true)")
     log_result "jellyseerr API key" "$JELLYSEERR_API_KEY"
 
+    # Jellyfin — long-lived API key named "nest-mcp" (create it in Jellyfin dashboard first)
+    JELLYFIN_API_KEY=$(or_existing "jellyfin_api_key" "$(ssh_cmd "$DOCKER_HOST" "sqlite3 /mnt/app_config/jellyfin/data/library.db \"SELECT AccessToken FROM ApiKeys WHERE Name='nest-mcp' LIMIT 1\" 2>/dev/null" || true)")
+    log_result "Jellyfin API key (nest-mcp)" "$JELLYFIN_API_KEY"
+
     # Recyclarr API keys
     RECYCLARR_SONARR_KEY=$(existing "recyclarr_sonarr_api_key")
     RECYCLARR_RADARR_KEY=$(existing "recyclarr_radarr_api_key")
@@ -282,6 +289,24 @@ else
         fi
     else
         info "  Recyclarr keys: in vault"
+    fi
+fi
+
+# =====================================================================
+# Local — nest-mcp Proxmox token from terraform state
+# =====================================================================
+NEST_MCP_PVE_TOKEN=$(existing "nest_mcp_pve_token")
+if [[ -n "$NEST_MCP_PVE_TOKEN" ]]; then
+    info "nest-mcp Proxmox token: in vault"
+else
+    info "Reading nest-mcp Proxmox token from terraform state..."
+    RAW_TOKEN=$(cd "$REPO_DIR/terraform" && terraform output -raw nest_mcp_token 2>/dev/null || true)
+    if [[ -n "$RAW_TOKEN" ]]; then
+        NEST_MCP_PVE_TOKEN="nest-mcp@pve!nest-mcp=${RAW_TOKEN}"
+        info "  nest-mcp Proxmox token: extracted"
+    else
+        warn "  nest-mcp Proxmox token: not available — run 'terraform apply' first"
+        NEST_MCP_PVE_TOKEN="CHANGEME"
     fi
 fi
 
@@ -582,6 +607,7 @@ yml lidarr_api_key "$LIDARR_API_KEY"
 yml prowlarr_api_key "$PROWLARR_API_KEY"
 yml bazarr_api_key "$BAZARR_API_KEY"
 yml jellyseerr_api_key "$JELLYSEERR_API_KEY"
+yml jellyfin_api_key "$JELLYFIN_API_KEY"
 yml recyclarr_sonarr_api_key "$RECYCLARR_SONARR_KEY"
 yml recyclarr_radarr_api_key "$RECYCLARR_RADARR_KEY"
 echo ""
@@ -594,6 +620,10 @@ yml musicbrainz_postgres_password "$MUSICBRAINZ_PG_PASS"
 echo ""
 echo "# --- Home Assistant ---"
 yml homeassistant_bearer_token "$HA_BEARER_TOKEN"
+echo ""
+echo "# --- MCP ---"
+yml jellyfin_api_key "$JELLYFIN_API_KEY"
+yml nest_mcp_pve_token "$NEST_MCP_PVE_TOKEN"
 echo ""
 echo "# --- Samba ---"
 echo "samba_users_passwords:"

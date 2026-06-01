@@ -19,7 +19,7 @@ output "vm_names" {
 }
 
 output "nest_mcp_token" {
-  description = "API token value for nest-mcp@pve (write to ~/.config/nest-mcp/secrets.env)"
+  description = "Raw token secret for nest-mcp@pve (consumed by pull-secrets.sh)"
   value       = proxmox_user_token.nest_mcp.value
   sensitive   = true
 }
