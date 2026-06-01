@@ -1,36 +1,7 @@
 {
   "mcpServers": {
     "nest-mcp": {
-      "command": "/home/isaac/Projects/ansible-on-nest/mcp/.venv/bin/python",
-      "args": ["-m", "nest_mcp"],
-      "cwd": "/home/isaac/Projects/ansible-on-nest/mcp",
-      "env": {
-        "NEST_PROXMOX_URL": "https://192.168.1.16:8006",
-        "NEST_PROXMOX_TOKEN": "nest-mcp@pve!nest-mcp=REPLACE_AFTER_TERRAFORM_APPLY",
-        "NEST_PROXMOX_VERIFY_TLS": "false",
-        "NEST_UNIFI_URL": "https://192.168.1.1",
-        "NEST_UNIFI_USERNAME": "REPLACE",
-        "NEST_UNIFI_PASSWORD": "REPLACE",
-        "NEST_UNIFI_VERIFY_TLS": "false",
-        "NEST_ADGUARD_URL": "https://dns.arishaig.site",
-        "NEST_ADGUARD_USERNAME": "adguard",
-        "NEST_ADGUARD_PASSWORD": "REPLACE",
-        "NEST_HA_URL": "http://casa.local.arishaig.site:8123",
-        "NEST_HA_TOKEN": "REPLACE",
-        "NEST_PROMETHEUS_URL": "http://192.168.1.44:9090",
-        "NEST_GRAFANA_URL": "http://192.168.1.44:3000",
-        "NEST_GRAFANA_PASSWORD": "REPLACE",
-        "NEST_SCRUTINY_URL": "http://192.168.1.46:8080",
-        "NEST_ARR_HOST": "192.168.1.158",
-        "NEST_SONARR_KEY": "REPLACE",
-        "NEST_RADARR_KEY": "REPLACE",
-        "NEST_LIDARR_KEY": "REPLACE",
-        "NEST_PROWLARR_KEY": "REPLACE",
-        "NEST_JELLYFIN_URL": "http://192.168.1.158:8096",
-        "NEST_JELLYFIN_KEY": "REPLACE",
-        "NEST_JELLYSEERR_URL": "http://192.168.1.158:5055",
-        "NEST_JELLYSEERR_KEY": "REPLACE"
-      }
+      "command": "/home/isaac/Projects/ansible-on-nest/mcp/launch.sh"
     }
   }
 }
