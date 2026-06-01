@@ -231,7 +231,7 @@ Scrapes every 30s. Jobs:
 | `wled` | WLED LED controller at `backlight.arishaig.site` |
 | `speedtest` | speedtest-exporter, 1h interval, 90s timeout |
 
-Alert rules in `playbooks/provision/files/monitoring/prometheus/rules/homelab.yml`.
+Alert rules in `playbooks/provision/files/monitoring/prometheus/rules/nest.yml`.
 Includes `PBSBackupStale` — fires when any backup group's newest snapshot is too old.
 
 ### Grafana
