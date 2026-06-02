@@ -591,7 +591,7 @@ yml authelia_oidc_client_secret_nest_mcp_hash "$(existing "authelia_oidc_client_
 _oidc_jwk="$(existing "authelia_oidc_jwk_private_key")"
 if [[ -n "$_oidc_jwk" && "$_oidc_jwk" != "CHANGEME" ]]; then
     printf 'authelia_oidc_jwk_private_key: |\n'
-    echo "$_oidc_jwk" | sed 's/^/  /'
+    while IFS= read -r line; do echo "  $line"; done <<< "$_oidc_jwk"
 else
     echo 'authelia_oidc_jwk_private_key: "CHANGEME"'
 fi
