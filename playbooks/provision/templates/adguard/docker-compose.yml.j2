@@ -3,13 +3,17 @@ services:
     image: ghcr.io/henrywhitaker3/adguard-exporter:latest
     container_name: adguard-exporter
     restart: unless-stopped
+{% if local_network | default(true) %}
+    ports:
+      - "9618:9618"
+{% else %}
+    network_mode: host
+{% endif %}
     environment:
       - ADGUARD_SERVERS={{ adguard_self_url }}
       - ADGUARD_USERNAMES={{ adguard_exporter_username }}
       - ADGUARD_PASSWORDS=${ADGUARD_PASSWORD}
       - INTERVAL=30s
-    ports:
-      - "9618:9618"
 
 {% if adguard_primary | default(false) %}
   # Dynamic DNS — primary only

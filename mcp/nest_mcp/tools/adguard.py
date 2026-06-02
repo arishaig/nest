@@ -62,7 +62,7 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def adguard_add_rewrite(domain: str, answer: str) -> dict:
-        """[MUTATING] Add a custom DNS rewrite rule to AdGuard Home (e.g. domain='foo.local', answer='192.168.1.50')."""
+        """[DESTRUCTIVE] Add a DNS rewrite rule to AdGuard Home. Immediately affects DNS resolution for all network clients. Confirm the exact domain and answer with the user before calling."""
         async with make_client(config.adguard.url) as client:
             resp = await client.post("/control/rewrite/add", json={"domain": domain, "answer": answer}, auth=_auth())
             resp.raise_for_status()
@@ -70,7 +70,7 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def adguard_delete_rewrite(domain: str, answer: str) -> dict:
-        """[MUTATING] Delete a custom DNS rewrite rule from AdGuard Home."""
+        """[DESTRUCTIVE] Delete a DNS rewrite rule from AdGuard Home. Immediately affects DNS resolution for all network clients. Confirm the exact domain and answer with the user before calling."""
         async with make_client(config.adguard.url) as client:
             resp = await client.post("/control/rewrite/delete", json={"domain": domain, "answer": answer}, auth=_auth())
             resp.raise_for_status()

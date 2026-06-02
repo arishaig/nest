@@ -60,7 +60,7 @@ resource "proxmox_acl" "nest_mcp_auditor" {
 resource "proxmox_user_token" "nest_mcp" {
   user_id               = proxmox_virtual_environment_user.nest_mcp.user_id
   token_name            = "nest-mcp"
-  privileges_separation = true
+  privileges_separation = false
 }
 
 resource "proxmox_user_token" "homarr" {

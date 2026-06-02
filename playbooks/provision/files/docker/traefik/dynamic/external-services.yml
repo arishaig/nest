@@ -40,6 +40,14 @@ http:
       tls:
         certResolver: cloudflare
 
+    # MCP server — no authelia@file; validates Bearer JWT itself
+    nest-mcp:
+      rule: "Host(`mcp.arishaig.site`)"
+      entryPoints: [websecure]
+      service: nest-mcp
+      tls:
+        certResolver: cloudflare
+
     # --- Authelia-free .local. routes (direct app access) ---
     torrent-local:
       rule: "Host(`torrent.local.arishaig.site`)"
@@ -106,6 +114,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.1.197:80"
+
+    nest-mcp:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.19:8765"
 
   serversTransports:
     skipVerify:

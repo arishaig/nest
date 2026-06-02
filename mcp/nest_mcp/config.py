@@ -68,6 +68,29 @@ class JellyseerrSettings(BaseSettings):
     key: str = ""
 
 
+class VpsSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_VPS_")
+    host: str = "66.42.79.175"
+    ssh_user: str = "root"
+    ssh_key: str = "~/.ssh/ansible-on-nest"
+    instance_id: str = "60c6d8aa-0f76-44a4-a91d-ead0ab380cf2"
+    vultr_api_key: str = ""
+
+
+class DockerHostSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_DOCKER_HOST_")
+    host: str = "192.168.1.158"
+    ssh_key: str = "~/.ssh/ansible-on-nest"
+
+
+class PbsSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_PBS_")
+    url: str = "https://192.168.1.113:8007"
+    username: str = "root@pam"
+    password: str = ""
+    node: str = "backup"
+
+
 proxmox = ProxmoxSettings()
 unifi = UniFiSettings()
 adguard = AdGuardSettings()
@@ -78,3 +101,6 @@ scrutiny = ScrutinySettings()
 arr = ArrSettings()
 jellyfin = JellyfinSettings()
 jellyseerr = JellyseerrSettings()
+vps = VpsSettings()
+docker_host = DockerHostSettings()
+pbs = PbsSettings()

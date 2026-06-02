@@ -1,0 +1,104 @@
+---
+# Provision LXC 109: mcp — Nest MCP HTTP server
+# common.yml must run first (handled by site.yml and the Terraform provisioner).
+
+- name: MCP server provisioning
+  hosts: mcp
+  become: true
+  gather_facts: true
+
+  vars:
+    mcp_dir: /opt/nest-mcp
+    mcp_venv: /opt/nest-mcp/.venv
+    mcp_secrets: /etc/nest-mcp/secrets.env
+
+  tasks:
+    - name: Install Python venv and pip
+      ansible.builtin.apt:
+        name:
+          - python3-venv
+          - python3-pip
+          - rsync
+        state: present
+
+    - name: Create MCP app directory
+      ansible.builtin.file:
+        path: "{{ mcp_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Sync MCP package source
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../../mcp/"
+        dest: "{{ mcp_dir }}/"
+        delete: true
+        rsync_opts:
+          - "--exclude=.venv"
+          - "--exclude=__pycache__"
+          - "--exclude=*.egg-info"
+          - "--exclude=.git"
+
+    - name: Create Python virtual environment
+      ansible.builtin.command:
+        cmd: python3 -m venv {{ mcp_venv }}
+        creates: "{{ mcp_venv }}/bin/python"
+
+    - name: Install MCP package into venv
+      ansible.builtin.pip:
+        name: "{{ mcp_dir }}"
+        extra_args: "-e"
+        virtualenv: "{{ mcp_venv }}"
+      notify: Restart nest-mcp
+
+    - name: Create secrets directory
+      ansible.builtin.file:
+        path: /etc/nest-mcp
+        state: directory
+        mode: "0700"
+
+    - name: Write MCP secrets file
+      ansible.builtin.template:
+        src: templates/mcp-secrets.env.j2
+        dest: "{{ mcp_secrets }}"
+        mode: "0600"
+      notify: Restart nest-mcp
+
+    - name: Install nest-mcp systemd service
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Nest MCP HTTP Server
+          After=network.target
+
+          [Service]
+          Type=simple
+          EnvironmentFile={{ mcp_secrets }}
+          ExecStart={{ mcp_venv }}/bin/python -m nest_mcp.serve
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/nest-mcp.service
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart nest-mcp
+
+    - name: Enable and start nest-mcp
+      ansible.builtin.systemd:
+        name: nest-mcp
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart nest-mcp
+      ansible.builtin.systemd:
+        name: nest-mcp
+        state: restarted
+        daemon_reload: true
