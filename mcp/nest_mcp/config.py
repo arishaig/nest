@@ -83,6 +83,12 @@ class DockerHostSettings(BaseSettings):
     ssh_key: str = "~/.ssh/ansible-on-nest"
 
 
+class MealieSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_MEALIE_")
+    url: str = "http://192.168.1.158:9001"
+    key: str = ""
+
+
 class PbsSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_PBS_")
     url: str = "https://192.168.1.113:8007"
@@ -103,4 +109,5 @@ jellyfin = JellyfinSettings()
 jellyseerr = JellyseerrSettings()
 vps = VpsSettings()
 docker_host = DockerHostSettings()
+mealie = MealieSettings()
 pbs = PbsSettings()
