@@ -1,0 +1,105 @@
+server:
+  address: "tcp://0.0.0.0:9091"
+
+log:
+  level: info
+
+authentication_backend:
+  file:
+    path: /config/users_database.yml
+
+session:
+  expiration: 12h
+  inactivity: 2h
+  remember_me: 30d
+  cookies:
+    - domain: 'arishaig.site'
+      authelia_url: 'https://auth.arishaig.site'
+  # secret is passed via AUTHELIA_SESSION_SECRET env var
+
+storage:
+  local:
+    path: /config/db.sqlite3
+  # encryption_key is passed via AUTHELIA_STORAGE_ENCRYPTION_KEY env var
+
+access_control:
+  default_policy: two_factor
+  rules:
+    # Jellyfin bypasses Authelia — uses its own auth
+    - domain: jellyfin.arishaig.site
+      policy: bypass
+
+regulation:
+  max_retries: 5
+  find_time: 2m
+  ban_time: 10m
+
+theme: 'dark'
+
+notifier:
+  filesystem:
+    filename: /config/notification.txt
+
+identity_providers:
+  oidc:
+    hmac_secret: '{{ authelia_oidc_hmac_secret }}'
+    jwks:
+      - key_id: 'main'
+        algorithm: 'RS256'
+        use: 'sig'
+        key: |
+{{ authelia_oidc_jwk_private_key | indent(10, first=True) }}
+    clients:
+      - client_id: 'nest-mcp'
+        client_name: 'Nest MCP'
+        client_secret: '{{ authelia_oidc_client_secret_nest_mcp_hash }}'
+        # ⚠ Update redirect_uri to match what claude.ai shows when adding the MCP server
+        redirect_uris:
+          - 'https://claude.ai/api/mcp/auth_callback'
+        scopes:
+          - openid
+          - profile
+          - email
+          - offline_access
+        grant_types:
+          - authorization_code
+          - refresh_token
+        response_types:
+          - code
+        pkce_challenge_method: S256
+        authorization_policy: one_factor
+        token_endpoint_auth_method: client_secret_post
+        audience:
+          - 'https://mcp.arishaig.site'
+          - 'https://mcp.arishaig.site/'
+      - client_id: 'mealie'
+        client_name: 'Mealie'
+        client_secret: '{{ authelia_oidc_client_secret_mealie_hash }}'
+        redirect_uris:
+          - 'https://mealie.arishaig.site/login'
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+        authorization_policy: one_factor
+        token_endpoint_auth_method: client_secret_basic
+      - client_id: 'storyteller'
+        client_name: 'Storyteller'
+        client_secret: '{{ authelia_oidc_client_secret_storyteller_hash }}'
+        redirect_uris:
+          - 'https://storyteller.arishaig.site/api/v2/auth/oidc/callback'
+        scopes:
+          - openid
+          - profile
+          - email
+        grant_types:
+          - authorization_code
+        response_types:
+          - code
+        authorization_policy: one_factor
+        token_endpoint_auth_method: client_secret_basic

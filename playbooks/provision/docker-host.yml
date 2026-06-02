@@ -128,11 +128,19 @@
       with_fileglob:
         - files/docker/traefik/dynamic/*.yml
 
-    - name: Copy authelia config
-      ansible.builtin.copy:
-        src: files/docker/authelia/configuration.yml
+    - name: Template authelia config (embeds OIDC JWK key)
+      ansible.builtin.template:
+        src: templates/docker/authelia-configuration.yml.j2
         dest: "{{ compose_dir }}/authelia/configuration.yml"
         mode: "0644"
+      notify: Restart authelia
+
+    - name: Template authelia users database
+      ansible.builtin.template:
+        src: templates/docker/authelia-users.yml.j2
+        dest: "{{ compose_dir }}/authelia/users_database.yml"
+        mode: "0600"
+      notify: Restart authelia
 
     - name: Ensure acme.json exists with correct permissions
       ansible.builtin.file:
@@ -162,10 +170,74 @@
       with_fileglob:
         - files/docker/homepage/*.yaml
 
+    # postgres:18 changed the mount layout — data now lives at 18/main inside
+    # the /var/lib/postgresql mount point. Migrate if not already done.
+    - name: Create postgres:18 parent directory
+      ansible.builtin.file:
+        path: "{{ compose_dir }}/mealie-pg/18"
+        state: directory
+        mode: "0700"
+        owner: "999"
+        group: "999"
+
+    - name: Check if data still at old layout
+      ansible.builtin.stat:
+        path: "{{ compose_dir }}/mealie-pgdata/PG_VERSION"
+      register: pg_old
+
+    - name: Stop postgres before data layout migration
+      ansible.builtin.command:
+        cmd: docker stop postgres
+      changed_when: true
+      ignore_errors: true
+      when: pg_old.stat.exists
+
+    - name: Move mealie-pgdata to postgres:18 layout (atomic rename)
+      ansible.builtin.command:
+        cmd: mv {{ compose_dir }}/mealie-pgdata {{ compose_dir }}/mealie-pg/18/main
+      when: pg_old.stat.exists
+
+    - name: Fix ownership on postgres data directory
+      ansible.builtin.file:
+        path: "{{ compose_dir }}/mealie-pg"
+        state: directory
+        owner: "999"
+        group: "999"
+        recurse: false
+
     - name: Start Docker Compose stack
       ansible.builtin.command:
         cmd: docker compose up -d
         chdir: "{{ compose_dir }}"
+      changed_when: true
+      register: compose_result
+      ignore_errors: true
+
+    - name: Fail if compose failed for reasons other than postgres healthcheck
+      ansible.builtin.fail:
+        msg: "docker compose up failed: {{ compose_result.stderr | default('') }}"
+      when:
+        - compose_result.failed
+        - "'postgres' not in (compose_result.stderr | default(''))"
+
+    # --- Arr app authentication ---
+    # Sets External auth so apps trust the Remote-User header from Authelia
+    # forward auth instead of showing their own login prompt.
+    - name: Set External authentication in arr config.xml
+      ansible.builtin.replace:
+        path: "{{ compose_dir }}/{{ item }}/config.xml"
+        regexp: '<AuthenticationMethod>[^<]*</AuthenticationMethod>'
+        replace: '<AuthenticationMethod>External</AuthenticationMethod>'
+      loop:
+        - sonarr
+        - radarr
+        - prowlarr
+        - lidarr
+      notify: Restart arr containers
+
+    - name: Restart authelia to load OIDC config
+      ansible.builtin.command:
+        cmd: docker restart authelia
       changed_when: true
 
     # --- WireGuard (tunnel to VPS proxy) ---
@@ -294,3 +366,18 @@
       ansible.builtin.systemd:
         name: wg-quick@wg0
         state: restarted
+
+    - name: Restart authelia
+      ansible.builtin.command:
+        cmd: docker restart authelia
+      changed_when: true
+
+    - name: Restart postgres
+      ansible.builtin.command:
+        cmd: docker restart postgres
+      changed_when: true
+
+    - name: Restart arr containers
+      ansible.builtin.command:
+        cmd: docker restart sonarr radarr prowlarr lidarr
+      changed_when: true
