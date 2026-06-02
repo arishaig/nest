@@ -91,5 +91,5 @@ info "Written to $SECRETS_FILE (chmod 600)"
 missing=$(grep "=MISSING" "$SECRETS_FILE" | cut -d= -f1 || true)
 if [[ -n "$missing" ]]; then
     warn "The following values need attention (run pull-secrets.sh to populate):"
-    echo "$missing" | sed 's/^/    /'
+    while IFS= read -r line; do echo "    $line"; done <<< "$missing"
 fi
