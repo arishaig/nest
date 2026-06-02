@@ -46,7 +46,6 @@ jobs:
           install -d -m 700 "$RUNNER_TEMP/.ssh"
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
-          ssh-keyscan -H 192.168.1.158 192.168.1.182 192.168.1.44 192.168.1.46 192.168.1.197 >> "$RUNNER_TEMP/.ssh/known_hosts"
 
       - name: Write vault password
         run: |
@@ -61,7 +60,7 @@ jobs:
             playbooks/update_docker.yml \
             --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
-            --ssh-extra-args "-o UserKnownHostsFile=$RUNNER_TEMP/.ssh/known_hosts"
+            --ssh-extra-args "-o StrictHostKeyChecking=no"
 
   deploy-vps:
     needs: changes
@@ -75,7 +74,6 @@ jobs:
           install -d -m 700 "$RUNNER_TEMP/.ssh"
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
-          ssh-keyscan -H 66.42.79.175 >> "$RUNNER_TEMP/.ssh/known_hosts"
 
       - name: Write vault password
         run: |
@@ -90,5 +88,5 @@ jobs:
             playbooks/provision/vps.yml \
             --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
-            --ssh-extra-args "-o UserKnownHostsFile=$RUNNER_TEMP/.ssh/known_hosts" \
+            --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit vps-proxy
