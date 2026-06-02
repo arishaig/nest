@@ -18,6 +18,12 @@ output "vm_names" {
   }
 }
 
+output "nest_mcp_token" {
+  description = "Raw token secret for nest-mcp@pve (consumed by pull-secrets.sh)"
+  value       = proxmox_user_token.nest_mcp.value
+  sensitive   = true
+}
+
 output "dns_rewrites_count" {
   description = "Number of AdGuard DNS rewrites managed"
   value       = length(local.dns_rewrites)
