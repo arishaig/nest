@@ -666,7 +666,7 @@ echo ""
 REMAINING=$(grep -c 'CHANGEME' "$VAULT_FILE" || true)
 if [[ "$REMAINING" -gt 0 ]]; then
     warn "$REMAINING values still set to CHANGEME:"
-    grep -n 'CHANGEME' "$VAULT_FILE" | sed 's/^/  /'
+    grep -n 'CHANGEME' "$VAULT_FILE" | while IFS= read -r line; do echo "  $line"; done
 fi
 
 # Guard: this file holds live secrets in cleartext. Encrypt it immediately so
