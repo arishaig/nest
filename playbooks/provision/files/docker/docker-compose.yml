@@ -606,8 +606,8 @@ services:
   mealie:
     image: ghcr.io/mealie-recipes/mealie:latest
     container_name: mealie
-    expose:
-      - "9000"
+    ports:
+      - "9001:9000"
     deploy:
       resources:
         limits:

@@ -10,10 +10,12 @@ dependencies = [
     "mcp[cli]>=1.9",
     "httpx>=0.27",
     "pydantic-settings>=2.0",
+    "uvicorn>=0.30",
 ]
 
 [project.scripts]
 nest-mcp = "nest_mcp.__main__:main"
+nest-mcp-serve = "nest_mcp.serve:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["nest_mcp"]

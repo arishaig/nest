@@ -41,7 +41,7 @@ vaultkey() {
     local val
     val=$(echo "$VAULT_PLAIN" | yq -r ".$key // \"\"")
     if [[ -z "$val" || "$val" == "null" ]]; then
-        warn "vault key not found: $key"
+        warn "vault key not found: $key" >&2
         echo "MISSING"
     else
         echo "$val"
@@ -57,6 +57,12 @@ cat > "$SECRETS_FILE" <<EOF
 
 # Proxmox (vault: nest_mcp_pve_token — populated by pull-secrets.sh after terraform apply)
 NEST_PROXMOX_TOKEN=$(vaultkey "nest_mcp_pve_token")
+
+# VPS / Vultr (vault: vultr_api_key — same value as secrets.tfvars)
+NEST_VPS_VULTR_API_KEY=$(vaultkey "vultr_api_key")
+
+# Proxmox Backup Server (vault: pbs_password — same value as secrets.tfvars)
+NEST_PBS_PASSWORD=$(vaultkey "pbs_password")
 
 # UniFi (vault: unpoller_unifi_user / unpoller_unifi_pass)
 NEST_UNIFI_USERNAME=$(vaultkey "unpoller_unifi_user")
@@ -82,6 +88,12 @@ NEST_JELLYSEERR_KEY=$(vaultkey "jellyseerr_api_key")
 
 # Jellyfin (vault: jellyfin_api_key — create "nest-mcp" key in Jellyfin dashboard, then run pull-secrets.sh)
 NEST_JELLYFIN_KEY=$(vaultkey "jellyfin_api_key")
+
+# MCP HTTP server (serve.py) — only needed on the MCP LXC (192.168.1.19)
+MCP_PORT=8765
+MCP_AUTHELIA_ISSUER=https://auth.arishaig.site
+MCP_CLIENT_ID=nest-mcp
+MCP_CLIENT_SECRET=$(vaultkey "authelia_oidc_client_secret_nest_mcp")
 EOF
 chmod 600 "$SECRETS_FILE"
 

@@ -135,7 +135,7 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def proxmox_start_container(vmid: int) -> dict:
-        """[MUTATING] Start a stopped LXC container by VMID."""
+        """[DESTRUCTIVE] Start a stopped LXC container by VMID. Confirm the VMID with the user before calling — starting the wrong container may cause service conflicts."""
         async with make_client(config.proxmox.url, verify=config.proxmox.verify_tls, headers=_auth_header()) as client:
             resp = await client.post(f"/api2/json/nodes/{config.proxmox.node}/lxc/{vmid}/status/start")
             resp.raise_for_status()
@@ -143,7 +143,7 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def proxmox_stop_container(vmid: int) -> dict:
-        """[MUTATING] Stop a running LXC container by VMID."""
+        """[DESTRUCTIVE] Stop a running LXC container by VMID. This immediately kills all services in the container. Confirm the VMID with the user before calling."""
         async with make_client(config.proxmox.url, verify=config.proxmox.verify_tls, headers=_auth_header()) as client:
             resp = await client.post(f"/api2/json/nodes/{config.proxmox.node}/lxc/{vmid}/status/stop")
             resp.raise_for_status()

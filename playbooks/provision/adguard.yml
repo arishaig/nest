@@ -13,6 +13,7 @@
     docker_dir: /opt/docker
     adguard_self_url: "{{ 'https://' + certbot_domain if adguard_tls | default(false) else 'http://127.0.0.1:3000' }}"
     adguard_exporter_username: "adguard"
+    adguard_https_port: 443
 
   tasks:
     # ── Unbound (recursive resolver on 127.0.0.1:5335) ──
@@ -128,6 +129,32 @@
         cp /etc/letsencrypt/live/{{ certbot_domain }}/privkey.pem /opt/AdGuardHome/ssl/privkey.pem
         chmod 600 /opt/AdGuardHome/ssl/privkey.pem
       changed_when: true
+
+    - name: Configure AdGuard Home TLS in config file
+      when: adguard_tls | default(false)
+      ansible.builtin.script:
+        cmd: /dev/stdin
+        executable: python3
+      args:
+        stdin: |
+          import yaml
+          path = '/opt/AdGuardHome/AdGuardHome.yaml'
+          with open(path) as f:
+              cfg = yaml.safe_load(f)
+          tls = cfg.setdefault('tls', {})
+          tls['enabled'] = True
+          tls['server_name'] = '{{ certbot_domain }}'
+          tls['force_https'] = False
+          tls['port_https'] = {{ adguard_https_port }}
+          tls['port_dns_over_tls'] = 853
+          tls['port_dns_over_quic'] = 853
+          tls['certificate_chain'] = ''
+          tls['private_key'] = ''
+          tls['certificate_path'] = '/opt/AdGuardHome/ssl/fullchain.pem'
+          tls['private_key_path'] = '/opt/AdGuardHome/ssl/privkey.pem'
+          with open(path, 'w') as f:
+              yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+      notify: Restart AdGuardHome
 
     - name: Deploy certbot renewal hook
       when: adguard_tls | default(false)
@@ -275,3 +302,8 @@
         name: unbound_exporter
         state: restarted
         daemon_reload: true
+
+    - name: Restart AdGuardHome
+      ansible.builtin.systemd:
+        name: AdGuardHome
+        state: restarted

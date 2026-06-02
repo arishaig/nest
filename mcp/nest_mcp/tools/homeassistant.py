@@ -62,7 +62,7 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def ha_call_service(domain: str, service: str, entity_id: str, data: dict = {}) -> dict:
-        """[MUTATING] Call a Home Assistant service (e.g. domain='light', service='turn_on', entity_id='light.living_room')."""
+        """[DESTRUCTIVE] Call a Home Assistant service to control a physical device or automation (e.g. lights, switches, climate, locks). Confirm the domain, service, and entity_id with the user before calling."""
         payload = {"entity_id": entity_id, **data}
         async with make_client(config.homeassistant.url, headers=_headers()) as client:
             resp = await client.post(f"/api/services/{domain}/{service}", json=payload)

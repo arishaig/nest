@@ -583,6 +583,18 @@ echo "# --- Authelia ---"
 yml authelia_jwt_secret "$AUTHELIA_JWT"
 yml authelia_session_secret "$AUTHELIA_SESSION"
 yml authelia_storage_encryption_key "$AUTHELIA_STORAGE_ENC"
+echo "# Authelia OIDC — generate manually, then run: ansible-vault edit inventory/group_vars/all/vault.yml"
+yml authelia_oidc_hmac_secret "$(existing "authelia_oidc_hmac_secret")"
+yml authelia_oidc_client_secret_nest_mcp "$(existing "authelia_oidc_client_secret_nest_mcp")"
+yml authelia_oidc_client_secret_nest_mcp_hash "$(existing "authelia_oidc_client_secret_nest_mcp_hash")"
+# RSA JWK key is multiline — preserve from vault if present, otherwise leave as CHANGEME
+_oidc_jwk="$(existing "authelia_oidc_jwk_private_key")"
+if [[ -n "$_oidc_jwk" && "$_oidc_jwk" != "CHANGEME" ]]; then
+    printf 'authelia_oidc_jwk_private_key: |\n'
+    while IFS= read -r line; do echo "  $line"; done <<< "$_oidc_jwk"
+else
+    echo 'authelia_oidc_jwk_private_key: "CHANGEME"'
+fi
 echo ""
 echo "# --- Traefik / ACME ---"
 yml traefik_cf_dns_api_token "$TRAEFIK_CF_TOKEN"
