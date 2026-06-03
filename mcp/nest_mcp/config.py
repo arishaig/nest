@@ -44,7 +44,7 @@ class GrafanaSettings(BaseSettings):
 
 class ScrutinySettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_SCRUTINY_")
-    url: str = "http://192.168.1.46:8080"
+    url: str = "http://192.168.1.46:8888"
 
 
 class ArrSettings(BaseSettings):
@@ -97,6 +97,12 @@ class PbsSettings(BaseSettings):
     node: str = "backup"
 
 
+class SeedboxSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_SEEDBOX_")
+    host: str = "192.168.1.182"
+    ssh_key: str = "~/.ssh/ansible-on-nest"
+
+
 proxmox = ProxmoxSettings()
 unifi = UniFiSettings()
 adguard = AdGuardSettings()
@@ -111,3 +117,4 @@ vps = VpsSettings()
 docker_host = DockerHostSettings()
 mealie = MealieSettings()
 pbs = PbsSettings()
+seedbox = SeedboxSettings()

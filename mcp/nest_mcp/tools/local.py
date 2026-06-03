@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import subprocess
 
@@ -53,6 +54,47 @@ def register(mcp: FastMCP) -> None:
             return {"ok": True, "message": "Lint workflow triggered", "url": run_url}
         except Exception as e:
             return {"ok": False, "error": str(e)}
+
+    @mcp.tool()
+    async def terraform_state() -> dict:
+        """Show a summary of all resources currently tracked in Terraform state.
+
+        Returns resource type, name, and provider for every managed resource.
+        Read-only — equivalent to 'terraform show -json'.
+        """
+        terraform_dir = os.path.join(REPO_ROOT, "terraform")
+        result = await _run(["terraform", "show", "-json", "-no-color"], cwd=terraform_dir, timeout=30)
+        if not result["ok"]:
+            return result
+        try:
+            state = json.loads(result["output"])
+            root = state.get("values", {}).get("root_module", {})
+            resources = [
+                {
+                    "type": r["type"],
+                    "name": r["name"],
+                    "provider": r.get("provider_name", "").split("/")[-1],
+                }
+                for r in root.get("resources", [])
+            ]
+            child_resources = [
+                {
+                    "type": r["type"],
+                    "name": r["name"],
+                    "module": m.get("address", ""),
+                    "provider": r.get("provider_name", "").split("/")[-1],
+                }
+                for m in root.get("child_modules", [])
+                for r in m.get("resources", [])
+            ]
+            return {
+                "ok": True,
+                "total": len(resources) + len(child_resources),
+                "resources": resources,
+                "child_resources": child_resources,
+            }
+        except (json.JSONDecodeError, KeyError) as e:
+            return {"ok": False, "error": str(e), "raw": result["output"][:500]}
 
     @mcp.tool()
     async def terraform_plan() -> dict:

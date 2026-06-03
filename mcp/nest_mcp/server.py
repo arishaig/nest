@@ -14,8 +14,7 @@ async def lifespan(server):
         await session.aclose()
 
 
-# Home icon — indigo house SVG
-_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%234F46E5' d='M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z'/%3E%3C/svg%3E"
+_ICON = "https://mcp.arishaig.site/nest_logo.webp"
 
 mcp = FastMCP(
     name="Nest",
@@ -27,12 +26,12 @@ mcp = FastMCP(
         "and the VPS proxy (Docker, WireGuard, fail2ban). "
         "Start sessions with lab_health_summary for a full snapshot."
     ),
-    icons=[Icon(src=_ICON, mimeType="image/svg+xml", sizes=["24x24"])],
+    icons=[Icon(src=_ICON, mimeType="image/webp")],
     website_url="https://mcp.arishaig.site",
     lifespan=lifespan,
 )
 
-from nest_mcp.tools import proxmox, adguard, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie  # noqa: E402
+from nest_mcp.tools import proxmox, adguard, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs  # noqa: E402
 
 proxmox.register(mcp)
 adguard.register(mcp)
@@ -49,3 +48,5 @@ pbs.register(mcp)
 local.register(mcp)
 summary.register(mcp)
 mealie.register(mcp)
+seedbox.register(mcp)
+certs.register(mcp)

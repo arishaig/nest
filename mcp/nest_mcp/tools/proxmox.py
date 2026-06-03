@@ -134,6 +134,52 @@ def register(mcp: FastMCP) -> None:
             ]
 
     @mcp.tool()
+    async def proxmox_snapshots() -> list[dict]:
+        """List all snapshots across every LXC container and VM on the Proxmox node."""
+        async with make_client(config.proxmox.url, verify=config.proxmox.verify_tls, headers=_auth_header()) as client:
+            snapshots = []
+
+            lxc_resp = await client.get(f"/api2/json/nodes/{config.proxmox.node}/lxc")
+            lxc_resp.raise_for_status()
+            for ct in lxc_resp.json()["data"]:
+                vmid = ct["vmid"]
+                name = ct.get("name", str(vmid))
+                resp = await client.get(f"/api2/json/nodes/{config.proxmox.node}/lxc/{vmid}/snapshot")
+                resp.raise_for_status()
+                for s in resp.json()["data"]:
+                    if s.get("name") == "current":
+                        continue
+                    snapshots.append({
+                        "type": "lxc",
+                        "vmid": vmid,
+                        "vm_name": name,
+                        "snapshot": s.get("name", ""),
+                        "description": s.get("description", ""),
+                        "snaptime": s.get("snaptime", 0),
+                    })
+
+            vm_resp = await client.get(f"/api2/json/nodes/{config.proxmox.node}/qemu")
+            vm_resp.raise_for_status()
+            for vm in vm_resp.json()["data"]:
+                vmid = vm["vmid"]
+                name = vm.get("name", str(vmid))
+                resp = await client.get(f"/api2/json/nodes/{config.proxmox.node}/qemu/{vmid}/snapshot")
+                resp.raise_for_status()
+                for s in resp.json()["data"]:
+                    if s.get("name") == "current":
+                        continue
+                    snapshots.append({
+                        "type": "vm",
+                        "vmid": vmid,
+                        "vm_name": name,
+                        "snapshot": s.get("name", ""),
+                        "description": s.get("description", ""),
+                        "snaptime": s.get("snaptime", 0),
+                    })
+
+            return sorted(snapshots, key=lambda x: (x["vmid"], x["snaptime"]))
+
+    @mcp.tool()
     async def proxmox_start_container(vmid: int) -> dict:
         """[DESTRUCTIVE] Start a stopped LXC container by VMID. Confirm the VMID with the user before calling — starting the wrong container may cause service conflicts."""
         async with make_client(config.proxmox.url, verify=config.proxmox.verify_tls, headers=_auth_header()) as client:

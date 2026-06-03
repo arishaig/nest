@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/nest_logo.webp" width="180" alt="Nest" />
+</p>
+
 # ansible-on-nest
 
 Terraform + Ansible IaC for a Proxmox home lab with a Vultr VPS proxy.
