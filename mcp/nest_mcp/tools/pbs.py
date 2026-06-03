@@ -38,6 +38,27 @@ def register(mcp: FastMCP) -> None:
             ds_resp.raise_for_status()
             datastores = ds_resp.json().get("data", [])
 
+            datastore_usage = []
+            for d in datastores:
+                name = d.get("store", "")
+                status_resp = await client.get(
+                    f"{config.pbs.url}/api2/json/admin/datastore/{name}/status",
+                    headers=headers,
+                )
+                gc_resp = await client.get(
+                    f"{config.pbs.url}/api2/json/admin/datastore/{name}/gc",
+                    headers=headers,
+                )
+                s = status_resp.json().get("data", {}) if status_resp.is_success else {}
+                gc = gc_resp.json().get("data", {}) if gc_resp.is_success else {}
+                datastore_usage.append({
+                    "name": name,
+                    "total_gb": round(s.get("total", 0) / 1024**3, 1),
+                    "used_gb": round(s.get("used", 0) / 1024**3, 1),
+                    "avail_gb": round(s.get("avail", 0) / 1024**3, 1),
+                    "gc_status": gc.get("last-run-state", "unknown"),
+                })
+
         recent_jobs = [
             {
                 "id": t.get("id"),
@@ -50,15 +71,5 @@ def register(mcp: FastMCP) -> None:
             for t in tasks
         ]
 
-        datastore_usage = [
-            {
-                "name": d.get("store"),
-                "total_gb": round(d.get("total", 0) / 1024**3, 1),
-                "used_gb": round(d.get("used", 0) / 1024**3, 1),
-                "avail_gb": round(d.get("avail", 0) / 1024**3, 1),
-                "gc_status": d.get("gc-status", {}).get("upid", "unknown"),
-            }
-            for d in datastores
-        ]
-
         return {"recent_backup_tasks": recent_jobs, "datastores": datastore_usage}
+

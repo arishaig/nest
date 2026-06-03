@@ -128,6 +128,19 @@
       with_fileglob:
         - files/docker/traefik/dynamic/*.yml
 
+    - name: Create Authelia assets directory
+      ansible.builtin.file:
+        path: "{{ compose_dir }}/authelia/assets"
+        state: directory
+        mode: "0755"
+
+    - name: Copy custom logo to Authelia assets
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../assets/nest_logo.png"
+        dest: "{{ compose_dir }}/authelia/assets/logo.png"
+        mode: "0644"
+      notify: Restart authelia
+
     - name: Template authelia config (embeds OIDC JWK key)
       ansible.builtin.template:
         src: templates/docker/authelia-configuration.yml.j2
