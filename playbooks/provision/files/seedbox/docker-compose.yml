@@ -1,6 +1,6 @@
 services:
   gluetun:
-    image: qmcgaw/gluetun:latest
+    image: qmcgaw/gluetun:v3.41.1
     container_name: gluetun
     cap_add:
       - NET_ADMIN
@@ -47,7 +47,7 @@ services:
       start_period: 60s
 
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
+    image: lscr.io/linuxserver/qbittorrent:5.2.1
     container_name: qbittorrent
     network_mode: "service:gluetun"
     depends_on:
@@ -64,7 +64,7 @@ services:
     restart: unless-stopped
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
     container_name: cadvisor
     restart: unless-stopped
     privileged: true

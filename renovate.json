@@ -27,6 +27,36 @@
       "description": "Postgres major upgrades require pg_upgrade — ignore them",
       "matchPackageNames": ["postgres"],
       "matchUpdateTypes": ["major"]
+    },
+    {
+      "description": "Scrutiny uses vX.Y.Z-omnibus compound tags — strip suffix for version comparison",
+      "matchPackageNames": ["ghcr.io/analogj/scrutiny"],
+      "versioning": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-omnibus$"
+    },
+    {
+      "description": "prarr lidarr-plugins uses lidarr-plugins-X.Y.Z.N compound tags; map X.Y.N as semver (drop the Z segment, use N as patch)",
+      "matchPackageNames": ["ghcr.io/linuxserver-labs/prarr"],
+      "versioning": "regex:^lidarr-plugins-(?<major>\\d+)\\.(?<minor>\\d+)\\.\\d+\\.(?<patch>\\d+)$"
+    },
+    {
+      "description": "subgen cpu variant uses YYYY.MM.D-cpu date-based tags",
+      "matchPackageNames": ["mccloud/subgen"],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-cpu$"
+    },
+    {
+      "description": "tdarr uses non-standard zero-padded patch versions like 2.50.01",
+      "matchPackageNames": ["ghcr.io/haveagitgat/tdarr", "ghcr.io/haveagitgat/tdarr_node"],
+      "versioning": "loose"
+    },
+    {
+      "description": "watchback uses SHA-based tags from the user's own CI — skip Renovate",
+      "matchPackageNames": ["ghcr.io/arishaig/watchback"],
+      "enabled": false
+    },
+    {
+      "description": "storyteller is on a private GitLab registry Renovate cannot query — skip",
+      "matchPackageNames": ["registry.gitlab.com/storyteller-platform/storyteller"],
+      "enabled": false
     }
   ],
 
@@ -35,8 +65,7 @@
       "/playbooks/provision/files/docker/docker-compose\\.yml/",
       "/playbooks/provision/files/seedbox/docker-compose\\.yml/",
       "/playbooks/provision/files/scrutiny/docker-compose\\.yml/",
-      "/playbooks/provision/files/monitoring/docker-compose\\.yml/",
-      "/playbooks/provision/templates/adguard/docker-compose\\.yml\\.j2/"
+      "/playbooks/provision/files/monitoring/docker-compose\\.yml/"
     ]
   },
 
@@ -85,6 +114,26 @@
       "depNameTemplate": "prometheus/alertmanager",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "cadvisor lives on gcr.io (unsupported registry) — track via GitHub releases",
+      "managerFilePatterns": [
+        "/playbooks/provision/files/docker/docker-compose\\.yml/",
+        "/playbooks/provision/files/monitoring/docker-compose\\.yml/",
+        "/playbooks/provision/files/scrutiny/docker-compose\\.yml/",
+        "/playbooks/provision/files/seedbox/docker-compose\\.yml/"
+      ],
+      "matchStrings": ["gcr\\.io/cadvisor/cadvisor:(?<currentValue>[^\\s'\"\\n]+)"],
+      "depNameTemplate": "google/cadvisor",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "adguard Jinja2 template — regex extract image versions (docker-compose manager cannot parse j2 files with Jinja2 blocks)",
+      "managerFilePatterns": ["/playbooks/provision/templates/adguard/docker-compose\\.yml\\.j2/"],
+      "matchStrings": ["image:\\s+(?<depName>[^:\\s]+):(?<currentValue>[^\\s'\"\\n]+)"],
+      "datasourceTemplate": "docker"
     }
   ]
 }

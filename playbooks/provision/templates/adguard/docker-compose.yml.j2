@@ -1,6 +1,6 @@
 services:
   adguard-exporter:
-    image: ghcr.io/henrywhitaker3/adguard-exporter:latest
+    image: ghcr.io/henrywhitaker3/adguard-exporter:v1.2.1
     container_name: adguard-exporter
     restart: unless-stopped
 {% if local_network | default(true) %}
@@ -18,7 +18,7 @@ services:
 {% if adguard_primary | default(false) %}
   # Dynamic DNS — primary only
   cloudflare-ddns:
-    image: favonia/cloudflare-ddns:latest
+    image: favonia/cloudflare-ddns:1.16.2
     container_name: cloudflare-ddns
     restart: always
     read_only: true
