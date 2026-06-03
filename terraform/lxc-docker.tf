@@ -3,9 +3,10 @@
 # ──────────────────────────────────────────────
 
 resource "proxmox_download_file" "debian_ct" {
-  node_name           = var.pve_node
-  content_type        = "vztmpl"
-  datastore_id        = "local"
+  node_name    = var.pve_node
+  content_type = "vztmpl"
+  datastore_id = "local"
+  # Browse new templates: http://download.proxmox.com/images/system/
   url                 = "http://download.proxmox.com/images/system/debian-13-standard_13.1-2_amd64.tar.zst"
   overwrite           = false
   overwrite_unmanaged = false

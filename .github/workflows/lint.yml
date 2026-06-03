@@ -11,7 +11,7 @@ jobs:
   ansible-lint:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
       - name: Run ansible-lint
         run: |
           source /opt/ansible-runner/venv/bin/activate
@@ -20,7 +20,7 @@ jobs:
   yamllint:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
       - name: Run yamllint
         # Covers the GitOps service payload under playbooks/provision/files/,
         # which ansible-lint deliberately excludes. Lenient by design — see
@@ -33,7 +33,7 @@ jobs:
   config-validate:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
       - name: Validate Docker Compose schemas
         # --no-interpolate validates structure without substituting the
         # vault-derived env vars (which aren't present in CI).
@@ -64,14 +64,14 @@ jobs:
   deploy-coverage:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
       - name: Check deploy filter covers all services
         run: scripts/check-deploy-coverage.sh
 
   prometheus-validate:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
       - name: Validate Prometheus alerting rules
         run: promtool check rules playbooks/provision/files/monitoring/prometheus/rules/*.yml
       - name: Validate Alertmanager config
@@ -87,7 +87,7 @@ jobs:
   shellcheck:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
       - name: Run shellcheck
         # The runner's shellcheck is 0.10.0, which flags SC2015 on the benign
         # `[[ -z x ]] && x=... || true` set-e guards in pull-secrets.sh (0.11.0
@@ -98,7 +98,7 @@ jobs:
   terraform:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
       - name: Check Terraform formatting
         run: terraform -chdir=terraform fmt -check -recursive
       - name: Validate Terraform configuration

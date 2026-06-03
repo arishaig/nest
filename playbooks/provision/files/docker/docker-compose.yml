@@ -3,7 +3,7 @@ services:
 
   # Bazarr - Subtitle Management
   bazarr:
-    image: linuxserver/bazarr:latest
+    image: linuxserver/bazarr:1.5.6
     container_name: bazarr
     environment:
       - PUID=1000
@@ -34,7 +34,7 @@ services:
 
   # Bazarr-Sync - Bulk subtitle sync CLI for Bazarr
   bazarr-sync:
-    image: ghcr.io/ajmandourah/bazarr-sync:latest
+    image: ghcr.io/ajmandourah/bazarr-sync:v0.3.1
     container_name: bazarr-sync
     profiles:
       - tools
@@ -46,7 +46,7 @@ services:
 
   # Jellyfin - Media Server
   jellyfin:
-    image: linuxserver/jellyfin:latest
+    image: linuxserver/jellyfin:10.11.10
     container_name: jellyfin
     environment:
       - PUID=1000
@@ -78,7 +78,7 @@ services:
 
   # Lidarr - Music Management
   lidarr:
-    image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins
+    image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins-1.1.0.2629
     container_name: lidarr
     environment:
       - PUID=1000
@@ -109,7 +109,7 @@ services:
 
   # MediaLyze - Analyze media formats and sizes
   medialyze:
-    image: ghcr.io/frederikemmer/medialyze:latest
+    image: ghcr.io/frederikemmer/medialyze:0.3.0
     container_name: medialyze
     environment:
       - TZ=America/Los_Angeles
@@ -132,7 +132,7 @@ services:
 
   # Prowlarr - Indexer Management
   prowlarr:
-    image: linuxserver/prowlarr:latest
+    image: linuxserver/prowlarr:2.3.5
     container_name: prowlarr
     environment:
       - PUID=1000
@@ -162,7 +162,7 @@ services:
 
   # Radarr - Movie Management
   radarr:
-    image: linuxserver/radarr:latest
+    image: linuxserver/radarr:6.1.1
     container_name: radarr
     environment:
       - PUID=1000
@@ -193,7 +193,7 @@ services:
 
   # Recommendarr - Recommends content
   recommendarr:
-    image: tannermiddleton/recommendarr:latest
+    image: tannermiddleton/recommendarr:v1.4.4
     container_name: recommendarr
     user: "1000:1000"
     expose:
@@ -214,7 +214,7 @@ services:
 
   # Recyclarr - TRaSH Guide Settings Sync
   recyclarr:
-    image: ghcr.io/recyclarr/recyclarr:latest
+    image: ghcr.io/recyclarr/recyclarr:7.3.0
     container_name: recyclarr
     user: 1000:1000
     environment:
@@ -225,7 +225,7 @@ services:
 
   # SABnzbd - Usenet Download Client
   sabnzbd:
-    image: linuxserver/sabnzbd:latest
+    image: linuxserver/sabnzbd:5.0.3
     container_name: sabnzbd
     environment:
       - PUID=1000
@@ -257,7 +257,7 @@ services:
 
   # Seerr - Request management
   seerr:
-    image: ghcr.io/seerr-team/seerr:latest
+    image: ghcr.io/seerr-team/seerr:v3.0.1
     container_name: seerr
     init: true
     environment:
@@ -286,7 +286,7 @@ services:
 
   # Sonarr - TV Series Management
   sonarr:
-    image: linuxserver/sonarr:latest
+    image: linuxserver/sonarr:4.0.17
     container_name: sonarr
     environment:
       - PUID=1000
@@ -348,7 +348,7 @@ services:
 
   # Subtitle generation powered by Whisper, used by Bazarr
   subgen:
-    image: 'mccloud/subgen:cpu'
+    image: 'mccloud/subgen:2026.05.3-cpu'
     container_name: subgenai
     user: "1000:1000"
     networks:
@@ -390,7 +390,7 @@ services:
   # Tdarr - Automated transcoding server
   tdarr:
     container_name: tdarr
-    image: ghcr.io/haveagitgat/tdarr:latest
+    image: ghcr.io/haveagitgat/tdarr:2.50.01
     restart: unless-stopped
     network_mode: bridge
     ports:
@@ -411,7 +411,7 @@ services:
   # Tdarr - Automated transcoding node
   tdarr-node:
     container_name: tdarr-node
-    image: ghcr.io/haveagitgat/tdarr_node:latest
+    image: ghcr.io/haveagitgat/tdarr_node:2.50.02
     restart: unless-stopped
     network_mode: service:tdarr
     environment:
@@ -428,7 +428,7 @@ services:
 
   # Tunarr - Create TV channels from local media
   tunarr:
-    image: chrisbenincasa/tunarr:latest
+    image: chrisbenincasa/tunarr:1.3.5
     container_name: tunarr
     # Uncomment if using the Nvidia container
     # runtime: nvidia
@@ -456,7 +456,7 @@ services:
 
   # Watcharr - Watchlist and view tracking
   watcharr:
-    image: ghcr.io/sbondco/watcharr:latest
+    image: ghcr.io/sbondco/watcharr:v3.0.1
     container_name: watcharr
     expose:
       - "3080"
@@ -501,7 +501,7 @@ services:
 
   # Glances - System monitoring
   glances:
-    image: nicolargo/glances:latest
+    image: nicolargo/glances:4.5.4
     container_name: glances
     expose:
       - "61208"
@@ -524,7 +524,7 @@ services:
 
   # Homepage - Dashboard
   homepage:
-    image: ghcr.io/gethomepage/homepage:latest
+    image: ghcr.io/gethomepage/homepage:v1.4.5
     container_name: homepage
     environment:
       - HOMEPAGE_ALLOWED_HOSTS=dash.arishaig.site
@@ -554,7 +554,7 @@ services:
 
   # Uptime Kuma - System monitor and alerts
   uptime-kuma:
-    image: louislam/uptime-kuma:2
+    image: louislam/uptime-kuma:2.4.0
     container_name: uptime-kuma
     volumes:
       - /mnt/app_config/uptime-kuma:/app/data
@@ -582,7 +582,7 @@ services:
 
   # Copyparty - Simple file access
   copyparty:
-    image: copyparty/ac
+    image: copyparty/ac:1.20.16
     container_name: copyparty
     command: --acao https://copyparty.arishaig.site
     expose:
@@ -604,7 +604,7 @@ services:
 
   # Mealie - Recipe tracker
   mealie:
-    image: ghcr.io/mealie-recipes/mealie:latest
+    image: ghcr.io/mealie-recipes/mealie:v3.19.2
     container_name: mealie
     ports:
       - "9001:9000"
@@ -657,7 +657,7 @@ services:
 
   # Postgres - Database for Mealie
   postgres:
-    image: postgres:18
+    image: postgres:18.4
     container_name: postgres
     restart: unless-stopped
     volumes:
@@ -677,7 +677,7 @@ services:
 
   # Docker monitoring
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
     container_name: cadvisor
     restart: unless-stopped
     healthcheck:
@@ -700,7 +700,7 @@ services:
 
   # Export Bazarr logs to Grafana
   exportarr-bazarr:
-    image: ghcr.io/onedr0p/exportarr:latest
+    image: ghcr.io/onedr0p/exportarr:v2.3.0
     container_name: exportarr-bazarr
     restart: unless-stopped
     command: bazarr
@@ -713,7 +713,7 @@ services:
 
   # Export Lidarr logs to Grafana
   exportarr-lidarr:
-    image: ghcr.io/onedr0p/exportarr:latest
+    image: ghcr.io/onedr0p/exportarr:v2.3.0
     container_name: exportarr-lidarr
     restart: unless-stopped
     command: lidarr
@@ -726,7 +726,7 @@ services:
 
   # Export Prowlarr logs to Grafana
   exportarr-prowlarr:
-    image: ghcr.io/onedr0p/exportarr:latest
+    image: ghcr.io/onedr0p/exportarr:v2.3.0
     container_name: exportarr-prowlarr
     restart: unless-stopped
     command: prowlarr
@@ -739,7 +739,7 @@ services:
 
   # Export Radarr logs to Grafana
   exportarr-radarr:
-    image: ghcr.io/onedr0p/exportarr:latest
+    image: ghcr.io/onedr0p/exportarr:v2.3.0
     container_name: exportarr-radarr
     restart: unless-stopped
     command: radarr
@@ -752,7 +752,7 @@ services:
 
   # Export Sonarr logs to Grafana
   exportarr-sonarr:
-    image: ghcr.io/onedr0p/exportarr:latest
+    image: ghcr.io/onedr0p/exportarr:v2.3.0
     container_name: exportarr-sonarr
     restart: unless-stopped
     command: sonarr
@@ -767,7 +767,7 @@ services:
   ##### Networking and Auth Infrastructure #####
 
   authelia:
-    image: authelia/authelia
+    image: authelia/authelia:4.39.20
     container_name: authelia
     networks:
       - proxy-net
@@ -797,7 +797,7 @@ services:
 
   # Dynamic DNS
   cloudflare-ddns:
-    image: favonia/cloudflare-ddns:latest
+    image: favonia/cloudflare-ddns:1.16.2
     container_name: cloudflare-ddns
     restart: always
     read_only: true
@@ -813,7 +813,7 @@ services:
 
   # Flare Solver - Cloudflare circumvention for prowlarr
   flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:latest
+    image: ghcr.io/flaresolverr/flaresolverr:v3.5.0
     container_name: flaresolverr
     environment:
       - LOG_LEVEL=info
@@ -829,7 +829,7 @@ services:
     restart: unless-stopped
 
   traefik:
-    image: traefik:v3
+    image: traefik:v3.7.1
     container_name: traefik
     ports:
       - "443:443"
@@ -846,7 +846,7 @@ services:
     restart: unless-stopped
 
   socket-proxy:
-    image: tecnativa/docker-socket-proxy
+    image: tecnativa/docker-socket-proxy:v0.4.2
     container_name: socket-proxy
     environment:
       - CONTAINERS=1
