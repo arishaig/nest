@@ -257,7 +257,7 @@ services:
 
   # Seerr - Request management
   seerr:
-    image: ghcr.io/seerr-team/seerr:v3.0.1
+    image: ghcr.io/seerr-team/seerr:v3.3.0
     container_name: seerr
     init: true
     environment:
@@ -662,6 +662,7 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
+      - /etc/machine-id:/etc/machine-id:ro
     devices:
       - /dev/kmsg
 

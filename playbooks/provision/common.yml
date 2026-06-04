@@ -53,6 +53,11 @@
         name: "{{ base_packages }}"
         state: present
 
+    - name: Create /etc/machine-id if missing
+      ansible.builtin.shell: uuidgen | tr -d '-' > /etc/machine-id
+      args:
+        creates: /etc/machine-id
+
     - name: Set DNS resolver
       when: local_network | default(true)
       ansible.builtin.copy:

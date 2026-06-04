@@ -166,6 +166,49 @@
         chdir: "{{ monitoring_dir }}"
       changed_when: true
 
+    # --- rsyslog: receive UniFi syslog (RFC3164) on UDP 514 ---
+    - name: Install rsyslog
+      ansible.builtin.apt:
+        name: rsyslog
+        state: present
+
+    - name: Deploy rsyslog UniFi config
+      ansible.builtin.copy:
+        content: |
+          module(load="imudp")
+          input(type="imudp" port="514" ruleset="unifi_syslog")
+
+          ruleset(name="unifi_syslog") {
+              action(type="omfile" file="/var/log/unifi-syslog.log" template="RSYSLOG_TraditionalFileFormat")
+          }
+        dest: /etc/rsyslog.d/10-unifi.conf
+        mode: "0644"
+      notify: Restart rsyslog
+
+    - name: Deploy logrotate config for UniFi syslog
+      ansible.builtin.copy:
+        content: |
+          /var/log/unifi-syslog.log {
+              daily
+              rotate 14
+              compress
+              delaycompress
+              missingok
+              notifempty
+              create 0640 root root
+              postrotate
+                  /usr/lib/rsyslog/rsyslog-rotate
+              endscript
+          }
+        dest: /etc/logrotate.d/unifi-syslog
+        mode: "0644"
+
+    - name: Enable and start rsyslog
+      ansible.builtin.systemd:
+        name: rsyslog
+        enabled: true
+        state: started
+
   handlers:
     - name: Restart prometheus
       ansible.builtin.command:
@@ -178,3 +221,8 @@
         cmd: docker compose restart grafana
         chdir: "{{ monitoring_dir }}"
       changed_when: false
+
+    - name: Restart rsyslog
+      ansible.builtin.systemd:
+        name: rsyslog
+        state: restarted

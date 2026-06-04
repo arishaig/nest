@@ -138,6 +138,14 @@ resource "adguard_config" "main" {
   }
 }
 
+# --- User Rules (allowlist overrides) ---
+
+resource "adguard_user_rules" "main" {
+  rules = [
+    "@@||stats.grafana.org^",
+  ]
+}
+
 # --- Filter Lists ---
 
 resource "adguard_list_filter" "hagezi_pro" {
