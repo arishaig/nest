@@ -31,7 +31,7 @@ mcp = FastMCP(
     lifespan=lifespan,
 )
 
-from nest_mcp.tools import proxmox, adguard, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs  # noqa: E402
+from nest_mcp.tools import proxmox, adguard, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki  # noqa: E402
 
 proxmox.register(mcp)
 adguard.register(mcp)
@@ -50,3 +50,4 @@ summary.register(mcp)
 mealie.register(mcp)
 seedbox.register(mcp)
 certs.register(mcp)
+loki.register(mcp)

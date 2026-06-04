@@ -1,0 +1,134 @@
+---
+# Deploy Grafana Alloy log shipper to all LXC hosts.
+# VPS proxy is excluded — it has its own Alloy install in vps.yml.
+#
+# Docker hosts:  ship Docker container logs + journald.
+# Journal-only:  ship journald only (no Docker on these hosts).
+
+- name: Install Alloy log shipper
+  hosts: docker:monitoring:scrutiny:seedbox:musicbrainz:fileserver:mcp:pbs
+  become: true
+  gather_facts: true
+
+  vars:
+    alloy_version: "1.16.1"
+    docker_hosts:
+      - docker
+      - monitoring
+      - scrutiny
+      - seedbox
+      - musicbrainz
+
+  tasks:
+    - name: Check current Alloy version
+      ansible.builtin.command: /usr/local/bin/alloy --version
+      register: alloy_version_check
+      failed_when: false
+      changed_when: false
+
+    - name: Install Alloy binary
+      when: alloy_version_check.rc != 0 or alloy_version not in alloy_version_check.stdout
+      block:
+        - name: Install unzip
+          ansible.builtin.apt:
+            name: unzip
+            state: present
+
+        - name: Create Alloy directories
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: directory
+            mode: "0755"
+          loop:
+            - /etc/alloy
+            - /var/lib/alloy
+
+        - name: Download Alloy binary
+          ansible.builtin.get_url:
+            url: "https://github.com/grafana/alloy/releases/download/v{{ alloy_version }}/alloy-linux-amd64.zip"
+            dest: /var/tmp/alloy.zip
+            mode: "0644"
+
+        - name: Extract Alloy binary
+          ansible.builtin.unarchive:
+            src: /var/tmp/alloy.zip
+            dest: /var/tmp
+            remote_src: true
+
+        - name: Install Alloy binary
+          ansible.builtin.copy:
+            src: /var/tmp/alloy-linux-amd64
+            dest: /usr/local/bin/alloy
+            mode: "0755"
+            remote_src: true
+
+        - name: Clean up download
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /var/tmp/alloy.zip
+            - /var/tmp/alloy-linux-amd64
+
+    - name: Create Alloy directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /etc/alloy
+        - /var/lib/alloy
+
+    - name: Deploy Alloy config (Docker host)
+      ansible.builtin.template:
+        src: templates/alloy/docker-host.alloy.j2
+        dest: /etc/alloy/config.alloy
+        mode: "0644"
+      when: inventory_hostname in docker_hosts
+      notify: Restart Alloy
+
+    - name: Deploy Alloy config (journal only)
+      ansible.builtin.template:
+        src: templates/alloy/journal-only.alloy.j2
+        dest: /etc/alloy/config.alloy
+        mode: "0644"
+      when: inventory_hostname not in docker_hosts
+      notify: Restart Alloy
+
+    - name: Deploy Alloy systemd unit
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Grafana Alloy
+          After=network.target docker.service
+
+          [Service]
+          ExecStart=/usr/local/bin/alloy run --storage.path=/var/lib/alloy /etc/alloy/config.alloy
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/alloy.service
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart Alloy
+
+    - name: Enable and start Alloy
+      ansible.builtin.systemd:
+        name: alloy
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart Alloy
+      ansible.builtin.systemd:
+        name: alloy
+        state: restarted
+        daemon_reload: true

@@ -36,6 +36,8 @@
   import_playbook: provision/pbs.yml
 - name: "Provision: nftables firewall"
   import_playbook: provision/nftables.yml
+- name: "Provision: Alloy log shipper"
+  import_playbook: provision/alloy.yml
 
 # --- Update: refresh OS packages, container images, and Proxmox ---
 - name: "Update: OS packages"

@@ -35,6 +35,11 @@ class PrometheusSettings(BaseSettings):
     url: str = "http://192.168.1.44:9090"
 
 
+class LokiSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_LOKI_")
+    url: str = "http://192.168.1.44:3100"
+
+
 class GrafanaSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_GRAFANA_")
     url: str = "http://192.168.1.44:3000"
@@ -108,6 +113,7 @@ unifi = UniFiSettings()
 adguard = AdGuardSettings()
 homeassistant = HomeAssistantSettings()
 prometheus = PrometheusSettings()
+loki = LokiSettings()
 grafana = GrafanaSettings()
 scrutiny = ScrutinySettings()
 arr = ArrSettings()

@@ -1,0 +1,25 @@
+// Push to Loki on monitoring LXC
+loki.write "loki" {
+  endpoint {
+    url = "http://192.168.1.44:3100/loki/api/v1/push"
+  }
+}
+
+// journald logs
+loki.relabel "journal" {
+  forward_to = [loki.write.loki.receiver]
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+}
+
+loki.source.journal "journal" {
+  max_age    = "12h"
+  forward_to = [loki.relabel.journal.receiver]
+  labels = {
+    job  = "journal",
+    host = "{{ inventory_hostname }}",
+  }
+}

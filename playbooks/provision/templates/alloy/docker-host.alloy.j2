@@ -1,0 +1,55 @@
+// Push to Loki on monitoring LXC
+loki.write "loki" {
+  endpoint {
+    url = "http://192.168.1.44:3100/loki/api/v1/push"
+  }
+}
+
+// Docker container log discovery
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker.output
+  forward_to = [loki.write.loki.receiver]
+  labels = {
+    job  = "docker",
+    host = "{{ inventory_hostname }}",
+  }
+}
+
+// journald logs
+loki.relabel "journal" {
+  forward_to = [loki.write.loki.receiver]
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+}
+
+loki.source.journal "journal" {
+  max_age    = "12h"
+  forward_to = [loki.relabel.journal.receiver]
+  labels = {
+    job  = "journal",
+    host = "{{ inventory_hostname }}",
+  }
+}
