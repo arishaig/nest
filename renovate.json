@@ -2,7 +2,7 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
   "automerge": false,
-  "minimumReleaseAge": "3 days",
+  "minimumReleaseAge": "5 days",
   "labels": ["dependencies"],
   "commitMessagePrefix": "chore(deps):",
 
@@ -56,6 +56,11 @@
     {
       "description": "storyteller is on a private GitLab registry Renovate cannot query — skip",
       "matchPackageNames": ["registry.gitlab.com/storyteller-platform/storyteller"],
+      "enabled": false
+    },
+    {
+      "description": "cadvisor GitHub releases are ahead of GCR — v0.56+ not published to gcr.io; disable until GCR catches up",
+      "matchPackageNames": ["google/cadvisor"],
       "enabled": false
     }
   ],
