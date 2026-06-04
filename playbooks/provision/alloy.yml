@@ -79,12 +79,20 @@
         - /etc/alloy
         - /var/lib/alloy
 
+    - name: Deploy Alloy config (monitoring host — docker + syslog)
+      ansible.builtin.template:
+        src: templates/alloy/monitoring.alloy.j2
+        dest: /etc/alloy/config.alloy
+        mode: "0644"
+      when: inventory_hostname == 'monitoring'
+      notify: Restart Alloy
+
     - name: Deploy Alloy config (Docker host)
       ansible.builtin.template:
         src: templates/alloy/docker-host.alloy.j2
         dest: /etc/alloy/config.alloy
         mode: "0644"
-      when: inventory_hostname in docker_hosts
+      when: inventory_hostname in docker_hosts and inventory_hostname != 'monitoring'
       notify: Restart Alloy
 
     - name: Deploy Alloy config (journal only)

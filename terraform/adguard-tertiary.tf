@@ -61,6 +61,15 @@ resource "adguard_config" "tertiary" {
   depends_on = [vultr_instance.vps_proxy]
 }
 
+resource "adguard_user_rules" "tertiary" {
+  provider = adguard.tertiary
+  rules = [
+    "@@||stats.grafana.org^",
+  ]
+
+  depends_on = [vultr_instance.vps_proxy]
+}
+
 resource "adguard_list_filter" "hagezi_pro_tertiary" {
   provider = adguard.tertiary
   name     = "HaGeZi's Pro Blocklist"

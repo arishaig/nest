@@ -132,11 +132,9 @@
 
     - name: Configure AdGuard Home TLS in config file
       when: adguard_tls | default(false)
-      ansible.builtin.script:
-        cmd: /dev/stdin
-        executable: python3
-      args:
-        stdin: |
+      ansible.builtin.shell:
+        cmd: |
+          python3 << 'PYEOF'
           import yaml
           path = '/opt/AdGuardHome/AdGuardHome.yaml'
           with open(path) as f:
@@ -154,6 +152,8 @@
           tls['private_key_path'] = '/opt/AdGuardHome/ssl/privkey.pem'
           with open(path, 'w') as f:
               yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+          PYEOF
+      changed_when: true
       notify: Restart AdGuardHome
 
     - name: Deploy certbot renewal hook

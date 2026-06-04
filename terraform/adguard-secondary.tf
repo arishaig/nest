@@ -83,6 +83,13 @@ resource "adguard_config" "secondary" {
   depends_on = [proxmox_virtual_environment_container.dns_secondary]
 }
 
+resource "adguard_user_rules" "secondary" {
+  provider = adguard.secondary
+  rules = [
+    "@@||stats.grafana.org^",
+  ]
+}
+
 resource "adguard_list_filter" "hagezi_pro_secondary" {
   provider = adguard.secondary
   name     = "HaGeZi's Pro Blocklist"
