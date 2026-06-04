@@ -67,7 +67,6 @@ import 'adguard_rewrite.dns["lidarr.arishaig.site"]' 'lidarr.arishaig.site||192.
 import 'adguard_rewrite.dns["prowlarr.arishaig.site"]' 'prowlarr.arishaig.site||192.168.1.158'
 import 'adguard_rewrite.dns["nzbd.arishaig.site"]' 'nzbd.arishaig.site||192.168.1.158'
 import 'adguard_rewrite.dns["dash.arishaig.site"]' 'dash.arishaig.site||192.168.1.158'
-import 'adguard_rewrite.dns["uptime.arishaig.site"]' 'uptime.arishaig.site||192.168.1.158'
 import 'adguard_rewrite.dns["glances.arishaig.site"]' 'glances.arishaig.site||192.168.1.158'
 import 'adguard_rewrite.dns["mealie.arishaig.site"]' 'mealie.arishaig.site||192.168.1.158'
 import 'adguard_rewrite.dns["copyparty.arishaig.site"]' 'copyparty.arishaig.site||192.168.1.158'

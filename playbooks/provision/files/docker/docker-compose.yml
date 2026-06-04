@@ -78,7 +78,7 @@ services:
 
   # Lidarr - Music Management
   lidarr:
-    image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins-1.1.0.2629
+    image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins
     container_name: lidarr
     environment:
       - PUID=1000
@@ -109,7 +109,7 @@ services:
 
   # MediaLyze - Analyze media formats and sizes
   medialyze:
-    image: ghcr.io/frederikemmer/medialyze:0.3.0
+    image: ghcr.io/frederikemmer/medialyze:latest
     container_name: medialyze
     environment:
       - TZ=America/Los_Angeles
@@ -527,7 +527,7 @@ services:
     image: ghcr.io/gethomepage/homepage:v1.4.5
     container_name: homepage
     environment:
-      - HOMEPAGE_ALLOWED_HOSTS=dash.arishaig.site
+      - HOMEPAGE_ALLOWED_HOSTS=dash.arishaig.site,localhost:3000
     volumes:
       - /mnt/app_config/homepage:/app/config
       - /mnt/app_config:/mnt/app_config:ro
@@ -545,38 +545,9 @@ services:
       - "traefik.http.routers.homepage.middlewares=authelia@file"
       - "traefik.http.services.homepage.loadbalancer.server.port=3000"
     healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:3000/api/healthcheck || exit 1
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
+      disable: true
     restart: unless-stopped
 
-  # Uptime Kuma - System monitor and alerts
-  uptime-kuma:
-    image: louislam/uptime-kuma:2.4.0
-    container_name: uptime-kuma
-    volumes:
-      - /mnt/app_config/uptime-kuma:/app/data
-    expose:
-      - "3001"
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.uptime-kuma.rule=Host(`uptime.arishaig.site`)"
-      - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
-      - "traefik.http.routers.uptime-kuma.tls=true"
-      - "traefik.http.routers.uptime-kuma.middlewares=authelia@file"
-      - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
-    healthcheck:
-      test: node extra/healthcheck.js
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-    restart: unless-stopped
 
   ##### Other Apps #####
 
@@ -681,11 +652,7 @@ services:
     container_name: cadvisor
     restart: unless-stopped
     healthcheck:
-      test: curl -sf http://localhost:8080/healthz
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+      disable: true
     privileged: true
     ports:
       - "8081:8080"
@@ -794,6 +761,41 @@ services:
       - "traefik.http.routers.authelia.tls.certresolver=cloudflare"
       - "traefik.http.routers.authelia.tls.domains[0].main=arishaig.site"
       - "traefik.http.routers.authelia.tls.domains[0].sans=*.arishaig.site"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:8.0.2-alpine
+    container_name: redis
+    command: redis-server --appendonly yes
+    volumes:
+      - /mnt/app_config/redis:/data
+    networks:
+      - proxy-net
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    container_name: redis-exporter
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+    networks:
+      - proxy-net
+    ports:
+      - "9121:9121"
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
 
   # Dynamic DNS
   cloudflare-ddns:

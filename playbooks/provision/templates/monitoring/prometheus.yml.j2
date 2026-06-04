@@ -128,6 +128,10 @@ scrape_configs:
     static_configs:
       - targets: ['torrent.local.arishaig.site:9022']
 
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['docker.arishaig.site:9121']
+
   - job_name: 'postgres'
     static_configs:
       - targets: ['docker.arishaig.site:9187']
@@ -153,3 +157,43 @@ scrape_configs:
     scrape_timeout: 90s
     static_configs:
       - targets: ['speedtest-exporter:9798']
+
+  - job_name: 'blackbox'
+    scrape_interval: 60s
+    metrics_path: /probe
+    params:
+      module: [http_endpoint]
+    static_configs:
+      - targets:
+          - https://auth.arishaig.site
+          - https://bazarr.arishaig.site
+          - https://backup.arishaig.site
+          - https://copyparty.arishaig.site
+          - https://dash.arishaig.site
+          - https://glances.arishaig.site
+          - https://jellyfin.arishaig.site
+          - https://lidarr.arishaig.site
+          - https://mcp.arishaig.site
+          - https://mealie.arishaig.site
+          - https://medialyze.arishaig.site
+          - https://monitoring.arishaig.site
+          - https://nzbd.arishaig.site
+          - https://prowlarr.arishaig.site
+          - https://proxmox.arishaig.site
+          - https://radarr.arishaig.site
+          - https://recommendarr.arishaig.site
+          - https://requests.arishaig.site
+          - https://scrutiny.arishaig.site
+          - https://sonarr.arishaig.site
+          - https://storyteller.arishaig.site
+          - https://torrent.arishaig.site
+          - https://tunarr.arishaig.site
+          - https://watcharr.arishaig.site
+          - https://watchback.arishaig.site
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

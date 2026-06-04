@@ -31,9 +31,16 @@
         mode: "0644"
       when: inventory_hostname == 'docker'
 
-    - name: Copy Authelia configuration
-      ansible.builtin.copy:
-        src: "{{ playbook_dir }}/provision/files/docker/authelia/configuration.yml"
+    - name: Ensure Redis data directory exists
+      ansible.builtin.file:
+        path: /mnt/app_config/redis
+        state: directory
+        mode: "0755"
+      when: inventory_hostname == 'docker'
+
+    - name: Template Authelia configuration
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/provision/templates/docker/authelia-configuration.yml.j2"
         dest: /mnt/app_config/authelia/configuration.yml
         mode: "0644"
       when: inventory_hostname == 'docker'

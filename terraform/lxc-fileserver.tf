@@ -71,6 +71,7 @@ resource "proxmox_virtual_environment_container" "fileserver" {
     ignore_changes = [
       operating_system,
       console,
+      initialization,
     ]
   }
 }

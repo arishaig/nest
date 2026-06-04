@@ -19,6 +19,7 @@
       - "{{ monitoring_dir }}/grafana/provisioning/dashboards"
       - "{{ monitoring_dir }}/pve"
       - "{{ monitoring_dir }}/unpoller"
+      - "{{ monitoring_dir }}/blackbox"
 
   tasks:
     # --- Docker CE installation ---
@@ -110,6 +111,12 @@
       ansible.builtin.copy:
         src: files/monitoring/docker-compose.yml
         dest: "{{ monitoring_dir }}/docker-compose.yml"
+        mode: "0644"
+
+    - name: Copy blackbox config
+      ansible.builtin.copy:
+        src: files/monitoring/blackbox/blackbox.yml
+        dest: "{{ monitoring_dir }}/blackbox/blackbox.yml"
         mode: "0644"
 
     - name: Copy loki.yml

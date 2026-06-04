@@ -1,0 +1,10 @@
+modules:
+  http_endpoint:
+    prober: http
+    timeout: 10s
+    http:
+      # Accept any response that indicates the full path is working —
+      # many services redirect to Authelia (302) or return 401/403.
+      valid_status_codes: [200, 201, 301, 302, 303, 307, 308, 401, 403]
+      follow_redirects: false
+      preferred_ip_protocol: ip4

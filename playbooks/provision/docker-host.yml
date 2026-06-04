@@ -89,6 +89,7 @@
         - "{{ compose_dir }}/traefik"
         - "{{ compose_dir }}/traefik/dynamic"
         - "{{ compose_dir }}/authelia"
+        - "{{ compose_dir }}/redis"
 
     - name: Template .env from vault
       ansible.builtin.template:
