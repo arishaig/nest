@@ -90,6 +90,13 @@ services:
     ports:
       - "9798:9798"
 
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    volumes:
+      - ./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+
 volumes:
   prometheus_data:
   loki_data:

@@ -42,7 +42,6 @@ locals {
     "nzbd.arishaig.site"         = "192.168.1.158"
     "storyteller.arishaig.site"  = "192.168.1.158"
     "dash.arishaig.site"         = "192.168.1.158"
-    "uptime.arishaig.site"       = "192.168.1.158"
     "glances.arishaig.site"      = "192.168.1.158"
     "mealie.arishaig.site"       = "192.168.1.158"
     "copyparty.arishaig.site"    = "192.168.1.158"

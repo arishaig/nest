@@ -69,6 +69,7 @@ resource "proxmox_virtual_environment_container" "dns_secondary" {
     ignore_changes = [
       operating_system,
       console,
+      initialization,
     ]
   }
 }

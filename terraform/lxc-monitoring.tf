@@ -65,6 +65,7 @@ resource "proxmox_virtual_environment_container" "monitoring" {
     ignore_changes = [
       operating_system,
       console,
+      initialization,
     ]
   }
 }

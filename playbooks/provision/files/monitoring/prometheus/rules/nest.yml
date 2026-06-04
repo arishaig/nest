@@ -176,6 +176,17 @@ groups:
           summary: "PBS backup stale for {{ $labels.guest_type }}/{{ $labels.guest }}"
           description: "No new PBS backup for {{ $labels.guest_type }}/{{ $labels.guest }} in over 30 hours (newest is {{ $value | humanizeDuration }} old)."
 
+  - name: endpoints
+    rules:
+      - alert: ExternalEndpointDown
+        expr: probe_success{job="blackbox"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "External endpoint {{ $labels.instance }} is unreachable"
+          description: "{{ $labels.instance }} has been unreachable for 2 minutes. DNS, Cloudflare, VPS proxy, or the service itself may be down."
+
   - name: media
     rules:
       - alert: MediaAppDown

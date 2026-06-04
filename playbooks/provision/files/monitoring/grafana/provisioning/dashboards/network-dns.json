@@ -34,7 +34,8 @@
       },
       "targets": [
         {
-          "expr": "adguard_running{server=\"https://dns.arishaig.site\"}",
+          "expr": "adguard_running",
+          "legendFormat": "{{ dns_role }}",
           "refId": "A"
         }
       ],
@@ -97,7 +98,8 @@
       },
       "targets": [
         {
-          "expr": "adguard_protection_enabled{server=\"https://dns.arishaig.site\"}",
+          "expr": "adguard_protection_enabled",
+          "legendFormat": "{{ dns_role }}",
           "refId": "A"
         }
       ],
@@ -160,7 +162,7 @@
       },
       "targets": [
         {
-          "expr": "sum(adguard_top_clients{server=\"https://dns.arishaig.site\"})",
+          "expr": "sum(adguard_top_clients)",
           "refId": "A"
         }
       ],
@@ -210,7 +212,7 @@
       },
       "targets": [
         {
-          "expr": "sum(adguard_top_blocked_domains{server=\"https://dns.arishaig.site\"})",
+          "expr": "sum(adguard_top_blocked_domains)",
           "refId": "A"
         }
       ],
@@ -260,7 +262,7 @@
       },
       "targets": [
         {
-          "expr": "sum(adguard_top_blocked_domains{server=\"https://dns.arishaig.site\"}) / sum(adguard_top_clients{server=\"https://dns.arishaig.site\"}) * 100",
+          "expr": "sum(adguard_top_blocked_domains) / sum(adguard_top_clients) * 100",
           "refId": "A"
         }
       ],
@@ -313,7 +315,7 @@
       },
       "targets": [
         {
-          "expr": "adguard_top_upstreams_avg_response_time_seconds{server=\"https://dns.arishaig.site\"} * 1000",
+          "expr": "avg(adguard_top_upstreams_avg_response_time_seconds) * 1000",
           "refId": "A"
         }
       ],
@@ -370,12 +372,12 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(adguard_queries_details_histogram_count{server=\"https://dns.arishaig.site\"}[5m]))",
+          "expr": "sum(rate(adguard_queries_details_histogram_count[5m]))",
           "legendFormat": "Total Queries",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(adguard_queries_details_histogram_count{server=\"https://dns.arishaig.site\",reason!~\"NotFiltered.*|Rewrite\"}[5m]))",
+          "expr": "sum(rate(adguard_queries_details_histogram_count{reason!~\"NotFiltered.*|Rewrite\"}[5m]))",
           "legendFormat": "Blocked",
           "refId": "B"
         }
@@ -454,7 +456,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (type) (adguard_query_types{server=\"https://dns.arishaig.site\"})",
+          "expr": "sum by (type) (adguard_query_types)",
           "legendFormat": "{{ type }}",
           "refId": "A"
         }
@@ -511,7 +513,7 @@
           },
           "targets": [
             {
-              "expr": "topk(15, adguard_top_queried_domains)",
+              "expr": "topk(15, sum by (domain) (adguard_top_queried_domains))",
               "legendFormat": "{{ domain }}",
               "refId": "A"
             }
@@ -559,7 +561,7 @@
           },
           "targets": [
             {
-              "expr": "topk(15, adguard_top_blocked_domains)",
+              "expr": "topk(15, sum by (domain) (adguard_top_blocked_domains))",
               "legendFormat": "{{ domain }}",
               "refId": "A"
             }
