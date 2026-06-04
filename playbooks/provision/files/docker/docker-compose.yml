@@ -766,7 +766,7 @@ services:
         condition: service_healthy
 
   redis:
-    image: redis:8.0.2-alpine
+    image: redis:8.8.0-alpine
     container_name: redis
     command: redis-server --appendonly yes
     volumes:
