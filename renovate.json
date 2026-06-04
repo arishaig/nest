@@ -57,6 +57,11 @@
       "description": "storyteller is on a private GitLab registry Renovate cannot query — skip",
       "matchPackageNames": ["registry.gitlab.com/storyteller-platform/storyteller"],
       "enabled": false
+    },
+    {
+      "description": "cadvisor GitHub releases are ahead of GCR — v0.56+ not published to gcr.io; disable until GCR catches up",
+      "matchPackageNames": ["google/cadvisor"],
+      "enabled": false
     }
   ],
 
