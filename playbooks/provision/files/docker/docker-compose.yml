@@ -648,7 +648,7 @@ services:
 
   # Docker monitoring
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.57.0
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
     container_name: cadvisor
     restart: unless-stopped
     healthcheck:
