@@ -136,11 +136,14 @@ groups:
   - name: media
     interval: 5m
     rules:
-      - alert: QBittorrentTrackerLoss
-        expr: count_over_time({host="seedbox", container="qbittorrent"} |= "Tracker is not reachable" [15m]) > 30
+      # qBittorrent logs to an internal file, not stdout, so tracker errors can't be
+      # captured directly. Monitor gluetun instead — VPN drops/reconnects cause tracker
+      # timeouts and force an IP change that clears bans.
+      - alert: GluetunVPNError
+        expr: count_over_time({host="seedbox", container="gluetun"} |= "ERROR" [10m]) > 3
         for: 0m
         labels:
           severity: warning
         annotations:
-          summary: "qBittorrent losing tracker connectivity"
-          description: "More than 30 tracker unreachable errors in 15 minutes. Possible DNS failure, WAN issue, or IP ban on seedbox."
+          summary: "Gluetun VPN errors on seedbox"
+          description: "gluetun logged more than 3 errors in 10 minutes. VPN may be dropping or cycling, causing tracker failures and an IP change."
