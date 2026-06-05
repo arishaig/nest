@@ -271,6 +271,7 @@
         dest: /etc/alloy/config.alloy
         mode: "0644"
       notify: Restart Alloy
+      tags: [alloy]
 
     - name: Deploy Alloy systemd unit
       ansible.builtin.copy:
@@ -291,6 +292,7 @@
       notify:
         - Reload systemd
         - Restart Alloy
+      tags: [alloy]
 
     - name: Enable and start Alloy
       ansible.builtin.systemd:
@@ -298,6 +300,7 @@
         enabled: true
         state: started
         daemon_reload: true
+      tags: [alloy]
 
     - name: Clean up Alloy download
       ansible.builtin.file:
