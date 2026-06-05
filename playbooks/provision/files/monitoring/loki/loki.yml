@@ -35,3 +35,15 @@ compactor:
   working_directory: /loki/compactor
   retention_enabled: true
   delete_request_store: filesystem
+
+ruler:
+  alertmanager_url: http://alertmanager:9093
+  enable_api: false
+  storage:
+    type: local
+    local:
+      directory: /loki/ruler-rules
+  rule_path: /loki/ruler-temp
+  ring:
+    kvstore:
+      store: inmemory
