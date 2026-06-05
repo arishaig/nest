@@ -238,6 +238,53 @@
         chdir: "{{ docker_dir }}"
       changed_when: true
 
+    # ── Chrony NTP server ──
+
+    - name: Install chrony
+      when: local_network | default(true)
+      ansible.builtin.apt:
+        name: chrony
+        state: present
+
+    - name: Deploy chrony config
+      when: local_network | default(true)
+      ansible.builtin.copy:
+        content: |
+          pool us.pool.ntp.org iburst maxsources 4
+          server time-a-g.nist.gov iburst
+          server time-b-g.nist.gov iburst
+          driftfile /var/lib/chrony/drift
+          makestep 1.0 3
+          rtcsync
+          allow 192.168.0.0/16
+          local stratum 10
+        dest: /etc/chrony/chrony.conf
+        mode: "0644"
+      notify: Restart chrony
+
+    - name: Allow chrony to run without clock adjustment in LXC (no CAP_SYS_TIME)
+      when: local_network | default(true) and ansible_virtualization_type == 'lxc'
+      ansible.builtin.copy:
+        content: "DAEMON_OPTS=\"-x\"\n"
+        dest: /etc/default/chrony
+        mode: "0644"
+      notify: Restart chrony
+
+    - name: Disable systemd-timesyncd (conflicts with chrony)
+      when: local_network | default(true)
+      ansible.builtin.systemd:
+        name: systemd-timesyncd
+        enabled: false
+        state: stopped
+      failed_when: false
+
+    - name: Enable and start chrony
+      when: local_network | default(true)
+      ansible.builtin.systemd:
+        name: chrony
+        enabled: true
+        state: started
+
     # ── unbound-exporter (port 9167, systemd) ──
 
     - name: Check if unbound_exporter is installed
@@ -292,6 +339,11 @@
         daemon_reload: true
 
   handlers:
+    - name: Restart chrony
+      ansible.builtin.systemd:
+        name: chrony
+        state: restarted
+
     - name: Restart unbound
       ansible.builtin.systemd:
         name: unbound

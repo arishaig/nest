@@ -6,18 +6,21 @@
 # Journal-only:  ship journald only (no Docker on these hosts).
 
 - name: Install Alloy log shipper
-  hosts: docker:monitoring:scrutiny:seedbox:musicbrainz:fileserver:mcp:pbs
+  hosts: docker:monitoring:scrutiny:seedbox:musicbrainz:fileserver:mcp:pbs:pve:ci:adguard:dns-secondary
   become: true
   gather_facts: true
 
   vars:
     alloy_version: "1.16.1"
+    alloy_arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
     docker_hosts:
       - docker
       - monitoring
       - scrutiny
       - seedbox
       - musicbrainz
+      - adguard
+      - dns-secondary
 
   tasks:
     - name: Check current Alloy version
@@ -45,7 +48,7 @@
 
         - name: Download Alloy binary
           ansible.builtin.get_url:
-            url: "https://github.com/grafana/alloy/releases/download/v{{ alloy_version }}/alloy-linux-amd64.zip"
+            url: "https://github.com/grafana/alloy/releases/download/v{{ alloy_version }}/alloy-linux-{{ alloy_arch }}.zip"
             dest: /var/tmp/alloy.zip
             mode: "0644"
 
@@ -57,7 +60,7 @@
 
         - name: Install Alloy binary
           ansible.builtin.copy:
-            src: /var/tmp/alloy-linux-amd64
+            src: "/var/tmp/alloy-linux-{{ alloy_arch }}"
             dest: /usr/local/bin/alloy
             mode: "0755"
             remote_src: true
@@ -68,7 +71,7 @@
             state: absent
           loop:
             - /var/tmp/alloy.zip
-            - /var/tmp/alloy-linux-amd64
+            - "/var/tmp/alloy-linux-{{ alloy_arch }}"
 
     - name: Create Alloy directories
       ansible.builtin.file:

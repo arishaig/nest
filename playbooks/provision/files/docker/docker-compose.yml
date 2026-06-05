@@ -130,6 +130,31 @@ services:
       - "traefik.http.services.medialyze.loadbalancer.server.port=8080"
     restart: unless-stopped
 
+  # MeTube - YouTube/web video downloader
+  metube:
+    image: ghcr.io/alexta69/metube:latest
+    container_name: metube
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Los_Angeles
+      - DOWNLOAD_DIR=/downloads
+    volumes:
+      - /mnt/media_root/downloads/metube:/downloads
+    expose:
+      - "8081"
+    networks:
+      - default
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.metube.rule=Host(`metube.arishaig.site`)"
+      - "traefik.http.routers.metube.entrypoints=websecure"
+      - "traefik.http.routers.metube.tls=true"
+      - "traefik.http.routers.metube.middlewares=authelia@file"
+      - "traefik.http.services.metube.loadbalancer.server.port=8081"
+    restart: unless-stopped
+
   # Prowlarr - Indexer Management
   prowlarr:
     image: linuxserver/prowlarr:2.3.5

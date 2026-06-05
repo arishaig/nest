@@ -38,6 +38,37 @@ loki.source.file "traefik_access" {
   forward_to = [loki.process.traefik_access_json.receiver]
 }
 
+// Traefik application log (errors, startup, config reloads)
+local.file_match "traefik_app" {
+  path_targets = [{
+    __address__ = "localhost",
+    __path__    = "/var/log/traefik/traefik.log",
+    job         = "traefik-app",
+    host        = "vps-proxy",
+  }]
+}
+
+loki.process "traefik_app_logfmt" {
+  forward_to = [loki.write.loki.receiver]
+
+  stage.logfmt {
+    mapping = {
+      level = "level",
+    }
+  }
+
+  stage.labels {
+    values = {
+      level = "level",
+    }
+  }
+}
+
+loki.source.file "traefik_app" {
+  targets    = local.file_match.traefik_app.targets
+  forward_to = [loki.process.traefik_app_logfmt.receiver]
+}
+
 // journald — relabel systemd unit name to 'unit' label
 loki.relabel "journal" {
   forward_to = [loki.write.loki.receiver]

@@ -65,6 +65,24 @@
         dest: /etc/resolv.conf
         mode: "0644"
 
+    - name: Create timesyncd drop-in directory
+      when: local_network | default(true)
+      ansible.builtin.file:
+        path: /etc/systemd/timesyncd.conf.d
+        state: directory
+        mode: "0755"
+
+    - name: Configure systemd-timesyncd to use internal NTP
+      when: local_network | default(true)
+      ansible.builtin.copy:
+        content: |
+          [Time]
+          NTP=192.168.7.7 192.168.7.8
+          FallbackNTP=129.6.15.28 129.6.15.29 129.6.15.30
+        dest: /etc/systemd/timesyncd.conf.d/ntp.conf
+        mode: "0644"
+      notify: Restart timesyncd
+
     - name: Deploy SSH authorized keys for root
       ansible.posix.authorized_key:
         user: root
@@ -141,6 +159,12 @@
       notify: Apply sysctl
 
   handlers:
+    - name: Restart timesyncd
+      ansible.builtin.systemd:
+        name: systemd-timesyncd
+        state: restarted
+      failed_when: false
+
     - name: Apply sysctl
       ansible.builtin.command: sysctl -p /etc/sysctl.d/99-bbr.conf
       changed_when: true
