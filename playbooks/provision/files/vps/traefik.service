@@ -8,7 +8,7 @@ Type=simple
 ExecStart=/usr/local/bin/traefik --configFile=/etc/traefik/traefik.yml
 StandardOutput=append:/var/log/traefik/traefik.log
 StandardError=append:/var/log/traefik/traefik-error.log
-Restart=on-failure
+Restart=always
 RestartSec=5s
 
 [Install]

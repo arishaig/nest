@@ -57,7 +57,7 @@ groups:
           description: "{{ $labels.mountpoint }} is {{ printf \"%.0f\" $value }}% full."
 
       - alert: DiskReadonly
-        expr: node_filesystem_readonly{fstype!~"tmpfs|fuse.lxcfs|squashfs"} == 1
+        expr: node_filesystem_readonly{fstype!~"tmpfs|fuse.lxcfs|squashfs|erofs"} == 1
         for: 2m
         labels:
           severity: critical
