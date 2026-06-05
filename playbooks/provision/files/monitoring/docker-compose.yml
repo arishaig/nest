@@ -25,6 +25,7 @@ services:
     volumes:
       - ./loki/loki.yml:/etc/loki/loki.yml:ro
       - loki_data:/loki
+      - ./loki/ruler-rules:/loki/ruler-rules:ro
     command: -config.file=/etc/loki/loki.yml
 
   grafana:

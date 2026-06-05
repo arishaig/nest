@@ -1,0 +1,146 @@
+groups:
+  - name: log_ingestion
+    interval: 5m
+    rules:
+      # Alert when each critical host stops shipping logs entirely.
+      # absent_over_time fires when no matching stream exists in the window,
+      # catching silent Alloy failures, WireGuard drops, and host freezes.
+      - alert: LogIngestionGap
+        expr: absent_over_time({host="vps-proxy"}[15m])
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No logs from vps-proxy for 15 minutes"
+          description: "Alloy on vps-proxy has stopped shipping logs. WireGuard tunnel or Alloy service may be down."
+
+      - alert: LogIngestionGap
+        expr: absent_over_time({host="docker"}[15m])
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No logs from docker LXC for 15 minutes"
+          description: "Alloy on the docker LXC has stopped shipping logs."
+
+      - alert: LogIngestionGap
+        expr: absent_over_time({host="monitoring"}[15m])
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No logs from monitoring LXC for 15 minutes"
+          description: "Alloy on the monitoring LXC has stopped shipping logs (or Loki itself is struggling)."
+
+      - alert: LogIngestionGap
+        expr: absent_over_time({host="pve"}[15m])
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No logs from Proxmox for 15 minutes"
+          description: "Alloy on Proxmox has stopped shipping logs."
+
+  - name: systemd
+    interval: 2m
+    rules:
+      - alert: SystemdUnitFailed
+        expr: sum by (host, unit) (count_over_time({job=~"journal|vps-journal"} |= "entered failed state" [5m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Systemd unit failed on {{ $labels.host }}"
+          description: "Unit {{ $labels.unit }} on {{ $labels.host }} entered failed state in the last 5 minutes."
+
+  - name: traefik
+    interval: 2m
+    rules:
+      - alert: TraefikHighErrorRate
+        expr: sum by (router) (count_over_time({job="traefik-access"} | json | status=~"5.." [5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Traefik 5xx rate on router {{ $labels.router }}"
+          description: "Router {{ $labels.router }} has returned more than 10 5xx responses in 5 minutes."
+
+      # Catches WireGuard tunnel degraded but not dead — Traefik is up but homelab backends
+      # are unreachable. TraefikVPSDown (Prometheus) only fires if Traefik's own metrics
+      # endpoint is gone; this fires when upstream connections fail.
+      - alert: TraefikUpstreamErrors
+        expr: sum(count_over_time({job="traefik-app", host="vps-proxy"} |= "dial tcp" |= "connection refused" [5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Traefik upstream connection failures on vps-proxy"
+          description: "Traefik is logging repeated upstream 'connection refused' errors. The WireGuard tunnel may be partially degraded."
+
+  - name: loki
+    interval: 2m
+    rules:
+      # Meta-alert: if Loki drops logs, all other Loki ruler alerts (including LogIngestionGap)
+      # silently become unreliable. This is the only alert that can catch Loki self-failure.
+      - alert: LokiIngestionBackpressure
+        expr: count_over_time({host="monitoring", container="loki"} |= "dropping stream" [5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Loki is dropping log streams"
+          description: "Loki is discarding incoming log streams due to backpressure or limits. Log-based alerts may be unreliable until resolved."
+
+  - name: security
+    interval: 2m
+    rules:
+      - alert: SSHBruteForce
+        expr: count_over_time({job="vps-journal", host="vps-proxy", unit="fail2ban.service"} |= "Ban " [10m]) > 20
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SSH brute-force spike on vps-proxy"
+          description: "fail2ban issued more than 20 bans in 10 minutes. An active SSH brute-force campaign may be underway."
+
+      - alert: AutheliaAuthBruteForce
+        expr: count_over_time({host="docker", container="authelia"} |= "Unsuccessful" [5m]) > 15
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Authelia authentication spike"
+          description: "More than 15 unsuccessful Authelia auth attempts in 5 minutes. Possible credential stuffing against OIDC-protected services."
+
+      - alert: SambaAuthFailure
+        expr: count_over_time({job="journal", host="fileserver", unit="smbd.service"} |= "NT_STATUS_LOGON_FAILURE" [5m]) > 10
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Repeated Samba auth failures on fileserver"
+          description: "More than 10 Samba NT_STATUS_LOGON_FAILURE errors in 5 minutes. Check for broken Nextcloud credentials or enumeration attempts."
+
+  - name: hardware
+    interval: 5m
+    rules:
+      - alert: DiskIOErrors
+        expr: sum by (host) (count_over_time({job=~"journal|vps-journal"} |= "I/O error" [10m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk I/O errors on {{ $labels.host }}"
+          description: "Kernel I/O errors detected in journal on {{ $labels.host }}. Check dmesg and disk health."
+
+  - name: media
+    interval: 5m
+    rules:
+      - alert: QBittorrentTrackerLoss
+        expr: count_over_time({host="seedbox", container="qbittorrent"} |= "Tracker is not reachable" [15m]) > 30
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "qBittorrent losing tracker connectivity"
+          description: "More than 30 tracker unreachable errors in 15 minutes. Possible DNS failure, WAN issue, or IP ban on seedbox."
