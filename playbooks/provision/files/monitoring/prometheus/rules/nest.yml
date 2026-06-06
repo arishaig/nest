@@ -122,6 +122,15 @@ groups:
           summary: "AdGuard Home down ({{ $labels.dns_role }})"
           description: "AdGuard Home exporter ({{ $labels.dns_role }}, {{ $labels.instance }}) has been unreachable for 2 minutes."
 
+      - alert: ScrutinyDown
+        expr: up{job="scrutiny"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scrutiny exporter is down"
+          description: "Cannot scrape Scrutiny disk health metrics from {{ $labels.instance }}."
+
       - alert: ScrutinyDiskWarning
         expr: scrutiny_smart_device_status > 0
         for: 1m
@@ -130,6 +139,42 @@ groups:
         annotations:
           summary: "SMART warning on {{ $labels.device_name }}"
           description: "Scrutiny reports a SMART issue on {{ $labels.device_name }} ({{ $labels.host_id }})."
+
+      - alert: QBittorrentDown
+        expr: up{job="qbittorrent"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "qBittorrent exporter is down"
+          description: "qBittorrent metrics have been unreachable for 5 minutes."
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis exporter is down"
+          description: "Redis metrics have been unreachable for 5 minutes."
+
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Postgres exporter is down"
+          description: "Postgres metrics have been unreachable for 5 minutes."
+
+      - alert: HomeAssistantDown
+        expr: up{job="homeassistant"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Home Assistant metrics are down"
+          description: "Home Assistant Prometheus endpoint has been unreachable for 5 minutes."
 
       - alert: ZFSPoolDegraded
         expr: node_zfs_zpool_state{instance="proxmox.local.arishaig.site", state=~"degraded|faulted|suspended|unavail"} == 1
@@ -186,6 +231,17 @@ groups:
         annotations:
           summary: "External endpoint {{ $labels.instance }} is unreachable"
           description: "{{ $labels.instance }} has been unreachable for 2 minutes. DNS, Cloudflare, VPS proxy, or the service itself may be down."
+
+  - name: network
+    rules:
+      - alert: UnpollerNoData
+        expr: absent(unpoller_client_uptime_seconds)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unpoller is not collecting client metrics"
+          description: "No unpoller_client_uptime_seconds series for 5 minutes — unpoller may be failing to reach the UniFi controller."
 
   - name: media
     rules:
