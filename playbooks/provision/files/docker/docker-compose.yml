@@ -415,7 +415,7 @@ services:
   # Tdarr - Automated transcoding server
   tdarr:
     container_name: tdarr
-    image: ghcr.io/haveagitgat/tdarr:2.50.01
+    image: ghcr.io/haveagitgat/tdarr:2.77.01
     restart: unless-stopped
     network_mode: bridge
     ports:
