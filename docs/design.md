@@ -38,6 +38,8 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 | 104 | seedbox | 192.168.1.182 (DHCP) | qBittorrent behind Gluetun VPN |
 | 105 | monitoring | 192.168.1.44 (static) | Prometheus · Grafana · Loki · Alertmanager |
 | 106 | dns-secondary | 192.168.7.8 (VLAN 7, static) | AdGuard Home + Unbound (secondary DNS) |
+| 108 | ci | 192.168.1.18 (static) | GitHub Actions self-hosted runner |
+| 109 | mcp | 192.168.1.19 (static) | Nest MCP HTTP server (port 8765) |
 
 ### VMs (Proxmox)
 
@@ -91,6 +93,8 @@ Two Docker networks:
 - `internal-net` — service-to-service (no external access)
 - `proxy-net` — Traefik-facing; only services that need routing attach to this
 
+Access logs are written as JSON to `/var/log/traefik/access.log` and tailed by Alloy.
+
 ---
 
 ## DNS
@@ -125,18 +129,19 @@ the same wildcard cert — no separate cert infrastructure needed for internal a
 
 Authelia runs as a Docker container on the Docker LXC, attached only to `proxy-net`.
 Nest Traefik uses it as a `forwardAuth` middleware (`authelia@file` defined in `dynamic/middlewares.yml`).
+Authelia uses Redis as a session store.
 
 **Authelia required (most services):** bazarr, copyparty, glances, homarr, lidarr, medialyze,
 mealie, prowlarr, radarr, recommendarr, sabnzbd, sonarr, storyteller, uptime-kuma, watchback.
 
 **Authelia bypassed (intentional):**
 
-| Service | Reason |
-|---|---|
-| jellyfin | Media clients (AppleTV, Kodi etc.) cannot handle auth redirects |
-| seerr | Intended for external users to submit requests |
-| tunarr | Jellyfin communicates with it directly |
-| watcharr | Login flow breaks with forwardAuth enabled |
+| Service | Middleware | Reason |
+|---|---|---|
+| jellyfin | — | Media clients (AppleTV, Kodi etc.) cannot handle auth redirects |
+| seerr | — | Intended for external users to submit requests |
+| tunarr | `local-only` (LAN only) | Jellyfin communicates with it directly; no external access |
+| watcharr | `local-only` (LAN only) | Login flow breaks with forwardAuth enabled |
 
 **`.local.arishaig.site` routes** also bypass Authelia — these are direct internal-access
 routes for services that also have an Authelia-protected public route (torrent, scrutiny, musicbrainz, backlight).
@@ -147,22 +152,24 @@ routes for services that also have an Authelia-protected public route (torrent, 
 
 ### Media Stack
 
-| Service | Image | Port | Auth |
-|---|---|---|---|
-| sonarr | linuxserver/sonarr | 8989 | ✓ |
-| radarr | linuxserver/radarr | 7878 | ✓ |
-| lidarr | linuxserver-labs/prarr:lidarr-plugins | 8686 | ✓ |
-| bazarr | linuxserver/bazarr | 6767 | ✓ |
-| prowlarr | linuxserver/prowlarr | 9696 | ✓ |
-| sabnzbd | linuxserver/sabnzbd | 8080 | ✓ |
-| jellyfin | linuxserver/jellyfin | 8096 | — |
-| seerr | ghcr.io/seerr-team/seerr | 5055 | — |
-| tunarr | chrisbenincasa/tunarr | 8000 | — |
-| recyclarr | ghcr.io/recyclarr/recyclarr | — | — |
-| subgen | mccloud/subgen:cpu | 9000 | — |
-| medialyze | ghcr.io/frederikemmer/medialyze | 8080 | ✓ |
-| tdarr | ghcr.io/haveagitgat/tdarr | 8265, 8266 | bridge network |
-| tdarr-node | ghcr.io/haveagitgat/tdarr_node | — | network_mode: service:tdarr |
+| Service | Image | Auth |
+|---|---|---|
+| sonarr | linuxserver/sonarr | ✓ |
+| radarr | linuxserver/radarr | ✓ |
+| lidarr | linuxserver-labs/prarr:lidarr-plugins | ✓ |
+| bazarr | linuxserver/bazarr | ✓ |
+| bazarr-sync | ghcr.io/ajmandourah/bazarr-sync | — |
+| prowlarr | linuxserver/prowlarr | ✓ |
+| sabnzbd | linuxserver/sabnzbd | ✓ |
+| jellyfin | linuxserver/jellyfin | — |
+| seerr | ghcr.io/seerr-team/seerr | — |
+| tunarr | chrisbenincasa/tunarr | LAN only |
+| recyclarr | ghcr.io/recyclarr/recyclarr | — |
+| subgenai | mccloud/subgen:cpu | — |
+| medialyze | ghcr.io/frederikemmer/medialyze | ✓ |
+| metube | ghcr.io/alexta69/metube | — |
+| tdarr | ghcr.io/haveagitgat/tdarr | — |
+| tdarr-node | ghcr.io/haveagitgat/tdarr_node | — |
 
 Media files and service configs are on NFS/Samba mounts from the fileserver LXC at `/mnt/media_root`.
 App configs are at `/mnt/app_config/<service>`.
@@ -172,14 +179,13 @@ App configs are at `/mnt/app_config/<service>`.
 | Service | Image | Auth | Notes |
 |---|---|---|---|
 | mealie | ghcr.io/mealie-recipes/mealie | ✓ | Postgres backend |
-| postgres | postgres:15 | — | Mealie only |
+| postgres | postgres:18 | — | Mealie only |
 | storyteller | registry.gitlab.com/storyteller-platform/storyteller | ✓ | Ebook/audiobook readalongs |
 | recommendarr | tannermiddleton/recommendarr | ✓ | AI content suggestions |
-| watcharr | ghcr.io/sbondco/watcharr | — | Watch history |
+| watcharr | ghcr.io/sbondco/watcharr | LAN only | Watch history |
 | watchback | ghcr.io/arishaig/watchback | ✓ | Custom app (Isaac's own image) |
 | copyparty | copyparty/ac | ✓ | File browser |
 | homepage | ghcr.io/gethomepage/homepage | ✓ | Dashboard |
-| uptime-kuma | louislam/uptime-kuma:1 | ✓ | Uptime monitoring |
 | glances | nicolargo/glances | ✓ | System stats |
 | flaresolverr | ghcr.io/flaresolverr/flaresolverr | — | Cloudflare bypass for Prowlarr |
 
@@ -189,6 +195,7 @@ App configs are at `/mnt/app_config/<service>`.
 |---|---|
 | traefik | Reverse proxy, TLS termination, ACME |
 | authelia | SSO / 2FA forwardAuth |
+| redis | Authelia session store |
 | socket-proxy | Restricted Docker socket (CONTAINERS=1 read-only) |
 | cloudflare-ddns | Keeps `vpn.arishaig.site` pointed at home IP |
 
@@ -202,6 +209,8 @@ App configs are at `/mnt/app_config/<service>`.
 | exportarr-lidarr | 9709 | Lidarr queue/health |
 | exportarr-prowlarr | 9710 | Prowlarr indexer stats |
 | exportarr-bazarr | 9711 | Bazarr subtitle stats |
+| redis-exporter | 9121 | Redis metrics |
+| postgres-exporter | 9187 | Postgres metrics |
 
 ---
 
@@ -220,31 +229,58 @@ Scrapes every 30s. Jobs:
 | `traefik-vps` | `10.10.0.1:8080` (VPS Traefik metrics, over WireGuard) |
 | `cadvisor` | Docker/seedbox/scrutiny/monitoring LXCs |
 | `proxmox` | Via pve-exporter at `monitoring.local:9221` |
-| `adguard` | Primary + secondary AdGuard exporters (`:9618`) |
-| `unbound` | Primary + secondary Unbound exporters (`:9167`) |
+| `adguard` | Primary + secondary + tertiary AdGuard exporters (`:9618`) |
+| `unbound` | Primary + secondary + tertiary Unbound exporters (`:9167`) |
 | `unpoller` | UniFi metrics via unpoller container |
 | `sonarr/radarr/lidarr/prowlarr/bazarr` | exportarr sidecars on docker LXC |
 | `qbittorrent` | Seedbox qBittorrent exporter |
-| `postgres` | Postgres exporter on docker LXC |
+| `redis` | redis-exporter on docker LXC |
+| `postgres` | postgres-exporter on docker LXC |
 | `scrutiny` | SMART metrics API |
 | `homeassistant` | HA Prometheus integration (bearer token in vault) |
 | `wled` | WLED LED controller at `backlight.arishaig.site` |
 | `speedtest` | speedtest-exporter, 1h interval, 90s timeout |
+| `blackbox` | HTTP probes for all public-facing services (60s interval) |
 
 Alert rules in `playbooks/provision/files/monitoring/prometheus/rules/nest.yml`.
 Includes `PBSBackupStale` — fires when any backup group's newest snapshot is too old.
 
 ### Grafana
 
-Provisioned dashboards include a dedicated VPS Proxy dashboard (`uid: vps-proxy`) with
-CPU, memory, network, Traefik request rate, open connections, access log panel (Loki),
-and system journal panel (SSH / fail2ban / WireGuard events).
+Provisioned dashboards: infrastructure health, network/DNS, services overview, and a dedicated
+VPS Proxy dashboard (`uid: vps-proxy`) with CPU, memory, network, Traefik request rate,
+open connections, access log panel (Loki), and system journal panel (SSH / fail2ban / WireGuard events).
 
-### Loki
+### Loki + Ruler
 
-Receives logs from Grafana Alloy on the VPS only. Two log streams:
-- `job=traefik-access, host=vps-proxy` — Traefik access logs (JSON, parsed for `router` and `status` labels)
-- `job=vps-journal, host=vps-proxy` — systemd journal (unit label from `__journal__systemd_unit`)
+Loki runs on the monitoring LXC and receives logs shipped by Grafana Alloy from every host.
+Retention is 30 days. The Loki Ruler evaluates log-based alert rules and sends to Alertmanager.
+
+**Log streams by host:**
+
+| Host | Streams |
+|---|---|
+| vps-proxy | `traefik-access` (JSON, parsed for `router`/`status` labels), `traefik-app` (logfmt), `vps-journal` (systemd) |
+| docker | `docker` (all container stdout), `journal`, `traefik-access` (file tail, JSON) |
+| monitoring | `docker` (all container stdout), `journal` |
+| seedbox | `docker` (gluetun, qbittorrent, cadvisor), `journal` |
+| scrutiny | `docker`, `journal` |
+| musicbrainz | `docker`, `journal` |
+| dns-secondary | `docker` (adguard-exporter), `journal` |
+| fileserver | `journal` |
+| mcp | `journal` |
+| pbs | `journal` |
+| pve | `journal` |
+| ci | `journal` |
+| adguard (Pi) | `journal` |
+
+Alloy is deployed via `playbooks/provision/alloy.yml`. Three Alloy config templates:
+- `monitoring.alloy.j2` — monitoring LXC (Docker discovery + journal)
+- `docker-host.alloy.j2` — Docker hosts (Docker discovery + journal + optional file tails)
+- `journal-only.alloy.j2` — non-Docker hosts (journal only)
+
+**Ruler alert groups:** `log_ingestion`, `systemd`, `traefik`, `loki`, `security`, `hardware`, `media`.
+Alert rules live in `playbooks/provision/files/monitoring/loki/ruler-rules/fake/homelab.yml`.
 
 ### PBS Backup Freshness
 
@@ -264,12 +300,42 @@ Services (all systemd, no Docker):
 - `wg-quick@wg0` — WireGuard tunnel to Docker LXC
 - `AdGuardHome` — tertiary DNS, DoH (:8443) + DoT (:853), Unbound upstream
 - `unbound` — recursive resolver on `127.0.0.1:5335`
-- `node_exporter` — scraped by Prometheus over WireGuard
-- `unbound_exporter` — scraped by Prometheus over WireGuard
-- `alloy` — ships logs to Loki over WireGuard
+- `node_exporter` — scraped by Prometheus over WireGuard (`10.10.0.1:9100`)
+- `unbound_exporter` — scraped by Prometheus over WireGuard (`10.10.0.1:9167`)
+- `alloy` — ships Traefik access logs + app log + systemd journal to Loki over WireGuard
 - `fail2ban` — SSH and Traefik jails
 
+Docker (single container):
+- `adguard-exporter` — AdGuard metrics, scraped by Prometheus over WireGuard (`10.10.0.1:9618`)
+
 Grafana Alloy config at `/etc/alloy/config.alloy`. Logs ship to `192.168.1.44:3100` (Loki).
+
+---
+
+## MCP Server (LXC 109)
+
+`nest-mcp` is an HTTP MCP server exposing live homelab state to AI assistants (Claude Code).
+Runs on port 8765, exposed externally at `https://mcp.arishaig.site` behind Authelia OIDC.
+
+Tools cover: Proxmox (VMs/LXCs/tasks/snapshots), PBS backups, Docker (containers/logs),
+Home Assistant entities, UniFi (clients/devices/firewall), AdGuard (rewrites/query log/stats),
+Prometheus (queries/alerts/targets), Loki (log queries), Jellyfin, *arr stack, Mealie,
+Jellyseerr, Scrutiny, seedbox, VPS (nftables/fail2ban/WireGuard/Vultr), and a `lab_health_summary`
+tool that gives a full live snapshot of the homelab in one call.
+
+---
+
+## CI Runner (LXC 108)
+
+GitHub Actions self-hosted runner at `192.168.1.18`. Runs the `validate` workflow on every push.
+
+CI validates:
+- `terraform validate` (provider auth is mocked — SSH keys via `file("~/")` are present on the runner)
+- `ansible-lint` (via venv)
+- `yamllint` (shared `.yamllint` config)
+- `shellcheck` 0.10.0 on all shell scripts
+
+No Docker daemon access. Ansible vault password is on the runner for `--ask-vault-pass`-free lint runs.
 
 ---
 
@@ -279,11 +345,11 @@ Grafana Alloy config at `/etc/alloy/config.alloy`. Logs ship to `192.168.1.44:31
 
 | Provider | Version | Purpose |
 |---|---|---|
-| bpg/proxmox-ve | ~> 0.107 | LXC/VM resources, PVE user management |
-| gmichels/adguard | ~> 1.7 | AdGuard DNS rewrites (primary only) |
-| vultr/vultr | ~> 2.31 | VPS instance, SSH keys |
-| cloudflare/cloudflare | ~> 5.0 | External DNS A records |
-| hashicorp/null | ~> 3.3 | VPS Ansible provisioning trigger |
+| bpg/proxmox-ve | = 0.108.0 | LXC/VM resources, PVE user management |
+| gmichels/adguard | = 1.7.0 | AdGuard DNS rewrites (primary only) |
+| vultr/vultr | = 2.31.2 | VPS instance, SSH keys |
+| cloudflare/cloudflare | = 5.19.1 | External DNS A records |
+| hashicorp/null | = 3.3.0 | VPS Ansible provisioning trigger |
 
 State: local (`terraform/terraform.tfstate`), backed up to NAS via rclone (encrypted).
 Secrets in `terraform/secrets.tfvars` (gitignored).
@@ -295,8 +361,9 @@ Secrets: `inventory/group_vars/all/vault.yml` (ansible-vault, password in `~/.co
 
 `playbooks/site.yml` runs the full converge:
 1. `provision/common.yml` — node_exporter, BBR sysctl (all LXCs + VPS)
-2. Per-host provision playbooks (adguard, docker-host, vps, fileserver, monitoring, musicbrainz, scrutiny, seedbox, pbs, nftables)
-3. `update_apt.yml`, `update_docker.yml`, `update_proxmox.yml`
+2. Per-host provision playbooks (adguard, docker-host, vps, fileserver, monitoring, musicbrainz, scrutiny, seedbox, pbs, nftables, mcp)
+3. `alloy.yml` — Grafana Alloy on all hosts
+4. `update_apt.yml`, `update_docker.yml`, `update_proxmox.yml`
 
 Terraform triggers Ansible via `local-exec` on resource creation. Subsequent converges run `site.yml` manually.
 

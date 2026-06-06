@@ -26,6 +26,7 @@ See [docs/dependencies.md](docs/dependencies.md) for a dependency inventory with
 terraform/          HCL resources (PVE LXCs/VMs, AdGuard DNS rewrites)
 playbooks/          Ansible — post-provision config, Docker services, nftables
 inventory/          hosts.yml
+mcp/                Nest MCP server (homelab tools for Claude Code)
 scripts/            Tooling (diagram generation)
 docs/               Generated outputs
 ```
