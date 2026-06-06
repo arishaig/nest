@@ -133,7 +133,7 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
             with Cluster(lxc_label("monitoring", hosts, lxcs)):
                 prom = Prometheus("Prometheus")
                 graf = Grafana("Grafana")
-                lok  = Server("Loki")
+                lok  = Server("Loki + Ruler\n(Alertmanager)")
 
             with Cluster(lxc_label("fileserver", hosts, lxcs)):
                 files = Ceph("Samba")
@@ -142,7 +142,7 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
                 scrut = Server("Scrutiny\n(SMART)")
 
             with Cluster(lxc_label("seedbox", hosts, lxcs)):
-                seed = Server("qBittorrent\n+ VPN")
+                seed = Server("qBittorrent\n+ Gluetun VPN")
 
             with Cluster(lxc_label("musicbrainz", hosts, lxcs)):
                 mb = Server("MusicBrainz")
@@ -150,6 +150,12 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
             with Cluster(lxc_label("dns-secondary", hosts, lxcs)):
                 adguard2 = Coredns("AdGuard Home\n(secondary)")
                 unbound2 = Server("Unbound")
+
+            with Cluster(lxc_label("mcp", hosts, lxcs)):
+                mcp = Server("nest-mcp\n:8765")
+
+            with Cluster(lxc_label("ci", hosts, lxcs)):
+                ci = Server("GitHub Actions\nrunner")
 
             with Cluster("VM 107: homeassistant\n192.168.4.50 (VLAN 4)"):
                 ha = Server("Home Assistant OS")
@@ -171,13 +177,16 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
         adguard2 >> Edge(label="upstream") >> unbound2
         adguard  >> Edge(label="failover", style="dashed") >> adguard2
 
-        # Monitoring
-        prom >> Edge(label="scrape") >> [nest_docker, files, scrut, seed, mb, ha, pbs]
+        # Monitoring — metrics
+        lxc_targets = [nest_docker, files, scrut, seed, mb, ha, pbs, mcp, ci]
+        prom >> Edge(label="scrape") >> lxc_targets
         prom >> Edge(label="scrape\n(WireGuard)", style="dashed") >> vps_obs
         graf - [prom, lok]
 
-        # Log shipping
-        vps_obs >> Edge(label="logs") >> lok
+        # Log shipping — Alloy on every host ships to Loki
+        all_log_sources = [nest_docker, seed, scrut, mb, files, mcp, pbs, ci]
+        all_log_sources >> Edge(label="logs (Alloy)", color="blue") >> lok
+        vps_obs >> Edge(label="logs (Alloy)\n(WireGuard)", style="dashed", color="blue") >> lok
 
         # Backups
         [nest_docker, files, scrut, seed, mb, ha] >> Edge(label="backup") >> pbs
@@ -214,9 +223,10 @@ def generate_flow(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
 
         with Cluster(lxc_label("docker", hosts, lxcs)):
             nest_wg        = VPN("WireGuard\n10.10.0.2")
-            nest_traefik   = Traefik("Traefik\nTLS termination")
+            nest_traefik   = Traefik("Traefik\nTLS termination\nPROXY protocol v2")
             authelia       = Server("Authelia\nSSO / 2FA")
             svc_protected  = Docker("Protected services\n(Sonarr · Radarr · Grafana…)")
+            svc_local      = Docker("LAN-only services\n(Tunarr · Watcharr)")
             svc_open       = Docker("Open services\n(Jellyfin · Seerr)")
 
         with Cluster(host_label("adguard", hosts, "(primary DNS)")):
@@ -229,6 +239,7 @@ def generate_flow(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
 
         nest_traefik >> authelia
         authelia     >> Edge(label="authorized") >> svc_protected
+        nest_traefik >> Edge(label="local-only") >> svc_local
         nest_traefik >> Edge(label="no auth") >> svc_open
 
         client >> Edge(label="DNS", style="dotted", color="gray") >> adguard
