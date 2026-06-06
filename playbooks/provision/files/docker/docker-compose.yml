@@ -475,7 +475,7 @@ services:
       - "traefik.http.routers.tunarr.rule=Host(`tunarr.arishaig.site`)"
       - "traefik.http.routers.tunarr.entrypoints=websecure"
       - "traefik.http.routers.tunarr.tls=true"
-      # - "traefik.http.routers.tunarr.middlewares=authelia@file"
+      - "traefik.http.routers.tunarr.middlewares=local-only@file"
       - "traefik.http.services.tunarr.loadbalancer.server.port=8000"
     restart: unless-stopped
 
@@ -491,11 +491,11 @@ services:
       - default
       - proxy-net
     labels:
-      # No Authelia middleware because Watcharr login breaks with it enabled
       - "traefik.enable=true"
       - "traefik.http.routers.watcharr.rule=Host(`watcharr.arishaig.site`)"
       - "traefik.http.routers.watcharr.entrypoints=websecure"
       - "traefik.http.routers.watcharr.tls=true"
+      - "traefik.http.routers.watcharr.middlewares=local-only@file"
       - "traefik.http.services.watcharr.loadbalancer.server.port=3080"
     restart: unless-stopped
 

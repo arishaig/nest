@@ -41,6 +41,21 @@ groups:
           summary: "No logs from Proxmox for 15 minutes"
           description: "Alloy on Proxmox has stopped shipping logs."
 
+      # Per-stream alert: catches a specific log source going silent even when the host
+      # is still shipping other logs. absent_over_time({host="X"}[15m]) won't catch
+      # "Traefik stopped writing its access log" if journal logs keep flowing.
+      # 30m window because access log only gets an entry when a request arrives;
+      # monitoring health-check probes generate traffic every ~60s so genuine silence
+      # within 30m means the file tail or the log file itself has broken.
+      - alert: TraefikAccessLogGap
+        expr: absent_over_time({host="docker", job="traefik-access"}[30m])
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No internal Traefik access logs for 30 minutes"
+          description: "The traefik-access stream from the docker LXC has gone silent. Alloy file tail may be broken or Traefik stopped writing its access log."
+
   - name: systemd
     interval: 2m
     rules:
@@ -83,7 +98,7 @@ groups:
       # Meta-alert: if Loki drops logs, all other Loki ruler alerts (including LogIngestionGap)
       # silently become unreliable. This is the only alert that can catch Loki self-failure.
       - alert: LokiIngestionBackpressure
-        expr: count_over_time({host="monitoring", container="loki"} |= "dropping stream" [5m]) > 0
+        expr: count_over_time({host="monitoring", container="loki"} |= "dropping stream" |= "level=warn" [5m]) > 0
         for: 0m
         labels:
           severity: warning
