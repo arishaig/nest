@@ -120,6 +120,7 @@
         src: files/docker/traefik/traefik.yml
         dest: "{{ compose_dir }}/traefik/traefik.yml"
         mode: "0644"
+      notify: Restart Traefik
 
     - name: Copy traefik dynamic configs
       ansible.builtin.copy:
@@ -389,6 +390,11 @@
     - name: Restart postgres
       ansible.builtin.command:
         cmd: docker restart postgres
+      changed_when: true
+
+    - name: Restart Traefik
+      ansible.builtin.command:
+        cmd: docker restart traefik
       changed_when: true
 
     - name: Restart arr containers

@@ -53,3 +53,39 @@ loki.source.journal "journal" {
     host = "{{ inventory_hostname }}",
   }
 }
+
+{% if inventory_hostname == 'docker' %}
+// Internal Traefik access log — written to file, not stdout.
+// Mirrors the VPS traefik-access pipeline so both can be queried with job="traefik-access".
+local.file_match "traefik_access" {
+  path_targets = [{
+    __address__ = "localhost",
+    __path__    = "/mnt/app_config/traefik/logs/access.log",
+    job         = "traefik-access",
+    host        = "docker",
+  }]
+}
+
+loki.process "traefik_access_json" {
+  forward_to = [loki.write.loki.receiver]
+
+  stage.json {
+    expressions = {
+      router = "RouterName",
+      status = "DownstreamStatus",
+    }
+  }
+
+  stage.labels {
+    values = {
+      router = "router",
+      status = "status",
+    }
+  }
+}
+
+loki.source.file "traefik_access" {
+  targets    = local.file_match.traefik_access.targets
+  forward_to = [loki.process.traefik_access_json.receiver]
+}
+{% endif %}
