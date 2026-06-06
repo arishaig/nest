@@ -436,7 +436,7 @@ services:
   # Tdarr - Automated transcoding node
   tdarr-node:
     container_name: tdarr-node
-    image: ghcr.io/haveagitgat/tdarr_node:2.50.02
+    image: ghcr.io/haveagitgat/tdarr_node:2.77.01
     restart: unless-stopped
     network_mode: service:tdarr
     environment:
