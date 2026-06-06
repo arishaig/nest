@@ -16,11 +16,19 @@
       ]
     },
     {
-      "description": "linuxserver images use date-based build tags alongside semver — track semver only. Major must be a single digit to exclude Ubuntu codename tags (e.g. 20.04.1 = Ubuntu Focal build 1).",
-      "allowedVersions": "/^[1-9]\\.\\d+\\.\\d+$/",
+      "description": "linuxserver images use date-based build tags alongside semver — track semver only",
+      "allowedVersions": "/^\\d+\\.\\d+\\.\\d+$/",
       "matchPackageNames": [
         "/^linuxserver//",
         "/^lscr.io/linuxserver//"
+      ]
+    },
+    {
+      "description": "qbittorrent: linuxserver switched to Ubuntu codename tags (e.g. 20.04.1 = Ubuntu Focal build 1) which are not version upgrades. Block anything with a two-digit major.",
+      "allowedVersions": "/^[0-9]\\.\\d+\\.\\d+$/",
+      "matchPackageNames": [
+        "lscr.io/linuxserver/qbittorrent",
+        "linuxserver/qbittorrent"
       ]
     },
     {
