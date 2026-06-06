@@ -239,7 +239,7 @@ services:
 
   # Recyclarr - TRaSH Guide Settings Sync
   recyclarr:
-    image: ghcr.io/recyclarr/recyclarr:7.3.0
+    image: ghcr.io/recyclarr/recyclarr:7.5.2
     container_name: recyclarr
     user: 1000:1000
     environment:
