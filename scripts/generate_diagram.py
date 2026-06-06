@@ -133,7 +133,7 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
             with Cluster(lxc_label("monitoring", hosts, lxcs)):
                 prom = Prometheus("Prometheus")
                 graf = Grafana("Grafana")
-                lok  = Server("Loki + Ruler\n(Alertmanager)")
+                lok  = Server("Loki + Ruler\n← Alloy (all hosts)")
 
             with Cluster(lxc_label("fileserver", hosts, lxcs)):
                 files = Ceph("Samba")
@@ -183,10 +183,9 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
         prom >> Edge(label="scrape\n(WireGuard)", style="dashed") >> vps_obs
         graf - [prom, lok]
 
-        # Log shipping — Alloy on every host ships to Loki
-        all_log_sources = [nest_docker, seed, scrut, mb, files, mcp, pbs, ci]
-        all_log_sources >> Edge(label="logs (Alloy)", color="blue") >> lok
-        vps_obs >> Edge(label="logs (Alloy)\n(WireGuard)", style="dashed", color="blue") >> lok
+        # Log shipping — representative edges only (all hosts run Alloy; label on node)
+        nest_docker >> Edge(style="dashed", color="steelblue") >> lok
+        vps_obs     >> Edge(style="dashed", color="steelblue") >> lok
 
         # Backups
         [nest_docker, files, scrut, seed, mb, ha] >> Edge(label="backup") >> pbs
