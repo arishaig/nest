@@ -67,8 +67,30 @@
         dest: "{{ scrutiny_dir }}/docker-compose.yml"
         mode: "0644"
 
+    - name: Create scrutiny config directory
+      ansible.builtin.file:
+        path: "{{ scrutiny_dir }}/config"
+        state: directory
+        mode: "0755"
+
+    - name: Template Scrutiny notification config
+      ansible.builtin.template:
+        src: templates/scrutiny/scrutiny.yaml.j2
+        dest: "{{ scrutiny_dir }}/config/scrutiny.yaml"
+        mode: "0644"
+      notify: Restart scrutiny
+
     - name: Start Scrutiny stack
       ansible.builtin.command:
         cmd: docker compose up -d --remove-orphans
         chdir: "{{ scrutiny_dir }}"
       changed_when: true
+
+  handlers:
+    # scrutiny.yaml is a bind mount, so `compose up -d` won't recreate the
+    # container on a config change — restart it explicitly to reload notify.urls.
+    - name: Restart scrutiny
+      ansible.builtin.command:
+        cmd: docker compose restart scrutiny
+        chdir: "{{ scrutiny_dir }}"
+      changed_when: false

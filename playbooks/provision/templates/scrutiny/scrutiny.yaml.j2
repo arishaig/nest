@@ -1,0 +1,12 @@
+# Managed by Ansible. Scrutiny web config — notifications only.
+# All other web/collector settings come from environment variables in the
+# Scrutiny docker-compose.yml. Scrutiny merges this file with those env vars.
+#
+# notify.urls uses shoutrrr syntax. Here it POSTs a JSON body to a Home Assistant
+# webhook over plain HTTP — note the shoutrrr generic:// scheme with
+# ?disabletls=yes&template=json (NOT generic+http://, which does not deliver). The
+# `scrutiny_disk_alert` HA automation turns the {title,message} JSON into a notification.
+# See: https://github.com/AnalogJ/scrutiny/blob/master/docs/TROUBLESHOOTING_NOTIFICATIONS.md
+notify:
+  urls:
+    - "{{ scrutiny_notify_url }}"
