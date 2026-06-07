@@ -15,3 +15,6 @@ terraform/.terraform.tfstate.lock.info
 
 # MCP server config (contains credentials)
 .mcp.json
+
+# FoundryVTT zip (proprietary, downloaded from license page)
+playbooks/provision/files/foundry/*.zip
