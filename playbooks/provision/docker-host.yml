@@ -221,19 +221,9 @@
         recurse: false
 
     - name: Start Docker Compose stack
-      ansible.builtin.command:
-        cmd: docker compose up -d
-        chdir: "{{ compose_dir }}"
-      changed_when: true
-      register: compose_result
-      ignore_errors: true
-
-    - name: Fail if compose failed for reasons other than postgres healthcheck
-      ansible.builtin.fail:
-        msg: "docker compose up failed: {{ compose_result.stderr | default('') }}"
-      when:
-        - compose_result.failed
-        - "'postgres' not in (compose_result.stderr | default(''))"
+      community.docker.docker_compose_v2:
+        project_src: "{{ compose_dir }}"
+        state: present
 
     # --- Arr app authentication ---
     # Sets External auth so apps trust the Remote-User header from Authelia
@@ -251,9 +241,11 @@
       notify: Restart arr containers
 
     - name: Restart authelia to load OIDC config
-      ansible.builtin.command:
-        cmd: docker restart authelia
-      changed_when: true
+      community.docker.docker_compose_v2:
+        project_src: "{{ compose_dir }}"
+        services:
+          - authelia
+        state: restarted
 
     # --- WireGuard (tunnel to VPS proxy) ---
     - name: Install wireguard-tools
@@ -383,21 +375,32 @@
         state: restarted
 
     - name: Restart authelia
-      ansible.builtin.command:
-        cmd: docker restart authelia
-      changed_when: true
+      community.docker.docker_compose_v2:
+        project_src: "{{ compose_dir }}"
+        services:
+          - authelia
+        state: restarted
 
     - name: Restart postgres
-      ansible.builtin.command:
-        cmd: docker restart postgres
-      changed_when: true
+      community.docker.docker_compose_v2:
+        project_src: "{{ compose_dir }}"
+        services:
+          - postgres
+        state: restarted
 
     - name: Restart Traefik
-      ansible.builtin.command:
-        cmd: docker restart traefik
-      changed_when: true
+      community.docker.docker_compose_v2:
+        project_src: "{{ compose_dir }}"
+        services:
+          - traefik
+        state: restarted
 
     - name: Restart arr containers
-      ansible.builtin.command:
-        cmd: docker restart sonarr radarr prowlarr lidarr
-      changed_when: true
+      community.docker.docker_compose_v2:
+        project_src: "{{ compose_dir }}"
+        services:
+          - sonarr
+          - radarr
+          - prowlarr
+          - lidarr
+        state: restarted

@@ -233,10 +233,9 @@
 
     - name: Start Docker compose stack
       when: adguard_exporter | default(true)
-      ansible.builtin.command:
-        cmd: docker compose up -d
-        chdir: "{{ docker_dir }}"
-      changed_when: true
+      community.docker.docker_compose_v2:
+        project_src: "{{ docker_dir }}"
+        state: present
 
     # ── Chrony NTP server ──
 

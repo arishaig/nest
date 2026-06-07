@@ -69,7 +69,6 @@
         mode: "0644"
 
     - name: Start seedbox stack
-      ansible.builtin.command:
-        cmd: docker compose up -d
-        chdir: "{{ seedbox_dir }}"
-      changed_when: true
+      community.docker.docker_compose_v2:
+        project_src: "{{ seedbox_dir }}"
+        state: present

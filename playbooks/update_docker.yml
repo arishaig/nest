@@ -45,20 +45,19 @@
         mode: "0644"
       when: inventory_hostname == 'docker'
 
-    - name: Pull latest images for all compose stacks
-      command: docker compose pull --ignore-buildable
-      args:
-        chdir: "{{ item }}"
-      loop: "{{ compose_dirs }}"
-
-    - name: Recreate containers with updated images
-      command: docker compose up -d --remove-orphans
-      args:
-        chdir: "{{ item }}"
+    - name: Pull latest images and recreate updated containers
+      community.docker.docker_compose_v2:
+        project_src: "{{ item }}"
+        state: present
+        pull: always
+        remove_orphans: true
       loop: "{{ compose_dirs }}"
 
     - name: Prune images older than 7 days
-      command: docker image prune -f --filter "until=168h"
+      community.docker.docker_prune:
+        images: true
+        images_filters:
+          until: "168h"
 
     - name: Show disk usage
       command: docker system df
