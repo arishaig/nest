@@ -10,7 +10,7 @@ resource "proxmox_virtual_environment_download_file" "talos_iso" {
   content_type = "iso"
   datastore_id = "local"
   url          = "https://factory.talos.dev/image/${var.talos_schematic_id}/${var.talos_version}/metal-amd64.iso"
-  file_name    = "talos-${var.talos_version}-amd64.iso"
+  file_name    = "talos-${var.talos_version}-metal-amd64.iso"
 }
 
 resource "proxmox_virtual_environment_vm" "talos" {
