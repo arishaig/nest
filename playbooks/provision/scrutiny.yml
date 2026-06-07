@@ -81,16 +81,17 @@
       notify: Restart scrutiny
 
     - name: Start Scrutiny stack
-      ansible.builtin.command:
-        cmd: docker compose up -d --remove-orphans
-        chdir: "{{ scrutiny_dir }}"
-      changed_when: true
+      community.docker.docker_compose_v2:
+        project_src: "{{ scrutiny_dir }}"
+        state: present
+        remove_orphans: true
 
   handlers:
     # scrutiny.yaml is a bind mount, so `compose up -d` won't recreate the
     # container on a config change — restart it explicitly to reload notify.urls.
     - name: Restart scrutiny
-      ansible.builtin.command:
-        cmd: docker compose restart scrutiny
-        chdir: "{{ scrutiny_dir }}"
-      changed_when: false
+      community.docker.docker_compose_v2:
+        project_src: "{{ scrutiny_dir }}"
+        services:
+          - scrutiny
+        state: restarted

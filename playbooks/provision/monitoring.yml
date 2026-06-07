@@ -169,10 +169,9 @@
       failed_when: false
 
     - name: Start monitoring stack
-      ansible.builtin.command:
-        cmd: docker compose up -d
-        chdir: "{{ monitoring_dir }}"
-      changed_when: true
+      community.docker.docker_compose_v2:
+        project_src: "{{ monitoring_dir }}"
+        state: present
 
     # --- rsyslog: receive UniFi syslog (RFC3164) on UDP 514 ---
     - name: Install rsyslog
@@ -219,22 +218,25 @@
 
   handlers:
     - name: Restart prometheus
-      ansible.builtin.command:
-        cmd: docker compose restart prometheus
-        chdir: "{{ monitoring_dir }}"
-      changed_when: false
+      community.docker.docker_compose_v2:
+        project_src: "{{ monitoring_dir }}"
+        services:
+          - prometheus
+        state: restarted
 
     - name: Restart grafana
-      ansible.builtin.command:
-        cmd: docker compose restart grafana
-        chdir: "{{ monitoring_dir }}"
-      changed_when: false
+      community.docker.docker_compose_v2:
+        project_src: "{{ monitoring_dir }}"
+        services:
+          - grafana
+        state: restarted
 
     - name: Restart loki
-      ansible.builtin.command:
-        cmd: docker compose restart loki
-        chdir: "{{ monitoring_dir }}"
-      changed_when: false
+      community.docker.docker_compose_v2:
+        project_src: "{{ monitoring_dir }}"
+        services:
+          - loki
+        state: restarted
 
     - name: Restart rsyslog
       ansible.builtin.systemd:
