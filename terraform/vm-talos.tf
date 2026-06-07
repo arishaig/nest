@@ -5,7 +5,7 @@
 # (allowSchedulingOnControlPlanes: true in talos/patches/controlplane.yaml).
 # Bootstrap: run scripts/bootstrap-talos.sh after `terraform apply`.
 
-resource "proxmox_virtual_environment_download_file" "talos_iso" {
+resource "proxmox_download_file" "talos_iso" {
   node_name    = var.pve_node
   content_type = "iso"
   datastore_id = "local"
@@ -56,7 +56,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
   scsi_hardware = "virtio-scsi-single"
 
   cdrom {
-    file_id   = proxmox_virtual_environment_download_file.talos_iso.id
+    file_id   = proxmox_download_file.talos_iso.id
     interface = "ide0"
   }
 
