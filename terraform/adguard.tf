@@ -61,6 +61,10 @@ locals {
 
     # UDM VPN
     "vpn.arishaig.site" = "192.168.1.1"
+
+    # Kubernetes (Talos node — also the k8s ingress endpoint as services migrate)
+    "talos.local.arishaig.site" = var.talos_ip
+    "k8s.arishaig.site"         = var.talos_ip
   }
 }
 
