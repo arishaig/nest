@@ -1,0 +1,189 @@
+---
+# Provision LXC 110: foundry — FoundryVTT game server
+# common.yml must run first (handled by site.yml and the Terraform provisioner).
+#
+# Before running: place the FoundryVTT Linux/Node.js zip at
+#   playbooks/provision/files/foundry/foundryvtt.zip
+# Download the "Node.js" release (not the installer) from your Foundry license page.
+# The zip is gitignored. For subsequent version upgrades, use Foundry's in-UI updater.
+
+- name: FoundryVTT provisioning
+  hosts: foundry
+  become: true
+  gather_facts: true
+
+  vars:
+    foundry_app_dir: /opt/foundryvtt
+    foundry_data_dir: /opt/foundrydata
+    foundry_port: 30000
+    foundry_user: foundry
+    foundry_group: foundry
+    # Fixed UID/GID so the Tank bind mount on the PVE host can be pre-chowned
+    # to the correct subuid (100000 + 2000 = 102000). Changing this requires
+    # also updating the host-side ownership of /Tank/foundry_assets.
+    foundry_uid: 2000
+    foundry_gid: 2000
+
+  tasks:
+    # --- Node.js via NodeSource ---
+    - name: Install Node.js prerequisites
+      ansible.builtin.apt:
+        name:
+          - curl
+          - gnupg
+        state: present
+
+    - name: Add NodeSource GPG key
+      ansible.builtin.get_url:
+        url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+        dest: /etc/apt/keyrings/nodesource.asc
+        mode: "0644"
+
+    - name: Add NodeSource repository
+      ansible.builtin.copy:
+        content: "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_26.x nodistro main\n"
+        dest: /etc/apt/sources.list.d/nodesource.list
+        mode: "0644"
+      notify: Update apt cache
+
+    - name: Flush handlers to update apt cache before install
+      ansible.builtin.meta: flush_handlers
+
+    - name: Install Node.js
+      ansible.builtin.apt:
+        name: nodejs
+        state: present
+        update_cache: false
+
+    # --- foundry user and directories ---
+    - name: Create foundry group
+      ansible.builtin.group:
+        name: "{{ foundry_group }}"
+        gid: "{{ foundry_gid }}"
+        system: true
+
+    - name: Create foundry system user
+      ansible.builtin.user:
+        name: "{{ foundry_user }}"
+        uid: "{{ foundry_uid }}"
+        group: "{{ foundry_group }}"
+        system: true
+        shell: /usr/sbin/nologin
+        home: "{{ foundry_data_dir }}"
+        create_home: false
+
+    - name: Create FoundryVTT app directory
+      ansible.builtin.file:
+        path: "{{ foundry_app_dir }}"
+        state: directory
+        owner: "{{ foundry_user }}"
+        group: "{{ foundry_group }}"
+        mode: "0755"
+
+    - name: Create FoundryVTT data directory
+      ansible.builtin.file:
+        path: "{{ foundry_data_dir }}"
+        state: directory
+        owner: "{{ foundry_user }}"
+        group: "{{ foundry_group }}"
+        mode: "0755"
+
+    - name: Create FoundryVTT data subdirectories on SSD
+      ansible.builtin.file:
+        path: "{{ foundry_data_dir }}/Data/{{ item }}"
+        state: directory
+        owner: "{{ foundry_user }}"
+        group: "{{ foundry_group }}"
+        mode: "0755"
+      loop:
+        - worlds
+        - modules
+        - systems
+
+    # The assets directory is a Tank bind mount, pre-chowned on the host to
+    # 102000:102000 (subuid base 100000 + foundry_uid 2000) by Terraform.
+    # We just ensure it has the right mode inside the container.
+    - name: Set permissions on Tank assets mount
+      ansible.builtin.file:
+        path: "{{ foundry_data_dir }}/Data/assets"
+        state: directory
+        owner: "{{ foundry_user }}"
+        group: "{{ foundry_group }}"
+        mode: "0755"
+
+    # --- Deploy Foundry application ---
+    - name: Check for foundry zip on controller
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/files/foundry/foundryvtt.zip"
+      register: foundry_zip
+      delegate_to: localhost
+      become: false
+
+    - name: Fail if foundryvtt.zip is missing
+      ansible.builtin.fail:
+        msg: >
+          Missing playbooks/provision/files/foundry/foundryvtt.zip —
+          download the "Node.js" release from your Foundry license page and place it there.
+      when: not foundry_zip.stat.exists
+
+    - name: Upload and extract FoundryVTT zip
+      ansible.builtin.unarchive:
+        src: "{{ playbook_dir }}/files/foundry/foundryvtt.zip"
+        dest: "{{ foundry_app_dir }}"
+        owner: "{{ foundry_user }}"
+        group: "{{ foundry_group }}"
+        creates: "{{ foundry_app_dir }}/main.js"
+
+    # --- systemd service ---
+    # Restart=always is required for in-UI updates: Foundry exits after downloading
+    # and extracting a new release, and systemd brings it back up automatically.
+    - name: Install foundryvtt systemd service
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=FoundryVTT
+          After=network.target
+
+          [Service]
+          Type=simple
+          User={{ foundry_user }}
+          Group={{ foundry_group }}
+          WorkingDirectory={{ foundry_app_dir }}
+          ExecStart=/usr/bin/node main.js \
+            --dataPath={{ foundry_data_dir }} \
+            --port={{ foundry_port }} \
+            --proxySSL=true \
+            --proxyPort=443 \
+            --noupnp
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/foundryvtt.service
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart foundryvtt
+
+    - name: Enable and start foundryvtt
+      ansible.builtin.systemd:
+        name: foundryvtt
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart foundryvtt
+      ansible.builtin.systemd:
+        name: foundryvtt
+        state: restarted
+        daemon_reload: true

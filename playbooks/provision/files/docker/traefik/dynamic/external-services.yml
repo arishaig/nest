@@ -40,6 +40,14 @@ http:
       tls:
         certResolver: cloudflare
 
+    # FoundryVTT — no authelia@file; Foundry has its own auth
+    foundry:
+      rule: "Host(`foundry.arishaig.site`)"
+      entryPoints: [websecure]
+      service: foundry
+      tls:
+        certResolver: cloudflare
+
     # MCP server — no authelia@file; validates Bearer JWT itself
     nest-mcp:
       rule: "Host(`mcp.arishaig.site`)"
@@ -119,6 +127,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.1.19:8765"
+
+    foundry:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.20:30000"
 
   serversTransports:
     skipVerify:
