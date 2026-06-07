@@ -32,6 +32,8 @@
   import_playbook: provision/scrutiny.yml
 - name: "Provision: seedbox"
   import_playbook: provision/seedbox.yml
+- name: "Provision: FoundryVTT"
+  import_playbook: provision/foundry.yml
 - name: "Provision: Proxmox Backup Server"
   import_playbook: provision/pbs.yml
 - name: "Provision: nftables firewall"

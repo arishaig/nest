@@ -130,10 +130,13 @@ flux bootstrap github \
   --token-auth
 
 # ── Step 7: Add apps Kustomization ──────────────────────────────────────────
+# flux bootstrap pushed flux-system/ to main; switch there before committing.
 echo ""
 echo "==> [post-bootstrap] Adding apps Flux Kustomization..."
 
 cd "${REPO_ROOT}"
+git fetch origin main
+git checkout main
 git pull --rebase
 
 cat > k8s/flux-system/apps.yaml <<'YAML'
