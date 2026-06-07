@@ -92,19 +92,11 @@ groups:
           summary: "Traefik upstream connection failures on vps-proxy"
           description: "Traefik is logging repeated upstream 'connection refused' errors. The WireGuard tunnel may be partially degraded."
 
-  - name: loki
-    interval: 2m
-    rules:
-      # Meta-alert: if Loki drops logs, all other Loki ruler alerts (including LogIngestionGap)
-      # silently become unreliable. This is the only alert that can catch Loki self-failure.
-      - alert: LokiIngestionBackpressure
-        expr: count_over_time({host="monitoring", container="loki"} |= "dropping stream" |= "level=warn" [5m]) > 0
-        for: 0m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Loki is dropping log streams"
-          description: "Loki is discarding incoming log streams due to backpressure or limits. Log-based alerts may be unreliable until resolved."
+  # NOTE: the old "loki" group (LokiIngestionBackpressure) was removed. It scraped Loki's
+  # own logs for "dropping stream", which is self-referential — Loki logs every ruler query
+  # (including that one) at level=info, so the alert matched its own evaluation logs and fired
+  # permanently. Real drops are now alerted in Prometheus via loki_discarded_samples_total
+  # (see LokiDiscardingLogs in prometheus/rules/nest.yml).
 
   - name: security
     interval: 2m

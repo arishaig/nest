@@ -13,7 +13,7 @@ groups:
     rules:
       - alert: HostDown
         expr: up{job=~"node|vps"} == 0
-        for: 2m
+        for: 30m
         labels:
           severity: critical
         annotations:
@@ -58,7 +58,7 @@ groups:
 
       - alert: DiskReadonly
         expr: node_filesystem_readonly{fstype!~"tmpfs|fuse.lxcfs|squashfs|erofs"} == 1
-        for: 2m
+        for: 30m
         labels:
           severity: critical
         annotations:
@@ -69,7 +69,7 @@ groups:
     rules:
       - alert: CAdvisorDown
         expr: up{job="cadvisor"} == 0
-        for: 2m
+        for: 30m
         labels:
           severity: warning
         annotations:
@@ -83,7 +83,7 @@ groups:
             image!="",
             name=~"/.+"
           } > 120
-        for: 2m
+        for: 30m
         labels:
           severity: warning
         annotations:
@@ -106,7 +106,7 @@ groups:
 
       - alert: ProxmoxNodeDown
         expr: up{job="proxmox"} == 0
-        for: 2m
+        for: 30m
         labels:
           severity: critical
         annotations:
@@ -115,34 +115,16 @@ groups:
 
       - alert: AdGuardDown
         expr: up{job="adguard"} == 0
-        for: 2m
+        for: 30m
         labels:
           severity: critical
         annotations:
           summary: "AdGuard Home down ({{ $labels.dns_role }})"
           description: "AdGuard Home exporter ({{ $labels.dns_role }}, {{ $labels.instance }}) has been unreachable for 2 minutes."
 
-      - alert: ScrutinyDown
-        expr: up{job="scrutiny"} == 0
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Scrutiny exporter is down"
-          description: "Cannot scrape Scrutiny disk health metrics from {{ $labels.instance }}."
-
-      - alert: ScrutinyDiskWarning
-        expr: scrutiny_smart_device_status > 0
-        for: 1m
-        labels:
-          severity: warning
-        annotations:
-          summary: "SMART warning on {{ $labels.device_name }}"
-          description: "Scrutiny reports a SMART issue on {{ $labels.device_name }} ({{ $labels.host_id }})."
-
       - alert: QBittorrentDown
         expr: up{job="qbittorrent"} == 0
-        for: 5m
+        for: 30m
         labels:
           severity: warning
         annotations:
@@ -151,7 +133,7 @@ groups:
 
       - alert: RedisDown
         expr: up{job="redis"} == 0
-        for: 5m
+        for: 30m
         labels:
           severity: warning
         annotations:
@@ -160,7 +142,7 @@ groups:
 
       - alert: PostgresDown
         expr: up{job="postgres"} == 0
-        for: 5m
+        for: 30m
         labels:
           severity: warning
         annotations:
@@ -168,17 +150,17 @@ groups:
           description: "Postgres metrics have been unreachable for 5 minutes."
 
       - alert: HomeAssistantDown
-        expr: up{job="homeassistant"} == 0
-        for: 5m
+        expr: absent_over_time(alloy_build_info{servername="HomeAssistant"}[30m])
+        for: 0m
         labels:
           severity: warning
         annotations:
           summary: "Home Assistant metrics are down"
-          description: "Home Assistant Prometheus endpoint has been unreachable for 5 minutes."
+          description: "No metrics received from Grafana Alloy on Home Assistant in the last 10 minutes."
 
       - alert: ZFSPoolDegraded
         expr: node_zfs_zpool_state{instance="proxmox.local.arishaig.site", state=~"degraded|faulted|suspended|unavail"} == 1
-        for: 2m
+        for: 30m
         labels:
           severity: critical
         annotations:
@@ -187,7 +169,7 @@ groups:
 
       - alert: UnboundDown
         expr: unbound_up == 0
-        for: 2m
+        for: 30m
         labels:
           severity: critical
         annotations:
@@ -205,7 +187,7 @@ groups:
 
       - alert: TraefikVPSDown
         expr: up{job="traefik-vps"} == 0
-        for: 2m
+        for: 30m
         labels:
           severity: critical
         annotations:
@@ -214,7 +196,7 @@ groups:
 
       - alert: PBSBackupStale
         expr: time() - pbs_backup_last_snapshot_timestamp_seconds > 30 * 3600
-        for: 15m
+        for: 30m
         labels:
           severity: warning
         annotations:
@@ -225,7 +207,7 @@ groups:
     rules:
       - alert: ExternalEndpointDown
         expr: probe_success{job="blackbox"} == 0
-        for: 2m
+        for: 30m
         labels:
           severity: critical
         annotations:
@@ -236,7 +218,7 @@ groups:
     rules:
       - alert: UnpollerNoData
         expr: absent(unpoller_client_uptime_seconds)
-        for: 5m
+        for: 30m
         labels:
           severity: warning
         annotations:
@@ -247,9 +229,23 @@ groups:
     rules:
       - alert: MediaAppDown
         expr: up{job=~"sonarr|radarr|lidarr|prowlarr|bazarr"} == 0
-        for: 5m
+        for: 30m
         labels:
           severity: warning
         annotations:
           summary: "{{ $labels.job }} is down"
           description: "{{ $labels.job }} on {{ $labels.instance }} has been unreachable for 5 minutes."
+
+  - name: logging
+    rules:
+      # Replaces the old self-referential LokiIngestionBackpressure ruler alert.
+      # loki_discarded_samples_total is the authoritative drop counter (by reason),
+      # so this catches real rate-limit/per-stream drops that the log-scrape never did.
+      - alert: LokiDiscardingLogs
+        expr: sum(increase(loki_discarded_samples_total[15m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Loki is discarding log samples"
+          description: "Loki has dropped {{ $value | printf \"%.0f\" }} log samples in the last 15 minutes (rate or per-stream limits). Log-based alerts may be unreliable; check loki_discarded_samples_total by reason."

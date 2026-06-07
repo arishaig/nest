@@ -23,16 +23,24 @@ scrape_configs:
           - 'proxmox.local.arishaig.site:9100'
           - 'monitoring.local.arishaig.site:9100'
           - 'docker.arishaig.site:9100'
-          - 'torrent.local.arishaig.site:9100'
           - 'files.arishaig.site:9100'
-          - 'scrutiny.local.arishaig.site:9100'
           - 'musicbrainz.arishaig.site:9100'
           - 'backup.local.arishaig.site:9100'
           - 'dns.arishaig.site:9100'
+          - '192.168.1.46:9100'
+          - '192.168.1.182:9100'
     relabel_configs:
       - source_labels: [__address__]
         regex: '([^:]+):\d+'
         target_label: instance
+      - source_labels: [instance]
+        regex: '192\.168\.1\.46'
+        target_label: instance
+        replacement: 'scrutiny.local.arishaig.site'
+      - source_labels: [instance]
+        regex: '192\.168\.1\.182'
+        target_label: instance
+        replacement: 'torrent.local.arishaig.site'
 
   - job_name: 'vps'
     static_configs:
@@ -51,8 +59,12 @@ scrape_configs:
       - targets:
           - 'monitoring.local.arishaig.site:8080'
           - 'docker.arishaig.site:8081'
-          - 'torrent.local.arishaig.site:8081'
-          - 'scrutiny.local.arishaig.site:8081'
+      - targets: ['192.168.1.46:8081']
+        labels:
+          instance: 'scrutiny.local.arishaig.site'
+      - targets: ['192.168.1.182:8081']
+        labels:
+          instance: 'torrent.local.arishaig.site'
 
   - job_name: 'proxmox'
     static_configs:
@@ -99,6 +111,10 @@ scrape_configs:
     static_configs:
       - targets: ['unpoller:9130']
 
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+
   - job_name: 'sonarr'
     static_configs:
       - targets: ['docker.arishaig.site:9707']
@@ -126,7 +142,9 @@ scrape_configs:
 
   - job_name: 'qbittorrent'
     static_configs:
-      - targets: ['torrent.local.arishaig.site:9022']
+      - targets: ['docker.arishaig.site:9022']
+        labels:
+          instance: 'torrent.local.arishaig.site'
 
   - job_name: 'redis'
     static_configs:
@@ -135,17 +153,6 @@ scrape_configs:
   - job_name: 'postgres'
     static_configs:
       - targets: ['docker.arishaig.site:9187']
-
-  - job_name: 'scrutiny'
-    static_configs:
-      - targets: ['scrutiny.local.arishaig.site:8080']
-    metrics_path: /api/metrics
-
-  - job_name: 'homeassistant'
-    static_configs:
-      - targets: ['casa.local.arishaig.site:8123']
-    metrics_path: /api/prometheus
-    bearer_token: {{ homeassistant_bearer_token }}
 
   - job_name: 'wled'
     static_configs:

@@ -124,6 +124,14 @@
         src: files/monitoring/loki/loki.yml
         dest: "{{ monitoring_dir }}/loki/loki.yml"
         mode: "0644"
+      notify: Restart loki
+
+    - name: Copy Loki ruler rules
+      ansible.builtin.copy:
+        src: files/monitoring/loki/ruler-rules/
+        dest: "{{ monitoring_dir }}/loki/ruler-rules/"
+        mode: "0644"
+      notify: Restart loki
 
     - name: Copy grafana datasources
       ansible.builtin.copy:
@@ -219,6 +227,12 @@
     - name: Restart grafana
       ansible.builtin.command:
         cmd: docker compose restart grafana
+        chdir: "{{ monitoring_dir }}"
+      changed_when: false
+
+    - name: Restart loki
+      ansible.builtin.command:
+        cmd: docker compose restart loki
         chdir: "{{ monitoring_dir }}"
       changed_when: false
 
