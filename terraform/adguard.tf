@@ -61,6 +61,13 @@ locals {
 
     # UDM VPN
     "vpn.arishaig.site" = "192.168.1.1"
+
+    # FoundryVTT (LXC 111 — direct to container, proxied through Traefik on docker)
+    "foundry.arishaig.site" = "192.168.1.158"
+
+    # Kubernetes (Talos node — also the k8s ingress endpoint as services migrate)
+    "talos.local.arishaig.site" = var.talos_ip
+    "k8s.arishaig.site"         = var.talos_ip
   }
 }
 

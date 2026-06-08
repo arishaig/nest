@@ -123,15 +123,15 @@ http:
         servers:
           - url: "http://192.168.1.197:80"
 
+    foundry:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.21:30000"
+
     nest-mcp:
       loadBalancer:
         servers:
           - url: "http://192.168.1.19:8765"
-
-    foundry:
-      loadBalancer:
-        servers:
-          - url: "http://192.168.1.20:30000"
 
   serversTransports:
     skipVerify:

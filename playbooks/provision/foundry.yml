@@ -1,5 +1,5 @@
 ---
-# Provision LXC 110: foundry — FoundryVTT game server
+# Provision LXC 111: foundry — FoundryVTT game server
 # common.yml must run first (handled by site.yml and the Terraform provisioner).
 #
 # Before running: place the FoundryVTT Linux/Node.js zip at
@@ -14,15 +14,10 @@
 
   vars:
     foundry_app_dir: /opt/foundryvtt
-    foundry_data_dir: /opt/foundrydata
+    foundry_data_dir: /mnt/foundry/data
     foundry_port: 30000
     foundry_user: foundry
     foundry_group: foundry
-    # Fixed UID/GID so the Tank bind mount on the PVE host can be pre-chowned
-    # to the correct subuid (100000 + 2000 = 102000). Changing this requires
-    # also updating the host-side ownership of /Tank/foundry_assets.
-    foundry_uid: 2000
-    foundry_gid: 2000
 
   tasks:
     # --- Node.js via NodeSource ---
@@ -31,6 +26,7 @@
         name:
           - curl
           - gnupg
+          - unzip
         state: present
 
     - name: Add NodeSource GPG key
@@ -41,7 +37,7 @@
 
     - name: Add NodeSource repository
       ansible.builtin.copy:
-        content: "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_26.x nodistro main\n"
+        content: "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_22.x nodistro main\n"
         dest: /etc/apt/sources.list.d/nodesource.list
         mode: "0644"
       notify: Update apt cache
@@ -59,17 +55,15 @@
     - name: Create foundry group
       ansible.builtin.group:
         name: "{{ foundry_group }}"
-        gid: "{{ foundry_gid }}"
         system: true
 
     - name: Create foundry system user
       ansible.builtin.user:
         name: "{{ foundry_user }}"
-        uid: "{{ foundry_uid }}"
         group: "{{ foundry_group }}"
         system: true
         shell: /usr/sbin/nologin
-        home: "{{ foundry_data_dir }}"
+        home: "{{ foundry_app_dir }}"
         create_home: false
 
     - name: Create FoundryVTT app directory
@@ -83,29 +77,6 @@
     - name: Create FoundryVTT data directory
       ansible.builtin.file:
         path: "{{ foundry_data_dir }}"
-        state: directory
-        owner: "{{ foundry_user }}"
-        group: "{{ foundry_group }}"
-        mode: "0755"
-
-    - name: Create FoundryVTT data subdirectories on SSD
-      ansible.builtin.file:
-        path: "{{ foundry_data_dir }}/Data/{{ item }}"
-        state: directory
-        owner: "{{ foundry_user }}"
-        group: "{{ foundry_group }}"
-        mode: "0755"
-      loop:
-        - worlds
-        - modules
-        - systems
-
-    # The assets directory is a Tank bind mount, pre-chowned on the host to
-    # 102000:102000 (subuid base 100000 + foundry_uid 2000) by Terraform.
-    # We just ensure it has the right mode inside the container.
-    - name: Set permissions on Tank assets mount
-      ansible.builtin.file:
-        path: "{{ foundry_data_dir }}/Data/assets"
         state: directory
         owner: "{{ foundry_user }}"
         group: "{{ foundry_group }}"
@@ -135,8 +106,8 @@
         creates: "{{ foundry_app_dir }}/main.js"
 
     # --- systemd service ---
-    # Restart=always is required for in-UI updates: Foundry exits after downloading
-    # and extracting a new release, and systemd brings it back up automatically.
+    # Restart=always handles in-UI updates: Foundry exits after downloading
+    # a new release, and systemd brings it back up automatically.
     - name: Install foundryvtt systemd service
       ansible.builtin.copy:
         content: |

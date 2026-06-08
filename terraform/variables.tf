@@ -122,3 +122,20 @@ variable "pbs_password" {
   type        = string
   sensitive   = true
 }
+
+# --- Talos / Kubernetes ---
+variable "talos_version" {
+  description = "Talos Linux version string (e.g. v1.9.0) — check https://github.com/siderolabs/talos/releases"
+  type        = string
+}
+
+variable "talos_schematic_id" {
+  description = "Talos image factory schematic ID — generate at https://factory.talos.dev with siderolabs/qemu-guest-agent extension"
+  type        = string
+}
+
+variable "talos_ip" {
+  description = "Static IP for the Talos node (reserve this in UniFi DHCP)"
+  type        = string
+  default     = "192.168.1.100"
+}
