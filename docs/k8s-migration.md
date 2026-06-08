@@ -126,19 +126,27 @@ kubectl create secret generic storyteller-secret -n media \
 
 ### Jellyfin
 
-**Current state:** Docker LXC, `/mnt/app_config/jellyfin:/config`, `/mnt/media_root:/data`.
+**Current state:** Docker LXC (linuxserver/jellyfin:10.11.10), `/mnt/app_config/jellyfin:/config`, `/mnt/media_root:/data`. Active on port 8096 / jellyfin.arishaig.site.
 
-**Blocker:** SQLite DB; no concurrent-writer support → no blue/green; upgrade = brief downtime.  
-**Investigate first:** Jellyfin external PostgreSQL support (community plugin / in-progress upstream). If viable, enables rolling updates. The k8s postgres instance is already running — adding a Jellyfin DB is cheap.
+**PostgreSQL approach:** Jellyfin 10.11 added EF Core + experimental plugin API for external DB providers. Community plugin `JPVenson/Jellyfin.Pgsql` (`ghcr.io/jpvenson/jellyfin.pgsql:10.11.8-1`) wraps the official Jellyfin image and replaces SQLite with postgres entirely via `POSTGRES_HOST/PORT/DB/USER/PASSWORD` env vars.
 
-**Steps (once external DB is confirmed or accepted as deferred):**
-1. Create `k8s/apps/media/jellyfin-config-pvc.yaml` (nfs-nvme, ~10 Gi)
-2. Create deployment + service (NodePort; expose 8096)
-3. Scale down Docker Jellyfin
-4. WAL checkpoint + copy `/mnt/app_config/jellyfin/` → NFS PVC (follow WAL copy rule above)
-5. Scale up k8s Jellyfin; verify library, watch history, metadata intact
-6. Add Traefik external-services.yml entry (NodePort)
+**Test instance running:** `jellyfin-pgsql` deployment in `media` namespace, NodePort 30814. Fresh config PVC (not a data migration). Docker Jellyfin remains live on port 8096. Media NFS is read-only to avoid two instances writing trickplay/metadata.
+
+**Test goals:**
+- Confirm startup connects to postgres (not SQLite)
+- Go through setup wizard — verify data persists across pod restarts in postgres
+- Verify media browsing works with read-only media mount
+
+**After test passes — full migration steps:**
+1. `CREATE DATABASE jellyfin;` in k8s postgres (done for test; already exists)
+2. Scale down Docker Jellyfin
+3. WAL checkpoint all SQLite DBs: `sqlite3 <db> "PRAGMA wal_checkpoint(TRUNCATE);"` (library.db, jellyfin.db, etc.)
+4. Copy `/mnt/app_config/jellyfin/` → NFS PVC (config, plugins, metadata — NOT SQLite DBs if using postgres)
+5. Scale up k8s Jellyfin; verify library scan/watch history
+6. Add Traefik external-services.yml entry pointing at NodePort 30814
 7. Comment out `jellyfin` in `docker-compose.yml`
+
+**Note:** plugin image is on 10.11.8 (Docker is 10.11.10); minor gap, acceptable for test.
 
 ---
 
@@ -218,6 +226,7 @@ Ports 30000–32767 are the k8s NodePort range. Allocated so far:
 | 30809 | recommendarr http | → 3000 |
 | 30810 | storyteller http | → 8001 |
 | 30813 | mealie http | → 9000 |
+| 30814 | jellyfin-pgsql (test instance) | → 8096 |
 | 30878 | radarr http | → 7878 |
 | 30989 | sonarr http | → 8989 |
 
