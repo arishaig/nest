@@ -3,7 +3,6 @@ cluster:
 
 machine:
   network:
-    hostname: talos
     interfaces:
       - interface: eth0
         dhcp: false
@@ -18,3 +17,7 @@ machine:
   time:
     servers:
       - 192.168.7.7
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+hostname: talos
