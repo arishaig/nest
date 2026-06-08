@@ -17,6 +17,7 @@ jobs:
     runs-on: self-hosted
     outputs:
       docker: ${{ steps.filter.outputs.docker }}
+      monitoring: ${{ steps.filter.outputs.monitoring }}
       vps: ${{ steps.filter.outputs.vps }}
       pve: ${{ steps.filter.outputs.pve }}
       k8s: ${{ steps.filter.outputs.k8s }}
@@ -29,10 +30,12 @@ jobs:
             docker:
               - 'playbooks/provision/files/docker/**'
               - 'playbooks/provision/files/seedbox/**'
-              - 'playbooks/provision/files/monitoring/**'
               - 'playbooks/provision/files/scrutiny/**'
-              - 'playbooks/provision/templates/monitoring/**'
               - 'playbooks/update_docker.yml'
+            monitoring:
+              - 'playbooks/provision/monitoring.yml'
+              - 'playbooks/provision/files/monitoring/**'
+              - 'playbooks/provision/templates/monitoring/**'
             vps:
               - 'playbooks/provision/vps.yml'
               - 'playbooks/provision/files/vps/**'
@@ -70,6 +73,35 @@ jobs:
             --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no"
+
+  deploy-monitoring:
+    needs: changes
+    if: needs.changes.outputs.monitoring == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6.0.3
+
+      - name: Write SSH key
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.ssh"
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
+          chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
+
+      - name: Write vault password
+        run: |
+          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
+          chmod 600 "$RUNNER_TEMP/vault-pass"
+
+      - name: Run monitoring playbook
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          ansible-playbook \
+            -i inventory/hosts.yml \
+            playbooks/provision/monitoring.yml \
+            --vault-password-file "$RUNNER_TEMP/vault-pass" \
+            --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
+            --ssh-extra-args "-o StrictHostKeyChecking=no" \
+            --limit monitoring
 
   deploy-vps:
     needs: changes
