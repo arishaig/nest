@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tdarr
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tdarr
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: tdarr
+    spec:
+      containers:
+        - name: tdarr
+          image: ghcr.io/haveagitgat/tdarr:2.50.01
+          env:
+            - name: TZ
+              value: "America/Los_Angeles"
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: inContainer
+              value: "true"
+          ports:
+            - containerPort: 8265
+            - containerPort: 8266
+          volumeMounts:
+            - name: data
+              mountPath: /app/server
+              subPath: server
+            - name: data
+              mountPath: /app/configs
+              subPath: configs
+            - name: data
+              mountPath: /app/logs
+              subPath: logs
+            - name: media
+              mountPath: /media
+              readOnly: true
+            - name: transcode-cache
+              mountPath: /temp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: tdarr-data
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-nfs
+        - name: transcode-cache
+          emptyDir: {}
