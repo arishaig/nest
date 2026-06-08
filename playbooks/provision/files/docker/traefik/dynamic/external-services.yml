@@ -48,6 +48,14 @@ http:
       tls:
         certResolver: cloudflare
 
+    tdarr:
+      rule: "Host(`tdarr.arishaig.site`)"
+      entryPoints: [websecure]
+      service: tdarr
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
+
     # MCP server — no authelia@file; validates Bearer JWT itself
     nest-mcp:
       rule: "Host(`mcp.arishaig.site`)"
@@ -269,6 +277,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.1.19:8765"
+
+    tdarr:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.158:8265"
 
     # --- k8s-migrated services (via Talos NodePort 192.168.1.110) ---
     lidarr:
