@@ -72,3 +72,7 @@ resources:
   - mealie-data-pvc.yaml
   - mealie-deployment.yaml
   - mealie-service.yaml
+  # --- jellyfin (pgsql test instance; Docker jellyfin still active on port 8096) ---
+  - jellyfin-pgsql-config-pvc.yaml
+  - jellyfin-pgsql-deployment.yaml
+  - jellyfin-pgsql-service.yaml

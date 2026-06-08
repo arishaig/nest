@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellyfin-pgsql-config
+  namespace: media
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: nfs-nvme
+  resources:
+    requests:
+      storage: 10Gi

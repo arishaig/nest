@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jellyfin-pgsql
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jellyfin-pgsql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: jellyfin-pgsql
+    spec:
+      initContainers:
+        - name: fix-perms
+          image: busybox:1.37
+          command: ["chown", "-R", "999:999", "/config"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          securityContext:
+            runAsUser: 0
+      containers:
+        - name: jellyfin-pgsql
+          image: ghcr.io/jpvenson/jellyfin.pgsql:10.11.8-1
+          env:
+            - name: POSTGRES_HOST
+              value: "postgres"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_DB
+              value: "jellyfin"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+          ports:
+            - containerPort: 8096
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /data
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: jellyfin-pgsql-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-nfs
