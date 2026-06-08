@@ -132,36 +132,8 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  # Radarr - Movie Management
-  radarr:
-    image: linuxserver/radarr:6.1.1
-    container_name: radarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
-    volumes:
-      - /mnt/app_config/radarr:/config
-      - /mnt/media_root:/data
-    expose:
-      - "7878"
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.radarr.rule=Host(`radarr.arishaig.site`)"
-      - "traefik.http.routers.radarr.entrypoints=websecure"
-      - "traefik.http.routers.radarr.tls=true"
-      - "traefik.http.routers.radarr.middlewares=authelia@file"
-      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
-    healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:7878/ping || exit 1
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    restart: unless-stopped
+  # Radarr — migrated to k8s (k8s/apps/media/radarr-*.yaml)
+  # radarr: ...
 
   # Recommendarr - Recommends content
   recommendarr:
@@ -257,35 +229,8 @@ services:
     restart: unless-stopped
 
   # Sonarr - TV Series Management
-  sonarr:
-    image: linuxserver/sonarr:4.0.17
-    container_name: sonarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
-    volumes:
-      - /mnt/app_config/sonarr:/config
-      - /mnt/media_root:/data
-    expose:
-      - "8989"
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.sonarr.rule=Host(`sonarr.arishaig.site`)"
-      - "traefik.http.routers.sonarr.entrypoints=websecure"
-      - "traefik.http.routers.sonarr.tls=true"
-      - "traefik.http.routers.sonarr.middlewares=authelia@file"
-      - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
-    healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:8989/ping || exit 1
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    restart: unless-stopped
+  # Sonarr — migrated to k8s (k8s/apps/media/sonarr-*.yaml)
+  # sonarr: ...
 
   # Storyteller - Ebook/audiobook library and readalong processor
   storyteller:
@@ -619,31 +564,11 @@ services:
     ports:
       - "9710:9710"
 
-  # Export Radarr logs to Grafana
-  exportarr-radarr:
-    image: ghcr.io/onedr0p/exportarr:v2.3.0
-    container_name: exportarr-radarr
-    restart: unless-stopped
-    command: radarr
-    environment:
-      - PORT=9708
-      - URL=http://radarr:7878
-      - APIKEY=${API_KEY_RADARR}
-    ports:
-      - "9708:9708"
+  # exportarr-radarr — migrated to k8s alongside radarr (k8s/apps/media/radarr-deployment.yaml)
+  # exportarr-radarr: ...
 
-  # Export Sonarr logs to Grafana
-  exportarr-sonarr:
-    image: ghcr.io/onedr0p/exportarr:v2.3.0
-    container_name: exportarr-sonarr
-    restart: unless-stopped
-    command: sonarr
-    environment:
-      - PORT=9707
-      - URL=http://sonarr:8989
-      - APIKEY=${API_KEY_SONARR}
-    ports:
-      - "9707:9707"
+  # exportarr-sonarr — migrated to k8s alongside sonarr (k8s/apps/media/sonarr-deployment.yaml)
+  # exportarr-sonarr: ...
 
   # Proxmox node monitoring
   ##### Networking and Auth Infrastructure #####
