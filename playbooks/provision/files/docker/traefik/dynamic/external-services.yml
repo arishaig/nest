@@ -110,6 +110,22 @@ http:
       tls:
         certResolver: cloudflare
 
+    sonarr:
+      rule: "Host(`sonarr.arishaig.site`)"
+      entryPoints: [websecure]
+      service: sonarr
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
+
+    radarr:
+      rule: "Host(`radarr.arishaig.site`)"
+      entryPoints: [websecure]
+      service: radarr
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
+
   services:
     monitoring:
       loadBalancer:
@@ -173,6 +189,16 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.1.110:30696"
+
+    sonarr:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30989"
+
+    radarr:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30878"
 
   serversTransports:
     skipVerify:

@@ -117,12 +117,12 @@ scrape_configs:
 
   - job_name: 'sonarr'
     static_configs:
-      - targets: ['docker.arishaig.site:9707']
+      - targets: ['192.168.1.110:30707']
     metrics_path: /metrics
 
   - job_name: 'radarr'
     static_configs:
-      - targets: ['docker.arishaig.site:9708']
+      - targets: ['192.168.1.110:30708']
     metrics_path: /metrics
 
   - job_name: 'lidarr'

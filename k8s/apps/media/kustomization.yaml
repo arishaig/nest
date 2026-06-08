@@ -16,3 +16,9 @@ resources:
   - prowlarr-config-pvc.yaml
   - prowlarr-deployment.yaml
   - prowlarr-service.yaml
+  - sonarr-config-pvc.yaml
+  - sonarr-deployment.yaml
+  - sonarr-service.yaml
+  - radarr-config-pvc.yaml
+  - radarr-deployment.yaml
+  - radarr-service.yaml

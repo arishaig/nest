@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarr
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sonarr
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: sonarr
+    spec:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      containers:
+        - name: sonarr
+          image: linuxserver/sonarr:4.0.17
+          env:
+            - name: PUID
+              value: "0"
+            - name: PGID
+              value: "0"
+            - name: TZ
+              value: "America/Los_Angeles"
+          ports:
+            - containerPort: 8989
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 8989
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+        - name: exportarr
+          image: ghcr.io/onedr0p/exportarr:v2.3.0
+          args: ["sonarr"]
+          env:
+            - name: PORT
+              value: "9707"
+            - name: URL
+              value: "http://localhost:8989"
+            - name: APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-api-key
+                  key: APIKEY
+          ports:
+            - containerPort: 9707
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: sonarr-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: media-nfs
