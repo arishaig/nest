@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storyteller
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: storyteller
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: storyteller
+    spec:
+      containers:
+        - name: storyteller
+          image: registry.gitlab.com/storyteller-platform/storyteller:latest
+          env:
+            - name: STORYTELLER_DB_DIR
+              value: "/config"
+            - name: STORYTELLER_DATA_DIR
+              value: "/data"
+            - name: STORYTELLER_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: storyteller-secret
+                  key: SECRET_KEY
+          ports:
+            - containerPort: 8001
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /data
+              subPath: storyteller
+            - name: media
+              mountPath: /books
+              subPath: media/books
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: storyteller-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-nfs

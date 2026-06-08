@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watchback
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: watchback
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: watchback
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: watchback
+          image: ghcr.io/arishaig/watchback:latest
+          ports:
+            - containerPort: 8484
+          volumeMounts:
+            - name: data
+              mountPath: /config
+              subPath: config
+            - name: data
+              mountPath: /static
+              subPath: static
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: watchback-data

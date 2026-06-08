@@ -19,6 +19,8 @@ Storage: `nfs-nvme` StorageClass (nfs-subdir-external-provisioner → `rpool/dat
 | prowlarr + exportarr | media | nfs-nvme PVC | NodePort 30696 (http) / 30710 (metrics) |
 | sonarr + exportarr | media | nfs-nvme PVC | NodePort 30989 (http) / 30707 (metrics) |
 | radarr + exportarr | media | nfs-nvme PVC | NodePort 30878 (http) / 30708 (metrics) |
+| flaresolverr | media | none (stateless) | ClusterIP only; prowlarr resolves via cluster DNS |
+| metube | media | none (media NFS only) | NodePort 30808 |
 
 Traefik on the Docker LXC routes public domains to k8s NodePorts via `external-services.yml` (temporary bridge until Traefik itself moves).
 
@@ -28,18 +30,7 @@ Traefik on the Docker LXC routes public domains to k8s NodePorts via `external-s
 
 These are one-off data/config operations that must happen after the k8s manifests are deployed but before the Docker version is decommissioned. They are inherently imperative — not IaC — but are documented here so nothing gets skipped.
 
-### Open PRs to merge first
-- **PR #52** — decommission Docker prowlarr/exportarr-prowlarr
-- **PR #53** — fix monitoring deploy pipeline (deploy-monitoring job)
-
-### Per-service checklist
-
-#### Prowlarr (PR #52 not yet merged)
-- [ ] Merge PR #52; pipeline removes Docker prowlarr container via `remove_orphans`
-- [ ] Verify `prowlarr.arishaig.site` still resolves to k8s (already wired in external-services.yml)
-- [ ] FlareSolverr: `flaresolverr:8191` doesn't resolve from k8s pod — see FlareSolverr section below
-
-#### Sonarr / Radarr (migrated, but DB issue occurred)
+### Sonarr / Radarr (migrated, but DB issue occurred)
 The NFS sonarr.db was overwritten with an empty DB when the pod restarted after migration.  
 Fixed manually on 2026-06-08 by copying directly on PVE: `cp /rpool/data/docker-apps/sonarr/sonarr.db /rpool/data/k8s-configs/media/sonarr-config/sonarr.db`
 
@@ -74,21 +65,62 @@ Will be fixed automatically when PR #53 merges and `deploy-monitoring` runs.
 
 ## Remaining Migration Roadmap
 
-### Next: FlareSolverr
+### Pending decommission (k8s manifests exist; Docker still active)
 
-**Current state:** Running on Docker LXC; `flaresolverr:8191` resolves within the Docker bridge network but not from k8s pods.
+Manifests for all services below are deployed. Each service's Docker container is still running — decommission each one by copying data, then uncommenting its router + service in `external-services.yml` and commenting out its Docker entry in the same PR.
 
-**Options:**
-1. **Migrate to k8s** — straightforward stateless deployment; add ExternalName Service or inline manifest; k8s DNS resolves `flaresolverr.media.svc.cluster.local` from prowlarr
-2. **ExternalName bridge** — add a k8s Service `kind: ExternalName` pointing at `192.168.1.158:8191` so prowlarr can still use `http://flaresolverr:8191` without Docker being gone; remove when flaresolverr moves
+**Config-only services** (copy, no WAL checkpoint needed):
 
-Recommended: migrate directly (it's stateless, no DB, no config worth migrating).
+| Service | NFS copy source | NFS copy dest | NodePort |
+|---|---|---|---|
+| recyclarr | `/mnt/app_config/recyclarr/` | `/rpool/data/k8s-configs/media/recyclarr-config/` | CronJob (no port) |
+| homepage | `/mnt/app_config/homepage/` | `/rpool/data/k8s-configs/media/homepage-config/` | 30805 |
+| watchback | `/mnt/app_config/watchback/config/` | `/rpool/data/k8s-configs/media/watchback-data/config/` | 30804 |
+| watchback | `/mnt/app_config/watchback/static/` | `/rpool/data/k8s-configs/media/watchback-data/static/` | — |
+| copyparty | `/mnt/app_config/copyparty/` | `/rpool/data/k8s-configs/media/copyparty-config/` | 30806 |
+| medialyze | `/mnt/app_config/medialyze/` | `/rpool/data/k8s-configs/media/medialyze-config/` | 30807 |
 
-**Steps:**
-1. Add `k8s/apps/media/flaresolverr-deployment.yaml` and `flaresolverr-service.yaml` (ClusterIP, port 8191)
-2. Add to `k8s/apps/media/kustomization.yaml`
-3. Update prowlarr FlareSolverr setting (already uses `http://flaresolverr:8191` in DB — k8s ClusterIP service named `flaresolverr` resolves identically within the `media` namespace)
-4. Comment out `flaresolverr` in `docker-compose.yml`
+**SQLite services** (WAL checkpoint first — see WAL copy rule below):
+
+| Service | WAL source | NFS copy dest | NodePort |
+|---|---|---|---|
+| recommendarr | `/mnt/app_config/recommendarr/` | `/rpool/data/k8s-configs/media/recommendarr-data/` | 30809 |
+| sabnzbd | `/mnt/app_config/sabnzbd/` | `/rpool/data/k8s-configs/media/sabnzbd-config/` | 30800 |
+| seerr | `/mnt/app_config/seerr/` | `/rpool/data/k8s-configs/media/seerr-config/` | 30801 |
+| tunarr | `/mnt/app_config/tunarr/data/` | `/rpool/data/k8s-configs/media/tunarr-config/` | 30802 |
+| watcharr | `/mnt/app_config/watcharr/` | `/rpool/data/k8s-configs/media/watcharr-data/` | 30803 |
+| storyteller | `/mnt/app_config/storyteller/` | `/rpool/data/k8s-configs/media/storyteller-config/` | 30810 |
+
+Note: storyteller's `/data` and `/books` mounts come from the media NFS (`storyteller/` and `media/books/` subpaths) — no copy needed for those.
+
+**Postgres service** (mealie):
+
+```bash
+# 1. Dump from running Docker postgres
+docker exec postgres pg_dump -U $POSTGRES_USER mealie > /tmp/mealie_backup.sql
+
+# 2. Copy /app/data (uploads, images — not in postgres)
+cp -r /mnt/app_config/mealie-data/ /rpool/data/k8s-configs/media/mealie-data/
+
+# 3. After postgres k8s pod is Running:
+kubectl exec -n media deploy/postgres -- psql -U $POSTGRES_USER -c "CREATE DATABASE mealie;"
+kubectl exec -n media -i deploy/postgres -- psql -U $POSTGRES_USER mealie < /tmp/mealie_backup.sql
+
+# 4. Scale down Docker mealie + postgres, then uncomment external-services.yml mealie entry
+```
+
+Required secrets (create once, manually):
+```bash
+kubectl create secret generic postgres-secret -n media \
+  --from-literal=POSTGRES_USER=<user> \
+  --from-literal=POSTGRES_PASSWORD=<password>
+
+kubectl create secret generic mealie-secret -n media \
+  --from-literal=OIDC_CLIENT_SECRET=<secret>
+
+kubectl create secret generic storyteller-secret -n media \
+  --from-literal=SECRET_KEY=<key>
+```
 
 ---
 
@@ -97,7 +129,7 @@ Recommended: migrate directly (it's stateless, no DB, no config worth migrating)
 **Current state:** Docker LXC, `/mnt/app_config/jellyfin:/config`, `/mnt/media_root:/data`.
 
 **Blocker:** SQLite DB; no concurrent-writer support → no blue/green; upgrade = brief downtime.  
-**Investigate first:** Jellyfin external PostgreSQL support (community plugin / in-progress upstream). If viable, enables rolling updates. The Mealie postgres instance is already running — adding a Jellyfin DB is cheap.
+**Investigate first:** Jellyfin external PostgreSQL support (community plugin / in-progress upstream). If viable, enables rolling updates. The k8s postgres instance is already running — adding a Jellyfin DB is cheap.
 
 **Steps (once external DB is confirmed or accepted as deferred):**
 1. Create `k8s/apps/media/jellyfin-config-pvc.yaml` (nfs-nvme, ~10 Gi)
@@ -141,26 +173,12 @@ These three move together — Authelia depends on Redis and Traefik's forwardAut
 
 ---
 
-### Remaining Media / Utility Services
+### Services staying on Docker LXC permanently (or until Docker LXC decommission)
 
-These are lower-complexity moves that can be done in any order once Traefik is on k8s (IngressRoute is simpler than NodePort + external-services entries).
-
-| Service | Config state | Notes |
-|---|---|---|
-| SABnzbd | SQLite + config dir | Follow WAL copy rule; expose on IngressRoute |
-| Recyclarr | Config YAML only | Stateless-ish; config in git as ConfigMap |
-| Recommendarr | SQLite in `/app/server/data` | Small DB; straightforward copy |
-| Mealie + Postgres | Postgres data dir | Back up to PBS first; Postgres PVC on nfs-nvme |
-| Homepage | Config YAML | Pure config → ConfigMap; no DB |
-| Tunarr | Config + SQLite | Follow WAL copy rule |
-| Watcharr | Config + SQLite | Follow WAL copy rule |
-| Watchback | Config only | Stateless-ish |
-| Tdarr + Tdarr Node | Config + SQLite | Media transcoding; GPU passthrough if needed |
-| Glances | Config only | System stats; may be redundant with cAdvisor |
-| Copyparty | Config only | File server frontend |
-| Medialyze | Config only | Read-only media analysis |
-| MeTube | Download dir only | Downloads go to `/Tank/media_root` anyway |
-| Storyteller | Config + library data | Check data volume before migrating |
+| Service | Why |
+|---|---|
+| Tdarr + Tdarr Node | CPU-intensive transcoding; no k8s scheduling benefit; dedicated LXC preferred when Docker LXC decommissions |
+| Glances | Needs docker.sock + rootfs — moot once Docker LXC is gone |
 
 ---
 
@@ -188,9 +206,21 @@ Ports 30000–32767 are the k8s NodePort range. Allocated so far:
 | 30710 | prowlarr metrics (exportarr) | → 9710 |
 | 30711 | bazarr metrics (exportarr) | → 9711 |
 | 30767 | bazarr http | → 7878\* |
+| 30800 | sabnzbd http | → 8080 |
+| 30801 | seerr http | → 5055 |
+| 30802 | tunarr http | → 8000 |
+| 30803 | watcharr http | → 3080 |
+| 30804 | watchback http | → 8484 |
+| 30805 | homepage http | → 3000 |
+| 30806 | copyparty http | → 3923 |
+| 30807 | medialyze http | → 8080 |
+| 30808 | metube http | → 8081 |
+| 30809 | recommendarr http | → 3000 |
+| 30810 | storyteller http | → 8001 |
+| 30813 | mealie http | → 9000 |
 | 30878 | radarr http | → 7878 |
 | 30989 | sonarr http | → 8989 |
 
 \* bazarr internal port is 6767; 30767 is the NodePort by convention.
 
-Next available block: **30800–30877** and **30900+** (avoid collisions with existing assignments above).
+Next available block: **30811–30812**, **30814–30877**, **30900+** (avoid collisions with existing assignments above).

@@ -126,6 +126,102 @@ http:
       tls:
         certResolver: cloudflare
 
+    metube:
+      rule: "Host(`metube.arishaig.site`)"
+      entryPoints: [websecure]
+      service: metube
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
+
+    # --- pending decommission (uncomment as each Docker service is cut over) ---
+    # sabnzbd:
+    #   rule: "Host(`nzbd.arishaig.site`)"
+    #   entryPoints: [websecure]
+    #   service: sabnzbd
+    #   middlewares: [authelia@file]
+    #   tls:
+    #     certResolver: cloudflare
+
+    # seerr:
+    #   rule: "Host(`seerr.arishaig.site`) || Host(`requests.arishaig.site`)"
+    #   entryPoints: [websecure]
+    #   service: seerr
+    #   tls:
+    #     certResolver: cloudflare
+
+    # recommendarr:
+    #   rule: "Host(`recommendarr.arishaig.site`)"
+    #   entryPoints: [websecure]
+    #   service: recommendarr
+    #   middlewares: [authelia@file]
+    #   tls:
+    #     certResolver: cloudflare
+
+    # tunarr:
+    #   rule: "Host(`tunarr.arishaig.site`)"
+    #   entryPoints: [websecure]
+    #   service: tunarr
+    #   middlewares: [local-only@file]
+    #   tls:
+    #     certResolver: cloudflare
+
+    # watcharr:
+    #   rule: "Host(`watcharr.arishaig.site`)"
+    #   entryPoints: [websecure]
+    #   service: watcharr
+    #   middlewares: [local-only@file]
+    #   tls:
+    #     certResolver: cloudflare
+
+    # watchback:
+    #   rule: "Host(`watchback.arishaig.site`)"
+    #   entryPoints: [websecure]
+    #   service: watchback
+    #   middlewares: [authelia@file]
+    #   tls:
+    #     certResolver: cloudflare
+
+    # homepage:
+    #   rule: "Host(`dash.arishaig.site`)"
+    #   entryPoints: [websecure]
+    #   service: homepage
+    #   middlewares: [authelia@file]
+    #   tls:
+    #     certResolver: cloudflare
+
+    # copyparty:
+    #   rule: "Host(`copyparty.arishaig.site`)"
+    #   entryPoints: [websecure]
+    #   service: copyparty
+    #   middlewares: [authelia@file]
+    #   tls:
+    #     certResolver: cloudflare
+
+    # medialyze:
+    #   rule: "Host(`medialyze.arishaig.site`)"
+    #   entryPoints: [websecure]
+    #   service: medialyze
+    #   middlewares: [authelia@file]
+    #   tls:
+    #     certResolver: cloudflare
+
+    # storyteller:
+    #   rule: "Host(`storyteller.arishaig.site`)"
+    #   entryPoints: [websecure]
+    #   service: storyteller
+    #   middlewares: [authelia@file]
+    #   tls:
+    #     certResolver: cloudflare
+
+    # mealie:
+    #   rule: "Host(`mealie.arishaig.site`)"
+    #   entryPoints: [websecure]
+    #   service: mealie
+    #   middlewares: [authelia@file]
+    #   tls:
+    #     certResolver: cloudflare
+
   services:
     monitoring:
       loadBalancer:
@@ -199,6 +295,67 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.1.110:30878"
+
+    metube:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30808"
+
+    # --- pending decommission (uncomment alongside the matching router above) ---
+    # sabnzbd:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://192.168.1.110:30800"
+
+    # seerr:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://192.168.1.110:30801"
+
+    # recommendarr:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://192.168.1.110:30809"
+
+    # tunarr:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://192.168.1.110:30802"
+
+    # watcharr:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://192.168.1.110:30803"
+
+    # watchback:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://192.168.1.110:30804"
+
+    # homepage:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://192.168.1.110:30805"
+
+    # copyparty:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://192.168.1.110:30806"
+
+    # medialyze:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://192.168.1.110:30807"
+
+    # storyteller:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://192.168.1.110:30810"
+
+    # mealie:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://192.168.1.110:30813"
 
   serversTransports:
     skipVerify:

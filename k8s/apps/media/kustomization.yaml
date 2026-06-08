@@ -4,6 +4,7 @@ resources:
   - namespace.yaml
   - media-nfs-pv.yaml
   - media-nfs-pvc.yaml
+  # --- *arr stack ---
   - lidarr-config-pvc.yaml
   - lidarr-deployment.yaml
   - lidarr-service.yaml
@@ -22,3 +23,52 @@ resources:
   - radarr-config-pvc.yaml
   - radarr-deployment.yaml
   - radarr-service.yaml
+  - flaresolverr-deployment.yaml
+  - flaresolverr-service.yaml
+  # --- download clients ---
+  - sabnzbd-config-pvc.yaml
+  - sabnzbd-deployment.yaml
+  - sabnzbd-service.yaml
+  - recyclarr-config-pvc.yaml
+  - recyclarr-cronjob.yaml
+  # --- request management ---
+  - seerr-config-pvc.yaml
+  - seerr-deployment.yaml
+  - seerr-service.yaml
+  - recommendarr-data-pvc.yaml
+  - recommendarr-deployment.yaml
+  - recommendarr-service.yaml
+  # --- media servers / tools ---
+  - tunarr-config-pvc.yaml
+  - tunarr-deployment.yaml
+  - tunarr-service.yaml
+  - metube-deployment.yaml
+  - metube-service.yaml
+  - medialyze-config-pvc.yaml
+  - medialyze-deployment.yaml
+  - medialyze-service.yaml
+  - storyteller-config-pvc.yaml
+  - storyteller-deployment.yaml
+  - storyteller-service.yaml
+  # --- tracking / watchlists ---
+  - watcharr-data-pvc.yaml
+  - watcharr-deployment.yaml
+  - watcharr-service.yaml
+  - watchback-data-pvc.yaml
+  - watchback-deployment.yaml
+  - watchback-service.yaml
+  # --- dashboard ---
+  - homepage-config-pvc.yaml
+  - homepage-deployment.yaml
+  - homepage-service.yaml
+  # --- file access ---
+  - copyparty-config-pvc.yaml
+  - copyparty-deployment.yaml
+  - copyparty-service.yaml
+  # --- mealie + database ---
+  - postgres-data-pvc.yaml
+  - postgres-deployment.yaml
+  - postgres-service.yaml
+  - mealie-data-pvc.yaml
+  - mealie-deployment.yaml
+  - mealie-service.yaml
