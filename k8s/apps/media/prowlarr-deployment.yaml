@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prowlarr
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prowlarr
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: prowlarr
+    spec:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      containers:
+        - name: prowlarr
+          image: linuxserver/prowlarr:2.3.5
+          env:
+            - name: PUID
+              value: "0"
+            - name: PGID
+              value: "0"
+            - name: TZ
+              value: "America/Los_Angeles"
+          ports:
+            - containerPort: 9696
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 9696
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+        - name: exportarr
+          image: ghcr.io/onedr0p/exportarr:v2.3.0
+          args: ["prowlarr"]
+          env:
+            - name: PORT
+              value: "9710"
+            - name: URL
+              value: "http://localhost:9696"
+            - name: APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: prowlarr-api-key
+                  key: APIKEY
+          ports:
+            - containerPort: 9710
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: prowlarr-config

@@ -13,3 +13,6 @@ resources:
   - subgen-models-pvc.yaml
   - subgen-deployment.yaml
   - subgen-service.yaml
+  - prowlarr-config-pvc.yaml
+  - prowlarr-deployment.yaml
+  - prowlarr-service.yaml
