@@ -137,5 +137,5 @@ variable "talos_schematic_id" {
 variable "talos_ip" {
   description = "Static IP for the Talos node (reserve this in UniFi DHCP)"
   type        = string
-  default     = "192.168.1.100"
+  default     = "192.168.1.110"
 }

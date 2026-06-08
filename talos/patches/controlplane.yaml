@@ -7,7 +7,7 @@ machine:
       - interface: ens18
         dhcp: false
         addresses:
-          - 192.168.1.100/24
+          - 192.168.1.110/24
         routes:
           - network: 0.0.0.0/0
             gateway: 192.168.1.1
