@@ -281,7 +281,7 @@ http:
     tdarr:
       loadBalancer:
         servers:
-          - url: "http://192.168.1.158:8265"
+          - url: "http://192.168.1.110:30815"
 
     # --- k8s-migrated services (via Talos NodePort 192.168.1.110) ---
     lidarr:
