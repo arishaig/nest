@@ -19,6 +19,7 @@ jobs:
       docker: ${{ steps.filter.outputs.docker }}
       vps: ${{ steps.filter.outputs.vps }}
       pve: ${{ steps.filter.outputs.pve }}
+      k8s: ${{ steps.filter.outputs.k8s }}
     steps:
       - uses: actions/checkout@v6.0.3
       - uses: dorny/paths-filter@v4.0.1
@@ -39,6 +40,8 @@ jobs:
             pve:
               - 'playbooks/provision/pve.yml'
               - 'playbooks/provision/templates/pve/**'
+            k8s:
+              - 'playbooks/provision/k8s.yml'
 
   deploy-docker:
     needs: changes
@@ -125,3 +128,31 @@ jobs:
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit pve
+
+  deploy-k8s:
+    needs: changes
+    if: needs.changes.outputs.k8s == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6.0.3
+
+      - name: Write vault password
+        run: |
+          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
+          chmod 600 "$RUNNER_TEMP/vault-pass"
+
+      - name: Write kubeconfig
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.kube"
+          printf '%s' "${{ secrets.KUBECONFIG_TALOS }}" > "$RUNNER_TEMP/.kube/config"
+          chmod 600 "$RUNNER_TEMP/.kube/config"
+
+      - name: Apply k8s secrets
+        env:
+          KUBECONFIG: "${{ runner.temp }}/.kube/config"
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          ansible-playbook \
+            -i inventory/hosts.yml \
+            playbooks/provision/k8s.yml \
+            --vault-password-file "$RUNNER_TEMP/vault-pass"

@@ -23,6 +23,7 @@
     # are renovate-managed; bumping them re-installs via the checksum-aware copy.
     prometheus_version: "3.12.0"
     alertmanager_version: "0.32.1"
+    kubectl_version: "1.32.0"
 
   tasks:
     - name: Install runner and Ansible dependencies
@@ -140,13 +141,20 @@
           - ansible-lint
           - diagrams
           - pyyaml
+          - kubernetes
         virtualenv: "{{ ansible_venv }}"
         state: present
 
     - name: Install ansible collections in venv
       ansible.builtin.command:
-        cmd: "{{ ansible_venv }}/bin/ansible-galaxy collection install ansible.posix community.general"
+        cmd: "{{ ansible_venv }}/bin/ansible-galaxy collection install ansible.posix community.general kubernetes.core"
       changed_when: true
+
+    - name: Install kubectl
+      ansible.builtin.get_url:
+        url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
 
     - name: Create github-runner user
       ansible.builtin.user:
