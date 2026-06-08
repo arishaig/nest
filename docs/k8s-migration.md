@@ -21,6 +21,8 @@ Storage: `nfs-nvme` StorageClass (nfs-subdir-external-provisioner → `rpool/dat
 | radarr + exportarr | media | nfs-nvme PVC | NodePort 30878 (http) / 30708 (metrics) |
 | flaresolverr | media | none (stateless) | ClusterIP only; prowlarr resolves via cluster DNS |
 | metube | media | none (media NFS only) | NodePort 30808 |
+| tdarr server + node | media | nfs-nvme PVC (server state) | NodePort 30815 (web) / 30816 (server); node connects via cluster DNS |
+| jellyfin-pgsql (test) | media | nfs-nvme PVC + external postgres | NodePort 30814; Docker Jellyfin still live on 8096; cutover pending |
 
 Traefik on the Docker LXC routes public domains to k8s NodePorts via `external-services.yml` (temporary bridge until Traefik itself moves).
 
@@ -185,7 +187,6 @@ These three move together — Authelia depends on Redis and Traefik's forwardAut
 
 | Service | Why |
 |---|---|
-| Tdarr + Tdarr Node | CPU-intensive transcoding; no k8s scheduling benefit; dedicated LXC preferred when Docker LXC decommissions |
 | Glances | Needs docker.sock + rootfs — moot once Docker LXC is gone |
 
 ---
@@ -226,7 +227,9 @@ Ports 30000–32767 are the k8s NodePort range. Allocated so far:
 | 30809 | recommendarr http | → 3000 |
 | 30810 | storyteller http | → 8001 |
 | 30813 | mealie http | → 9000 |
-| 30814 | jellyfin-pgsql (test instance) | → 8096 |
+| 30814 | jellyfin-pgsql http | → 8096 |
+| 30815 | tdarr web UI | → 8265 |
+| 30816 | tdarr server (node comms) | → 8266 |
 | 30878 | radarr http | → 7878 |
 | 30989 | sonarr http | → 8989 |
 
