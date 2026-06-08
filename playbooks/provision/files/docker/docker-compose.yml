@@ -851,21 +851,21 @@ services:
       - "9022:9022"
     restart: unless-stopped
 
-  # Dynamic DNS
-  cloudflare-ddns:
-    image: favonia/cloudflare-ddns:1.16.2
-    container_name: cloudflare-ddns
-    restart: always
-    read_only: true
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      - CF_API_TOKEN=${CLOUDFLARE_DYNAMIC_DNS_API_TOKEN}
-      - DOMAINS=vpn.arishaig.site
-      - PROXIED=false
-      - TTL=300
+  # Dynamic DNS — migrated to k8s (k8s/apps/cloudflare-ddns/)
+  # cloudflare-ddns:
+  #   image: favonia/cloudflare-ddns:1.16.2
+  #   container_name: cloudflare-ddns
+  #   restart: always
+  #   read_only: true
+  #   cap_drop:
+  #     - ALL
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   environment:
+  #     - CF_API_TOKEN=${CLOUDFLARE_DYNAMIC_DNS_API_TOKEN}
+  #     - DOMAINS=vpn.arishaig.site
+  #     - PROXIED=false
+  #     - TTL=300
 
   # Flare Solver - Cloudflare circumvention for prowlarr
   flaresolverr:
