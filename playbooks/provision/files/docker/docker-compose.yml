@@ -76,36 +76,11 @@ services:
       start_period: 60s
     restart: unless-stopped
 
-  # Lidarr - Music Management
-  lidarr:
-    image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins
-    container_name: lidarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
-    volumes:
-      - /mnt/app_config/lidarr:/config
-      - /mnt/media_root:/data
-    expose:
-      - "8686"
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.lidarr.rule=Host(`lidarr.arishaig.site`)"
-      - "traefik.http.routers.lidarr.entrypoints=websecure"
-      - "traefik.http.routers.lidarr.tls=true"
-      - "traefik.http.routers.lidarr.middlewares=authelia@file"
-      - "traefik.http.services.lidarr.loadbalancer.server.port=8686"
-    healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:8686/ping || exit 1
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    restart: unless-stopped
+  # Lidarr — migrated to k8s (k8s/apps/media/lidarr-*.yaml)
+  # lidarr:
+  #   image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins
+  #   container_name: lidarr
+  #   ... (see k8s/apps/media/lidarr-deployment.yaml)
 
   # MediaLyze - Analyze media formats and sizes
   medialyze:
@@ -704,18 +679,8 @@ services:
     ports:
       - "9711:9711"
 
-  # Export Lidarr logs to Grafana
-  exportarr-lidarr:
-    image: ghcr.io/onedr0p/exportarr:v2.3.0
-    container_name: exportarr-lidarr
-    restart: unless-stopped
-    command: lidarr
-    environment:
-      - PORT=9709
-      - URL=http://lidarr:8686
-      - APIKEY=${API_KEY_LIDARR}
-    ports:
-      - "9709:9709"
+  # exportarr-lidarr — migrated to k8s alongside lidarr (k8s/apps/media/lidarr-deployment.yaml)
+  # exportarr-lidarr: ...
 
   # Export Prowlarr logs to Grafana
   exportarr-prowlarr:

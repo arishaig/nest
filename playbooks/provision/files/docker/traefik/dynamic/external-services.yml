@@ -85,6 +85,15 @@ http:
       tls:
         certResolver: cloudflare
 
+    # --- k8s-migrated services ---
+    lidarr:
+      rule: "Host(`lidarr.arishaig.site`)"
+      entryPoints: [websecure]
+      service: lidarr
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
+
   services:
     monitoring:
       loadBalancer:
@@ -132,6 +141,12 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.1.19:8765"
+
+    # --- k8s-migrated services (via Talos NodePort 192.168.1.110) ---
+    lidarr:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30686"
 
   serversTransports:
     skipVerify:
