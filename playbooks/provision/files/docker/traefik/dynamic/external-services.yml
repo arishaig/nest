@@ -135,52 +135,52 @@ http:
         certResolver: cloudflare
 
     # --- pending decommission (uncomment as each Docker service is cut over) ---
-    # sabnzbd:
-    #   rule: "Host(`nzbd.arishaig.site`)"
-    #   entryPoints: [websecure]
-    #   service: sabnzbd
-    #   middlewares: [authelia@file]
-    #   tls:
-    #     certResolver: cloudflare
+    sabnzbd:
+      rule: "Host(`nzbd.arishaig.site`)"
+      entryPoints: [websecure]
+      service: sabnzbd
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
 
-    # seerr:
-    #   rule: "Host(`seerr.arishaig.site`) || Host(`requests.arishaig.site`)"
-    #   entryPoints: [websecure]
-    #   service: seerr
-    #   tls:
-    #     certResolver: cloudflare
+    seerr:
+      rule: "Host(`seerr.arishaig.site`) || Host(`requests.arishaig.site`)"
+      entryPoints: [websecure]
+      service: seerr
+      tls:
+        certResolver: cloudflare
 
-    # recommendarr:
-    #   rule: "Host(`recommendarr.arishaig.site`)"
-    #   entryPoints: [websecure]
-    #   service: recommendarr
-    #   middlewares: [authelia@file]
-    #   tls:
-    #     certResolver: cloudflare
+    recommendarr:
+      rule: "Host(`recommendarr.arishaig.site`)"
+      entryPoints: [websecure]
+      service: recommendarr
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
 
-    # tunarr:
-    #   rule: "Host(`tunarr.arishaig.site`)"
-    #   entryPoints: [websecure]
-    #   service: tunarr
-    #   middlewares: [local-only@file]
-    #   tls:
-    #     certResolver: cloudflare
+    tunarr:
+      rule: "Host(`tunarr.arishaig.site`)"
+      entryPoints: [websecure]
+      service: tunarr
+      middlewares: [local-only@file]
+      tls:
+        certResolver: cloudflare
 
-    # watcharr:
-    #   rule: "Host(`watcharr.arishaig.site`)"
-    #   entryPoints: [websecure]
-    #   service: watcharr
-    #   middlewares: [local-only@file]
-    #   tls:
-    #     certResolver: cloudflare
+    watcharr:
+      rule: "Host(`watcharr.arishaig.site`)"
+      entryPoints: [websecure]
+      service: watcharr
+      middlewares: [local-only@file]
+      tls:
+        certResolver: cloudflare
 
-    # watchback:
-    #   rule: "Host(`watchback.arishaig.site`)"
-    #   entryPoints: [websecure]
-    #   service: watchback
-    #   middlewares: [authelia@file]
-    #   tls:
-    #     certResolver: cloudflare
+    watchback:
+      rule: "Host(`watchback.arishaig.site`)"
+      entryPoints: [websecure]
+      service: watchback
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
 
     # homepage:
     #   rule: "Host(`dash.arishaig.site`)"
@@ -214,13 +214,13 @@ http:
     #   tls:
     #     certResolver: cloudflare
 
-    # mealie:
-    #   rule: "Host(`mealie.arishaig.site`)"
-    #   entryPoints: [websecure]
-    #   service: mealie
-    #   middlewares: [authelia@file]
-    #   tls:
-    #     certResolver: cloudflare
+    mealie:
+      rule: "Host(`mealie.arishaig.site`)"
+      entryPoints: [websecure]
+      service: mealie
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
 
   services:
     monitoring:
@@ -301,36 +301,36 @@ http:
         servers:
           - url: "http://192.168.1.110:30808"
 
-    # --- pending decommission (uncomment alongside the matching router above) ---
-    # sabnzbd:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://192.168.1.110:30800"
+    # --- k8s-migrated services (continued) ---
+    sabnzbd:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30800"
 
-    # seerr:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://192.168.1.110:30801"
+    seerr:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30801"
 
-    # recommendarr:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://192.168.1.110:30809"
+    recommendarr:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30809"
 
-    # tunarr:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://192.168.1.110:30802"
+    tunarr:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30802"
 
-    # watcharr:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://192.168.1.110:30803"
+    watcharr:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30803"
 
-    # watchback:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://192.168.1.110:30804"
+    watchback:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30804"
 
     # homepage:
     #   loadBalancer:
@@ -352,10 +352,10 @@ http:
     #     servers:
     #       - url: "http://192.168.1.110:30810"
 
-    # mealie:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://192.168.1.110:30813"
+    mealie:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30813"
 
   serversTransports:
     skipVerify:

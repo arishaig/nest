@@ -15,13 +15,16 @@ spec:
       labels:
         app: watchback
     spec:
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
       containers:
         - name: watchback
           image: ghcr.io/arishaig/watchback:latest
+          securityContext:
+            runAsUser: 0
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
           ports:
             - containerPort: 8484
           volumeMounts:

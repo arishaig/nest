@@ -21,6 +21,8 @@ spec:
           env:
             - name: TZ
               value: "America/Los_Angeles"
+            - name: TUNARR_DATABASE_PATH
+              value: "/config/tunarr"
           ports:
             - containerPort: 8000
           volumeMounts:
