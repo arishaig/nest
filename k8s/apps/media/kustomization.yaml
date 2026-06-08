@@ -22,3 +22,5 @@ resources:
   - radarr-config-pvc.yaml
   - radarr-deployment.yaml
   - radarr-service.yaml
+  - flaresolverr-deployment.yaml
+  - flaresolverr-service.yaml

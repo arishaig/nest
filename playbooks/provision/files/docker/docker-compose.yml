@@ -644,22 +644,9 @@ services:
   #     - PROXIED=false
   #     - TTL=300
 
-  # Flare Solver - Cloudflare circumvention for prowlarr
-  flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:v3.5.0
-    container_name: flaresolverr
-    environment:
-      - LOG_LEVEL=info
-      - TZ=America/Los_Angeles
-    expose:
-      - "8191"
-    healthcheck:
-      test: curl -sf http://localhost:8191/health
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
+  # FlareSolverr — migrated to k8s (k8s/apps/media/flaresolverr-*.yaml)
+  # ClusterIP only; prowlarr pod resolves flaresolverr:8191 via cluster DNS
+  # flaresolverr: ...
 
   traefik:
     image: traefik:v3.7.1
