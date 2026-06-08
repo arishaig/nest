@@ -30,6 +30,7 @@ jobs:
               - 'playbooks/provision/files/seedbox/**'
               - 'playbooks/provision/files/monitoring/**'
               - 'playbooks/provision/files/scrutiny/**'
+              - 'playbooks/provision/templates/monitoring/**'
               - 'playbooks/update_docker.yml'
             vps:
               - 'playbooks/provision/vps.yml'
