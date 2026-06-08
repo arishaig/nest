@@ -1,36 +1,8 @@
 services:
   ##### *arr Stack Media Apps #####
 
-  # Bazarr - Subtitle Management
-  bazarr:
-    image: linuxserver/bazarr:1.5.6
-    container_name: bazarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
-    volumes:
-      - /mnt/app_config/bazarr:/config
-      - /mnt/media_root:/data
-    expose:
-      - "6767"
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.bazarr.rule=Host(`bazarr.arishaig.site`)"
-      - "traefik.http.routers.bazarr.entrypoints=websecure"
-      - "traefik.http.routers.bazarr.tls=true"
-      - "traefik.http.routers.bazarr.middlewares=authelia@file"
-      - "traefik.http.services.bazarr.loadbalancer.server.port=6767"
-    healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:6767/ || exit 1
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    restart: unless-stopped
+  # Bazarr — migrated to k8s (k8s/apps/media/bazarr-*.yaml)
+  # bazarr: ...
 
   # Bazarr-Sync - Bulk subtitle sync CLI for Bazarr
   bazarr-sync:
@@ -346,46 +318,8 @@ services:
       - "traefik.http.routers.storyteller-local.service=storyteller"
     restart: unless-stopped
 
-  # Subtitle generation powered by Whisper, used by Bazarr
-  subgen:
-    image: 'mccloud/subgen:2026.05.3-cpu'
-    container_name: subgenai
-    user: "1000:1000"
-    networks:
-      - default
-      - proxy-net
-    ports:
-      - "127.0.0.1:9000:9000"
-    volumes:
-      - '/mnt/app_config/subgen/models:/subgen/models'
-      - '/mnt/app_config/subgen/subgen.env:/subgen/subgen.env:ro'
-      - '/mnt/media_root:/data'
-    environment:
-      - "WEBHOOK_PORT=9000"
-      - "WHISPER_MODEL=medium"
-      - "WHISPER_THREADS=4"
-      - "NAMESUBLANG=en"
-      - "SKIP_ONLY_SUBGEN_SUBTITLES=True"
-      - "SKIP_IF_INTERNAL_SUBTITLES_LANGUAGE="
-      - "DETECT_LANGUAGE_LENGTH=30"
-      - "DETECT_LANGUAGE_OFFSET=60"
-      - "SHOULD_WHISPER_DETECT_AUDIO_LANGUAGE=True"
-      - "TRANSCRIBE_OR_TRANSLATE=translate"
-      - "CONCURRENT_TRANSCRIPTIONS=2"
-      - "WORD_LEVEL_HIGHLIGHT=False"
-      - "DEBUG=True"
-      - "TRANSCRIBE_DEVICE=cpu"
-      - "SHOW_IN_SUBNAME_SUBGEN=True"
-      - "SHOW_IN_SUBNAME_MODEL=True"
-      - "MODEL_PATH=./models"
-      - "UPDATE=False"
-      - "APPEND=False"
-      - "USE_MODEL_PROMPT=False"
-      - "CUSTOM_MODEL_PROMPT="
-      - "LRC_FOR_AUDIO_FILES=True"
-      - "CUSTOM_REGROUP=cm_sl=84_sl=42++++++1"
-      - "HF_TOKEN=${HUGGING_FACE_ACCESS_TOKEN}"
-    restart: unless-stopped
+  # Subgen (Whisper AI subtitle gen) — migrated to k8s (k8s/apps/media/subgen-*.yaml)
+  # subgen: ...
 
   # Tdarr - Automated transcoding server
   tdarr:
@@ -666,18 +600,8 @@ services:
     devices:
       - /dev/kmsg
 
-  # Export Bazarr logs to Grafana
-  exportarr-bazarr:
-    image: ghcr.io/onedr0p/exportarr:v2.3.0
-    container_name: exportarr-bazarr
-    restart: unless-stopped
-    command: bazarr
-    environment:
-      - PORT=9711
-      - URL=http://bazarr:6767
-      - APIKEY=${API_KEY_BAZARR}
-    ports:
-      - "9711:9711"
+  # exportarr-bazarr — migrated to k8s alongside bazarr (k8s/apps/media/bazarr-deployment.yaml)
+  # exportarr-bazarr: ...
 
   # exportarr-lidarr — migrated to k8s alongside lidarr (k8s/apps/media/lidarr-deployment.yaml)
   # exportarr-lidarr: ...

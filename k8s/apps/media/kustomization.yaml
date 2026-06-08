@@ -7,3 +7,9 @@ resources:
   - lidarr-config-pvc.yaml
   - lidarr-deployment.yaml
   - lidarr-service.yaml
+  - bazarr-config-pvc.yaml
+  - bazarr-deployment.yaml
+  - bazarr-service.yaml
+  - subgen-models-pvc.yaml
+  - subgen-deployment.yaml
+  - subgen-service.yaml

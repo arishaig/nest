@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subgen
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: subgen
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: subgen
+    spec:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      containers:
+        - name: subgen
+          image: mccloud/subgen:2026.05.3-cpu
+          env:
+            - name: WEBHOOK_PORT
+              value: "9000"
+            - name: WHISPER_MODEL
+              value: "medium"
+            - name: WHISPER_THREADS
+              value: "4"
+            - name: NAMESUBLANG
+              value: "en"
+            - name: SKIP_ONLY_SUBGEN_SUBTITLES
+              value: "True"
+            - name: SKIP_IF_INTERNAL_SUBTITLES_LANGUAGE
+              value: ""
+            - name: DETECT_LANGUAGE_LENGTH
+              value: "30"
+            - name: DETECT_LANGUAGE_OFFSET
+              value: "60"
+            - name: SHOULD_WHISPER_DETECT_AUDIO_LANGUAGE
+              value: "True"
+            - name: TRANSCRIBE_OR_TRANSLATE
+              value: "translate"
+            - name: CONCURRENT_TRANSCRIPTIONS
+              value: "2"
+            - name: WORD_LEVEL_HIGHLIGHT
+              value: "False"
+            - name: DEBUG
+              value: "True"
+            - name: TRANSCRIBE_DEVICE
+              value: "cpu"
+            - name: SHOW_IN_SUBNAME_SUBGEN
+              value: "True"
+            - name: SHOW_IN_SUBNAME_MODEL
+              value: "True"
+            - name: MODEL_PATH
+              value: "./models"
+            - name: UPDATE
+              value: "False"
+            - name: APPEND
+              value: "False"
+            - name: USE_MODEL_PROMPT
+              value: "False"
+            - name: CUSTOM_MODEL_PROMPT
+              value: ""
+            - name: LRC_FOR_AUDIO_FILES
+              value: "True"
+            - name: CUSTOM_REGROUP
+              value: "cm_sl=84_sl=42++++++1"
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: subgen-secrets
+                  key: HF_TOKEN
+          ports:
+            - containerPort: 9000
+          volumeMounts:
+            - name: models
+              mountPath: /subgen/models
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 4Gi
+
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: subgen-models
+        - name: data
+          persistentVolumeClaim:
+            claimName: media-nfs
