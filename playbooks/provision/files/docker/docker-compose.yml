@@ -102,35 +102,8 @@ services:
       - "traefik.http.services.metube.loadbalancer.server.port=8081"
     restart: unless-stopped
 
-  # Prowlarr - Indexer Management
-  prowlarr:
-    image: linuxserver/prowlarr:2.3.5
-    container_name: prowlarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
-    volumes:
-      - /mnt/app_config/prowlarr:/config
-    expose:
-      - "9696"
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.arishaig.site`)"
-      - "traefik.http.routers.prowlarr.entrypoints=websecure"
-      - "traefik.http.routers.prowlarr.tls=true"
-      - "traefik.http.routers.prowlarr.middlewares=authelia@file"
-      - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
-    healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:9696/ping || exit 1
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    restart: unless-stopped
+  # Prowlarr — migrated to k8s (k8s/apps/media/prowlarr-*.yaml)
+  # prowlarr: ...
 
   # Radarr — migrated to k8s (k8s/apps/media/radarr-*.yaml)
   # radarr: ...
@@ -551,18 +524,8 @@ services:
   # exportarr-lidarr — migrated to k8s alongside lidarr (k8s/apps/media/lidarr-deployment.yaml)
   # exportarr-lidarr: ...
 
-  # Export Prowlarr logs to Grafana
-  exportarr-prowlarr:
-    image: ghcr.io/onedr0p/exportarr:v2.3.0
-    container_name: exportarr-prowlarr
-    restart: unless-stopped
-    command: prowlarr
-    environment:
-      - PORT=9710
-      - URL=http://prowlarr:9696
-      - APIKEY=${API_KEY_PROWLARR}
-    ports:
-      - "9710:9710"
+  # exportarr-prowlarr — migrated to k8s alongside prowlarr (k8s/apps/media/prowlarr-deployment.yaml)
+  # exportarr-prowlarr: ...
 
   # exportarr-radarr — migrated to k8s alongside radarr (k8s/apps/media/radarr-deployment.yaml)
   # exportarr-radarr: ...
