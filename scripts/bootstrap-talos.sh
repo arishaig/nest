@@ -46,6 +46,17 @@ check_cmd flux
 check_cmd gh
 check_cmd git
 
+# flux bootstrap reads GITHUB_TOKEN from the environment; gh's stored creds are not enough.
+if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+  GITHUB_TOKEN="$(gh auth token 2>/dev/null)" || true
+  if [[ -z "${GITHUB_TOKEN}" ]]; then
+    echo "ERROR: GITHUB_TOKEN is not set and 'gh auth token' returned nothing." >&2
+    echo "       Run 'gh auth login' first, then re-run this script." >&2
+    exit 1
+  fi
+  export GITHUB_TOKEN
+fi
+
 # ── Parse args ───────────────────────────────────────────────────────────────
 if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <dhcp-ip-of-vm>"
