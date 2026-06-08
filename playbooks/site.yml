@@ -11,9 +11,12 @@
 #   - Terraform (LXC/VM definitions, AdGuard DNS rewrites): `terraform apply`
 #   - provision/pve-passthrough.yml: parametrized (lxc_id), run per-container
 #     by Terraform, not as part of a full converge.
+#   - provision/k8s.yml: k8s secrets (requires vault + kubectl pointing at cluster)
 
 # --- Provision: converge each host to the configuration in this repo ---
 # common.yml runs once here; the provision playbooks no longer import it.
+- name: "Provision: PVE host (ZFS datasets, NFS exports)"
+  import_playbook: provision/pve.yml
 - name: "Provision: common base config"
   import_playbook: provision/common.yml
 - name: "Provision: AdGuard DNS"

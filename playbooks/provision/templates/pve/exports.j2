@@ -1,0 +1,8 @@
+# /etc/exports — managed by Ansible (playbooks/provision/pve.yml)
+# Do not edit manually; changes will be overwritten.
+
+# Media root — shared with k8s pods (no_root_squash required for UID remapping)
+/Tank/media_root 192.168.1.0/24(rw,sync,no_subtree_check,no_root_squash)
+
+# k8s app config storage — NVMe-backed, used by nfs-subdir-external-provisioner
+/rpool/data/k8s-configs 192.168.1.0/24(rw,sync,no_subtree_check,no_root_squash)

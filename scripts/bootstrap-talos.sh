@@ -125,6 +125,18 @@ echo "    kubeconfig merged into ~/.kube/config"
 echo ""
 kubectl get nodes
 
+# ── Step 5b: PSA exemptions ─────────────────────────────────────────────────
+# local-path-provisioner needs privileged pods; label its namespace to exempt
+# it from the default baseline PodSecurity policy before Flux deploys it.
+echo ""
+echo "==> [5b] Applying PodSecurity exemption for local-path-storage namespace..."
+kubectl create namespace local-path-storage --dry-run=client -o yaml | kubectl apply -f -
+kubectl label namespace local-path-storage \
+  pod-security.kubernetes.io/enforce=privileged \
+  pod-security.kubernetes.io/warn=privileged \
+  pod-security.kubernetes.io/audit=privileged \
+  --overwrite
+
 # ── Step 6: Flux bootstrap ───────────────────────────────────────────────────
 echo ""
 echo "==> [6/6] Bootstrapping Flux..."

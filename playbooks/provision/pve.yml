@@ -1,0 +1,34 @@
+---
+# Provision the PVE host itself (not the LXCs/VMs it runs).
+# Covers: ZFS datasets and NFS exports for k8s and media storage.
+
+- name: PVE host provisioning
+  hosts: pve
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Install NFS server
+      ansible.builtin.apt:
+        name: nfs-kernel-server
+        state: present
+        update_cache: false
+
+    - name: Create k8s config ZFS dataset
+      community.general.zfs:
+        name: rpool/data/k8s-configs
+        state: present
+
+    - name: Manage NFS exports
+      ansible.builtin.template:
+        src: templates/pve/exports.j2
+        dest: /etc/exports
+        owner: root
+        group: root
+        mode: "0644"
+      notify: reload exports
+
+  handlers:
+    - name: reload exports
+      ansible.builtin.command: exportfs -ra
+      changed_when: true

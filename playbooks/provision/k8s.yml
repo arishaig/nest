@@ -1,0 +1,41 @@
+---
+# Provision k8s cluster state that cannot live in git (secrets).
+# Idempotent: uses kubectl apply with --dry-run=client to detect drift,
+# then applies only if the secret would change.
+#
+# Requires: vault.yml (--ask-vault-pass or --vault-password-file)
+# Requires: kubectl configured and pointing at the Talos cluster
+
+- name: k8s secrets provisioning
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Create media namespace secrets
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ item.name }}"
+            namespace: media
+          type: Opaque
+          stringData: "{{ item.data }}"
+      loop:
+        - name: lidarr-api-key
+          data:
+            APIKEY: "{{ lidarr_api_key }}"
+        - name: bazarr-api-key
+          data:
+            APIKEY: "{{ bazarr_api_key }}"
+        - name: prowlarr-api-key
+          data:
+            APIKEY: "{{ prowlarr_api_key }}"
+        - name: subgen-secrets
+          data:
+            HF_TOKEN: "{{ hugging_face_access_token }}"
+      loop_control:
+        label: "{{ item.name }}"
+      no_log: true
