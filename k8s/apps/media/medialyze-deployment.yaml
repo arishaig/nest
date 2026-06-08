@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medialyze
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: medialyze
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: medialyze
+    spec:
+      containers:
+        - name: medialyze
+          image: ghcr.io/frederikemmer/medialyze:latest
+          env:
+            - name: TZ
+              value: "America/Los_Angeles"
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /media
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: medialyze-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-nfs

@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: copyparty
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: copyparty
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: copyparty
+    spec:
+      containers:
+        - name: copyparty
+          image: copyparty/ac:1.20.16
+          args: ["--acao", "https://copyparty.arishaig.site"]
+          ports:
+            - containerPort: 3923
+          volumeMounts:
+            - name: config
+              mountPath: /cfg
+            - name: media
+              mountPath: /w
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: copyparty-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-nfs
