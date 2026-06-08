@@ -9,5 +9,5 @@ adguard_scheme = "https"
 # 1. Check latest release: https://github.com/siderolabs/talos/releases
 # 2. Generate schematic at https://factory.talos.dev (add siderolabs/qemu-guest-agent)
 talos_version      = "v1.13.3"
-talos_schematic_id = "88b110799ece14c5914a4175ce389c4abd2a4f452474a0350317d05a3c10df22"
+talos_schematic_id = "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
 talos_ip           = "192.168.1.110"
