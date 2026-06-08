@@ -182,37 +182,37 @@ http:
       tls:
         certResolver: cloudflare
 
-    # homepage:
-    #   rule: "Host(`dash.arishaig.site`)"
-    #   entryPoints: [websecure]
-    #   service: homepage
-    #   middlewares: [authelia@file]
-    #   tls:
-    #     certResolver: cloudflare
+    homepage:
+      rule: "Host(`dash.arishaig.site`)"
+      entryPoints: [websecure]
+      service: homepage
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
 
-    # copyparty:
-    #   rule: "Host(`copyparty.arishaig.site`)"
-    #   entryPoints: [websecure]
-    #   service: copyparty
-    #   middlewares: [authelia@file]
-    #   tls:
-    #     certResolver: cloudflare
+    copyparty:
+      rule: "Host(`copyparty.arishaig.site`)"
+      entryPoints: [websecure]
+      service: copyparty
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
 
-    # medialyze:
-    #   rule: "Host(`medialyze.arishaig.site`)"
-    #   entryPoints: [websecure]
-    #   service: medialyze
-    #   middlewares: [authelia@file]
-    #   tls:
-    #     certResolver: cloudflare
+    medialyze:
+      rule: "Host(`medialyze.arishaig.site`)"
+      entryPoints: [websecure]
+      service: medialyze
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
 
-    # storyteller:
-    #   rule: "Host(`storyteller.arishaig.site`)"
-    #   entryPoints: [websecure]
-    #   service: storyteller
-    #   middlewares: [authelia@file]
-    #   tls:
-    #     certResolver: cloudflare
+    storyteller:
+      rule: "Host(`storyteller.arishaig.site`)"
+      entryPoints: [websecure]
+      service: storyteller
+      middlewares: [authelia@file]
+      tls:
+        certResolver: cloudflare
 
     mealie:
       rule: "Host(`mealie.arishaig.site`)"
@@ -332,25 +332,25 @@ http:
         servers:
           - url: "http://192.168.1.110:30804"
 
-    # homepage:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://192.168.1.110:30805"
+    homepage:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30805"
 
-    # copyparty:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://192.168.1.110:30806"
+    copyparty:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30806"
 
-    # medialyze:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://192.168.1.110:30807"
+    medialyze:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30807"
 
-    # storyteller:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://192.168.1.110:30810"
+    storyteller:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30810"
 
     mealie:
       loadBalancer:

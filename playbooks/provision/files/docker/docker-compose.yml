@@ -54,28 +54,8 @@ services:
   #   container_name: lidarr
   #   ... (see k8s/apps/media/lidarr-deployment.yaml)
 
-  # MediaLyze - Analyze media formats and sizes
-  medialyze:
-    image: ghcr.io/frederikemmer/medialyze:latest
-    container_name: medialyze
-    environment:
-      - TZ=America/Los_Angeles
-    expose:
-      - 8080
-    volumes:
-      - /mnt/app_config/medialyze:/config
-      - /mnt/media_root:/media:ro
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.medialyze.rule=Host(`medialyze.arishaig.site`)"
-      - "traefik.http.routers.medialyze.entrypoints=websecure"
-      - "traefik.http.routers.medialyze.tls=true"
-      - "traefik.http.routers.medialyze.middlewares=authelia@file"
-      - "traefik.http.services.medialyze.loadbalancer.server.port=8080"
-    restart: unless-stopped
+  # MediaLyze — migrated to k8s (k8s/apps/media/medialyze-*.yaml)
+  # medialyze: ...
 
   # MeTube — migrated to k8s (k8s/apps/media/metube-*.yaml)
   # metube: ...
@@ -181,56 +161,14 @@ services:
       - "traefik.http.services.glances.loadbalancer.server.port=61208"
     restart: unless-stopped
 
-  # Homepage - Dashboard
-  homepage:
-    image: ghcr.io/gethomepage/homepage:v1.4.5
-    container_name: homepage
-    environment:
-      - HOMEPAGE_ALLOWED_HOSTS=dash.arishaig.site,localhost:3000
-    volumes:
-      - /mnt/app_config/homepage:/app/config
-      - /mnt/app_config:/mnt/app_config:ro
-      - /mnt/media_root:/mnt/media_root:ro
-    expose:
-      - "3000"
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.homepage.rule=Host(`dash.arishaig.site`)"
-      - "traefik.http.routers.homepage.entrypoints=websecure"
-      - "traefik.http.routers.homepage.tls=true"
-      - "traefik.http.routers.homepage.middlewares=authelia@file"
-      - "traefik.http.services.homepage.loadbalancer.server.port=3000"
-    healthcheck:
-      disable: true
-    restart: unless-stopped
+  # Homepage — migrated to k8s (k8s/apps/media/homepage-*.yaml)
+  # homepage: ...
 
 
   ##### Other Apps #####
 
-  # Copyparty - Simple file access
-  copyparty:
-    image: copyparty/ac:1.20.16
-    container_name: copyparty
-    command: --acao https://copyparty.arishaig.site
-    expose:
-      - "3923"
-    volumes:
-      - /mnt/app_config/copyparty:/cfg
-      - /mnt/media_root:/w
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.copyparty.rule=Host(`copyparty.arishaig.site`)"
-      - "traefik.http.routers.copyparty.entrypoints=websecure"
-      - "traefik.http.routers.copyparty.tls=true"
-      - "traefik.http.routers.copyparty.middlewares=authelia@file"
-      - "traefik.http.services.copyparty.loadbalancer.server.port=3923"
-    restart: unless-stopped
+  # Copyparty — migrated to k8s (k8s/apps/media/copyparty-*.yaml)
+  # copyparty: ...
 
   # Mealie — migrated to k8s (k8s/apps/media/mealie-*.yaml, k8s/apps/media/postgres-*.yaml)
   # mealie: ...
