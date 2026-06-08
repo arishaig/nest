@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lidarr
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lidarr
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: lidarr
+    spec:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      containers:
+        - name: lidarr
+          image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins
+          env:
+            - name: PUID
+              value: "0"
+            - name: PGID
+              value: "0"
+            - name: TZ
+              value: "America/Los_Angeles"
+          ports:
+            - containerPort: 8686
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 8686
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+
+        - name: exportarr
+          image: ghcr.io/onedr0p/exportarr:v2.3.0
+          args: ["lidarr"]
+          env:
+            - name: PORT
+              value: "9709"
+            - name: URL
+              value: "http://localhost:8686"
+            - name: APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: lidarr-api-key
+                  key: APIKEY
+          ports:
+            - containerPort: 9709
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: lidarr-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: media-nfs
