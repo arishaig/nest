@@ -15,15 +15,6 @@ spec:
       labels:
         app: jellyfin-pgsql
     spec:
-      initContainers:
-        - name: fix-perms
-          image: busybox:1.37
-          command: ["chown", "-R", "999:999", "/config"]
-          volumeMounts:
-            - name: config
-              mountPath: /config
-          securityContext:
-            runAsUser: 0
       containers:
         - name: jellyfin-pgsql
           image: ghcr.io/jpvenson/jellyfin.pgsql:10.11.8-1
