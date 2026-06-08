@@ -101,6 +101,8 @@ jobs:
 
   terraform:
     runs-on: self-hosted
+    env:
+      TF_PLUGIN_CACHE_DIR: /opt/terraform-plugin-cache
     steps:
       - uses: actions/checkout@v6.0.3
       - name: Check Terraform formatting

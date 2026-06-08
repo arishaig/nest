@@ -150,6 +150,13 @@
         cmd: "{{ ansible_venv }}/bin/ansible-galaxy collection install ansible.posix community.general kubernetes.core"
       changed_when: true
 
+    - name: Create Terraform plugin cache directory
+      ansible.builtin.file:
+        path: /opt/terraform-plugin-cache
+        state: directory
+        owner: "{{ runner_user }}"
+        mode: "0755"
+
     - name: Install kubectl
       ansible.builtin.get_url:
         url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl"
