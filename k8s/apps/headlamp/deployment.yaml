@@ -22,6 +22,8 @@ spec:
         runAsNonRoot: true
         runAsUser: 100
         runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: headlamp
           image: ghcr.io/headlamp-k8s/headlamp:v0.42.0
