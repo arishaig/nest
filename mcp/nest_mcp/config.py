@@ -19,8 +19,9 @@ class UniFiSettings(BaseSettings):
 
 class AdGuardSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_ADGUARD_")
-    # Direct IP avoids DNS resolution dependency on LXC 109; plain HTTP port 3000 avoids cert mismatch
+    # Direct IPs avoid DNS resolution dependency on LXC 109; plain HTTP avoids cert mismatch
     url: str = "http://192.168.7.7:3000"
+    url_secondary: str = "http://192.168.7.8:80"
     username: str = "adguard"
     password: str = ""
 

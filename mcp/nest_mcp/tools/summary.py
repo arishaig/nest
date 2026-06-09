@@ -284,19 +284,33 @@ async def _homeassistant() -> dict:
     }
 
 
-async def _dns() -> dict:
-    auth = (config.adguard.username, config.adguard.password)
-    async with make_client(config.adguard.url) as client:
-        resp = await client.get("/control/stats", auth=auth)
-        resp.raise_for_status()
-        d = resp.json()
-
+def _parse_adguard_stats(d: dict) -> dict:
     queries = d.get("num_dns_queries", 0)
     blocked = d.get("num_blocked_filtering", 0)
     return {
         "queries_today": queries,
         "blocked_pct": round(blocked / queries * 100, 1) if queries else 0.0,
         "avg_processing_ms": round(d.get("avg_processing_time", 0) * 1000, 2),
+    }
+
+
+async def _dns() -> dict:
+    auth = (config.adguard.username, config.adguard.password)
+
+    async def _fetch(url: str) -> dict:
+        async with make_client(url) as client:
+            resp = await client.get("/control/stats", auth=auth)
+            resp.raise_for_status()
+            return _parse_adguard_stats(resp.json())
+
+    primary, secondary = await asyncio.gather(
+        _fetch(config.adguard.url),
+        _fetch(config.adguard.url_secondary),
+        return_exceptions=True,
+    )
+    return {
+        "primary": primary if not isinstance(primary, Exception) else {"error": str(primary)},
+        "secondary": secondary if not isinstance(secondary, Exception) else {"error": str(secondary)},
     }
 
 
