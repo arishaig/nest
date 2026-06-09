@@ -14,12 +14,12 @@ locals {
     "adguard.local.arishaig.site"    = "dns.arishaig.site"
     "files.local.arishaig.site"      = "files.arishaig.site"
 
-    # Local-access names — Traefik route without Authelia (see external-services.yml)
-    "torrent.local.arishaig.site"     = "192.168.1.158"
-    "scrutiny.local.arishaig.site"    = "192.168.1.158"
-    "backlight.local.arishaig.site"   = "192.168.1.158"
-    "musicbrainz.local.arishaig.site" = "192.168.1.158"
-    "storyteller.local.arishaig.site" = "192.168.1.158"
+    # Local-access names — k8s Traefik (192.168.1.110)
+    "torrent.local.arishaig.site"     = "192.168.1.110"
+    "scrutiny.local.arishaig.site"    = "192.168.1.110"
+    "backlight.local.arishaig.site"   = "192.168.1.110"
+    "musicbrainz.local.arishaig.site" = "192.168.1.110"
+    "storyteller.local.arishaig.site" = "192.168.1.110"
 
     # Direct-IP entries (no Traefik conflict)
     "backlight.arishaig.site"   = "192.168.4.97"
@@ -29,41 +29,41 @@ locals {
     "dns.arishaig.site"         = "192.168.7.7"
     "dns2.arishaig.site"        = "192.168.7.8"
 
-    # Traefik reverse-proxied services (all -> docker host)
-    "monitoring.arishaig.site"   = "192.168.1.158"
-    "jellyfin.arishaig.site"     = "192.168.1.158"
-    "seerr.arishaig.site"        = "192.168.1.158"
-    "requests.arishaig.site"     = "192.168.1.158"
-    "sonarr.arishaig.site"       = "192.168.1.158"
-    "radarr.arishaig.site"       = "192.168.1.158"
-    "bazarr.arishaig.site"       = "192.168.1.158"
-    "lidarr.arishaig.site"       = "192.168.1.158"
-    "prowlarr.arishaig.site"     = "192.168.1.158"
-    "nzbd.arishaig.site"         = "192.168.1.158"
-    "storyteller.arishaig.site"  = "192.168.1.158"
-    "dash.arishaig.site"         = "192.168.1.158"
-    "glances.arishaig.site"      = "192.168.1.158"
-    "mealie.arishaig.site"       = "192.168.1.158"
-    "copyparty.arishaig.site"    = "192.168.1.158"
-    "recommendarr.arishaig.site" = "192.168.1.158"
-    "watcharr.arishaig.site"     = "192.168.1.158"
-    "tunarr.arishaig.site"       = "192.168.1.158"
-    "auth.arishaig.site"         = "192.168.1.158"
-    "torrent.arishaig.site"      = "192.168.1.158"
-    "proxmox.arishaig.site"      = "192.168.1.158"
-    "scrutiny.arishaig.site"     = "192.168.1.158"
-    "backup.arishaig.site"       = "192.168.1.158"
-    "watchback.arishaig.site"    = "192.168.1.158"
-    "medialyze.arishaig.site"    = "192.168.1.158"
-    "metube.arishaig.site"       = "192.168.1.158"
-    "docker.arishaig.site"       = "192.168.1.158"
-    "mcp.arishaig.site"          = "192.168.1.158"
+    # k8s Traefik reverse-proxied services (all -> Talos node 192.168.1.110)
+    "monitoring.arishaig.site"   = "192.168.1.110"
+    "jellyfin.arishaig.site"     = "192.168.1.110"
+    "seerr.arishaig.site"        = "192.168.1.110"
+    "requests.arishaig.site"     = "192.168.1.110"
+    "sonarr.arishaig.site"       = "192.168.1.110"
+    "radarr.arishaig.site"       = "192.168.1.110"
+    "bazarr.arishaig.site"       = "192.168.1.110"
+    "lidarr.arishaig.site"       = "192.168.1.110"
+    "prowlarr.arishaig.site"     = "192.168.1.110"
+    "nzbd.arishaig.site"         = "192.168.1.110"
+    "storyteller.arishaig.site"  = "192.168.1.110"
+    "dash.arishaig.site"         = "192.168.1.110"
+    "glances.arishaig.site"      = "192.168.1.110"
+    "mealie.arishaig.site"       = "192.168.1.110"
+    "copyparty.arishaig.site"    = "192.168.1.110"
+    "recommendarr.arishaig.site" = "192.168.1.110"
+    "watcharr.arishaig.site"     = "192.168.1.110"
+    "tunarr.arishaig.site"       = "192.168.1.110"
+    "auth.arishaig.site"         = "192.168.1.110"
+    "torrent.arishaig.site"      = "192.168.1.110"
+    "proxmox.arishaig.site"      = "192.168.1.110"
+    "scrutiny.arishaig.site"     = "192.168.1.110"
+    "backup.arishaig.site"       = "192.168.1.110"
+    "watchback.arishaig.site"    = "192.168.1.110"
+    "medialyze.arishaig.site"    = "192.168.1.110"
+    "metube.arishaig.site"       = "192.168.1.110"
+    "docker.arishaig.site"       = "192.168.1.110"
+    "mcp.arishaig.site"          = "192.168.1.110"
 
     # UDM VPN
     "vpn.arishaig.site" = "192.168.1.1"
 
-    # FoundryVTT (LXC 111 — direct to container, proxied through Traefik on docker)
-    "foundry.arishaig.site" = "192.168.1.158"
+    # FoundryVTT (LXC 111 — proxied through k8s Traefik)
+    "foundry.arishaig.site" = "192.168.1.110"
 
     # Kubernetes (Talos node — also the k8s ingress endpoint as services migrate)
     "talos.local.arishaig.site" = var.talos_ip
