@@ -158,6 +158,18 @@ scrape_configs:
         labels:
           instance: 'talos'
 
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['192.168.1.110:30121']
+        labels:
+          instance: 'talos'
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['192.168.1.110:30187']
+        labels:
+          instance: 'talos'
+
   - job_name: 'wled'
     static_configs:
       - targets: ['backlight.arishaig.site:80']
