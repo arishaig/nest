@@ -4,3 +4,4 @@ resources:
   - nginx-test/
   - cloudflare-ddns/
   - media/
+  - headlamp/
