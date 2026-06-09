@@ -21,7 +21,8 @@ mcp = FastMCP(
     instructions=(
         "Live homelab status and control. "
         "Covers Proxmox VMs and containers, PBS backups, disk health (Scrutiny), "
-        "Docker services, Home Assistant devices and areas, UniFi network and clients, "
+        "Kubernetes (Talos) pod and Traefik ingress health, monitoring stack (Prometheus/Loki/Grafana), "
+        "Home Assistant devices and areas, UniFi network and clients, "
         "AdGuard DNS, Prometheus alerts, Jellyfin, the *arr media stack, "
         "and the VPS proxy (Docker, WireGuard, fail2ban). "
         "Start sessions with lab_health_summary for a full snapshot."

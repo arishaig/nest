@@ -70,8 +70,8 @@ class ArrSettings(BaseSettings):
 
 class JellyfinSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_JELLYFIN_")
-    # Jellyfin still runs on Docker LXC — not yet migrated to k8s
-    url: str = "http://192.168.1.158:8096"
+    # Jellyfin k8s NodePort (k8s/apps/media/jellyfin-pgsql-service.yaml)
+    url: str = "http://192.168.1.110:30814"
     key: str = ""
 
 
