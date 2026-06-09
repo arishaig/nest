@@ -22,7 +22,19 @@ Storage: `nfs-nvme` StorageClass (nfs-subdir-external-provisioner → `rpool/dat
 | flaresolverr | media | none (stateless) | ClusterIP only; prowlarr resolves via cluster DNS |
 | metube | media | none (media NFS only) | NodePort 30808 |
 | tdarr server + node | media | nfs-nvme PVC (server state) | NodePort 30815 (web) / 30816 (server); node connects via cluster DNS |
-| jellyfin-pgsql (test) | media | nfs-nvme PVC + external postgres | NodePort 30814; Docker Jellyfin still live on 8096; cutover pending |
+| sabnzbd | media | nfs-nvme PVC | NodePort 30800 |
+| seerr | media | nfs-nvme PVC | NodePort 30801 |
+| tunarr | media | nfs-nvme PVC | NodePort 30802 |
+| watcharr | media | nfs-nvme PVC | NodePort 30803 |
+| watchback | media | nfs-nvme PVC | NodePort 30804 |
+| homepage | media | nfs-nvme PVC | NodePort 30805 |
+| copyparty | media | nfs-nvme PVC | NodePort 30806 |
+| medialyze | media | nfs-nvme PVC | NodePort 30807 |
+| recommendarr | media | nfs-nvme PVC | NodePort 30809 |
+| storyteller | media | nfs-nvme PVC | NodePort 30810 |
+| mealie + postgres | media | nfs-nvme PVC | NodePort 30813 |
+| recyclarr | media | nfs-nvme PVC | CronJob (no http port) |
+| jellyfin-pgsql | media | nfs-nvme PVC + external postgres | NodePort 30814; routed at `jellyfin2.arishaig.site`; Docker Jellyfin still live at `jellyfin.arishaig.site` |
 
 Traefik on the Docker LXC routes public domains to k8s NodePorts via `external-services.yml` (temporary bridge until Traefik itself moves).
 
@@ -67,88 +79,17 @@ Will be fixed automatically when PR #53 merges and `deploy-monitoring` runs.
 
 ## Remaining Migration Roadmap
 
-### Pending decommission (k8s manifests exist; Docker still active)
+### Jellyfin cutover
 
-Manifests for all services below are deployed. Each service's Docker container is still running — decommission each one by copying data, then uncommenting its router + service in `external-services.yml` and commenting out its Docker entry in the same PR.
+**Current state:** `jellyfin-pgsql` running in k8s at `jellyfin2.arishaig.site` (NodePort 30814) with watch history, metadata, and trickplay migrated. Docker Jellyfin still live at `jellyfin.arishaig.site`.
 
-**Config-only services** (copy, no WAL checkpoint needed):
+**To complete cutover when ready:**
+1. Point `jellyfin.arishaig.site` Traefik route at NodePort 30814 (or flip `jellyfin2` → `jellyfin` in external-services.yml)
+2. Comment out Docker `jellyfin` in docker-compose.yml
 
-| Service | NFS copy source | NFS copy dest | NodePort |
-|---|---|---|---|
-| recyclarr | `/mnt/app_config/recyclarr/` | `/rpool/data/k8s-configs/media/recyclarr-config/` | CronJob (no port) |
-| homepage | `/mnt/app_config/homepage/` | `/rpool/data/k8s-configs/media/homepage-config/` | 30805 |
-| watchback | `/mnt/app_config/watchback/config/` | `/rpool/data/k8s-configs/media/watchback-data/config/` | 30804 |
-| watchback | `/mnt/app_config/watchback/static/` | `/rpool/data/k8s-configs/media/watchback-data/static/` | — |
-| copyparty | `/mnt/app_config/copyparty/` | `/rpool/data/k8s-configs/media/copyparty-config/` | 30806 |
-| medialyze | `/mnt/app_config/medialyze/` | `/rpool/data/k8s-configs/media/medialyze-config/` | 30807 |
-
-**SQLite services** (WAL checkpoint first — see WAL copy rule below):
-
-| Service | WAL source | NFS copy dest | NodePort |
-|---|---|---|---|
-| recommendarr | `/mnt/app_config/recommendarr/` | `/rpool/data/k8s-configs/media/recommendarr-data/` | 30809 |
-| sabnzbd | `/mnt/app_config/sabnzbd/` | `/rpool/data/k8s-configs/media/sabnzbd-config/` | 30800 |
-| seerr | `/mnt/app_config/seerr/` | `/rpool/data/k8s-configs/media/seerr-config/` | 30801 |
-| tunarr | `/mnt/app_config/tunarr/data/` | `/rpool/data/k8s-configs/media/tunarr-config/` | 30802 |
-| watcharr | `/mnt/app_config/watcharr/` | `/rpool/data/k8s-configs/media/watcharr-data/` | 30803 |
-| storyteller | `/mnt/app_config/storyteller/` | `/rpool/data/k8s-configs/media/storyteller-config/` | 30810 |
-
-Note: storyteller's `/data` and `/books` mounts come from the media NFS (`storyteller/` and `media/books/` subpaths) — no copy needed for those.
-
-**Postgres service** (mealie):
-
-```bash
-# 1. Dump from running Docker postgres
-docker exec postgres pg_dump -U $POSTGRES_USER mealie > /tmp/mealie_backup.sql
-
-# 2. Copy /app/data (uploads, images — not in postgres)
-cp -r /mnt/app_config/mealie-data/ /rpool/data/k8s-configs/media/mealie-data/
-
-# 3. After postgres k8s pod is Running:
-kubectl exec -n media deploy/postgres -- psql -U $POSTGRES_USER -c "CREATE DATABASE mealie;"
-kubectl exec -n media -i deploy/postgres -- psql -U $POSTGRES_USER mealie < /tmp/mealie_backup.sql
-
-# 4. Scale down Docker mealie + postgres, then uncomment external-services.yml mealie entry
-```
-
-Required secrets (create once, manually):
-```bash
-kubectl create secret generic postgres-secret -n media \
-  --from-literal=POSTGRES_USER=<user> \
-  --from-literal=POSTGRES_PASSWORD=<password>
-
-kubectl create secret generic mealie-secret -n media \
-  --from-literal=OIDC_CLIENT_SECRET=<secret>
-
-kubectl create secret generic storyteller-secret -n media \
-  --from-literal=SECRET_KEY=<key>
-```
-
----
-
-### Jellyfin
-
-**Current state:** Docker LXC (linuxserver/jellyfin:10.11.10), `/mnt/app_config/jellyfin:/config`, `/mnt/media_root:/data`. Active on port 8096 / jellyfin.arishaig.site.
-
-**PostgreSQL approach:** Jellyfin 10.11 added EF Core + experimental plugin API for external DB providers. Community plugin `JPVenson/Jellyfin.Pgsql` (`ghcr.io/jpvenson/jellyfin.pgsql:10.11.8-1`) wraps the official Jellyfin image and replaces SQLite with postgres entirely via `POSTGRES_HOST/PORT/DB/USER/PASSWORD` env vars.
-
-**Test instance running:** `jellyfin-pgsql` deployment in `media` namespace, NodePort 30814. Fresh config PVC (not a data migration). Docker Jellyfin remains live on port 8096. Media NFS is read-only to avoid two instances writing trickplay/metadata.
-
-**Test goals:**
-- Confirm startup connects to postgres (not SQLite)
-- Go through setup wizard — verify data persists across pod restarts in postgres
-- Verify media browsing works with read-only media mount
-
-**After test passes — full migration steps:**
-1. `CREATE DATABASE jellyfin;` in k8s postgres (done for test; already exists)
-2. Scale down Docker Jellyfin
-3. WAL checkpoint all SQLite DBs: `sqlite3 <db> "PRAGMA wal_checkpoint(TRUNCATE);"` (library.db, jellyfin.db, etc.)
-4. Copy `/mnt/app_config/jellyfin/` → NFS PVC (config, plugins, metadata — NOT SQLite DBs if using postgres)
-5. Scale up k8s Jellyfin; verify library scan/watch history
-6. Add Traefik external-services.yml entry pointing at NodePort 30814
-7. Comment out `jellyfin` in `docker-compose.yml`
-
-**Note:** plugin image is on 10.11.8 (Docker is 10.11.10); minor gap, acceptable for test.
+**Pending config on k8s Jellyfin:**
+- Reinstall plugins (custom repos)
+- Fix Webhook URL to `http://watchback.media.svc.cluster.local:8484`
 
 ---
 
