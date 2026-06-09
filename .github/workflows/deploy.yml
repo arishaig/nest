@@ -175,8 +175,10 @@ jobs:
       - uses: actions/checkout@v6.0.3
 
       - name: Write secrets.tfvars
+        env:
+          TF_SECRETS: ${{ secrets.TF_SECRETS_TFVARS }}
         run: |
-          printf '%s' "${{ secrets.TF_SECRETS_TFVARS }}" > terraform/secrets.tfvars
+          printf '%s' "$TF_SECRETS" > terraform/secrets.tfvars
           chmod 600 terraform/secrets.tfvars
 
       - name: Restore terraform state
