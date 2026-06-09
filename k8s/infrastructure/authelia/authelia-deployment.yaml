@@ -15,25 +15,25 @@ spec:
       labels:
         app: authelia
     spec:
+      enableServiceLinks: false
       containers:
         - name: authelia
           image: authelia/authelia:4.39.20
+          command: ["authelia", "--config", "/etc/authelia/configuration.yml"]
           ports:
             - containerPort: 9091
           envFrom:
             - secretRef:
                 name: authelia-env-secret
           volumeMounts:
-            # PVC holds db.sqlite3 and notification.txt
             - name: data
               mountPath: /config
-            # Config and users are mounted as subPaths over the PVC directory
             - name: authelia-config
-              mountPath: /config/configuration.yml
+              mountPath: /etc/authelia/configuration.yml
               subPath: configuration.yml
               readOnly: true
             - name: authelia-users
-              mountPath: /config/users_database.yml
+              mountPath: /etc/authelia/users_database.yml
               subPath: users_database.yml
               readOnly: true
           livenessProbe:
