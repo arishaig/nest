@@ -174,6 +174,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.3
 
+      - name: Write SSH key
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.ssh"
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
+          chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
+
       - name: Write secrets.tfvars
         env:
           TF_SECRETS: ${{ secrets.TF_SECRETS_TFVARS }}
@@ -187,6 +193,17 @@ jobs:
           cp "$TF_STATE_DIR/terraform.tfstate" terraform/terraform.tfstate 2>/dev/null || true
           cp "$TF_STATE_DIR/terraform.tfstate.backup" terraform/terraform.tfstate.backup 2>/dev/null || true
 
+      - name: Open VPS AdGuard tunnel
+        run: |
+          ssh -f -N -L 13000:localhost:3000 \
+            -i "$RUNNER_TEMP/.ssh/ansible-on-nest" \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=10 \
+            -o ServerAliveCountMax=3 \
+            -o ExitOnForwardFailure=yes \
+            root@66.42.79.175
+          for _ in $(seq 1 10); do nc -z 127.0.0.1 13000 2>/dev/null && break; sleep 1; done
+
       - name: Terraform init
         run: terraform -chdir=terraform init -input=false
 
@@ -196,6 +213,7 @@ jobs:
       - name: Save terraform state
         if: always()
         run: |
+          pkill -f "ssh -f -N -L 13000" 2>/dev/null || true
           cp terraform/terraform.tfstate "$TF_STATE_DIR/terraform.tfstate" 2>/dev/null || true
           cp terraform/terraform.tfstate.backup "$TF_STATE_DIR/terraform.tfstate.backup" 2>/dev/null || true
 
