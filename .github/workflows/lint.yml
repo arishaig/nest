@@ -99,6 +99,33 @@ jobs:
         # info-level checks like SC2086 (unquoted vars) stay enforced.
         run: shellcheck --exclude=SC2015 scripts/*.sh
 
+  k8s-validate:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6.0.3
+      - name: Build and validate k8s manifests
+        # kustomize build catches missing file references and broken overlays.
+        # kubeconform validates the rendered manifests against the k8s 1.32 API
+        # schema (-strict rejects unknown fields; -ignore-missing-schemas skips
+        # any CRDs we haven't registered schemas for rather than hard-failing).
+        # flux-system is bootstrapped by Flux itself and contains Flux CRDs not
+        # in the standard schema catalog — skip it.
+        run: |
+          fail=0
+          for root in k8s/apps k8s/infrastructure; do
+            echo "=== kustomize build ${root} ==="
+            if ! kustomize build "${root}" \
+                | kubeconform \
+                    -strict \
+                    -ignore-missing-schemas \
+                    -kubernetes-version 1.32.0 \
+                    -summary; then
+              echo "FAIL: ${root}"
+              fail=1
+            fi
+          done
+          exit $fail
+
   terraform:
     runs-on: self-hosted
     env:

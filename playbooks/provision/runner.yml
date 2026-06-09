@@ -19,11 +19,13 @@
     runner_user: github-runner
     runner_repo_url: "https://github.com/arishaig/nest"
     ansible_venv: /opt/ansible-runner/venv
-    # promtool/amtool back the prometheus-validate CI job (lint.yml). Versions
+    # promtool/amtool/kustomize/kubeconform back CI lint jobs (lint.yml). Versions
     # are renovate-managed; bumping them re-installs via the checksum-aware copy.
     prometheus_version: "3.12.0"
     alertmanager_version: "0.32.1"
     kubectl_version: "1.32.0"
+    kustomize_version: "5.5.0"
+    kubeconform_version: "0.6.7"
 
   tasks:
     - name: Install runner and Ansible dependencies
@@ -128,6 +130,56 @@
             - /tmp/alertmanager.tar.gz
             - "/tmp/prometheus-{{ prometheus_version }}.linux-amd64"
             - "/tmp/alertmanager-{{ alertmanager_version }}.linux-amd64"
+
+    - name: Install kustomize and kubeconform for CI k8s validation
+      block:
+        - name: Download kustomize tarball
+          ansible.builtin.get_url:
+            url: "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv{{ kustomize_version }}/kustomize_v{{ kustomize_version }}_linux_amd64.tar.gz"
+            dest: /tmp/kustomize.tar.gz
+            mode: "0644"
+
+        - name: Extract kustomize tarball
+          ansible.builtin.unarchive:
+            src: /tmp/kustomize.tar.gz
+            dest: /tmp
+            remote_src: true
+
+        - name: Install kustomize binary
+          ansible.builtin.copy:
+            src: /tmp/kustomize
+            dest: /usr/local/bin/kustomize
+            mode: "0755"
+            remote_src: true
+
+        - name: Download kubeconform tarball
+          ansible.builtin.get_url:
+            url: "https://github.com/yannh/kubeconform/releases/download/v{{ kubeconform_version }}/kubeconform-linux-amd64.tar.gz"
+            dest: /tmp/kubeconform.tar.gz
+            mode: "0644"
+
+        - name: Extract kubeconform tarball
+          ansible.builtin.unarchive:
+            src: /tmp/kubeconform.tar.gz
+            dest: /tmp
+            remote_src: true
+
+        - name: Install kubeconform binary
+          ansible.builtin.copy:
+            src: /tmp/kubeconform
+            dest: /usr/local/bin/kubeconform
+            mode: "0755"
+            remote_src: true
+
+        - name: Clean up kustomize/kubeconform downloads
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /tmp/kustomize.tar.gz
+            - /tmp/kustomize
+            - /tmp/kubeconform.tar.gz
+            - /tmp/kubeconform
 
     - name: Create Ansible venv
       ansible.builtin.command:
