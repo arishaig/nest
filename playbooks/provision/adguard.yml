@@ -252,6 +252,8 @@
           pool us.pool.ntp.org iburst maxsources 4
           server time-a-g.nist.gov iburst
           server time-b-g.nist.gov iburst
+          server 216.239.35.0 iburst
+          server 216.239.35.4 iburst
           driftfile /var/lib/chrony/drift
           makestep 1.0 3
           rtcsync
@@ -268,6 +270,12 @@
         dest: /etc/default/chrony
         mode: "0644"
       notify: Restart chrony
+
+    - name: Remove stale timesyncd drop-in (chrony handles NTP)
+      when: local_network | default(true)
+      ansible.builtin.file:
+        path: /etc/systemd/timesyncd.conf.d/ntp.conf
+        state: absent
 
     - name: Disable systemd-timesyncd (conflicts with chrony)
       when: local_network | default(true)
