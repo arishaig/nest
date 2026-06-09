@@ -15,23 +15,19 @@ spec:
       labels:
         app: headlamp
       annotations:
-        kubectl.kubernetes.io/restartedAt: "2026-06-09T16:10:00Z"
+        kubectl.kubernetes.io/restartedAt: "2026-06-09T16:50:00Z"
     spec:
       serviceAccountName: headlamp
       securityContext:
         runAsNonRoot: true
         runAsUser: 100
         runAsGroup: 101
-        seccompProfile:
-          type: RuntimeDefault
       containers:
         - name: headlamp
           image: ghcr.io/headlamp-k8s/headlamp:v0.42.0
           args:
             - "-in-cluster"
             - "-plugins-dir=/headlamp/plugins"
-            - "-kubeconfig"
-            - "/etc/headlamp/kubeconfig/config"
           ports:
             - name: http
               containerPort: 4466
@@ -58,7 +54,8 @@ spec:
             failureThreshold: 3
           volumeMounts:
             - name: kubeconfig
-              mountPath: /etc/headlamp/kubeconfig
+              mountPath: /home/headlamp/.config/Headlamp/kubeconfigs/config
+              subPath: config
               readOnly: true
           resources:
             requests:
