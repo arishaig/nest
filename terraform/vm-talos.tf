@@ -36,7 +36,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
   }
 
   memory {
-    dedicated = 8192
+    dedicated = 24576
   }
 
   efi_disk {
