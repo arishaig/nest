@@ -6,10 +6,10 @@ from nest_mcp.http_client import make_client
 ArrService = Literal["sonarr", "radarr", "lidarr", "prowlarr"]
 
 _PORTS = {
-    "sonarr": 8989,
-    "radarr": 7878,
-    "lidarr": 8686,
-    "prowlarr": 9696,
+    "sonarr": 30989,
+    "radarr": 30878,
+    "lidarr": 30686,
+    "prowlarr": 30696,
 }
 
 _KEY_MAP = {
