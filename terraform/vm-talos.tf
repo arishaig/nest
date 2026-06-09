@@ -55,6 +55,8 @@ resource "proxmox_virtual_environment_vm" "talos" {
 
   scsi_hardware = "virtio-scsi-single"
 
+  boot_order = ["scsi0", "ide0"]
+
   cdrom {
     file_id   = proxmox_download_file.talos_iso.id
     interface = "ide0"
