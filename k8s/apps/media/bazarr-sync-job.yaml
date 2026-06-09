@@ -1,0 +1,30 @@
+---
+# One-shot bazarr-sync job — apply manually, TTL auto-cleans after 10 minutes.
+#
+# One-time setup (run from a host with NFS access to the fileserver):
+#   kubectl create secret generic bazarr-sync-config -n media \
+#     --from-file=config.yaml=/rpool/data/docker-apps/bazarr-sync/config.yaml
+#
+# To run:
+#   kubectl apply -f k8s/apps/media/bazarr-sync-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: bazarr-sync
+  namespace: media
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      containers:
+        - name: bazarr-sync
+          image: ghcr.io/ajmandourah/bazarr-sync:v0.3.1
+          volumeMounts:
+            - name: config
+              mountPath: /usr/src/app/config.yaml
+              subPath: config.yaml
+      volumes:
+        - name: config
+          secret:
+            secretName: bazarr-sync-config
+      restartPolicy: Never

@@ -4,49 +4,12 @@ services:
   # Bazarr — migrated to k8s (k8s/apps/media/bazarr-*.yaml)
   # bazarr: ...
 
-  # Bazarr-Sync - Bulk subtitle sync CLI for Bazarr
-  bazarr-sync:
-    image: ghcr.io/ajmandourah/bazarr-sync:v0.3.1
-    container_name: bazarr-sync
-    profiles:
-      - tools
-    volumes:
-      - /mnt/app_config/bazarr-sync/config.yaml:/usr/src/app/config.yaml:ro
-    networks:
-      - default
-    restart: "no"
+  # Bazarr-Sync — removed from Docker; run via k8s Job (see k8s/apps/media/bazarr-sync-job.yaml)
+  # bazarr-sync: ...
 
-  # Jellyfin - Media Server
-  jellyfin:
-    image: linuxserver/jellyfin:10.11.10
-    container_name: jellyfin
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
-    volumes:
-      - /mnt/app_config/jellyfin:/config
-      - /mnt/media_root:/data
-    ports:
-      - 8096:8096
-    networks:
-      - default
-      - proxy-net
-    labels:
-      # No Authelia middleware in otder to support clients that cannot handle auth redirects
-      - "traefik.enable=true"
-      - "traefik.http.routers.jellyfin2.rule=Host(`jellyfin2.arishaig.site`)"
-      - "traefik.http.routers.jellyfin2.entrypoints=websecure"
-      - "traefik.http.routers.jellyfin2.tls=true"
-      #- "traefik.http.routers.jellyfin2.middlewares=authelia@file"
-      - "traefik.http.services.jellyfin2.loadbalancer.server.port=8096"
-    healthcheck:
-      test: curl -sf http://localhost:8096/System/Ping
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 60s
-    restart: unless-stopped
+  # Jellyfin — decommissioned; migrated to k8s (k8s/apps/media/jellyfin-pgsql-*.yaml)
+  # Config archived at /mnt/app_config/jellyfin.bak on the fileserver NFS mount.
+  # jellyfin: ...
 
   # Lidarr — migrated to k8s (k8s/apps/media/lidarr-*.yaml)
   # lidarr:
@@ -105,28 +68,8 @@ services:
 
   ##### Monitoring and Dashboard Apps #####
 
-  # Glances - System monitoring
-  glances:
-    image: nicolargo/glances:4.5.4
-    container_name: glances
-    expose:
-      - "61208"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /:/rootfs:ro
-    environment:
-      - GLANCES_OPT=-w
-    networks:
-      - default
-      - proxy-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.glances.rule=Host(`glances.arishaig.site`)"
-      - "traefik.http.routers.glances.entrypoints=websecure"
-      - "traefik.http.routers.glances.tls=true"
-      - "traefik.http.routers.glances.middlewares=authelia@file"
-      - "traefik.http.services.glances.loadbalancer.server.port=61208"
-    restart: unless-stopped
+  # Glances — removed; no longer needed.
+  # glances: ...
 
   # Homepage — migrated to k8s (k8s/apps/media/homepage-*.yaml)
   # homepage: ...
@@ -201,21 +144,8 @@ services:
   # postgres-exporter — Docker postgres decommissioned; needs re-deployment pointing at k8s postgres
   # postgres-exporter: ...
 
-  qbittorrent-exporter:
-    image: ghcr.io/martabal/qbittorrent-exporter:v2.0.1
-    container_name: qbittorrent-exporter
-    environment:
-      - QBITTORRENT_BASE_URL=http://192.168.1.182:8090
-      - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME}
-      - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD}
-      # qBittorrent >= 5.2.0 renamed the WebUI session cookie from SID to
-      # QBT_SID_<webui_port>; without this the exporter loops on
-      # "Cookie changed, trying to reconnect" and /metrics returns 503.
-      - QBITTORRENT_COOKIE_NAME=QBT_SID_8090
-      - EXPORTER_PORT=9022
-    ports:
-      - "9022:9022"
-    restart: unless-stopped
+  # qbittorrent-exporter — moved to seedbox LXC (playbooks/provision/files/seedbox/docker-compose.yml)
+  # qbittorrent-exporter: ...
 
   # Dynamic DNS — migrated to k8s (k8s/apps/cloudflare-ddns/)
   # cloudflare-ddns:
@@ -250,7 +180,4 @@ services:
 networks:
   default:
     name: internal-net
-    external: true
-  proxy-net:
-    name: proxy-net
     external: true

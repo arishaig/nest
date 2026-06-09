@@ -19,7 +19,7 @@ resource "proxmox_virtual_environment_container" "docker" {
   tags        = ["docker", "infrastructure"]
 
   unprivileged  = true
-  start_on_boot = true
+  start_on_boot = false
 
   operating_system {
     template_file_id = proxmox_download_file.debian_ct.id
