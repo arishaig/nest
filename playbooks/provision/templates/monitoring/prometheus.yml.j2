@@ -146,13 +146,17 @@ scrape_configs:
         labels:
           instance: 'torrent.local.arishaig.site'
 
-  - job_name: 'redis'
+  - job_name: 'traefik-k8s'
     static_configs:
-      - targets: ['docker.arishaig.site:9121']
+      - targets: ['192.168.1.110:8080']
+        labels:
+          instance: 'talos'
 
-  - job_name: 'postgres'
+  - job_name: 'authelia'
     static_configs:
-      - targets: ['docker.arishaig.site:9187']
+      - targets: ['192.168.1.110:30959']
+        labels:
+          instance: 'talos'
 
   - job_name: 'wled'
     static_configs:

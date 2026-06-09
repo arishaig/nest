@@ -46,6 +46,7 @@ jobs:
               - 'playbooks/provision/templates/pve/**'
             k8s:
               - 'playbooks/provision/k8s.yml'
+              - 'playbooks/provision/templates/k8s/**'
             terraform:
               - 'terraform/**'
 

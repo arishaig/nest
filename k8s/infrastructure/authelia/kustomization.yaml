@@ -8,4 +8,5 @@ resources:
   - authelia-pvc.yaml
   - authelia-deployment.yaml
   - authelia-service.yaml
+  - authelia-metrics-service.yaml
   - authelia-ingress-route.yaml
