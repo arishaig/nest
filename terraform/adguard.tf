@@ -56,7 +56,7 @@ locals {
     "watchback.arishaig.site"    = "192.168.1.110"
     "medialyze.arishaig.site"    = "192.168.1.110"
     "metube.arishaig.site"       = "192.168.1.110"
-    "docker.arishaig.site"       = "192.168.1.110"
+    "docker.arishaig.site"       = "192.168.1.158"
     "mcp.arishaig.site"          = "192.168.1.110"
 
     # UDM VPN
