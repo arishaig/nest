@@ -29,6 +29,13 @@ spec:
               command: [redis-cli, ping]
             initialDelaySeconds: 10
             periodSeconds: 30
+          readinessProbe:
+            exec:
+              command: [redis-cli, ping]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
       volumes:
         - name: data
           persistentVolumeClaim:

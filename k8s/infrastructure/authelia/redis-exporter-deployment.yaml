@@ -22,3 +22,17 @@ spec:
           ports:
             - containerPort: 9121
               hostPort: 9121
+          livenessProbe:
+            tcpSocket:
+              port: 9121
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 9121
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3

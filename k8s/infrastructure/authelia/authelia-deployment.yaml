@@ -44,6 +44,14 @@ spec:
               port: 9091
             initialDelaySeconds: 15
             periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 9091
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
       volumes:
         - name: data
           persistentVolumeClaim:

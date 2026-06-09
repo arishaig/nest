@@ -56,13 +56,6 @@ Fixed manually on 2026-06-08 by copying directly on PVE: `cp /rpool/data/docker-
 3. Remove any stale WAL/SHM on destination before scaling up the pod
 4. After scale-up, check logs for `CorruptDatabaseException` before declaring success
 
-#### Prometheus scrape targets (PR #53 not yet merged)
-Currently still pointing at Docker LXC addresses for sonarr/radarr:
-- `docker.arishaig.site:9707` → should be `192.168.1.110:30707` (sonarr)
-- `docker.arishaig.site:9708` → should be `192.168.1.110:30708` (radarr)
-
-Will be fixed automatically when PR #53 merges and `deploy-monitoring` runs.
-
 ---
 
 ## What Stays on LXC Permanently
@@ -92,34 +85,9 @@ Will be fixed automatically when PR #53 merges and `deploy-monitoring` runs.
 
 ---
 
-### Traefik + Authelia + Redis (infrastructure layer)
+### Traefik + Authelia + Redis ✅ DONE
 
-These three move together — Authelia depends on Redis and Traefik's forwardAuth; Traefik's config changes when it moves to k8s (IngressRoute CRDs replace `external-services.yml`).
-
-**This is the most impactful migration.** Once done, `external-services.yml` goes away and all routing is k8s-native.
-
-**Traefik:**
-- ACME cert (`acme.json`) must be migrated to a PVC or switched to cert-manager (preferred — cert-manager is the k8s-idiomatic choice; handles Cloudflare DNS challenge natively)
-- Traefik Docker LXC stays running in parallel until k8s Traefik is validated end-to-end
-
-**Authelia:**
-- Config YAML is a Jinja2 template — becomes a k8s Secret/ConfigMap
-- Session state is Redis (see below)
-- Users/ACL DB is file-based in `/mnt/app_config/authelia/` — copy to nfs-nvme PVC
-
-**Redis:**
-- Session state only; loss = users need to re-login; acceptable
-- local-path or nfs-nvme PVC (small)
-
-**Steps (high-level):**
-1. Bootstrap cert-manager in `k8s/infrastructure/` with Cloudflare DNS solver
-2. Deploy Traefik to k8s (`k8s/infrastructure/traefik/`) with IngressRoute CRDs
-3. Migrate TLS cert handling to cert-manager (delete `acme.json` dependency)
-4. Deploy Redis to k8s
-5. Deploy Authelia to k8s; update Traefik middleware to point at k8s Authelia
-6. Cut DNS or use parallel routing to validate k8s Traefik serves traffic
-7. Decommission Docker Traefik → `external-services.yml` is no longer needed
-8. Replace all external-services.yml router entries with IngressRoute manifests
+All three running in k8s (`traefik`, `authelia` namespaces). Metrics scraping via hostPort (9959 authelia, 9121 redis-exporter). All Prometheus targets healthy as of 2026-06-09.
 
 ---
 
