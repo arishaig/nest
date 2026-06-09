@@ -139,9 +139,82 @@ def _parse_docker_ps(output: str) -> dict:
 _DOCKER_PS_FMT = r"""docker ps -a --format '{"name":"{{.Names}}","status":"{{.Status}}"}'"""
 
 
-async def _docker_lxc() -> dict:
-    output = await ssh_run(config.docker_host.host, _DOCKER_PS_FMT, key=config.docker_host.ssh_key)
-    return _parse_docker_ps(output)
+_K8S_JOBS = [
+    "traefik-k8s", "authelia", "redis", "postgres",
+    "sonarr", "radarr", "lidarr", "prowlarr", "bazarr",
+]
+
+
+async def _k8s() -> dict:
+    query = 'up{job=~"' + "|".join(_K8S_JOBS) + '"}'
+    async with make_client(config.prometheus.url) as prom:
+        async with make_client(config.traefik.url) as traefik:
+            up_resp, overview_resp = await asyncio.gather(
+                prom.get("/api/v1/query", params={"query": query}),
+                traefik.get("/api/overview"),
+                return_exceptions=True,
+            )
+
+    services: dict[str, str] = {}
+    if isinstance(up_resp, httpx.Response):
+        up_resp.raise_for_status()
+        for r in up_resp.json().get("data", {}).get("result", []):
+            job = r["metric"].get("job", "")
+            services[job] = "up" if r["value"][1] == "1" else "down"
+
+    down_names = [k for k, v in services.items() if v == "down"]
+
+    traefik_info: dict = {"error": str(overview_resp)} if isinstance(overview_resp, Exception) else {}
+    if isinstance(overview_resp, httpx.Response):
+        overview_resp.raise_for_status()
+        http = overview_resp.json().get("http", {})
+        traefik_info = {
+            "routers": http.get("routers", {}).get("total", 0),
+            "router_errors": http.get("routers", {}).get("errors", 0),
+            "services": http.get("services", {}).get("total", 0),
+            "service_errors": http.get("services", {}).get("errors", 0),
+        }
+
+    return {
+        "traefik": traefik_info,
+        "scraped_services": {
+            "up": len(services) - len(down_names),
+            "down": len(down_names),
+            "down_names": down_names,
+        },
+    }
+
+
+async def _monitoring() -> dict:
+    async with make_client(config.prometheus.url) as prom:
+        async with make_client(config.loki.url) as loki:
+            async with make_client(config.grafana.url) as grafana:
+                prom_health, loki_ready, grafana_health, down_q = await asyncio.gather(
+                    prom.get("/-/healthy"),
+                    loki.get("/ready"),
+                    grafana.get("/api/health"),
+                    prom.get("/api/v1/query", params={"query": "count(up == 0) or vector(0)"}),
+                    return_exceptions=True,
+                )
+
+    def _status(resp: object) -> str:
+        if isinstance(resp, Exception):
+            return f"error: {resp}"
+        assert isinstance(resp, httpx.Response)
+        return "ok" if resp.status_code < 300 else f"error: {resp.status_code}"
+
+    targets_down = 0
+    if isinstance(down_q, httpx.Response):
+        result = down_q.json().get("data", {}).get("result", [])
+        if result:
+            targets_down = int(float(result[0]["value"][1]))
+
+    return {
+        "prometheus": _status(prom_health),
+        "loki": _status(loki_ready),
+        "grafana": _status(grafana_health),
+        "scrape_targets_down": targets_down,
+    }
 
 
 async def _vps() -> dict:
@@ -249,7 +322,16 @@ def _overall_status(alerts: list, sections: dict) -> str:
     if any(a.get("severity") == "critical" for a in alerts):
         return "critical"
     has_error = any(isinstance(v, dict) and "error" in v for k, v in sections.items() if k != "alerts")
-    if alerts or has_error:
+    k8s_degraded = sections.get("k8s", {}).get("scraped_services", {}).get("down", 0) > 0
+    monitoring_degraded = any(
+        v not in ("ok",) and isinstance(v, str)
+        for v in [
+            sections.get("monitoring", {}).get("prometheus", ""),
+            sections.get("monitoring", {}).get("loki", ""),
+            sections.get("monitoring", {}).get("grafana", ""),
+        ]
+    ) or sections.get("monitoring", {}).get("scrape_targets_down", 0) > 0
+    if alerts or has_error or k8s_degraded or monitoring_degraded:
         return "degraded"
     return "ok"
 
@@ -257,13 +339,14 @@ def _overall_status(alerts: list, sections: dict) -> str:
 def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def lab_health_summary() -> dict:
-        """Single-call homelab health summary covering Proxmox, PBS, disks, Docker, VPS, UniFi, Home Assistant, DNS, and Prometheus alerts. Use this to orient at the start of a session."""
-        keys = ["proxmox", "backups", "disks", "docker", "vps", "unifi", "homeassistant", "dns", "alerts"]
+        """Single-call homelab health summary covering Proxmox, PBS, disks, k8s, VPS, UniFi, Home Assistant, DNS, monitoring stack, and Prometheus alerts. Use this to orient at the start of a session."""
+        keys = ["proxmox", "backups", "disks", "k8s", "monitoring", "vps", "unifi", "homeassistant", "dns", "alerts"]
         raw = await asyncio.gather(
             _proxmox(),
             _pbs(),
             _scrutiny(),
-            _docker_lxc(),
+            _k8s(),
+            _monitoring(),
             _vps(),
             _unifi(),
             _homeassistant(),

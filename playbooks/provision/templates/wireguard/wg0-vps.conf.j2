@@ -7,9 +7,9 @@ MTU = 1420
 PostUp = systemctl reload nftables
 
 [Peer]
-# Nest docker LXC
+# Nest monitoring LXC (moved from Docker LXC)
 PublicKey = {{ nest_wg_public_key }}
-AllowedIPs = 10.10.0.2/32, 192.168.1.44/32
+AllowedIPs = 10.10.0.2/32
 
 [Peer]
 # Talos k8s node

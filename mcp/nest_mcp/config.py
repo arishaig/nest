@@ -19,14 +19,16 @@ class UniFiSettings(BaseSettings):
 
 class AdGuardSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_ADGUARD_")
-    url: str = "https://dns.arishaig.site"
+    # Direct IP avoids DNS resolution dependency on LXC 109; plain HTTP port 3000 avoids cert mismatch
+    url: str = "http://192.168.7.7:3000"
     username: str = "adguard"
     password: str = ""
 
 
 class HomeAssistantSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_HA_")
-    url: str = "http://casa.local.arishaig.site:8123"
+    # Direct IP avoids local DNS rewrite dependency on LXC 109
+    url: str = "http://192.168.4.50:8123"
     token: str = ""
 
 
@@ -70,8 +72,8 @@ class ArrSettings(BaseSettings):
 
 class JellyfinSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_JELLYFIN_")
-    # Jellyfin still runs on Docker LXC — not yet migrated to k8s
-    url: str = "http://192.168.1.158:8096"
+    # Jellyfin k8s NodePort (k8s/apps/media/jellyfin-pgsql-service.yaml)
+    url: str = "http://192.168.1.110:30814"
     key: str = ""
 
 

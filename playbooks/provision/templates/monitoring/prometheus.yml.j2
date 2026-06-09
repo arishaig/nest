@@ -22,7 +22,6 @@ scrape_configs:
       - targets:
           - 'proxmox.local.arishaig.site:9100'
           - 'monitoring.local.arishaig.site:9100'
-          - 'docker.arishaig.site:9100'
           - 'files.arishaig.site:9100'
           - 'musicbrainz.arishaig.site:9100'
           - 'backup.local.arishaig.site:9100'
@@ -58,7 +57,6 @@ scrape_configs:
     static_configs:
       - targets:
           - 'monitoring.local.arishaig.site:8080'
-          - 'docker.arishaig.site:8081'
       - targets: ['192.168.1.46:8081']
         labels:
           instance: 'scrutiny.local.arishaig.site'
@@ -193,7 +191,6 @@ scrape_configs:
           - https://backup.arishaig.site
           - https://copyparty.arishaig.site
           - https://dash.arishaig.site
-          - https://glances.arishaig.site
           - https://jellyfin.arishaig.site
           - https://lidarr.arishaig.site
           - https://mcp.arishaig.site

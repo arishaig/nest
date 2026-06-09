@@ -154,19 +154,33 @@
         mode: "0644"
       notify: Restart grafana
 
-    # --- Routing: allow Prometheus to reach VPS node_exporter via WireGuard tunnel ---
-    - name: Persist route to VPS WireGuard subnet
-      ansible.builtin.copy:
-        content: |
-          #!/bin/sh
-          ip route add 10.10.0.0/24 via 192.168.1.158 2>/dev/null || true
-        dest: /etc/network/if-up.d/99-wg-vps-route
-        mode: "0755"
+    # --- WireGuard (direct tunnel to VPS — Docker LXC decommissioned, WG moved here) ---
+    - name: Install wireguard-tools
+      ansible.builtin.apt:
+        name: wireguard-tools
+        state: present
+      tags: wireguard
 
-    - name: Apply VPS WireGuard route now
-      ansible.builtin.command: ip route add 10.10.0.0/24 via 192.168.1.158
-      changed_when: true
-      failed_when: false
+    - name: Deploy Nest WireGuard config
+      ansible.builtin.template:
+        src: templates/wireguard/wg0-nest.conf.j2
+        dest: /etc/wireguard/wg0.conf
+        mode: "0600"
+      notify: Restart WireGuard
+      tags: wireguard
+
+    - name: Enable and start WireGuard
+      ansible.builtin.systemd:
+        name: wg-quick@wg0
+        enabled: true
+        state: started
+      tags: wireguard
+
+    - name: Remove stale static route script (replaced by direct WireGuard)
+      ansible.builtin.file:
+        path: /etc/network/if-up.d/99-wg-vps-route
+        state: absent
+      tags: wireguard
 
     - name: Start monitoring stack
       community.docker.docker_compose_v2:
@@ -241,4 +255,9 @@
     - name: Restart rsyslog
       ansible.builtin.systemd:
         name: rsyslog
+        state: restarted
+
+    - name: Restart WireGuard
+      ansible.builtin.systemd:
+        name: wg-quick@wg0
         state: restarted
