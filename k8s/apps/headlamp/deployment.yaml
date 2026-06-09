@@ -4,7 +4,6 @@ metadata:
   name: headlamp
   namespace: headlamp
 spec:
-  paused: false
   replicas: 1
   selector:
     matchLabels:
@@ -15,8 +14,6 @@ spec:
     metadata:
       labels:
         app: headlamp
-      annotations:
-        kubectl.kubernetes.io/restartedAt: "2026-06-09T18:30:00Z"
     spec:
       serviceAccountName: headlamp
       securityContext:
@@ -62,7 +59,7 @@ spec:
           resources:
             requests:
               cpu: 50m
-              memory: 32Mi
+              memory: 64Mi
             limits:
               memory: 256Mi
       volumes:
