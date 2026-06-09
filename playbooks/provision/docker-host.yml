@@ -247,73 +247,6 @@
           - authelia
         state: restarted
 
-    # --- WireGuard (tunnel to VPS proxy) ---
-    - name: Install wireguard-tools
-      ansible.builtin.apt:
-        name: wireguard-tools
-        state: present
-      tags: wireguard
-
-    - name: Deploy Nest WireGuard config
-      ansible.builtin.template:
-        src: templates/wireguard/wg0-nest.conf.j2
-        dest: /etc/wireguard/wg0.conf
-        mode: "0600"
-      notify: Restart WireGuard nest
-      tags: wireguard
-
-    - name: Enable and start WireGuard
-      ansible.builtin.systemd:
-        name: wg-quick@wg0
-        enabled: true
-        state: started
-      tags: wireguard
-
-    - name: Enable IP forwarding for WireGuard routing
-      ansible.posix.sysctl:
-        name: net.ipv4.ip_forward
-        value: "1"
-        sysctl_file: /etc/sysctl.d/99-wg-forward.conf
-        reload: true
-      tags: wireguard
-
-    - name: Deploy WireGuard masquerade systemd unit
-      ansible.builtin.copy:
-        content: |
-          [Unit]
-          Description=WireGuard to LAN masquerade rule
-          After=network.target docker.service wg-quick@wg0.service
-          Wants=wg-quick@wg0.service
-
-          [Service]
-          Type=oneshot
-          RemainAfterExit=yes
-          ExecStart=/bin/sh -c '\
-            iptables -t nat -C POSTROUTING -o eth0 -s 10.10.0.0/24 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o eth0 -s 10.10.0.0/24 -j MASQUERADE; \
-            iptables -t nat -C POSTROUTING -o wg0 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE; \
-            iptables -C FORWARD -i eth0 -o wg0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -i eth0 -o wg0 -j ACCEPT; \
-            iptables -C FORWARD -i wg0 -o eth0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i wg0 -o eth0 -j ACCEPT'
-          ExecStop=/bin/sh -c '\
-            iptables -t nat -D POSTROUTING -o eth0 -s 10.10.0.0/24 -j MASQUERADE 2>/dev/null || true; \
-            iptables -t nat -D POSTROUTING -o wg0 -j MASQUERADE 2>/dev/null || true; \
-            iptables -D FORWARD -i eth0 -o wg0 -j ACCEPT 2>/dev/null || true; \
-            iptables -D FORWARD -i wg0 -o eth0 -j ACCEPT 2>/dev/null || true'
-
-          [Install]
-          WantedBy=multi-user.target
-        dest: /etc/systemd/system/wg-masquerade.service
-        mode: "0644"
-      notify: Reload systemd
-      tags: wireguard
-
-    - name: Enable and start WireGuard masquerade service
-      ansible.builtin.systemd:
-        name: wg-masquerade
-        enabled: true
-        state: started
-        daemon_reload: true
-      tags: wireguard
-
     # --- fail2ban ---
     - name: Install fail2ban and rsyslog
       ansible.builtin.apt:
@@ -368,11 +301,6 @@
       ansible.builtin.systemd:
         name: fail2ban
         state: reloaded
-
-    - name: Restart WireGuard nest
-      ansible.builtin.systemd:
-        name: wg-quick@wg0
-        state: restarted
 
     - name: Restart authelia
       community.docker.docker_compose_v2:

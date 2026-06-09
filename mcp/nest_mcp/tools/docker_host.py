@@ -69,6 +69,10 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def wg_tunnel_status() -> dict:
-        """Show WireGuard tunnel status on the docker LXC: peer handshake age, endpoint, and traffic counters."""
-        output = await _ssh("wg show 2>/dev/null || echo 'wg not available'")
+        """Show WireGuard tunnel status on the monitoring LXC (192.168.1.44): peer handshake age, endpoint, and traffic counters."""
+        output = await ssh_run(
+            "192.168.1.44",
+            "wg show 2>/dev/null || echo 'wg not available'",
+            key=config.docker_host.ssh_key,
+        )
         return {"wg_show": output}
