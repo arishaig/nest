@@ -23,6 +23,7 @@ spec:
           ports:
             - containerPort: 9091
             - containerPort: 9959
+              hostPort: 9959
           envFrom:
             - secretRef:
                 name: authelia-env-secret
