@@ -19,6 +19,9 @@ jobs:
       - name: Run ansible-lint
         run: |
           source /opt/ansible-runner/venv/bin/activate
+          # Unset VIRTUAL_ENV so ansible-compat doesn't attempt to cache into
+          # the read-only system venv; it falls back to .ansible/ in the project dir.
+          unset VIRTUAL_ENV
           ANSIBLE_VAULT_PASSWORD_FILE="$RUNNER_TEMP/vault-pass" ansible-lint playbooks/
 
   yamllint:
@@ -32,6 +35,7 @@ jobs:
         # YAML, duplicate keys), not cosmetic style.
         run: |
           source /opt/ansible-runner/venv/bin/activate
+          unset VIRTUAL_ENV
           yamllint .
 
   config-validate:
