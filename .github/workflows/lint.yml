@@ -16,22 +16,28 @@ jobs:
         run: |
           printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
           chmod 600 "$RUNNER_TEMP/vault-pass"
+      - name: Set up writable ansible venv
+        # --system-site-packages inherits tools pre-installed in the runner venv
+        # without any pip network calls; gives ansible-compat a writable cache dir.
+        run: python3 -m venv --system-site-packages "$RUNNER_TEMP/ansible-venv"
       - name: Run ansible-lint
         run: |
-          source /opt/ansible-runner/venv/bin/activate
+          source "$RUNNER_TEMP/ansible-venv/bin/activate"
           ANSIBLE_VAULT_PASSWORD_FILE="$RUNNER_TEMP/vault-pass" ansible-lint playbooks/
 
   yamllint:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6.0.3
+      - name: Set up writable ansible venv
+        run: python3 -m venv --system-site-packages "$RUNNER_TEMP/ansible-venv"
       - name: Run yamllint
         # Covers the GitOps service payload under playbooks/provision/files/,
         # which ansible-lint deliberately excludes. Lenient by design — see
         # .yamllint — so it flags only deploy-breaking errors (unparsable
         # YAML, duplicate keys), not cosmetic style.
         run: |
-          source /opt/ansible-runner/venv/bin/activate
+          source "$RUNNER_TEMP/ansible-venv/bin/activate"
           yamllint .
 
   config-validate:
