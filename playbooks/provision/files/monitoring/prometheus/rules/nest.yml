@@ -12,7 +12,7 @@ groups:
   - name: hosts
     rules:
       - alert: HostDown
-        expr: up{job=~"node|vps"} == 0
+        expr: up{job=~"node|vps", instance!="docker.arishaig.site"} == 0
         for: 30m
         labels:
           severity: critical
@@ -68,7 +68,7 @@ groups:
   - name: services
     rules:
       - alert: CAdvisorDown
-        expr: up{job="cadvisor"} == 0
+        expr: up{job="cadvisor", instance!="docker.arishaig.site:8081"} == 0
         for: 30m
         labels:
           severity: warning
