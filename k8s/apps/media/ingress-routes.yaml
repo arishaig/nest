@@ -1,0 +1,342 @@
+---
+# All media service IngressRoutes.
+# Middleware references use namespace: traefik (cross-namespace, allowed by
+# allowCrossNamespace: true in Traefik static config).
+# tls: {} means Traefik uses the default TLSStore (wildcard *.arishaig.site cert).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sonarr
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`sonarr.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: sonarr
+          port: 8989
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: radarr
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`radarr.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: radarr
+          port: 7878
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: lidarr
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`lidarr.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: lidarr
+          port: 8686
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: bazarr
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`bazarr.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: bazarr
+          port: 6767
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: prowlarr
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`prowlarr.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: prowlarr
+          port: 9696
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sabnzbd
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`nzbd.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: sabnzbd
+          port: 8080
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: seerr
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`seerr.arishaig.site`) || Host(`requests.arishaig.site`)"
+      kind: Rule
+      services:
+        - name: seerr
+          port: 5055
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: metube
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`metube.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: metube
+          port: 8081
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: tdarr
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`tdarr.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: tdarr
+          port: 8265
+  tls: {}
+---
+# Jellyfin bypasses Authelia — uses its own auth
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: jellyfin
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`jellyfin.arishaig.site`)"
+      kind: Rule
+      services:
+        - name: jellyfin-pgsql
+          port: 8096
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: homepage
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`dash.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: homepage
+          port: 3000
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: mealie
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`mealie.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: mealie
+          port: 9000
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: copyparty
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`copyparty.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: copyparty
+          port: 3923
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: medialyze
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`medialyze.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: medialyze
+          port: 8080
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: recommendarr
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`recommendarr.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: recommendarr
+          port: 3000
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: storyteller
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`storyteller.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: storyteller
+          port: 8001
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: watchback
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`watchback.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: watchback
+          port: 8484
+  tls: {}
+---
+# Local-only routes (LAN access only)
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: tunarr
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`tunarr.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: local-only
+          namespace: traefik
+      services:
+        - name: tunarr
+          port: 8000
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: watcharr
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`watcharr.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: local-only
+          namespace: traefik
+      services:
+        - name: watcharr
+          port: 3080
+  tls: {}

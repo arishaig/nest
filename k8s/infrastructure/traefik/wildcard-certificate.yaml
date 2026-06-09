@@ -1,0 +1,28 @@
+---
+# Wildcard cert covering *.arishaig.site issued via Cloudflare DNS-01 challenge.
+# All IngressRoutes use tls: {} (no secretName) which Traefik resolves via the
+# default TLSStore below.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-arishaig-site
+  namespace: traefik
+spec:
+  secretName: wildcard-arishaig-site-tls
+  dnsNames:
+    - "*.arishaig.site"
+    - "arishaig.site"
+  issuerRef:
+    name: cloudflare-issuer
+    kind: ClusterIssuer
+---
+# Default TLSStore makes the wildcard cert the fallback for all IngressRoutes
+# that specify tls: {} without an explicit secretName.
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+  name: default
+  namespace: traefik
+spec:
+  defaultCertificate:
+    secretName: wildcard-arishaig-site-tls

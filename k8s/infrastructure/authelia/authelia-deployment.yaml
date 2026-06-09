@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authelia
+  namespace: authelia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authelia
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: authelia
+    spec:
+      containers:
+        - name: authelia
+          image: authelia/authelia:4.39.20
+          ports:
+            - containerPort: 9091
+          envFrom:
+            - secretRef:
+                name: authelia-env-secret
+          volumeMounts:
+            # PVC holds db.sqlite3 and notification.txt
+            - name: data
+              mountPath: /config
+            # Config and users are mounted as subPaths over the PVC directory
+            - name: authelia-config
+              mountPath: /config/configuration.yml
+              subPath: configuration.yml
+              readOnly: true
+            - name: authelia-users
+              mountPath: /config/users_database.yml
+              subPath: users_database.yml
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 9091
+            initialDelaySeconds: 15
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: authelia-data
+        - name: authelia-config
+          secret:
+            secretName: authelia-config
+        - name: authelia-users
+          configMap:
+            name: authelia-users
