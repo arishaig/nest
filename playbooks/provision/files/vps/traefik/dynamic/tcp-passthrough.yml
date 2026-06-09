@@ -24,4 +24,4 @@ tcp:
         proxyProtocol:
           version: 2
         servers:
-          - address: "10.10.0.2:443"
+          - address: "10.10.0.3:443"
