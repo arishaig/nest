@@ -17,6 +17,8 @@ data:
       path_targets = [{
         __address__ = "localhost",
         __path__    = "/var/log/pods/*/*/*.log",
+        job         = "k8s-pods",
+        host        = "talos",
       }]
       sync_period = "10s"
     }
@@ -72,8 +74,4 @@ data:
     loki.source.file "pod_logs" {
       targets    = local.file_match.pod_logs.targets
       forward_to = [loki.process.pod_logs.receiver]
-      labels = {
-        job  = "k8s-pods",
-        host = "talos",
-      }
     }
