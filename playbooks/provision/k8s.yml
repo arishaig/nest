@@ -6,7 +6,7 @@
 # Requires: vault.yml (--ask-vault-pass or --vault-password-file)
 # Requires: kubectl configured and pointing at the Talos cluster
 
-- name: k8s secrets provisioning
+- name: K8s secrets provisioning
   hosts: localhost
   connection: local
   gather_facts: false

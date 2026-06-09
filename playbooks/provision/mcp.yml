@@ -27,22 +27,21 @@
         mode: "0755"
 
     - name: Create MCP archive on control node
-      ansible.builtin.command:
-        cmd: >
-          tar czf /tmp/nest-mcp.tar.gz
-          --exclude=.venv
-          --exclude=__pycache__
-          --exclude='*.egg-info'
-          --exclude=.git
-          -C {{ playbook_dir }}/../../mcp .
+      ansible.builtin.archive:
+        path: "{{ playbook_dir }}/../../mcp"
+        dest: /tmp/nest-mcp.tar.gz
+        exclude_path:
+          - "{{ playbook_dir }}/../../mcp/.venv"
+          - "{{ playbook_dir }}/../../mcp/.git"
+        format: gz
       delegate_to: localhost
       become: false
-      changed_when: true
 
     - name: Upload and extract MCP source
       ansible.builtin.unarchive:
         src: /tmp/nest-mcp.tar.gz
         dest: "{{ mcp_dir }}/"
+        extra_opts: ["--strip-components=1"]
 
     - name: Create Python virtual environment
       ansible.builtin.command:
