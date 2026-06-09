@@ -25,7 +25,7 @@
     alertmanager_version: "0.32.1"
     kubectl_version: "1.32.0"
     kustomize_version: "5.8.1"
-    kubeconform_version: "0.7.0"
+    kubeconform_version: "0.8.0"
 
   tasks:
     - name: Install runner and Ansible dependencies
