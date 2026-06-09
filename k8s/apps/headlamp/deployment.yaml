@@ -14,6 +14,8 @@ spec:
     metadata:
       labels:
         app: headlamp
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2026-06-09T16:10:00Z"
     spec:
       serviceAccountName: headlamp
       securityContext:
