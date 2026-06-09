@@ -22,6 +22,7 @@ jobs:
       pve: ${{ steps.filter.outputs.pve }}
       k8s: ${{ steps.filter.outputs.k8s }}
       terraform: ${{ steps.filter.outputs.terraform }}
+      mcp: ${{ steps.filter.outputs.mcp }}
     steps:
       - uses: actions/checkout@v6.0.3
       - uses: dorny/paths-filter@v4.0.1
@@ -49,6 +50,8 @@ jobs:
               - 'playbooks/provision/templates/k8s/**'
             terraform:
               - 'terraform/**'
+            mcp:
+              - 'mcp/**'
 
   deploy-docker:
     needs: changes
@@ -245,3 +248,32 @@ jobs:
             -i inventory/hosts.yml \
             playbooks/provision/k8s.yml \
             --vault-password-file "$RUNNER_TEMP/vault-pass"
+
+  deploy-mcp:
+    needs: changes
+    if: needs.changes.outputs.mcp == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6.0.3
+
+      - name: Write SSH key
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.ssh"
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
+          chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
+
+      - name: Write vault password
+        run: |
+          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
+          chmod 600 "$RUNNER_TEMP/vault-pass"
+
+      - name: Run mcp playbook
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          ansible-playbook \
+            -i inventory/hosts.yml \
+            playbooks/provision/mcp.yml \
+            --vault-password-file "$RUNNER_TEMP/vault-pass" \
+            --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
+            --ssh-extra-args "-o StrictHostKeyChecking=no" \
+            --limit mcp

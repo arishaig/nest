@@ -52,9 +52,16 @@ class ScrutinySettings(BaseSettings):
     url: str = "http://192.168.1.46:8888"
 
 
+class TraefikSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_TRAEFIK_")
+    # k8s Traefik API/metrics — hostPort on Talos node
+    url: str = "http://192.168.1.110:8080"
+
+
 class ArrSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_")
-    arr_host: str = "192.168.1.158"
+    # Talos node IP; ports are k8s NodePorts (see k8s/apps/media/*-service.yaml)
+    arr_host: str = "192.168.1.110"
     sonarr_key: str = ""
     radarr_key: str = ""
     lidarr_key: str = ""
@@ -63,13 +70,15 @@ class ArrSettings(BaseSettings):
 
 class JellyfinSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_JELLYFIN_")
+    # Jellyfin still runs on Docker LXC — not yet migrated to k8s
     url: str = "http://192.168.1.158:8096"
     key: str = ""
 
 
 class JellyseerrSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_JELLYSEERR_")
-    url: str = "http://192.168.1.158:5055"
+    # Seerr k8s NodePort (k8s/apps/media/seerr-service.yaml)
+    url: str = "http://192.168.1.110:30801"
     key: str = ""
 
 
@@ -90,7 +99,8 @@ class DockerHostSettings(BaseSettings):
 
 class MealieSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_MEALIE_")
-    url: str = "http://192.168.1.158:9001"
+    # Mealie k8s NodePort (k8s/apps/media/mealie-service.yaml)
+    url: str = "http://192.168.1.110:30813"
     key: str = ""
 
 
@@ -116,6 +126,7 @@ prometheus = PrometheusSettings()
 loki = LokiSettings()
 grafana = GrafanaSettings()
 scrutiny = ScrutinySettings()
+traefik = TraefikSettings()
 arr = ArrSettings()
 jellyfin = JellyfinSettings()
 jellyseerr = JellyseerrSettings()
