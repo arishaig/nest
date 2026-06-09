@@ -117,27 +117,27 @@ scrape_configs:
 
   - job_name: 'sonarr'
     static_configs:
-      - targets: ['192.168.1.110:30707']
+      - targets: ['192.168.1.110:9707']
     metrics_path: /metrics
 
   - job_name: 'radarr'
     static_configs:
-      - targets: ['192.168.1.110:30708']
+      - targets: ['192.168.1.110:9708']
     metrics_path: /metrics
 
   - job_name: 'lidarr'
     static_configs:
-      - targets: ['192.168.1.110:30709']
+      - targets: ['192.168.1.110:9709']
     metrics_path: /metrics
 
   - job_name: 'prowlarr'
     static_configs:
-      - targets: ['192.168.1.110:30710']
+      - targets: ['192.168.1.110:9710']
     metrics_path: /metrics
 
   - job_name: 'bazarr'
     static_configs:
-      - targets: ['192.168.1.110:30711']
+      - targets: ['192.168.1.110:9711']
     metrics_path: /metrics
 
   - job_name: 'qbittorrent'
@@ -154,19 +154,19 @@ scrape_configs:
 
   - job_name: 'authelia'
     static_configs:
-      - targets: ['192.168.1.110:30959']
+      - targets: ['192.168.1.110:9959']
         labels:
           instance: 'talos'
 
   - job_name: 'redis'
     static_configs:
-      - targets: ['192.168.1.110:30121']
+      - targets: ['192.168.1.110:9121']
         labels:
           instance: 'talos'
 
   - job_name: 'postgres'
     static_configs:
-      - targets: ['192.168.1.110:30187']
+      - targets: ['192.168.1.110:9187']
         labels:
           instance: 'talos'
 

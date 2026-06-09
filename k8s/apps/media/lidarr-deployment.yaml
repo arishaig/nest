@@ -66,6 +66,7 @@ spec:
                   key: APIKEY
           ports:
             - containerPort: 9709
+              hostPort: 9709
           resources:
             requests:
               cpu: 10m
