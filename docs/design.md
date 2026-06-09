@@ -31,7 +31,7 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 
 | VMID | Name | IP | Purpose |
 |---|---|---|---|
-| 100 | docker | 192.168.1.158 (static) | All application Docker services |
+| 100 | docker | 192.168.1.158 (static) | Decommissioned (start_on_boot=false); cadvisor still in compose for ad-hoc use |
 | 101 | musicbrainz | 192.168.1.197 (DHCP) | MusicBrainz server |
 | 102 | fileserver | 192.168.1.17 (static) | Samba NAS |
 | 103 | scrutiny | 192.168.1.46 (DHCP) | SMART disk monitoring |
@@ -40,12 +40,14 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 | 106 | dns-secondary | 192.168.7.8 (VLAN 7, static) | AdGuard Home + Unbound (secondary DNS) |
 | 108 | ci | 192.168.1.18 (static) | GitHub Actions self-hosted runner |
 | 109 | mcp | 192.168.1.19 (static) | Nest MCP HTTP server (port 8765) |
+| 111 | foundry | 192.168.1.21 (static) | FoundryVTT game server |
 
 ### VMs (Proxmox)
 
 | VMID | Name | IP | Purpose |
 |---|---|---|---|
 | 107 | homeassistant | 192.168.4.50 (VLAN 4) | Home Assistant OS |
+| 110 | talos | 192.168.1.110 | Talos Linux — single-node Kubernetes (4 vCPU, 24 GB RAM) |
 | 500 | backup | 192.168.1.113 | Proxmox Backup Server |
 
 ---
@@ -55,16 +57,16 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 ```
 Client → Cloudflare DNS → VPS :443
   → Traefik (TCP passthrough, HostSNI(*))
-  → WireGuard tunnel (10.10.0.1 → 10.10.0.2)
-  → Nest Traefik :443 (TLS termination, PROXY protocol v2)
-  → Authelia (forwardAuth) → Docker service
+  → WireGuard tunnel (10.10.0.1 → 10.10.0.3)
+  → k8s Traefik :443 (TLS termination, PROXY protocol v2)
+  → Authelia (forwardAuth) → k8s service / ExternalName
 ```
 
 ### VPS Traefik (66.42.79.175)
 
 Runs as a systemd service (not Docker). Does **TCP passthrough** — it never
 terminates TLS. Any hostname on port 443 is forwarded as-is over the WireGuard
-tunnel to `10.10.0.2:443` using PROXY protocol v2 to preserve the real client IP.
+tunnel to `10.10.0.3:443` (Talos k8s node) using PROXY protocol v2 to preserve the real client IP.
 
 Port 80 → 443 redirect is the only HTTP-layer operation.
 
@@ -74,26 +76,32 @@ Metrics endpoint listens on `10.10.0.1:8080` (WireGuard interface, not public).
 
 ### WireGuard Tunnel
 
-VPS side: `10.10.0.1/24`, ListenPort 51820, MTU 1420
-Nest side: `10.10.0.2/24`, MTU 1420
+VPS side: `10.10.0.1/24`, ListenPort 51820, MTU 1420. Two peers:
+- **Talos k8s node** (`10.10.0.3/32`) — receives all public HTTPS ingress
+- **Docker LXC** (`10.10.0.2/32, 192.168.1.44/32`) — retained so the monitoring LXC (192.168.1.44) can reach VPS metrics over WireGuard; does **not** handle public ingress
+
+Talos k8s side: `10.10.0.3/32`, MTU 1420 (managed by Talos config in `talos/` directory)
+Docker LXC side: `10.10.0.2/24`, MTU 1420
 
 Keys: public keys stored in `inventory/group_vars/all/vars.yml`; private keys in `vault.yml`.
 
-### Nest Traefik (Docker LXC, port 443)
+### k8s Traefik (Talos VM, hostPort 443)
 
-Terminates TLS using Cloudflare ACME DNS challenge (wildcard cert: `*.arishaig.site`).
-API token in Docker env as `CF_DNS_API_TOKEN`. Certificate stored at `/mnt/app_config/traefik/acme.json`.
+Deployed as a k8s Deployment in the `traefik` namespace on the Talos VM (192.168.1.110),
+binding to the host network via `hostPort: 443/80/8080`.
+
+Terminates TLS using Cloudflare ACME DNS challenge (wildcard cert: `*.arishaig.site`),
+managed by cert-manager and stored as a k8s Secret.
 
 Trusts PROXY protocol from `10.10.0.1/32`. Rate-limit middleware applied globally.
 
-Docker socket access is via `tecnativa/docker-socket-proxy` (CONTAINERS=1 read-only;
-no SERVICES, TASKS, NETWORKS, VOLUMES, NODES).
+Uses the `kubernetesCRD` provider — routes are defined as `IngressRoute` CRDs; no Docker socket.
 
-Two Docker networks:
-- `internal-net` — service-to-service (no external access)
-- `proxy-net` — Traefik-facing; only services that need routing attach to this
+Routes to k8s services within the cluster or to `ExternalName` services for non-k8s targets
+(Proxmox, PBS, monitoring, scrutiny, torrent, foundry, glances, musicbrainz, backlight, mcp).
 
-Access logs are written as JSON to `/var/log/traefik/access.log` and tailed by Alloy.
+Access logs written as JSON to stdout; shipped to Loki by the k8s Alloy DaemonSet
+with `job="traefik-access"` and parsed `router`/`status` labels.
 
 ---
 
@@ -101,7 +109,7 @@ Access logs are written as JSON to `/var/log/traefik/access.log` and tailed by A
 
 ### External (Cloudflare)
 
-Managed by Terraform (`terraform/cloudflare.tf`, `cloudflare/cloudflare ~> 5.0`).
+Managed by Terraform (`terraform/cloudflare.tf`, `cloudflare/cloudflare = 5.19.1`).
 
 | Record | Target | Notes |
 |---|---|---|
@@ -109,7 +117,7 @@ Managed by Terraform (`terraform/cloudflare.tf`, `cloudflare/cloudflare ~> 5.0`)
 | `dns.arishaig.site` | Home IP (50.47.227.169) | Direct to Pi, bypasses VPS |
 | `vpn.arishaig.site` | Home IP (50.47.227.169) | Direct to UDM WireGuard |
 
-`cloudflare-ddns` container keeps `vpn.arishaig.site` current when the home IP changes.
+`cloudflare-ddns` (k8s pod in `cloudflare-ddns` namespace) keeps `vpn.arishaig.site` current when the home IP changes.
 All records are unproxied (Cloudflare orange cloud off).
 
 ### Internal (AdGuard Home)
@@ -120,28 +128,31 @@ Tertiary: VPS at 66.42.79.175 (`dns3.arishaig.site`), DoH/DoT only (no plain UDP
 
 Internal rewrites (`.arishaig.site` → LAN IPs) managed by Terraform (`gmichels/adguard ~> 1.7`).
 Tertiary has no rewrites — public DNS via Unbound resolves `*.arishaig.site` correctly via the Cloudflare wildcard.
-The Traefik `certresolver=cloudflare` handles TLS for `.local.arishaig.site` names using
-the same wildcard cert — no separate cert infrastructure needed for internal access.
+cert-manager's wildcard cert covers `.local.arishaig.site` names too — no separate cert
+infrastructure needed for internal access.
 
 ---
 
 ## Authentication
 
-Authelia runs as a Docker container on the Docker LXC, attached only to `proxy-net`.
-Nest Traefik uses it as a `forwardAuth` middleware (`authelia@file` defined in `dynamic/middlewares.yml`).
-Authelia uses Redis as a session store.
+Authelia runs in k8s (`authelia` namespace), exposed at `auth.arishaig.site` via an IngressRoute.
+k8s Traefik uses it as a `forwardAuth` middleware (CRD name `authelia` in the `traefik` namespace;
+`forwardAuth` address: `http://authelia.authelia.svc.cluster.local:9091/api/authz/forward-auth`).
+Redis runs in k8s (`authelia` namespace) as Authelia's session store.
 
-**Authelia required (most services):** bazarr, copyparty, glances, homarr, lidarr, medialyze,
-mealie, prowlarr, radarr, recommendarr, sabnzbd, sonarr, storyteller, uptime-kuma, watchback.
+**Authelia required (most services):** bazarr, copyparty, lidarr, medialyze,
+mealie, prowlarr, radarr, recommendarr, sabnzbd, sonarr, storyteller, watchback.
 
 **Authelia bypassed (intentional):**
 
 | Service | Middleware | Reason |
 |---|---|---|
 | jellyfin | — | Media clients (AppleTV, Kodi etc.) cannot handle auth redirects |
+| foundry | — | FoundryVTT clients cannot handle auth redirects |
 | seerr | — | Intended for external users to submit requests |
 | tunarr | `local-only` (LAN only) | Jellyfin communicates with it directly; no external access |
 | watcharr | `local-only` (LAN only) | Login flow breaks with forwardAuth enabled |
+| mcp | — | Validates Bearer JWT itself (OIDC); no Authelia layer needed |
 
 **`.local.arishaig.site` routes** also bypass Authelia — these are direct internal-access
 routes for services that also have an Authelia-protected public route (torrent, scrutiny, musicbrainz, backlight).
@@ -150,67 +161,64 @@ routes for services that also have an Authelia-protected public route (torrent, 
 
 ## Docker Services (LXC 100)
 
-### Media Stack
+The vast majority of application services have migrated to Kubernetes (see [Kubernetes](#kubernetes-talos-vm-110) below).
+What remains on the Docker LXC:
 
-| Service | Image | Auth |
-|---|---|---|
-| sonarr | linuxserver/sonarr | ✓ |
-| radarr | linuxserver/radarr | ✓ |
-| lidarr | linuxserver-labs/prarr:lidarr-plugins | ✓ |
-| bazarr | linuxserver/bazarr | ✓ |
-| bazarr-sync | ghcr.io/ajmandourah/bazarr-sync | — |
-| prowlarr | linuxserver/prowlarr | ✓ |
-| sabnzbd | linuxserver/sabnzbd | ✓ |
-| jellyfin | linuxserver/jellyfin | — |
-| seerr | ghcr.io/seerr-team/seerr | — |
-| tunarr | chrisbenincasa/tunarr | LAN only |
-| recyclarr | ghcr.io/recyclarr/recyclarr | — |
-| subgenai | mccloud/subgen:cpu | — |
-| medialyze | ghcr.io/frederikemmer/medialyze | ✓ |
-| metube | ghcr.io/alexta69/metube | — |
-| tdarr | ghcr.io/haveagitgat/tdarr | — |
-| tdarr-node | ghcr.io/haveagitgat/tdarr_node | — |
+LXC 100 is decommissioned (`start_on_boot = false`). The compose file is left intact with cadvisor
+so the LXC can be started manually and used as a scratch Docker host when needed.
 
-Media files and service configs are on NFS/Samba mounts from the fileserver LXC at `/mnt/media_root`.
-App configs are at `/mnt/app_config/<service>`.
-
-### Other Apps
-
-| Service | Image | Auth | Notes |
-|---|---|---|---|
-| mealie | ghcr.io/mealie-recipes/mealie | ✓ | Postgres backend |
-| postgres | postgres:18 | — | Mealie only |
-| storyteller | registry.gitlab.com/storyteller-platform/storyteller | ✓ | Ebook/audiobook readalongs |
-| recommendarr | tannermiddleton/recommendarr | ✓ | AI content suggestions |
-| watcharr | ghcr.io/sbondco/watcharr | LAN only | Watch history |
-| watchback | ghcr.io/arishaig/watchback | ✓ | Custom app (Isaac's own image) |
-| copyparty | copyparty/ac | ✓ | File browser |
-| homepage | ghcr.io/gethomepage/homepage | ✓ | Dashboard |
-| glances | nicolargo/glances | ✓ | System stats |
-| flaresolverr | ghcr.io/flaresolverr/flaresolverr | — | Cloudflare bypass for Prowlarr |
-
-### Infrastructure Containers
+### Compose File (preserved, not auto-running)
 
 | Service | Purpose |
 |---|---|
-| traefik | Reverse proxy, TLS termination, ACME |
-| authelia | SSO / 2FA forwardAuth |
-| redis | Authelia session store |
-| socket-proxy | Restricted Docker socket (CONTAINERS=1 read-only) |
-| cloudflare-ddns | Keeps `vpn.arishaig.site` pointed at home IP |
+| cadvisor | Container resource metrics (port 8081) — only useful when LXC is manually started |
 
-### Monitoring Exporters (Docker LXC)
+---
 
-| Service | Port | Scrape target |
+## Kubernetes (Talos VM 110)
+
+Single-node Talos Linux cluster at `192.168.1.110`. Managed by **Flux** watching `k8s/` in this repo — git is the live source of truth with continuous reconciliation.
+
+Storage classes:
+- `nfs-nvme` — nfs-subdir-external-provisioner pointing at PVE `rpool/data/k8s-configs`; used for app configs
+- `media-nfs` — NFS mount to fileserver LXC (`192.168.1.17`), the shared `/Tank/media_root`
+
+### Infrastructure (`k8s/infrastructure/`)
+
+| Namespace | Components |
+|---|---|
+| `traefik` | Traefik v3 ingress controller (hostPort 80/443/8080), middlewares, IngressRoute CRDs, ExternalName services |
+| `authelia` | Authelia SSO, Redis session store, redis-exporter (hostPort 9121), Authelia metrics (hostPort 9959) |
+| `cert-manager` | Wildcard cert from Cloudflare DNS-01 challenge; cert stored as k8s Secret |
+| `alloy` | Grafana Alloy DaemonSet — ships all pod logs to Loki; parses Traefik access logs as JSON |
+| `local-path-provisioner` | Local path storage class |
+| `nfs-provisioner` | `nfs-nvme` StorageClass |
+
+### Apps (`k8s/apps/`)
+
+| Namespace | Services |
+|---|---|
+| `media` | sonarr+exportarr, radarr+exportarr, lidarr+exportarr, bazarr+exportarr, prowlarr+exportarr, flaresolverr, sabnzbd, seerr, tunarr, watcharr, watchback, homepage, copyparty, medialyze, metube, recommendarr, storyteller, subgen, tdarr+node, mealie+postgres (postgres-exporter hostPort 9187), recyclarr (CronJob), jellyfin-pgsql |
+| `cloudflare-ddns` | cloudflare-ddns — keeps `vpn.arishaig.site` current |
+| `headlamp` | Headlamp — Kubernetes UI |
+
+All media app configs use `nfs-nvme` PVCs; media files via `media-nfs` PVC.
+
+### Exportarr metrics (hostPort on Talos)
+
+Prometheus scrapes exportarr sidecars directly via hostPort on the Talos node:
+
+| Exporter | hostPort | Prometheus job |
 |---|---|---|
-| cadvisor | 8081 | Container resource metrics |
-| exportarr-sonarr | 9707 | Sonarr queue/health |
-| exportarr-radarr | 9708 | Radarr queue/health |
-| exportarr-lidarr | 9709 | Lidarr queue/health |
-| exportarr-prowlarr | 9710 | Prowlarr indexer stats |
-| exportarr-bazarr | 9711 | Bazarr subtitle stats |
-| redis-exporter | 9121 | Redis metrics |
-| postgres-exporter | 9187 | Postgres metrics |
+| exportarr-sonarr | 9707 | `sonarr` |
+| exportarr-radarr | 9708 | `radarr` |
+| exportarr-lidarr | 9709 | `lidarr` |
+| exportarr-prowlarr | 9710 | `prowlarr` |
+| exportarr-bazarr | 9711 | `bazarr` |
+| redis-exporter | 9121 | `redis` |
+| postgres-exporter | 9187 | `postgres` |
+| Authelia | 9959 | `authelia` |
+| Traefik | 8080 | `traefik-k8s` |
 
 ---
 
@@ -232,10 +240,12 @@ Scrapes every 30s. Jobs:
 | `adguard` | Primary + secondary + tertiary AdGuard exporters (`:9618`) |
 | `unbound` | Primary + secondary + tertiary Unbound exporters (`:9167`) |
 | `unpoller` | UniFi metrics via unpoller container |
-| `sonarr/radarr/lidarr/prowlarr/bazarr` | exportarr sidecars on docker LXC |
-| `qbittorrent` | Seedbox qBittorrent exporter |
-| `redis` | redis-exporter on docker LXC |
-| `postgres` | postgres-exporter on docker LXC |
+| `sonarr/radarr/lidarr/prowlarr/bazarr` | exportarr sidecars on Talos VM (hostPorts 9707-9711) |
+| `traefik-k8s` | k8s Traefik metrics on Talos (`192.168.1.110:8080`) |
+| `authelia` | Authelia metrics on Talos (`192.168.1.110:9959`) |
+| `redis` | redis-exporter on Talos (`192.168.1.110:9121`) |
+| `postgres` | postgres-exporter on Talos (`192.168.1.110:9187`) |
+| `qbittorrent` | qbittorrent-exporter on seedbox LXC (`192.168.1.182:9022`) |
 | `scrutiny` | SMART metrics API |
 | `homeassistant` | HA Prometheus integration (bearer token in vault) |
 | `wled` | WLED LED controller at `backlight.arishaig.site` |
@@ -261,7 +271,8 @@ Retention is 30 days. The Loki Ruler evaluates log-based alert rules and sends t
 | Host | Streams |
 |---|---|
 | vps-proxy | `traefik-access` (JSON, parsed for `router`/`status` labels), `traefik-app` (logfmt), `vps-journal` (systemd) |
-| docker | `docker` (all container stdout), `journal`, `traefik-access` (file tail, JSON) |
+| talos | k8s pod logs (all namespaces); `traefik` container parsed as `job=traefik-access` with `router`/`status` labels |
+| docker | `docker` (all container stdout), `journal` |
 | monitoring | `docker` (all container stdout), `journal` |
 | seedbox | `docker` (gluetun, qbittorrent, cadvisor), `journal` |
 | scrutiny | `docker`, `journal` |
@@ -274,10 +285,11 @@ Retention is 30 days. The Loki Ruler evaluates log-based alert rules and sends t
 | ci | `journal` |
 | adguard (Pi) | `journal` |
 
-Alloy is deployed via `playbooks/provision/alloy.yml`. Three Alloy config templates:
+Alloy is deployed via `playbooks/provision/alloy.yml` for LXC/VPS hosts and via `k8s/infrastructure/alloy/` for Talos. Four Alloy configs:
 - `monitoring.alloy.j2` — monitoring LXC (Docker discovery + journal)
 - `docker-host.alloy.j2` — Docker hosts (Docker discovery + journal + optional file tails)
 - `journal-only.alloy.j2` — non-Docker hosts (journal only)
+- k8s DaemonSet (`k8s/infrastructure/alloy/config-map.yaml`) — Talos: reads pod log files from `/var/log/pods/`, parses CRI format, ships with namespace/pod/container labels; Traefik access logs tagged `job=traefik-access`
 
 **Ruler alert groups:** `log_ingestion`, `systemd`, `traefik`, `loki`, `security`, `hardware`, `media`.
 Alert rules live in `playbooks/provision/files/monitoring/loki/ruler-rules/fake/homelab.yml`.
@@ -297,7 +309,7 @@ Plan: `vc2-1c-1gb` (1 vCPU, 1 GB RAM), Seattle region, Debian 13 (trixie).
 
 Services (all systemd, no Docker):
 - `traefik` — TCP passthrough proxy (SNI routes `dns3.arishaig.site` to local AdGuard)
-- `wg-quick@wg0` — WireGuard tunnel to Docker LXC
+- `wg-quick@wg0` — WireGuard tunnel; two peers: Talos k8s node (10.10.0.3, HTTPS ingress) and Docker LXC (10.10.0.2, monitoring reach)
 - `AdGuardHome` — tertiary DNS, DoH (:8443) + DoT (:853), Unbound upstream
 - `unbound` — recursive resolver on `127.0.0.1:5335`
 - `node_exporter` — scraped by Prometheus over WireGuard (`10.10.0.1:9100`)
@@ -361,11 +373,17 @@ Secrets: `inventory/group_vars/all/vault.yml` (ansible-vault, password in `~/.co
 
 `playbooks/site.yml` runs the full converge:
 1. `provision/common.yml` — node_exporter, BBR sysctl (all LXCs + VPS)
-2. Per-host provision playbooks (adguard, docker-host, vps, fileserver, monitoring, musicbrainz, scrutiny, seedbox, pbs, nftables, mcp)
+2. Per-host provision playbooks (adguard, docker-host, vps, fileserver, monitoring, musicbrainz, scrutiny, seedbox, pbs, nftables, mcp, foundry)
 3. `alloy.yml` — Grafana Alloy on all hosts
 4. `update_apt.yml`, `update_docker.yml`, `update_proxmox.yml`
 
 Terraform triggers Ansible via `local-exec` on resource creation. Subsequent converges run `site.yml` manually.
+
+### Flux GitOps (k8s)
+
+`k8s/` is watched by Flux running in the `flux-system` namespace on Talos. Any commit to `main` that changes `k8s/` is automatically reconciled into the cluster — no manual `kubectl apply` needed.
+
+Talos cluster config lives in `talos/`. Bootstrap: `scripts/bootstrap-talos.sh` after initial `terraform apply`.
 
 ### Deployment Workflow
 
@@ -422,6 +440,6 @@ WireGuard MTU is explicitly set to 1420 on both sides of the tunnel to avoid fra
 | rclone Google Drive OAuth | Interactive auth, can't be automated | Must re-authorize on rebuild |
 | ProtonVPN WireGuard key | Generated per-device by ProtonVPN | Must regenerate on rebuild |
 | Cloudflare zone settings | Only DNS records are managed | |
-| TLS certificates | Issued by Traefik ACME, stored in acme.json | Lost on Docker LXC rebuild; re-issued automatically |
+| TLS certificates | Issued by cert-manager (Cloudflare DNS-01), stored as k8s Secret | Lost on Talos cluster rebuild; re-issued automatically |
 | `casa.arishaig.site` | Managed by Nabu Casa | Not in Terraform |
 | Tertiary AdGuard TLS config | Provider bug: switches to https mid-apply via tunnel | Configured once via web UI; cert managed by certbot |

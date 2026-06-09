@@ -33,6 +33,17 @@ terraform apply -var-file=secrets.tfvars
 terraform apply -var-file=secrets.tfvars -target=adguard_rewrite_rule.rewrites
 ```
 
+## Kubernetes
+
+```bash
+# Bulk subtitle re-sync (one-time setup: create secret from NFS config on PVE)
+kubectl create secret generic bazarr-sync-config -n media \
+  --from-file=config.yaml=/rpool/data/docker-apps/bazarr-sync/config.yaml
+
+# Run bazarr-sync (auto-cleans after 10 minutes)
+kubectl apply -f k8s/apps/media/bazarr-sync-job.yaml
+```
+
 ## Vault
 
 ```bash

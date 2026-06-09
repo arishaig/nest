@@ -79,7 +79,7 @@ resources:
   - tdarr-server-deployment.yaml
   - tdarr-server-service.yaml
   - tdarr-node-deployment.yaml
-  # --- jellyfin (pgsql test instance; Docker jellyfin still active on port 8096) ---
+  # --- jellyfin (postgres backend; primary instance at jellyfin.arishaig.site) ---
   - jellyfin-pgsql-config-pvc.yaml
   - jellyfin-pgsql-deployment.yaml
   - jellyfin-pgsql-service.yaml

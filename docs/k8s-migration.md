@@ -13,12 +13,12 @@ Storage: `nfs-nvme` StorageClass (nfs-subdir-external-provisioner → `rpool/dat
 | Service | Namespace | Config storage | Notes |
 |---|---|---|---|
 | cloudflare-ddns | cloudflare-ddns | none (env only) | Stateless; done early as proof-of-concept |
-| lidarr + exportarr | media | nfs-nvme PVC | NodePort 30686 (http) / 30709 (metrics) |
-| bazarr + exportarr | media | nfs-nvme PVC | NodePort 30767 (http) / 30711 (metrics) |
+| lidarr + exportarr | media | nfs-nvme PVC | NodePort 30686 (http) / hostPort 9709 (metrics) |
+| bazarr + exportarr | media | nfs-nvme PVC | NodePort 30767 (http) / hostPort 9711 (metrics) |
 | subgen (Whisper) | media | nfs-nvme PVC (models) | GPU-less CPU inference |
-| prowlarr + exportarr | media | nfs-nvme PVC | NodePort 30696 (http) / 30710 (metrics) |
-| sonarr + exportarr | media | nfs-nvme PVC | NodePort 30989 (http) / 30707 (metrics) |
-| radarr + exportarr | media | nfs-nvme PVC | NodePort 30878 (http) / 30708 (metrics) |
+| prowlarr + exportarr | media | nfs-nvme PVC | NodePort 30696 (http) / hostPort 9710 (metrics) |
+| sonarr + exportarr | media | nfs-nvme PVC | NodePort 30989 (http) / hostPort 9707 (metrics) |
+| radarr + exportarr | media | nfs-nvme PVC | NodePort 30878 (http) / hostPort 9708 (metrics) |
 | flaresolverr | media | none (stateless) | ClusterIP only; prowlarr resolves via cluster DNS |
 | metube | media | none (media NFS only) | NodePort 30808 |
 | tdarr server + node | media | nfs-nvme PVC (server state) | NodePort 30815 (web) / 30816 (server); node connects via cluster DNS |
@@ -34,7 +34,7 @@ Storage: `nfs-nvme` StorageClass (nfs-subdir-external-provisioner → `rpool/dat
 | storyteller | media | nfs-nvme PVC | NodePort 30810 |
 | mealie + postgres | media | nfs-nvme PVC | NodePort 30813 |
 | recyclarr | media | nfs-nvme PVC | CronJob (no http port) |
-| jellyfin-pgsql | media | nfs-nvme PVC + external postgres | NodePort 30814; routed at `jellyfin.arishaig.site`; Docker Jellyfin still live at `jellyfin2.arishaig.site` |
+| jellyfin-pgsql | media | nfs-nvme PVC + external postgres | NodePort 30814; routed at `jellyfin.arishaig.site`; Docker Jellyfin decommissioned |
 
 Traefik on the Docker LXC routes public domains to k8s NodePorts via `external-services.yml` (temporary bridge until Traefik itself moves).
 
@@ -62,7 +62,7 @@ Fixed manually on 2026-06-08 by copying directly on PVE: `cp /rpool/data/docker-
 
 | Service | Why |
 |---|---|
-| qBittorrent + Gluetun (seedbox LXC 104) | `network_mode: service:gluetun` is hard to replicate in k8s; VPN coupling is simpler as a dedicated LXC |
+| qBittorrent + Gluetun + qbittorrent-exporter (seedbox LXC 104) | `network_mode: service:gluetun` is hard to replicate in k8s; VPN coupling is simpler as a dedicated LXC |
 | Scrutiny (LXC 103) | Requires raw disk device passthrough; privileged DaemonSet is possible but adds operational risk |
 | MusicBrainz (LXC 101) | 350 GB database; used only by Lidarr; not worth the storage complexity |
 | Home Assistant (VM 107) | HAOS; not a Docker workload |
@@ -72,16 +72,9 @@ Fixed manually on 2026-06-08 by copying directly on PVE: `cp /rpool/data/docker-
 
 ## Remaining Migration Roadmap
 
-### Jellyfin cutover
+### Jellyfin cutover ✅ DONE
 
-**Current state:** `jellyfin-pgsql` running in k8s at `jellyfin.arishaig.site` (NodePort 30814) with watch history, metadata, and trickplay migrated. Docker Jellyfin is live at `jellyfin2.arishaig.site` as a fallback.
-
-**To complete cutover when ready:**
-1. Comment out Docker `jellyfin` in docker-compose.yml and remove the `jellyfin2` Traefik labels
-
-**Pending config on k8s Jellyfin:**
-- Reinstall plugins (custom repos)
-- Fix Webhook URL to `http://watchback.media.svc.cluster.local:8484`
+`jellyfin-pgsql` is the primary instance at `jellyfin.arishaig.site`. Docker Jellyfin removed from docker-compose.yml; config archived at `/mnt/app_config/jellyfin.bak` on the fileserver NFS mount.
 
 ---
 
@@ -117,11 +110,11 @@ Ports 30000–32767 are the k8s NodePort range. Allocated so far:
 |---|---|---|
 | 30686 | lidarr http | → 8686 |
 | 30696 | prowlarr http | → 9696 |
-| 30707 | sonarr metrics (exportarr) | → 9707 |
-| 30708 | radarr metrics (exportarr) | → 9708 |
-| 30709 | lidarr metrics (exportarr) | → 9709 |
-| 30710 | prowlarr metrics (exportarr) | → 9710 |
-| 30711 | bazarr metrics (exportarr) | → 9711 |
+| 30707 | sonarr metrics (exportarr) NodePort | → 9707 (also exposed via hostPort 9707) |
+| 30708 | radarr metrics (exportarr) NodePort | → 9708 (also exposed via hostPort 9708) |
+| 30709 | lidarr metrics (exportarr) NodePort | → 9709 (also exposed via hostPort 9709) |
+| 30710 | prowlarr metrics (exportarr) NodePort | → 9710 (also exposed via hostPort 9710) |
+| 30711 | bazarr metrics (exportarr) NodePort | → 9711 (also exposed via hostPort 9711) |
 | 30767 | bazarr http | → 7878\* |
 | 30800 | sabnzbd http | → 8080 |
 | 30801 | seerr http | → 5055 |

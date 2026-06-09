@@ -79,3 +79,19 @@ services:
       - /etc/machine-id:/etc/machine-id:ro
     devices:
       - /dev/kmsg
+
+  qbittorrent-exporter:
+    image: ghcr.io/martabal/qbittorrent-exporter:v2.0.1
+    container_name: qbittorrent-exporter
+    environment:
+      - QBITTORRENT_BASE_URL=http://192.168.1.182:${WEBUI_PORT}
+      - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME}
+      - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD}
+      # qBittorrent >= 5.2.0 renamed the WebUI session cookie from SID to
+      # QBT_SID_<webui_port>; without this the exporter loops on
+      # "Cookie changed, trying to reconnect" and /metrics returns 503.
+      - QBITTORRENT_COOKIE_NAME=QBT_SID_${WEBUI_PORT}
+      - EXPORTER_PORT=9022
+    ports:
+      - "9022:9022"
+    restart: unless-stopped
