@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-config
+  namespace: alloy
+data:
+  config.alloy: |
+    // Push to Loki on monitoring LXC
+    loki.write "loki" {
+      endpoint {
+        url = "http://192.168.1.44:3100/loki/api/v1/push"
+      }
+    }
+
+    // Discover all pod log files on this node
+    local.file_match "pod_logs" {
+      path_targets = [{
+        __address__ = "localhost",
+        __path__    = "/var/log/pods/*/*/*.log",
+      }]
+      sync_period = "10s"
+    }
+
+    // Parse filename to extract namespace/pod/container labels, then parse CRI log format
+    loki.process "pod_logs" {
+      forward_to = [loki.write.loki.receiver]
+
+      // Extract namespace, pod, container from the file path:
+      // /var/log/pods/<namespace>_<pod>_<uid>/<container>/<num>.log
+      stage.regex {
+        expression = "/var/log/pods/(?P<namespace>[^_]+)_(?P<pod>[^_]+)_[^/]+/(?P<container>[^/]+)/[0-9]+\\.log"
+        source     = "filename"
+      }
+
+      stage.labels {
+        values = {
+          namespace = "namespace",
+          pod       = "pod",
+          container = "container",
+        }
+      }
+
+      // Parse CRI log format: timestamp stream (stdout/stderr) flags message
+      stage.cri {}
+
+      // Tag traefik access logs with job="traefik-access" and parse JSON for router/status
+      stage.match {
+        selector = "{namespace=\"traefik\", container=\"traefik\"}"
+
+        stage.static_labels {
+          values = {
+            job = "traefik-access",
+          }
+        }
+
+        stage.json {
+          expressions = {
+            router = "RouterName",
+            status = "DownstreamStatus",
+          }
+        }
+
+        stage.labels {
+          values = {
+            router = "router",
+            status = "status",
+          }
+        }
+      }
+    }
+
+    loki.source.file "pod_logs" {
+      targets    = local.file_match.pod_logs.targets
+      forward_to = [loki.process.pod_logs.receiver]
+      labels = {
+        job  = "k8s-pods",
+        host = "talos",
+      }
+    }

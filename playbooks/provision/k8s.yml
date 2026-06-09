@@ -24,6 +24,10 @@
           type: Opaque
           stringData: "{{ item.data }}"
       loop:
+        - name: postgres-secret
+          data:
+            POSTGRES_USER: "{{ mealie_postgres_user }}"
+            POSTGRES_PASSWORD: "{{ mealie_postgres_password }}"
         - name: lidarr-api-key
           data:
             APIKEY: "{{ lidarr_api_key }}"

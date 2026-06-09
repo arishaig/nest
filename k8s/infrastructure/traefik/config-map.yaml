@@ -10,6 +10,8 @@ data:
       insecure: false
 
     entryPoints:
+      traefik:
+        address: ":8080"
       web:
         address: ":80"
         http:
@@ -35,6 +37,12 @@ data:
       kubernetesCRD:
         allowCrossNamespace: true
         allowExternalNameServices: true
+
+    metrics:
+      prometheus:
+        addEntryPointsLabels: true
+        addRoutersLabels: true
+        addServicesLabels: true
 
     log:
       level: INFO

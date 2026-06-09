@@ -5,7 +5,10 @@ resources:
   - redis-pvc.yaml
   - redis-deployment.yaml
   - redis-service.yaml
+  - redis-exporter-deployment.yaml
+  - redis-exporter-service.yaml
   - authelia-pvc.yaml
   - authelia-deployment.yaml
   - authelia-service.yaml
+  - authelia-metrics-service.yaml
   - authelia-ingress-route.yaml

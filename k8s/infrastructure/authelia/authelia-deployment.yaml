@@ -22,6 +22,7 @@ spec:
           command: ["authelia", "--config", "/etc/authelia/configuration.yml"]
           ports:
             - containerPort: 9091
+            - containerPort: 9959
           envFrom:
             - secretRef:
                 name: authelia-env-secret
