@@ -94,11 +94,10 @@ http:
         certResolver: cloudflare
 
     # --- k8s-migrated services ---
-    jellyfin2:
-      rule: "Host(`jellyfin2.arishaig.site`)"
+    jellyfin:
+      rule: "Host(`jellyfin.arishaig.site`)"
       entryPoints: [websecure]
-      service: jellyfin2
-      middlewares: [authelia@file]
+      service: jellyfin
       tls:
         certResolver: cloudflare
 
@@ -291,7 +290,7 @@ http:
         servers:
           - url: "http://192.168.1.110:30815"
 
-    jellyfin2:
+    jellyfin:
       loadBalancer:
         servers:
           - url: "http://192.168.1.110:30814"

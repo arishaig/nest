@@ -35,11 +35,11 @@ services:
     labels:
       # No Authelia middleware in otder to support clients that cannot handle auth redirects
       - "traefik.enable=true"
-      - "traefik.http.routers.jellyfin.rule=Host(`jellyfin.arishaig.site`)"
-      - "traefik.http.routers.jellyfin.entrypoints=websecure"
-      - "traefik.http.routers.jellyfin.tls=true"
-      #- "traefik.http.routers.jellyfin.middlewares=authelia@file"
-      - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
+      - "traefik.http.routers.jellyfin2.rule=Host(`jellyfin2.arishaig.site`)"
+      - "traefik.http.routers.jellyfin2.entrypoints=websecure"
+      - "traefik.http.routers.jellyfin2.tls=true"
+      #- "traefik.http.routers.jellyfin2.middlewares=authelia@file"
+      - "traefik.http.services.jellyfin2.loadbalancer.server.port=8096"
     healthcheck:
       test: curl -sf http://localhost:8096/System/Ping
       interval: 30s

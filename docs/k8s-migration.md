@@ -34,7 +34,7 @@ Storage: `nfs-nvme` StorageClass (nfs-subdir-external-provisioner → `rpool/dat
 | storyteller | media | nfs-nvme PVC | NodePort 30810 |
 | mealie + postgres | media | nfs-nvme PVC | NodePort 30813 |
 | recyclarr | media | nfs-nvme PVC | CronJob (no http port) |
-| jellyfin-pgsql | media | nfs-nvme PVC + external postgres | NodePort 30814; routed at `jellyfin2.arishaig.site`; Docker Jellyfin still live at `jellyfin.arishaig.site` |
+| jellyfin-pgsql | media | nfs-nvme PVC + external postgres | NodePort 30814; routed at `jellyfin.arishaig.site`; Docker Jellyfin still live at `jellyfin2.arishaig.site` |
 
 Traefik on the Docker LXC routes public domains to k8s NodePorts via `external-services.yml` (temporary bridge until Traefik itself moves).
 
@@ -81,11 +81,10 @@ Will be fixed automatically when PR #53 merges and `deploy-monitoring` runs.
 
 ### Jellyfin cutover
 
-**Current state:** `jellyfin-pgsql` running in k8s at `jellyfin2.arishaig.site` (NodePort 30814) with watch history, metadata, and trickplay migrated. Docker Jellyfin still live at `jellyfin.arishaig.site`.
+**Current state:** `jellyfin-pgsql` running in k8s at `jellyfin.arishaig.site` (NodePort 30814) with watch history, metadata, and trickplay migrated. Docker Jellyfin is live at `jellyfin2.arishaig.site` as a fallback.
 
 **To complete cutover when ready:**
-1. Point `jellyfin.arishaig.site` Traefik route at NodePort 30814 (or flip `jellyfin2` → `jellyfin` in external-services.yml)
-2. Comment out Docker `jellyfin` in docker-compose.yml
+1. Comment out Docker `jellyfin` in docker-compose.yml and remove the `jellyfin2` Traefik labels
 
 **Pending config on k8s Jellyfin:**
 - Reinstall plugins (custom repos)
