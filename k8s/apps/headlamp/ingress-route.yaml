@@ -1,0 +1,17 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`headlamp.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: headlamp
+          port: 4466
+  tls: {}
