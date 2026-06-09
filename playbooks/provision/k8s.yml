@@ -45,3 +45,77 @@
       loop_control:
         label: "{{ item.name }}"
       no_log: true
+
+    - name: Create cert-manager namespace
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: cert-manager
+
+    - name: Create cert-manager cloudflare API token secret
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: cloudflare-api-token
+            namespace: cert-manager
+          type: Opaque
+          stringData:
+            api-token: "{{ traefik_cf_dns_api_token }}"
+      no_log: true
+
+    - name: Create authelia namespace
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: authelia
+
+    - name: Create authelia env secret
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: authelia-env-secret
+            namespace: authelia
+          type: Opaque
+          stringData:
+            AUTHELIA_SESSION_SECRET: "{{ authelia_session_secret }}"
+            AUTHELIA_STORAGE_ENCRYPTION_KEY: "{{ authelia_storage_encryption_key }}"
+            AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: "{{ authelia_jwt_secret }}"
+      no_log: true
+
+    - name: Create authelia config secret (rendered configuration.yml)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: authelia-config
+            namespace: authelia
+          type: Opaque
+          stringData:
+            configuration.yml: "{{ lookup('template', 'templates/k8s/authelia-configuration.yml.j2') }}"
+      no_log: true
+
+    - name: Create authelia users ConfigMap
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: authelia-users
+            namespace: authelia
+          data:
+            users_database.yml: "{{ lookup('template', 'templates/docker/authelia-users.yml.j2') }}"

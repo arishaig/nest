@@ -1,0 +1,321 @@
+---
+# ServersTransport for HTTPS backends with self-signed certs (Proxmox, PBS)
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: skip-verify
+  namespace: traefik
+spec:
+  insecureSkipVerify: true
+---
+# ExternalName Services for non-k8s targets
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitoring-external
+  namespace: traefik
+spec:
+  type: ExternalName
+  externalName: "192.168.1.44"
+  ports:
+    - port: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backup-external
+  namespace: traefik
+spec:
+  type: ExternalName
+  externalName: "192.168.1.113"
+  ports:
+    - port: 8007
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scrutiny-external
+  namespace: traefik
+spec:
+  type: ExternalName
+  externalName: "192.168.1.46"
+  ports:
+    - port: 8888
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: torrent-external
+  namespace: traefik
+spec:
+  type: ExternalName
+  externalName: "192.168.1.182"
+  ports:
+    - port: 8090
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxmox-external
+  namespace: traefik
+spec:
+  type: ExternalName
+  externalName: "192.168.1.16"
+  ports:
+    - port: 8006
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: foundry-external
+  namespace: traefik
+spec:
+  type: ExternalName
+  externalName: "192.168.1.21"
+  ports:
+    - port: 30000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nest-mcp-external
+  namespace: traefik
+spec:
+  type: ExternalName
+  externalName: "192.168.1.19"
+  ports:
+    - port: 8765
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backlight-external
+  namespace: traefik
+spec:
+  type: ExternalName
+  externalName: "192.168.4.97"
+  ports:
+    - port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: musicbrainz-external
+  namespace: traefik
+spec:
+  type: ExternalName
+  externalName: "192.168.1.197"
+  ports:
+    - port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: glances-external
+  namespace: traefik
+spec:
+  type: ExternalName
+  externalName: "192.168.1.158"
+  ports:
+    - port: 61208
+---
+# IngressRoutes for infra targets
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: monitoring
+  namespace: traefik
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`monitoring.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+      services:
+        - name: monitoring-external
+          port: 3000
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: backup
+  namespace: traefik
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`backup.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+      services:
+        - name: backup-external
+          port: 8007
+          serversTransport: skip-verify
+          scheme: https
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: scrutiny
+  namespace: traefik
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`scrutiny.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+      services:
+        - name: scrutiny-external
+          port: 8888
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: torrent
+  namespace: traefik
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`torrent.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+      services:
+        - name: torrent-external
+          port: 8090
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: torrent-local
+  namespace: traefik
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`torrent.local.arishaig.site`)"
+      kind: Rule
+      services:
+        - name: torrent-external
+          port: 8090
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: proxmox
+  namespace: traefik
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`proxmox.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+      services:
+        - name: proxmox-external
+          port: 8006
+          serversTransport: skip-verify
+          scheme: https
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: foundry
+  namespace: traefik
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`foundry.arishaig.site`)"
+      kind: Rule
+      services:
+        - name: foundry-external
+          port: 30000
+  tls: {}
+---
+# MCP server validates Bearer JWT itself — no Authelia forwardAuth
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: nest-mcp
+  namespace: traefik
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`mcp.arishaig.site`)"
+      kind: Rule
+      services:
+        - name: nest-mcp-external
+          port: 8765
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: backlight-local
+  namespace: traefik
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`backlight.local.arishaig.site`)"
+      kind: Rule
+      services:
+        - name: backlight-external
+          port: 80
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: musicbrainz-local
+  namespace: traefik
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`musicbrainz.local.arishaig.site`)"
+      kind: Rule
+      services:
+        - name: musicbrainz-external
+          port: 80
+  tls: {}
+---
+# Scrutiny .local route
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: scrutiny-local
+  namespace: traefik
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`scrutiny.local.arishaig.site`)"
+      kind: Rule
+      services:
+        - name: scrutiny-external
+          port: 8888
+  tls: {}
+---
+# Glances — still on Docker LXC; served without Authelia (Docker Traefik label
+# previously applied authelia@file; we keep that here)
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: glances
+  namespace: traefik
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`glances.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+      services:
+        - name: glances-external
+          port: 61208
+  tls: {}

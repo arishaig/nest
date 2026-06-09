@@ -3,3 +3,6 @@ kind: Kustomization
 resources:
   - local-path-provisioner/
   - nfs-provisioner/
+  - cert-manager/
+  - traefik/
+  - authelia/

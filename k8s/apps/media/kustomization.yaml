@@ -81,3 +81,4 @@ resources:
   - jellyfin-pgsql-config-pvc.yaml
   - jellyfin-pgsql-deployment.yaml
   - jellyfin-pgsql-service.yaml
+  - ingress-routes.yaml

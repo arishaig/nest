@@ -82,6 +82,10 @@
     ]
   },
 
+  "kubernetes": {
+    "managerFilePatterns": ["/k8s/.*\\.yaml/"]
+  },
+
   "customManagers": [
     {
       "customType": "regex",
@@ -165,6 +169,15 @@
       "managerFilePatterns": ["/playbooks/provision/templates/adguard/docker-compose\\.yml\\.j2/"],
       "matchStrings": ["image:\\s+(?<depName>[^:\\s]+):(?<currentValue>[^\\s'\"\\n]+)"],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "cert-manager version pin in kustomization URL",
+      "managerFilePatterns": ["/k8s/infrastructure/cert-manager/kustomization\\.yaml/"],
+      "matchStrings": ["cert-manager/releases/download/v(?<currentValue>[^/]+)/cert-manager\\.yaml"],
+      "depNameTemplate": "cert-manager/cert-manager",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
     }
   ]
 }
