@@ -21,6 +21,7 @@ jobs:
       vps: ${{ steps.filter.outputs.vps }}
       pve: ${{ steps.filter.outputs.pve }}
       k8s: ${{ steps.filter.outputs.k8s }}
+      terraform: ${{ steps.filter.outputs.terraform }}
     steps:
       - uses: actions/checkout@v6.0.3
       - uses: dorny/paths-filter@v4.0.1
@@ -45,6 +46,8 @@ jobs:
               - 'playbooks/provision/templates/pve/**'
             k8s:
               - 'playbooks/provision/k8s.yml'
+            terraform:
+              - 'terraform/**'
 
   deploy-docker:
     needs: changes
@@ -160,6 +163,39 @@ jobs:
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit pve
+
+  deploy-terraform:
+    needs: changes
+    if: needs.changes.outputs.terraform == 'true'
+    runs-on: self-hosted
+    env:
+      TF_PLUGIN_CACHE_DIR: /opt/terraform-plugin-cache
+      TF_STATE_DIR: /opt/terraform-state/nest
+    steps:
+      - uses: actions/checkout@v6.0.3
+
+      - name: Write secrets.tfvars
+        run: |
+          printf '%s' "${{ secrets.TF_SECRETS_TFVARS }}" > terraform/secrets.tfvars
+          chmod 600 terraform/secrets.tfvars
+
+      - name: Restore terraform state
+        run: |
+          mkdir -p "$TF_STATE_DIR"
+          cp "$TF_STATE_DIR/terraform.tfstate" terraform/terraform.tfstate 2>/dev/null || true
+          cp "$TF_STATE_DIR/terraform.tfstate.backup" terraform/terraform.tfstate.backup 2>/dev/null || true
+
+      - name: Terraform init
+        run: terraform -chdir=terraform init -input=false
+
+      - name: Terraform apply
+        run: terraform -chdir=terraform apply -var-file=secrets.tfvars -auto-approve -input=false
+
+      - name: Save terraform state
+        if: always()
+        run: |
+          cp terraform/terraform.tfstate "$TF_STATE_DIR/terraform.tfstate" 2>/dev/null || true
+          cp terraform/terraform.tfstate.backup "$TF_STATE_DIR/terraform.tfstate.backup" 2>/dev/null || true
 
   deploy-k8s:
     needs: changes
