@@ -26,9 +26,9 @@
         owner: root
         group: root
         mode: "0644"
-      notify: reload exports
+      notify: Reload exports
 
   handlers:
-    - name: reload exports
+    - name: Reload exports
       ansible.builtin.command: exportfs -ra
       changed_when: true
