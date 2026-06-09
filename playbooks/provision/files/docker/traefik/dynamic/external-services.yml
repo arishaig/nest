@@ -94,6 +94,13 @@ http:
         certResolver: cloudflare
 
     # --- k8s-migrated services ---
+    jellyfin:
+      rule: "Host(`jellyfin.arishaig.site`)"
+      entryPoints: [websecure]
+      service: jellyfin
+      tls:
+        certResolver: cloudflare
+
     lidarr:
       rule: "Host(`lidarr.arishaig.site`)"
       entryPoints: [websecure]
@@ -282,6 +289,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.1.110:30815"
+
+    jellyfin:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.110:30814"
 
     # --- k8s-migrated services (via Talos NodePort 192.168.1.110) ---
     lidarr:
