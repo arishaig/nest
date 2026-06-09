@@ -4,6 +4,7 @@ metadata:
   name: headlamp
   namespace: headlamp
 spec:
+  paused: false
   replicas: 1
   selector:
     matchLabels:
@@ -15,7 +16,7 @@ spec:
       labels:
         app: headlamp
       annotations:
-        kubectl.kubernetes.io/restartedAt: "2026-06-09T17:00:00Z"
+        kubectl.kubernetes.io/restartedAt: "2026-06-09T17:20:00Z"
     spec:
       serviceAccountName: headlamp
       securityContext:
