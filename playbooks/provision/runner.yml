@@ -22,7 +22,7 @@
     # promtool/amtool/kustomize/kubeconform back CI lint jobs (lint.yml). Versions
     # are renovate-managed; bumping them re-installs via the checksum-aware copy.
     prometheus_version: "3.12.0"
-    alertmanager_version: "0.32.1"
+    alertmanager_version: "0.32.2"
     kubectl_version: "1.32.0"
     kustomize_version: "5.8.1"
     kubeconform_version: "0.7.0"
