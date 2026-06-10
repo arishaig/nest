@@ -8,6 +8,17 @@
   gather_facts: false
 
   tasks:
+    - name: Deploy IP-based NTP fallbacks for chrony
+      ansible.builtin.copy:
+        content: |
+          server 216.239.35.0 iburst
+          server 216.239.35.4 iburst
+          server 129.6.15.28 iburst
+          server 129.6.15.29 iburst
+        dest: /etc/chrony/sources.d/ip-fallback.sources
+        mode: "0644"
+      notify: Restart chrony
+
     - name: Install NFS server
       ansible.builtin.apt:
         name: nfs-kernel-server
@@ -29,6 +40,11 @@
       notify: Reload exports
 
   handlers:
+    - name: Restart chrony
+      ansible.builtin.systemd:
+        name: chrony
+        state: restarted
+
     - name: Reload exports
       ansible.builtin.command: exportfs -ra
       changed_when: true
