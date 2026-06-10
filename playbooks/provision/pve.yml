@@ -11,10 +11,10 @@
     - name: Deploy IP-based NTP fallbacks for chrony
       ansible.builtin.copy:
         content: |
-          server 216.239.35.0 iburst
-          server 216.239.35.4 iburst
           server 129.6.15.28 iburst
           server 129.6.15.29 iburst
+          server 129.6.15.30 iburst
+          server 129.6.15.31 iburst
         dest: /etc/chrony/sources.d/ip-fallback.sources
         mode: "0644"
       notify: Restart chrony
