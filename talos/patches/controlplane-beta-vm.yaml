@@ -1,5 +1,8 @@
 cluster:
   allowSchedulingOnControlPlanes: true
+  etcd:
+    advertisedSubnets:
+      - 192.168.1.0/24
 
 machine:
   network:
