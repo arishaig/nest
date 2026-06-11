@@ -4,3 +4,17 @@ resources:
   - https://raw.githubusercontent.com/metallb/metallb/v0.14.9/config/manifests/metallb-native.yaml
   - ip-address-pool.yaml
   - l2advertisement.yaml
+
+# All nodes are control planes, which carry the
+# node.kubernetes.io/exclude-from-external-load-balancers label — without this
+# flag the speaker refuses to announce L2 from any node and LB IPs never
+# answer ARP on the LAN.
+patches:
+  - target:
+      kind: DaemonSet
+      name: speaker
+      namespace: metallb-system
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --ignore-exclude-lb
