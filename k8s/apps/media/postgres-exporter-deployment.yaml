@@ -34,7 +34,6 @@ spec:
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.media.svc.cluster.local:5432/mealie?sslmode=disable"
           ports:
             - containerPort: 9187
-              hostPort: 9187
           livenessProbe:
             tcpSocket:
               port: 9187
