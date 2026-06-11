@@ -74,7 +74,6 @@ spec:
                   key: APIKEY
           ports:
             - containerPort: 9711
-              hostPort: 9711
           livenessProbe:
             tcpSocket:
               port: 9711

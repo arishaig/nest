@@ -97,7 +97,7 @@ export TALOSCONFIG="${CONFIG_DIR}/talosconfig"
 
 echo ""
 echo "==> [3/4] Waiting for Talos on ${STATIC_IP}..."
-until talosctl --nodes "${STATIC_IP}" version --timeout 5s &>/dev/null; do
+until talosctl --nodes "${STATIC_IP}" version &>/dev/null; do
   echo "    Still waiting..."
   sleep 10
 done

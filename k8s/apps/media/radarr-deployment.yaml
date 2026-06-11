@@ -73,7 +73,6 @@ spec:
                   key: APIKEY
           ports:
             - containerPort: 9708
-              hostPort: 9708
           livenessProbe:
             tcpSocket:
               port: 9708

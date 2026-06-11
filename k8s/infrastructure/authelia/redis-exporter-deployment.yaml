@@ -23,7 +23,6 @@ spec:
               value: "redis://redis.authelia.svc.cluster.local:6379"
           ports:
             - containerPort: 9121
-              hostPort: 9121
           livenessProbe:
             tcpSocket:
               port: 9121
