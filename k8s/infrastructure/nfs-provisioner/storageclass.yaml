@@ -9,3 +9,5 @@ parameters:
   onDelete: retain
 reclaimPolicy: Retain
 volumeBindingMode: Immediate
+mountOptions:
+  - nfsvers=4.1

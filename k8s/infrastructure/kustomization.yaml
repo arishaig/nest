@@ -4,6 +4,7 @@ resources:
   - local-path-provisioner/
   - nfs-provisioner/
   - cert-manager/
+  - metallb/
   - traefik/
   - authelia/
   - alloy/

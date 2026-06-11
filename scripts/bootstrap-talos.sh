@@ -26,7 +26,8 @@ set -euo pipefail
 # ── Config (must match talos/patches/controlplane.yaml and terraform.tfvars) ──
 TALOS_IP="192.168.1.110"
 CLUSTER_NAME="talos-nest"
-CLUSTER_ENDPOINT="https://${TALOS_IP}:6443"
+CLUSTER_VIP="192.168.1.115"
+CLUSTER_ENDPOINT="https://${CLUSTER_VIP}:6443"
 CONFIG_DIR="${HOME}/.talos/clusterconfig"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GITHUB_OWNER="arishaig"
