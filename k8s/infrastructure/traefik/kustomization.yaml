@@ -9,3 +9,4 @@ resources:
   - middlewares.yaml
   - wildcard-certificate.yaml
   - ingress-routes-infra.yaml
+  - service.yaml

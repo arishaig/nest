@@ -252,8 +252,8 @@
           pool us.pool.ntp.org iburst maxsources 4
           server time-a-g.nist.gov iburst
           server time-b-g.nist.gov iburst
-          server 216.239.35.0 iburst
-          server 216.239.35.4 iburst
+          server 129.6.15.28 iburst
+          server 129.6.15.29 iburst
           driftfile /var/lib/chrony/drift
           makestep 1.0 3
           rtcsync

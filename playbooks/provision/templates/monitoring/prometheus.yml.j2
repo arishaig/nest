@@ -114,6 +114,7 @@ scrape_configs:
       - targets: ['loki:3100']
 
   - job_name: 'sonarr'
+    scrape_timeout: 25s
     static_configs:
       - targets: ['192.168.1.110:9707']
     metrics_path: /metrics
