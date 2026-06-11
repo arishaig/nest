@@ -14,14 +14,15 @@ groups:
           summary: "No logs from vps-proxy for 15 minutes"
           description: "Alloy on vps-proxy has stopped shipping logs. WireGuard tunnel or Alloy service may be down."
 
-      - alert: LogIngestionGap
-        expr: absent_over_time({host="docker"}[15m])
-        for: 0m
-        labels:
-          severity: warning
-        annotations:
-          summary: "No logs from docker LXC for 15 minutes"
-          description: "Alloy on the docker LXC has stopped shipping logs."
+      # docker LXC is intentionally shut down (start_on_boot=false); alert disabled.
+      # - alert: LogIngestionGap
+      #   expr: absent_over_time({host="docker"}[15m])
+      #   for: 0m
+      #   labels:
+      #     severity: warning
+      #   annotations:
+      #     summary: "No logs from docker LXC for 15 minutes"
+      #     description: "Alloy on the docker LXC has stopped shipping logs."
 
       - alert: LogIngestionGap
         expr: absent_over_time({host="talos"}[15m])
