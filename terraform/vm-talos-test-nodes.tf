@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# VMs 111–112: Talos test control-plane nodes
+# VMs 113–114: Talos test control-plane nodes
 #
 # Temporary x86 VMs used to validate multi-node k8s behavior (etcd HA, VIP,
 # MetalLB, Traefik LoadBalancer) before RPi5 hardware arrives.
@@ -8,7 +8,7 @@
 
 resource "proxmox_virtual_environment_vm" "talos_beta_vm" {
   node_name   = var.pve_node
-  vm_id       = 111
+  vm_id       = 113
   name        = "talos-beta-vm"
   description = "Talos Linux — test control-plane node (temporary, replace with RPi5)"
   tags        = ["kubernetes", "infrastructure", "test"]
@@ -76,7 +76,7 @@ resource "proxmox_virtual_environment_vm" "talos_beta_vm" {
 
 resource "proxmox_virtual_environment_vm" "talos_gamma_vm" {
   node_name   = var.pve_node
-  vm_id       = 112
+  vm_id       = 114
   name        = "talos-gamma-vm"
   description = "Talos Linux — test control-plane node (temporary, replace with RPi5)"
   tags        = ["kubernetes", "infrastructure", "test"]
