@@ -113,29 +113,33 @@ scrape_configs:
     static_configs:
       - targets: ['loki:3100']
 
+  # k8s cluster IPs: .110/.111/.112 are node IPs, .115 is the Talos API VIP
+  # (never scrape it: kube-proxy nftables mode only serves NodePorts on
+  # primary node IPs), .116 is the shared MetalLB metrics LB, .117 is the
+  # ingress LB.
   - job_name: 'sonarr'
     static_configs:
-      - targets: ['192.168.1.115:30707']
+      - targets: ['192.168.1.116:9707']
     metrics_path: /metrics
 
   - job_name: 'radarr'
     static_configs:
-      - targets: ['192.168.1.115:30708']
+      - targets: ['192.168.1.116:9708']
     metrics_path: /metrics
 
   - job_name: 'lidarr'
     static_configs:
-      - targets: ['192.168.1.115:30709']
+      - targets: ['192.168.1.116:9709']
     metrics_path: /metrics
 
   - job_name: 'prowlarr'
     static_configs:
-      - targets: ['192.168.1.115:30710']
+      - targets: ['192.168.1.116:9710']
     metrics_path: /metrics
 
   - job_name: 'bazarr'
     static_configs:
-      - targets: ['192.168.1.115:30711']
+      - targets: ['192.168.1.116:9711']
     metrics_path: /metrics
 
   - job_name: 'qbittorrent'
@@ -146,25 +150,25 @@ scrape_configs:
 
   - job_name: 'traefik-k8s'
     static_configs:
-      - targets: ['192.168.1.115:31331']
+      - targets: ['192.168.1.117:8080']
         labels:
           instance: 'talos'
 
   - job_name: 'authelia'
     static_configs:
-      - targets: ['192.168.1.115:30959']
+      - targets: ['192.168.1.116:9959']
         labels:
           instance: 'talos'
 
   - job_name: 'redis'
     static_configs:
-      - targets: ['192.168.1.115:30121']
+      - targets: ['192.168.1.116:9121']
         labels:
           instance: 'talos'
 
   - job_name: 'postgres'
     static_configs:
-      - targets: ['192.168.1.115:30187']
+      - targets: ['192.168.1.116:9187']
         labels:
           instance: 'talos'
 

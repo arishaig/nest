@@ -44,6 +44,19 @@ kubectl create secret generic bazarr-sync-config -n media \
 kubectl apply -f k8s/apps/media/bazarr-sync-job.yaml
 ```
 
+## Talos
+
+```bash
+# Upgrade a node to the version in terraform/terraform.tfvars (one node at a
+# time; wait for it to return Ready before the next — etcd quorum holds 1 loss)
+talosctl upgrade --nodes 192.168.1.110 \
+  --image factory.talos.dev/installer/<schematic_id>:<version>
+
+# Watch the node come back
+talosctl --nodes 192.168.1.110 health
+kubectl get nodes -o wide   # confirm VERSION/OS-IMAGE updated, STATUS Ready
+```
+
 ## Vault
 
 ```bash

@@ -12,6 +12,6 @@ PublicKey = {{ nest_wg_public_key }}
 AllowedIPs = 10.10.0.2/32
 
 [Peer]
-# Talos k8s node — also allow LAN IP so MetalLB/Traefik LoadBalancer is reachable
+# Talos k8s node — also route the MetalLB ingress LB IP through the tunnel
 PublicKey = Q4UFZdOAN2L0qZXmFJTKB4YiagVI3W7BtQNQPtDZJB8=
-AllowedIPs = 10.10.0.3/32, 192.168.1.110/32
+AllowedIPs = 10.10.0.3/32, 192.168.1.117/32

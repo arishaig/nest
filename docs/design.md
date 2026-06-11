@@ -47,8 +47,14 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 | VMID | Name | IP | Purpose |
 |---|---|---|---|
 | 107 | homeassistant | 192.168.4.50 (VLAN 4) | Home Assistant OS |
-| 110 | talos | 192.168.1.110 | Talos Linux — single-node Kubernetes (4 vCPU, 24 GB RAM) |
+| 110 | talos | 192.168.1.110 | Talos Linux — k8s control plane "alpha" (4 vCPU, 24 GB RAM) |
+| 113 | talos-beta-vm | 192.168.1.111 | Talos control plane "beta" — temporary test VM until RPi5s arrive |
+| 114 | talos-gamma-vm | 192.168.1.112 | Talos control plane "gamma" — temporary test VM until RPi5s arrive |
 | 500 | backup | 192.168.1.113 | Proxmox Backup Server |
+
+Cluster-level IPs (not VMs): `192.168.1.115` Talos API VIP (port 6443 only — kube-proxy
+in nftables mode does not serve NodePorts on it), `192.168.1.116` MetalLB metrics LB
+(shared by all exporter services), `192.168.1.117` MetalLB ingress LB (k8s Traefik).
 
 ---
 
@@ -57,7 +63,8 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 ```
 Client → Cloudflare DNS → VPS :443
   → Traefik (TCP passthrough, HostSNI(*))
-  → WireGuard tunnel (10.10.0.1 → 10.10.0.3)
+  → WireGuard tunnel (10.10.0.1 → 10.10.0.3 on Talos alpha)
+  → MetalLB ingress LB 192.168.1.117:443
   → k8s Traefik :443 (TLS termination, PROXY protocol v2)
   → Authelia (forwardAuth) → k8s service / ExternalName
 ```
@@ -66,7 +73,10 @@ Client → Cloudflare DNS → VPS :443
 
 Runs as a systemd service (not Docker). Does **TCP passthrough** — it never
 terminates TLS. Any hostname on port 443 is forwarded as-is over the WireGuard
-tunnel to `10.10.0.3:443` (Talos k8s node) using PROXY protocol v2 to preserve the real client IP.
+tunnel to the MetalLB ingress LB `192.168.1.117:443` (routed via the Talos alpha
+WireGuard peer) using PROXY protocol v2 to preserve the real client IP. Note: the
+tunnel terminates on alpha's wg0, so external ingress depends on alpha being up
+even though k8s Traefik itself is HA across nodes.
 
 Port 80 → 443 redirect is the only HTTP-layer operation.
 
@@ -77,7 +87,7 @@ Metrics endpoint listens on `10.10.0.1:8080` (WireGuard interface, not public).
 ### WireGuard Tunnel
 
 VPS side: `10.10.0.1/24`, ListenPort 51820, MTU 1420. Two peers:
-- **Talos k8s node** (`10.10.0.3/32`) — receives all public HTTPS ingress
+- **Talos k8s node** (`10.10.0.3/32, 192.168.1.117/32`) — receives all public HTTPS ingress for the MetalLB ingress LB
 - **Docker LXC** (`10.10.0.2/32, 192.168.1.44/32`) — retained so the monitoring LXC (192.168.1.44) can reach VPS metrics over WireGuard; does **not** handle public ingress
 
 Talos k8s side: `10.10.0.3/32`, MTU 1420 (managed by Talos config in `talos/` directory)
@@ -85,10 +95,12 @@ Docker LXC side: `10.10.0.2/24`, MTU 1420
 
 Keys: public keys stored in `inventory/group_vars/all/vars.yml`; private keys in `vault.yml`.
 
-### k8s Traefik (Talos VM, hostPort 443)
+### k8s Traefik (MetalLB LoadBalancer 192.168.1.117)
 
-Deployed as a k8s Deployment in the `traefik` namespace on the Talos VM (192.168.1.110),
-binding to the host network via `hostPort: 443/80/8080`.
+Deployed as a k8s Deployment (2 replicas, pod anti-affinity) in the `traefik`
+namespace, exposed via a MetalLB L2 LoadBalancer Service at `192.168.1.117`
+(ports 80/443/8080). The LB IP floats to whichever node MetalLB elects, so
+ingress survives the loss of any single node.
 
 Terminates TLS using Cloudflare ACME DNS challenge (wildcard cert: `*.arishaig.site`),
 managed by cert-manager and stored as a k8s Secret.
@@ -177,7 +189,10 @@ so the LXC can be started manually and used as a scratch Docker host when needed
 
 ## Kubernetes (Talos VM 110)
 
-Single-node Talos Linux cluster at `192.168.1.110`. Managed by **Flux** watching `k8s/` in this repo — git is the live source of truth with continuous reconciliation.
+Three-node Talos Linux control plane: alpha VM `192.168.1.110` plus temporary test
+VMs beta `192.168.1.111` / gamma `192.168.1.112` (to be replaced by Raspberry Pi 5s).
+API VIP `192.168.1.115` (port 6443 only). Managed by **Flux** watching `k8s/` in this
+repo — git is the live source of truth with continuous reconciliation.
 
 Storage classes:
 - `nfs-nvme` — nfs-subdir-external-provisioner pointing at PVE `rpool/data/k8s-configs`; used for app configs
@@ -187,8 +202,9 @@ Storage classes:
 
 | Namespace | Components |
 |---|---|
-| `traefik` | Traefik v3 ingress controller (hostPort 80/443/8080), middlewares, IngressRoute CRDs, ExternalName services |
-| `authelia` | Authelia SSO, Redis session store, redis-exporter (hostPort 9121), Authelia metrics (hostPort 9959) |
+| `traefik` | Traefik v3 ingress controller (MetalLB LB 192.168.1.117:80/443/8080), middlewares, IngressRoute CRDs, ExternalName services |
+| `authelia` | Authelia SSO, Redis session store, redis-exporter and Authelia metrics (shared metrics LB 192.168.1.116:9121/:9959) |
+| `metallb-system` | MetalLB L2: `traefik-pool` (192.168.1.117/32) and `metrics-pool` (192.168.1.116/32) |
 | `cert-manager` | Wildcard cert from Cloudflare DNS-01 challenge; cert stored as k8s Secret |
 | `alloy` | Grafana Alloy DaemonSet — ships all pod logs to Loki; parses Traefik access logs as JSON |
 | `local-path-provisioner` | Local path storage class |
@@ -240,11 +256,11 @@ Scrapes every 30s. Jobs:
 | `adguard` | Primary + secondary + tertiary AdGuard exporters (`:9618`) |
 | `unbound` | Primary + secondary + tertiary Unbound exporters (`:9167`) |
 | `unpoller` | UniFi metrics via unpoller container |
-| `sonarr/radarr/lidarr/prowlarr/bazarr` | exportarr sidecars on Talos VM (hostPorts 9707-9711) |
-| `traefik-k8s` | k8s Traefik metrics on Talos (`192.168.1.110:8080`) |
-| `authelia` | Authelia metrics on Talos (`192.168.1.110:9959`) |
-| `redis` | redis-exporter on Talos (`192.168.1.110:9121`) |
-| `postgres` | postgres-exporter on Talos (`192.168.1.110:9187`) |
+| `sonarr/radarr/lidarr/prowlarr/bazarr` | exportarr sidecars via shared metrics LB (`192.168.1.116:9707-9711`) |
+| `traefik-k8s` | k8s Traefik metrics via ingress LB (`192.168.1.117:8080`) |
+| `authelia` | Authelia metrics via metrics LB (`192.168.1.116:9959`) |
+| `redis` | redis-exporter via metrics LB (`192.168.1.116:9121`) |
+| `postgres` | postgres-exporter via metrics LB (`192.168.1.116:9187`) |
 | `qbittorrent` | qbittorrent-exporter on seedbox LXC (`192.168.1.182:9022`) |
 | `scrutiny` | SMART metrics API |
 | `homeassistant` | HA Prometheus integration (bearer token in vault) |
@@ -309,7 +325,7 @@ Plan: `vc2-1c-1gb` (1 vCPU, 1 GB RAM), Seattle region, Debian 13 (trixie).
 
 Services (all systemd, no Docker):
 - `traefik` — TCP passthrough proxy (SNI routes `dns3.arishaig.site` to local AdGuard)
-- `wg-quick@wg0` — WireGuard tunnel; two peers: Talos k8s node (10.10.0.3, HTTPS ingress) and Docker LXC (10.10.0.2, monitoring reach)
+- `wg-quick@wg0` — WireGuard tunnel; two peers: Talos k8s node (10.10.0.3 + ingress LB 192.168.1.117, HTTPS ingress) and monitoring LXC (10.10.0.2, monitoring reach)
 - `AdGuardHome` — tertiary DNS, DoH (:8443) + DoT (:853), Unbound upstream
 - `unbound` — recursive resolver on `127.0.0.1:5335`
 - `node_exporter` — scraped by Prometheus over WireGuard (`10.10.0.1:9100`)

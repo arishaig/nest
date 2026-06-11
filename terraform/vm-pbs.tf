@@ -22,8 +22,10 @@ resource "proxmox_virtual_environment_vm" "backup" {
     type  = "x86-64-v2-AES"
   }
 
+  # 16 GB is generous for PBS at current datastore sizes. The host OOM-killed
+  # this VM at 33 GB RSS (2026-06-11) when total VM allocation exceeded host RAM.
   memory {
-    dedicated = 32768
+    dedicated = 16384
   }
 
   disk {

@@ -19,6 +19,25 @@
         mode: "0644"
       notify: Restart chrony
 
+    # Without a cap, ARC competes with VM memory; the host OOM-killed the PBS
+    # VM (2026-06-11) when VMs + ARC exceeded physical RAM.
+    - name: Cap ZFS ARC at 8 GiB (persistent)
+      ansible.builtin.copy:
+        content: |
+          options zfs zfs_arc_max=8589934592
+        dest: /etc/modprobe.d/zfs.conf
+        mode: "0644"
+      notify: Update initramfs
+
+    - name: Cap ZFS ARC at 8 GiB (runtime, no reboot needed)
+      ansible.builtin.shell: |
+        if [ "$(cat /sys/module/zfs/parameters/zfs_arc_max)" != "8589934592" ]; then
+          echo 8589934592 > /sys/module/zfs/parameters/zfs_arc_max
+          echo changed
+        fi
+      register: arc_runtime
+      changed_when: "'changed' in arc_runtime.stdout"
+
     - name: Install NFS server
       ansible.builtin.apt:
         name: nfs-kernel-server
@@ -40,6 +59,10 @@
       notify: Reload exports
 
   handlers:
+    - name: Update initramfs
+      ansible.builtin.command: update-initramfs -u -k all
+      changed_when: true
+
     - name: Restart chrony
       ansible.builtin.systemd:
         name: chrony
