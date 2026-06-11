@@ -19,9 +19,11 @@ class UniFiSettings(BaseSettings):
 
 class AdGuardSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_ADGUARD_")
-    # Direct IPs avoid DNS resolution dependency on LXC 109; plain HTTP avoids cert mismatch
-    url: str = "http://192.168.7.7:80"
-    url_secondary: str = "http://192.168.7.8:80"
+    # Direct IPs avoid DNS resolution dependency on LXC 109. AdGuard redirects
+    # HTTP to HTTPS, and its cert doesn't cover raw IPs — hence verify_tls off.
+    url: str = "https://192.168.7.7"
+    url_secondary: str = "https://192.168.7.8"
+    verify_tls: bool = False
     username: str = "adguard"
     password: str = ""
 

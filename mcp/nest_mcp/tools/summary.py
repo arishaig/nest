@@ -298,7 +298,7 @@ async def _dns() -> dict:
     auth = (config.adguard.username, config.adguard.password)
 
     async def _fetch(url: str) -> dict:
-        async with make_client(url) as client:
+        async with make_client(url, verify=config.adguard.verify_tls) as client:
             resp = await client.get("/control/stats", auth=auth)
             resp.raise_for_status()
             return _parse_adguard_stats(resp.json())

@@ -10,7 +10,7 @@ def _auth() -> tuple[str, str]:
 
 
 async def _fetch_stats(url: str) -> dict:
-    async with make_client(url) as client:
+    async with make_client(url, verify=config.adguard.verify_tls) as client:
         resp = await client.get("/control/stats", auth=_auth())
         resp.raise_for_status()
         d = resp.json()
@@ -44,7 +44,7 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def adguard_list_rewrites() -> list[dict]:
         """List all custom DNS rewrite rules configured in AdGuard Home."""
-        async with make_client(config.adguard.url) as client:
+        async with make_client(config.adguard.url, verify=config.adguard.verify_tls) as client:
             resp = await client.get("/control/rewrite/list", auth=_auth())
             resp.raise_for_status()
             return sorted(resp.json(), key=lambda x: x.get("domain", ""))
@@ -55,7 +55,7 @@ def register(mcp: FastMCP) -> None:
         params: dict = {"limit": limit}
         if search:
             params["search"] = search
-        async with make_client(config.adguard.url) as client:
+        async with make_client(config.adguard.url, verify=config.adguard.verify_tls) as client:
             resp = await client.get("/control/querylog", params=params, auth=_auth())
             resp.raise_for_status()
             entries = resp.json().get("data", [])
@@ -76,7 +76,7 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def adguard_add_rewrite(domain: str, answer: str) -> dict:
         """[DESTRUCTIVE] Add a DNS rewrite rule to AdGuard Home. Immediately affects DNS resolution for all network clients. Confirm the exact domain and answer with the user before calling."""
-        async with make_client(config.adguard.url) as client:
+        async with make_client(config.adguard.url, verify=config.adguard.verify_tls) as client:
             resp = await client.post("/control/rewrite/add", json={"domain": domain, "answer": answer}, auth=_auth())
             resp.raise_for_status()
             return {"added": True, "domain": domain, "answer": answer}
@@ -84,7 +84,7 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def adguard_delete_rewrite(domain: str, answer: str) -> dict:
         """[DESTRUCTIVE] Delete a DNS rewrite rule from AdGuard Home. Immediately affects DNS resolution for all network clients. Confirm the exact domain and answer with the user before calling."""
-        async with make_client(config.adguard.url) as client:
+        async with make_client(config.adguard.url, verify=config.adguard.verify_tls) as client:
             resp = await client.post("/control/rewrite/delete", json={"domain": domain, "answer": answer}, auth=_auth())
             resp.raise_for_status()
             return {"deleted": True, "domain": domain, "answer": answer}
