@@ -1,7 +1,7 @@
 // Push to Loki on monitoring LXC
 loki.write "loki" {
   endpoint {
-    url = "http://192.168.1.44:3100/loki/api/v1/push"
+    url = "http://10.10.0.2:3100/loki/api/v1/push"
   }
 }
 
