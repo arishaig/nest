@@ -3,6 +3,9 @@ kind: Service
 metadata:
   name: bazarr
   namespace: media
+  annotations:
+    metallb.io/loadBalancerIPs: "192.168.1.116"
+    metallb.io/allow-shared-ip: "metrics"
 spec:
   selector:
     app: bazarr
@@ -15,4 +18,4 @@ spec:
       port: 9711
       targetPort: 9711
       nodePort: 30711
-  type: NodePort
+  type: LoadBalancer

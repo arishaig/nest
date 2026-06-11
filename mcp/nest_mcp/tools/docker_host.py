@@ -49,7 +49,7 @@ def register(mcp: FastMCP) -> None:
         """List all active Traefik HTTP routes from the k8s Traefik API.
 
         Returns router name, the Host/path match rule, service, and any middlewares applied.
-        Queries the Traefik dashboard API at 192.168.1.110:8080 (hostPort on Talos node).
+        Queries the Traefik dashboard API at the MetalLB ingress LB (192.168.1.117:8080).
         """
         async with make_client(config.traefik.url) as client:
             resp = await client.get("/api/http/routers")

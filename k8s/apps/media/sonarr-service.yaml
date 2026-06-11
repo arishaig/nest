@@ -3,6 +3,9 @@ kind: Service
 metadata:
   name: sonarr
   namespace: media
+  annotations:
+    metallb.io/loadBalancerIPs: "192.168.1.116"
+    metallb.io/allow-shared-ip: "metrics"
 spec:
   selector:
     app: sonarr
@@ -15,4 +18,4 @@ spec:
       port: 9707
       targetPort: 9707
       nodePort: 30707
-  type: NodePort
+  type: LoadBalancer

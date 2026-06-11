@@ -5,4 +5,17 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    - 192.168.1.110/32
+    - 192.168.1.117/32
+---
+# Shared by all exporter services (metallb.io/allow-shared-ip: "metrics") so
+# Prometheus on the monitoring LXC can scrape one floating IP regardless of
+# which node the pods land on. Do not scrape the Talos API VIP (.115):
+# kube-proxy in nftables mode only serves NodePorts on primary node IPs.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: metrics-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 192.168.1.116/32

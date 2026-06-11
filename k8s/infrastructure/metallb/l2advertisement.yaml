@@ -6,3 +6,4 @@ metadata:
 spec:
   ipAddressPools:
     - traefik-pool
+    - metrics-pool

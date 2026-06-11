@@ -3,6 +3,9 @@ kind: Service
 metadata:
   name: lidarr
   namespace: media
+  annotations:
+    metallb.io/loadBalancerIPs: "192.168.1.116"
+    metallb.io/allow-shared-ip: "metrics"
 spec:
   selector:
     app: lidarr
@@ -15,4 +18,4 @@ spec:
       port: 9709
       targetPort: 9709
       nodePort: 30709
-  type: NodePort
+  type: LoadBalancer

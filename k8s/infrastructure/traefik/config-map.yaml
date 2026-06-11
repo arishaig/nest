@@ -5,9 +5,11 @@ metadata:
   namespace: traefik
 data:
   traefik.yml: |
+    # insecure exposes the read-only API/dashboard on :8080, which only the
+    # LAN-side LB (192.168.1.117) reaches — used by nest-mcp health checks.
     api:
       dashboard: true
-      insecure: false
+      insecure: true
 
     entryPoints:
       traefik:

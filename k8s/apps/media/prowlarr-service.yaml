@@ -3,6 +3,9 @@ kind: Service
 metadata:
   name: prowlarr
   namespace: media
+  annotations:
+    metallb.io/loadBalancerIPs: "192.168.1.116"
+    metallb.io/allow-shared-ip: "metrics"
 spec:
   selector:
     app: prowlarr
@@ -15,4 +18,4 @@ spec:
       port: 9710
       targetPort: 9710
       nodePort: 30710
-  type: NodePort
+  type: LoadBalancer

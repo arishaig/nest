@@ -20,7 +20,7 @@ class UniFiSettings(BaseSettings):
 class AdGuardSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_ADGUARD_")
     # Direct IPs avoid DNS resolution dependency on LXC 109; plain HTTP avoids cert mismatch
-    url: str = "http://192.168.7.7:3000"
+    url: str = "http://192.168.7.7:80"
     url_secondary: str = "http://192.168.7.8:80"
     username: str = "adguard"
     password: str = ""
@@ -57,8 +57,8 @@ class ScrutinySettings(BaseSettings):
 
 class TraefikSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_TRAEFIK_")
-    # k8s Traefik API/metrics — hostPort on Talos node
-    url: str = "http://192.168.1.110:8080"
+    # k8s Traefik API/metrics — MetalLB ingress LB, floats across nodes
+    url: str = "http://192.168.1.117:8080"
 
 
 class ArrSettings(BaseSettings):
