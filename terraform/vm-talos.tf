@@ -6,11 +6,11 @@
 # Bootstrap: run scripts/bootstrap-talos.sh after `terraform apply`.
 
 resource "proxmox_download_file" "talos_iso" {
-  node_name    = var.pve_node
-  content_type = "iso"
-  datastore_id = "local"
-  url          = "https://factory.talos.dev/image/${var.talos_schematic_id}/${var.talos_version}/metal-amd64.iso"
-  file_name    = "talos-${var.talos_version}-metal-amd64.iso"
+  node_name           = var.pve_node
+  content_type        = "iso"
+  datastore_id        = "local"
+  url                 = "https://factory.talos.dev/image/${var.talos_schematic_id}/${var.talos_version}/metal-amd64.iso"
+  file_name           = "talos-${var.talos_version}-metal-amd64.iso"
   overwrite           = true
   overwrite_unmanaged = true
 }
