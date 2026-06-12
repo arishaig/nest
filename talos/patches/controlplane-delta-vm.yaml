@@ -1,0 +1,31 @@
+# Test control-plane VM sized like an RPi5 (4 cores / 8GB): rehearses the
+# node add/remove flow before the real Pis arrive. Control-plane only until
+# workload memory requests are right-sized (see controlplane-beta-vm.yaml).
+cluster:
+  allowSchedulingOnControlPlanes: false
+  etcd:
+    advertisedSubnets:
+      - 192.168.1.0/24
+
+machine:
+  network:
+    interfaces:
+      - interface: ens18
+        dhcp: false
+        addresses:
+          - 192.168.1.114/24
+        vip:
+          ip: 192.168.1.115
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+    nameservers:
+      - 192.168.7.7
+      - 192.168.7.8
+  kubelet:
+    nodeIP:
+      validSubnets:
+        - 192.168.1.0/24
+  time:
+    servers:
+      - 192.168.7.7
