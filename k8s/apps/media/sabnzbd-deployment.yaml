@@ -53,12 +53,17 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          # SABnzbd 5.x defaults to a ~1G article cache, so an active queue
+          # blows past a 1Gi limit at startup. Once /incomplete became
+          # persistent (#123) the queue resumed on every boot and the pod
+          # OOM-looped 68 times; pre-#123 restarts wiped the queue, which
+          # hid it. 12Gi gives cache + par2 repair + unpack real headroom.
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
-            limits:
               memory: 1Gi
+            limits:
+              memory: 12Gi
       volumes:
         - name: config
           persistentVolumeClaim:
