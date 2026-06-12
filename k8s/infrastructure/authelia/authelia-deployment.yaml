@@ -37,12 +37,18 @@ spec:
               mountPath: /etc/authelia/users_database.yml
               subPath: users_database.yml
               readOnly: true
+          # timeoutSeconds defaults to 1s — during the 2026-06-11 node memory
+          # pressure that meant a kill every few minutes, taking auth (and
+          # every forward-auth ingress route) down with it. A slow Authelia
+          # beats no Authelia: allow 4 failures x 5s before restarting.
           livenessProbe:
             httpGet:
               path: /api/health
               port: 9091
             initialDelaySeconds: 15
             periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 4
           readinessProbe:
             httpGet:
               path: /api/health
