@@ -1,5 +1,7 @@
+# Test control-plane VM (4GB): exists for control-plane HA only.
+# Workloads stay on alpha — see controlplane-beta-vm.yaml.
 cluster:
-  allowSchedulingOnControlPlanes: true
+  allowSchedulingOnControlPlanes: false
   etcd:
     advertisedSubnets:
       - 192.168.1.0/24

@@ -1,5 +1,10 @@
+# Test control-plane VM (4GB): exists for control-plane HA only.
+# Workloads stay on alpha — on 2026-06-11 the scheduler spread the media
+# stack onto beta/gamma and both thrashed (memory ~100%, gamma re-reading
+# 200MB/s of evicted page cache), crash-looping Authelia/MetalLB and
+# stalling Loki on the shared NVMe.
 cluster:
-  allowSchedulingOnControlPlanes: true
+  allowSchedulingOnControlPlanes: false
   etcd:
     advertisedSubnets:
       - 192.168.1.0/24
