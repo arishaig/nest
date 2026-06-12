@@ -297,3 +297,15 @@ groups:
         annotations:
           summary: "Loki is discarding log samples"
           description: "Loki has dropped {{ $value | printf \"%.0f\" }} log samples in the last 15 minutes (rate or per-stream limits). Log-based alerts may be unreliable; check loki_discarded_samples_total by reason."
+
+      # Catches Loki degrading in place (slow ingester, 500s on push) — the
+      # 2026-06-11 incident had zero discards but 10s+ pushes failing for
+      # hours, which LokiDiscardingLogs can't see.
+      - alert: LokiPushErrors
+        expr: sum(increase(loki_request_duration_seconds_count{route="loki_api_v1_push", status_code=~"5.."}[15m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Loki is failing log push requests"
+          description: "Loki returned {{ $value | printf \"%.0f\" }} 5xx responses to push requests in the last 15 minutes. Ingestion is degraded and Loki ruler alerts may be unreliable."
