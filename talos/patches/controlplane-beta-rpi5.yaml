@@ -1,0 +1,49 @@
+# RPi5 control-plane node (8GB, NVMe via M.2 HAT). Replaces talos-beta-vm
+# (VM 113) using the add-then-remove etcd flow rehearsed with gamma —
+# see docs/rpi5-talos.md. Control-plane only: workloads stay on alpha
+# (see controlplane-beta-vm.yaml for why).
+cluster:
+  allowSchedulingOnControlPlanes: false
+  etcd:
+    advertisedSubnets:
+      - 192.168.1.0/24
+
+machine:
+  install:
+    disk: /dev/nvme0n1
+    # Must be the Image Factory installer with the rpi_5 overlay — a plain
+    # ghcr.io/siderolabs/installer would drop the Pi firmware/DTB on upgrade.
+    # Renovate bumps this tag in lockstep with talos_version in
+    # terraform/terraform.tfvars; CI cross-checks them.
+    image: factory.talos.dev/installer/a636242df247ad4aad2e36d1026d8d4727b716a3061749bd7b19651e548f65e4:v1.13.4
+  network:
+    interfaces:
+      # Pi 5 onboard ethernet is end0 (RP1/macb), not eth0 like the Pi 4 —
+      # select the only physical NIC instead of hardcoding the name.
+      - deviceSelector:
+          physical: true
+        dhcp: false
+        addresses:
+          - 192.168.1.112/24
+        vip:
+          ip: 192.168.1.115
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+    nameservers:
+      - 192.168.7.7
+      - 192.168.7.8
+  kubelet:
+    nodeIP:
+      validSubnets:
+        - 192.168.1.0/24
+  time:
+    servers:
+      - 192.168.7.7
+# Hostname lives in its own config document since Talos 1.13 — setting
+# machine.network.hostname alongside it fails validation.
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+auto: "off"
+hostname: talos-beta-rpi5
