@@ -38,6 +38,30 @@
       register: arc_runtime
       changed_when: "'changed' in arc_runtime.stdout"
 
+    # The no-subscription repo is already configured in proxmox.sources;
+    # the enterprise repo 401s without a subscription and fails the daily
+    # aptupdate task. PVE upgrades have re-created it before, so keep it
+    # absent here rather than fixing it by hand.
+    - name: Remove the unusable pve-enterprise apt repo
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/pve-enterprise.sources
+        - /etc/apt/sources.list.d/pve-enterprise.list
+
+    # Back up every guest instead of a hardcoded vmid list so new VMs/LXCs
+    # are covered automatically. VM 500 is PBS itself — backing it up into
+    # its own datastore is circular, so it stays excluded.
+    - name: Switch the vzdump job to all guests with PBS excluded
+      ansible.builtin.shell: |
+        if ! grep -qE '^\s+all 1$' /etc/pve/jobs.cfg || ! grep -qE '^\s+exclude 500$' /etc/pve/jobs.cfg; then
+          pvesh set /cluster/backup/backup-c4e43015-c035 --all 1 --exclude 500 --delete vmid
+          echo changed
+        fi
+      register: vzdump_job
+      changed_when: "'changed' in vzdump_job.stdout"
+
     - name: Install NFS server
       ansible.builtin.apt:
         name: nfs-kernel-server
