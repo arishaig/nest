@@ -23,8 +23,10 @@ resource "proxmox_virtual_environment_container" "seedbox" {
     cores = 2
   }
 
+  # qBittorrent's mmap-heavy I/O needs headroom: at 2048 the kernel memcg
+  # OOM-killed qbittorrent-nox (2026-06-12) with 1.7 GB of page tables alone.
   memory {
-    dedicated = 2048
+    dedicated = 4096
     swap      = 512
   }
 

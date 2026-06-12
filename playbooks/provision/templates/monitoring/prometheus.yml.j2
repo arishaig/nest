@@ -178,11 +178,6 @@ scrape_configs:
         labels:
           instance: 'talos'
 
-  - job_name: 'wled'
-    static_configs:
-      - targets: ['backlight.arishaig.site:80']
-    metrics_path: /json
-
   - job_name: 'speedtest'
     scrape_interval: 1h
     scrape_timeout: 90s
