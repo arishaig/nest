@@ -209,6 +209,17 @@
         owner: "{{ runner_user }}"
         mode: "0755"
 
+    # The deploy-terraform job persists state here between runs. It must be
+    # writable by the runner user — when it was root-owned, every state save
+    # silently failed and applies ran against stale state (2026-06-11).
+    - name: Create Terraform state directory
+      ansible.builtin.file:
+        path: /opt/terraform-state/nest
+        state: directory
+        owner: "{{ runner_user }}"
+        recurse: true
+        mode: "0755"
+
     - name: Install kubectl
       ansible.builtin.get_url:
         url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl"

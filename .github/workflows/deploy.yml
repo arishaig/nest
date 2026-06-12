@@ -192,9 +192,15 @@ jobs:
           chmod 600 terraform/secrets.tfvars
 
       - name: Restore terraform state
+        # Fail hard if the state is missing: applying with an empty state
+        # re-creates every resource (duplicated AdGuard rewrites and orphaned
+        # the gamma VM on 2026-06-11 when saves had been silently failing).
         run: |
-          mkdir -p "$TF_STATE_DIR"
-          cp "$TF_STATE_DIR/terraform.tfstate" terraform/terraform.tfstate 2>/dev/null || true
+          if [ ! -f "$TF_STATE_DIR/terraform.tfstate" ]; then
+            echo "::error::No terraform state at $TF_STATE_DIR — refusing a stateless apply. Restore the state manually first."
+            exit 1
+          fi
+          cp "$TF_STATE_DIR/terraform.tfstate" terraform/terraform.tfstate
           cp "$TF_STATE_DIR/terraform.tfstate.backup" terraform/terraform.tfstate.backup 2>/dev/null || true
 
       - name: Open VPS AdGuard tunnel
@@ -215,10 +221,13 @@ jobs:
         run: terraform -chdir=terraform apply -var-file=secrets.tfvars -auto-approve -input=false
 
       - name: Save terraform state
+        # No error suppression here: the runner user must be able to write
+        # $TF_STATE_DIR (it silently could not between 06-11 and 06-12, so
+        # every apply ran against a stale state). A failed save fails the job.
         if: always()
         run: |
           pkill -f "ssh -f -N -L 13000" 2>/dev/null || true
-          cp terraform/terraform.tfstate "$TF_STATE_DIR/terraform.tfstate" 2>/dev/null || true
+          cp terraform/terraform.tfstate "$TF_STATE_DIR/terraform.tfstate"
           cp terraform/terraform.tfstate.backup "$TF_STATE_DIR/terraform.tfstate.backup" 2>/dev/null || true
 
   deploy-k8s:
