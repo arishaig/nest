@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import datetime, timezone
 
 import httpx
@@ -6,15 +7,14 @@ from mcp.server.fastmcp import FastMCP
 
 from nest_mcp import config
 
+print(f"[K8S_MODULE_IMPORT] NEST_K8S_TOKEN len={len(os.environ.get('NEST_K8S_TOKEN',''))} repr_prefix={repr(os.environ.get('NEST_K8S_TOKEN','')[:25])}", file=sys.stderr, flush=True)
+
 
 def _client() -> httpx.AsyncClient:
     env_tok = os.environ.get("NEST_K8S_TOKEN", "")
     cfg_tok = config.kubernetes.token
     token = env_tok or cfg_tok
-    with open("/tmp/k8s_client_debug.txt", "w") as _f:
-        _f.write(f"env_len={len(env_tok)} cfg_len={len(cfg_tok)} final_len={len(token)}\n"
-                 f"env_prefix={repr(env_tok[:30])}\ncfg_prefix={repr(cfg_tok[:30])}\n"
-                 f"has_auth={bool(token)}\n")
+    print(f"[K8S_CLIENT] env_len={len(env_tok)} cfg_len={len(cfg_tok)} final_len={len(token)} prefix={repr(token[:25])}", file=sys.stderr, flush=True)
     headers = {}
     if token:
         headers["Authorization"] = f"Bearer {token}"
