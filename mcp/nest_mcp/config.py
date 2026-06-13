@@ -123,6 +123,13 @@ class SeedboxSettings(BaseSettings):
     ssh_key: str = "~/.ssh/ansible-on-nest"
 
 
+class FileserverSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_FILESERVER_")
+    host: str = "192.168.1.16"  # PVE — ZFS pool owner, NFS source
+    ssh_key: str = "~/.ssh/ansible-on-nest"
+    media_root: str = "/Tank/media_root"
+
+
 proxmox = ProxmoxSettings()
 unifi = UniFiSettings()
 adguard = AdGuardSettings()
@@ -140,3 +147,4 @@ docker_host = DockerHostSettings()
 mealie = MealieSettings()
 pbs = PbsSettings()
 seedbox = SeedboxSettings()
+fileserver = FileserverSettings()
