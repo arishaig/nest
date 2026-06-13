@@ -172,6 +172,22 @@
     },
     {
       "customType": "regex",
+      "description": "Talos version pin in terraform.tfvars — CI (talos-rpi5-overlay job) gates bumps on the Image Factory serving the rpi_5 overlay",
+      "managerFilePatterns": ["/terraform/terraform\\.tfvars/"],
+      "matchStrings": ["talos_version\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "siderolabs/talos",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Talos installer tags in RPi5 machine-config patches — must move in lockstep with talos_version (CI cross-checks)",
+      "managerFilePatterns": ["/talos/patches/controlplane-.*-rpi5\\.yaml/"],
+      "matchStrings": ["factory\\.talos\\.dev/installer/[a-f0-9]+:(?<currentValue>v[\\d.]+)"],
+      "depNameTemplate": "siderolabs/talos",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
       "description": "cert-manager version pin in kustomization URL",
       "managerFilePatterns": ["/k8s/infrastructure/cert-manager/kustomization\\.yaml/"],
       "matchStrings": ["cert-manager/releases/download/v(?<currentValue>[^/]+)/cert-manager\\.yaml"],

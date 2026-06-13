@@ -9,3 +9,4 @@ resources:
   - authelia/
   - alloy/
   - kube-state-metrics/
+  - rpi5-net-tuning/

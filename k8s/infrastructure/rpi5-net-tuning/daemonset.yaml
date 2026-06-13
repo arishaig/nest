@@ -1,0 +1,61 @@
+# Workaround for the Pi 5 RP1/macb NIC silently wedging under sustained
+# traffic (siderolabs/sbc-raspberrypi#91): disable EEE and TSO/GSO and
+# enlarge the ring buffers. Talos has no ethtool on the host, so this runs
+# as a privileged hostNetwork DaemonSet pinned to arm64 (the Pis are the
+# only arm64 nodes; alpha is an amd64 VM). Settings are idempotent and
+# re-applied every 5 minutes in case a link flap resets them.
+# Remove once the upstream kernel fix lands — watch issue #91.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rpi5-net-tuning
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: rpi5-net-tuning
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rpi5-net-tuning
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rpi5-net-tuning
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      tolerations:
+        # The Pi nodes are control-plane only (allowSchedulingOnControlPlanes: false)
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      containers:
+        - name: tune
+          image: alpine:3.22
+          securityContext:
+            privileged: true
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              apk add --no-cache ethtool >/dev/null
+              # Pi 5 onboard NIC; fall back to the first ethernet-ish
+              # interface so a kernel rename doesn't break the tuning.
+              IFACE=end0
+              [ -e "/sys/class/net/${IFACE}" ] || IFACE=$(ls /sys/class/net | grep -E '^(end|enp|eth)' | head -1)
+              echo "tuning ${IFACE}"
+              while true; do
+                ethtool --set-eee "${IFACE}" eee off || echo "WARN: eee off failed"
+                ethtool -K "${IFACE}" tso off gso off || echo "WARN: tso/gso off failed"
+                # Ring sizes from the mitigation in sbc-raspberrypi#91; harmless
+                # no-op if already set, warning if the driver caps them lower.
+                ethtool -G "${IFACE}" rx 4096 tx 2048 || echo "WARN: ring resize failed"
+                sleep 300
+              done
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 32Mi

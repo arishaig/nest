@@ -74,6 +74,17 @@ jobs:
       - name: Check deploy filter covers all services
         run: scripts/check-deploy-coverage.sh
 
+  talos-rpi5-overlay:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6.0.3
+      - name: Check Image Factory serves rpi_5 for the pinned Talos version
+        # Overlay releases can lag a Talos patch release by a few days
+        # (siderolabs/talos#12748); merging a version bump before the overlay
+        # exists would strand the Pi nodes. Also catches drift between
+        # terraform.tfvars and the installer tags in talos/patches/.
+        run: scripts/check-talos-rpi5-overlay.sh
+
   prometheus-validate:
     runs-on: self-hosted
     steps:
