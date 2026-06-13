@@ -21,7 +21,7 @@ spec:
         fsGroup: 0
       containers:
         - name: subgen
-          image: mccloud/subgen:2026.05.3-cpu
+          image: mccloud/subgen:2026.06.2-cpu
           env:
             - name: WEBHOOK_PORT
               value: "9000"
