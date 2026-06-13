@@ -37,12 +37,11 @@ spec:
             - name: data
               mountPath: /data
           livenessProbe:
-            httpGet:
-              path: /ping
-              port: 8989
+            exec:
+              command: ["ls", "/data"]
             initialDelaySeconds: 30
             periodSeconds: 30
-            timeoutSeconds: 5
+            timeoutSeconds: 15
             failureThreshold: 3
           readinessProbe:
             httpGet:
