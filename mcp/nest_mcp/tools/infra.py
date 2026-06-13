@@ -63,18 +63,23 @@ def register(mcp: FastMCP) -> None:
         Shows which Talos nodes are connected and the current NFS op/error counters.
         """
         try:
-            nfsstat_raw, showmount_raw = await asyncio.gather(
+            nfsstat_raw, clients_raw = await asyncio.gather(
                 _pve("nfsstat -s 2>/dev/null | head -30"),
-                _pve("showmount -a 2>/dev/null || echo 'showmount unavailable'"),
+                _pve("cat /proc/fs/nfsd/clients/*/info 2>/dev/null || echo ''"),
             )
         except Exception as e:
             return {"error": str(e)}
 
-        mounts = [
-            line.strip()
-            for line in showmount_raw.splitlines()
-            if line.strip() and ":" in line and not line.startswith("All")
-        ]
+        # Parse NFSv4 client info blocks (showmount -a only shows NFSv3)
+        mounts = []
+        for block in clients_raw.split("\n\n"):
+            lines = {k.strip(): v.strip() for k, v in
+                     (l.split(":", 1) for l in block.splitlines() if ":" in l)}
+            if lines.get("address"):
+                entry = lines["address"]
+                if lines.get("minor version"):
+                    entry += f" (NFSv4.{lines['minor version']})"
+                mounts.append(entry)
 
         return {
             "active_mounts": mounts,

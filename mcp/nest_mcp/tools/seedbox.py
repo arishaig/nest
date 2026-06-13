@@ -67,7 +67,7 @@ def register(mcp: FastMCP) -> None:
         traffic is routing through the expected VPN exit node.
         """
         raw = await _ssh(
-            "curl -sf http://localhost:8000/v1/publicip/ip 2>/dev/null"
+            "docker exec gluetun wget -qO- http://localhost:8000/v1/publicip/ip 2>/dev/null"
             " || echo '{\"error\": \"gluetun control server not reachable\"}'"
         )
         try:

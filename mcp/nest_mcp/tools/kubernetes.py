@@ -1,5 +1,4 @@
 import os
-import sys
 from datetime import datetime, timezone
 
 import httpx
@@ -7,14 +6,9 @@ from mcp.server.fastmcp import FastMCP
 
 from nest_mcp import config
 
-print(f"[K8S_MODULE_IMPORT] NEST_K8S_TOKEN len={len(os.environ.get('NEST_K8S_TOKEN',''))} repr_prefix={repr(os.environ.get('NEST_K8S_TOKEN','')[:25])}", file=sys.stderr, flush=True)
-
 
 def _client() -> httpx.AsyncClient:
-    env_tok = os.environ.get("NEST_K8S_TOKEN", "")
-    cfg_tok = config.kubernetes.token
-    token = env_tok or cfg_tok
-    print(f"[K8S_CLIENT] env_len={len(env_tok)} cfg_len={len(cfg_tok)} final_len={len(token)} prefix={repr(token[:25])}", file=sys.stderr, flush=True)
+    token = os.environ.get("NEST_K8S_TOKEN") or config.kubernetes.token
     headers = {}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -72,7 +66,6 @@ def register(mcp: FastMCP) -> None:
             elif phase in ("Pending", "Succeeded", "Failed"):
                 state = phase
             else:
-                # Surface the waiting reason if available
                 for cs in cs_list:
                     waiting = cs.get("state", {}).get("waiting", {})
                     if waiting:
@@ -139,13 +132,10 @@ def register(mcp: FastMCP) -> None:
         ]
 
     @mcp.tool()
-    async def k8s_nodes_check() -> list[dict]:
+    async def k8s_nodes() -> list[dict]:
         """List Kubernetes nodes: readiness, capacity, allocatable resources, and taints."""
-        print("[K8S_TOOL_CALLED] k8s_nodes_check invoked", file=sys.stderr, flush=True)
         async with _client() as c:
-            print("[K8S_AFTER_CLIENT]", file=sys.stderr, flush=True)
             resp = await c.get("/api/v1/nodes")
-            print(f"[K8S_RESP] status={resp.status_code}", file=sys.stderr, flush=True)
             resp.raise_for_status()
 
         nodes = []
