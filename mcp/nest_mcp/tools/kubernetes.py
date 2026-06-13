@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 
 import httpx
@@ -7,9 +8,11 @@ from nest_mcp import config
 
 
 def _client() -> httpx.AsyncClient:
+    # Read token at call time from os.environ so systemd EnvironmentFile is always fresh.
+    token = os.environ.get("NEST_K8S_TOKEN") or config.kubernetes.token
     headers = {}
-    if config.kubernetes.token:
-        headers["Authorization"] = f"Bearer {config.kubernetes.token}"
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     return httpx.AsyncClient(
         base_url=config.kubernetes.api_url,
         headers=headers,
