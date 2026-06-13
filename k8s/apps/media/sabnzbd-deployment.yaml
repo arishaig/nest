@@ -37,11 +37,11 @@ spec:
             - name: data
               mountPath: /data
           livenessProbe:
-            tcpSocket:
-              port: 8080
+            exec:
+              command: ["ls", "/data"]
             initialDelaySeconds: 30
             periodSeconds: 30
-            timeoutSeconds: 5
+            timeoutSeconds: 15
             failureThreshold: 3
           readinessProbe:
             tcpSocket:
@@ -60,6 +60,7 @@ spec:
               cpu: 100m
               memory: 1Gi
             limits:
+              cpu: "4"
               memory: 12Gi
       volumes:
         - name: config
