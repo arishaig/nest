@@ -130,6 +130,12 @@ class FileserverSettings(BaseSettings):
     media_root: str = "/Tank/media_root"
 
 
+class KubernetesSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_K8S_")
+    api_url: str = "https://192.168.1.115:6443"
+    token: str = ""
+
+
 proxmox = ProxmoxSettings()
 unifi = UniFiSettings()
 adguard = AdGuardSettings()
@@ -148,3 +154,4 @@ mealie = MealieSettings()
 pbs = PbsSettings()
 seedbox = SeedboxSettings()
 fileserver = FileserverSettings()
+kubernetes = KubernetesSettings()

@@ -146,12 +146,18 @@ _K8S_JOBS = [
 
 
 async def _k8s() -> dict:
-    query = 'up{job=~"' + "|".join(_K8S_JOBS) + '"}'
+    scrape_query = 'up{job=~"' + "|".join(_K8S_JOBS) + '"}'
+    # kube-state-metrics is scraped by Prometheus — use it for pod-phase summary
+    pod_query = 'count by (phase) (kube_pod_status_phase{phase!="Running",phase!="Succeeded"})'
+    node_query = 'kube_node_status_condition{condition="Ready",status="true"}'
+
     async with make_client(config.prometheus.url) as prom:
         async with make_client(config.traefik.url) as traefik:
-            up_resp, overview_resp = await asyncio.gather(
-                prom.get("/api/v1/query", params={"query": query}),
+            up_resp, overview_resp, pod_resp, node_resp = await asyncio.gather(
+                prom.get("/api/v1/query", params={"query": scrape_query}),
                 traefik.get("/api/overview"),
+                prom.get("/api/v1/query", params={"query": pod_query}),
+                prom.get("/api/v1/query", params={"query": node_query}),
                 return_exceptions=True,
             )
 
@@ -175,12 +181,37 @@ async def _k8s() -> dict:
             "service_errors": http.get("services", {}).get("errors", 0),
         }
 
+    unhealthy_pods: dict[str, int] = {}
+    if isinstance(pod_resp, httpx.Response) and pod_resp.is_success:
+        for r in pod_resp.json().get("data", {}).get("result", []):
+            phase = r["metric"].get("phase", "")
+            count = int(float(r["value"][1]))
+            if count > 0:
+                unhealthy_pods[phase] = count
+
+    nodes_ready: list[str] = []
+    nodes_not_ready: list[str] = []
+    if isinstance(node_resp, httpx.Response) and node_resp.is_success:
+        for r in node_resp.json().get("data", {}).get("result", []):
+            node_name = r["metric"].get("node", "")
+            if r["value"][1] == "1":
+                nodes_ready.append(node_name)
+            else:
+                nodes_not_ready.append(node_name)
+
     return {
         "traefik": traefik_info,
         "scraped_services": {
             "up": len(services) - len(down_names),
             "down": len(down_names),
             "down_names": down_names,
+        },
+        "pods": {
+            "unhealthy": unhealthy_pods,
+        },
+        "nodes": {
+            "ready": len(nodes_ready),
+            "not_ready": nodes_not_ready,
         },
     }
 

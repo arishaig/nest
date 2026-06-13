@@ -60,6 +60,54 @@ def register(mcp: FastMCP) -> None:
         ]
 
     @mcp.tool()
+    async def vpn_status() -> dict:
+        """Current VPN/gluetun exit IP, country, and city for the seedbox.
+
+        Queries the gluetun HTTP control server on the seedbox to confirm torrent
+        traffic is routing through the expected VPN exit node.
+        """
+        raw = await _ssh(
+            "curl -sf http://localhost:8000/v1/publicip/ip 2>/dev/null"
+            " || echo '{\"error\": \"gluetun control server not reachable\"}'"
+        )
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return {"error": "Failed to parse gluetun response", "raw": raw[:200]}
+        return {
+            "public_ip": data.get("public_ip", ""),
+            "country": data.get("country", ""),
+            "city": data.get("city", ""),
+            "organization": data.get("organization", ""),
+        }
+
+    @mcp.tool()
+    async def torrent_trackers(hash: str) -> list[dict]:
+        """Tracker status for a specific torrent — use seedbox_torrents to get the hash first.
+
+        Args:
+            hash: Full or 8-char torrent hash from seedbox_torrents output.
+        """
+        raw = await _qb("/torrents/trackers", f"hash={hash}")
+        try:
+            trackers = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return [{"error": "Failed to parse tracker response", "raw": raw[:300]}]
+        # Filter out DHT/PEX pseudo-trackers (url doesn't start with http)
+        return [
+            {
+                "url": t.get("url", ""),
+                "status": t.get("status", 0),
+                "num_peers": t.get("num_peers", -1),
+                "num_seeds": t.get("num_seeds", -1),
+                "num_leeches": t.get("num_leeches", -1),
+                "msg": t.get("msg", ""),
+            }
+            for t in trackers
+            if t.get("url", "").startswith("http")
+        ]
+
+    @mcp.tool()
     async def seedbox_stats() -> dict:
         """Get qBittorrent global transfer stats: speeds, session totals, and free disk space."""
         transfer_raw, maindata_raw = await asyncio.gather(
