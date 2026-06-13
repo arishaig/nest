@@ -132,6 +132,7 @@ class FileserverSettings(BaseSettings):
 
 class KubernetesSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_K8S_")
+    # API VIP (6443 only — not a scrape target). Token from k8s_mcp_sa_token vault var.
     api_url: str = "https://192.168.1.115:6443"
     token: str = ""
 
