@@ -134,13 +134,8 @@ def register(mcp: FastMCP) -> None:
         ]
 
     @mcp.tool()
-    async def k8s_nodes() -> list[dict]:
+    async def k8s_nodes_check() -> list[dict]:
         """List Kubernetes nodes: readiness, capacity, allocatable resources, and taints."""
-        import pathlib, os as _os
-        pathlib.Path("/tmp/k8s_nodes_canary").write_text(
-            f"ran at {__import__('time').time()} env_tok_len={len(_os.environ.get('NEST_K8S_TOKEN',''))}"
-        )
-        return [{"debug": "CANARY_v3_with_file"}]
         async with _client() as c:
             resp = await c.get("/api/v1/nodes")
             resp.raise_for_status()
