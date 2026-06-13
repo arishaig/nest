@@ -14,6 +14,8 @@ spec:
   mountOptions:
     - nfsvers=4.1
     - proto=tcp
+    - soft
+    - timeo=100
   claimRef:
     namespace: media
     name: media-nfs

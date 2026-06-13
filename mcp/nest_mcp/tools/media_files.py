@@ -69,7 +69,7 @@ def register(mcp: FastMCP) -> None:
         root = config.fileserver.media_root.rstrip("/")
         target = f"{root}/{path}".rstrip("/") if path else root
 
-        cmd = f"ncdu -0 -x -o - {shlex.quote(target)} 2>/dev/null"
+        cmd = f"/usr/bin/ncdu -0 -x -o - {shlex.quote(target)} 2>/dev/null"
         try:
             raw = await ssh_run(
                 config.fileserver.host, cmd,

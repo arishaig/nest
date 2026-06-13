@@ -36,9 +36,6 @@ spec:
               mountPath: /config
             - name: data
               mountPath: /data
-            - name: data
-              mountPath: /incomplete
-              subPath: incomplete
           livenessProbe:
             tcpSocket:
               port: 8080
