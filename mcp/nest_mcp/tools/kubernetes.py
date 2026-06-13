@@ -141,8 +141,11 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def k8s_nodes_check() -> list[dict]:
         """List Kubernetes nodes: readiness, capacity, allocatable resources, and taints."""
+        print("[K8S_TOOL_CALLED] k8s_nodes_check invoked", file=sys.stderr, flush=True)
         async with _client() as c:
+            print("[K8S_AFTER_CLIENT]", file=sys.stderr, flush=True)
             resp = await c.get("/api/v1/nodes")
+            print(f"[K8S_RESP] status={resp.status_code}", file=sys.stderr, flush=True)
             resp.raise_for_status()
 
         nodes = []
