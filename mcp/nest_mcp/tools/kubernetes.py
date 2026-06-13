@@ -136,8 +136,13 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def k8s_nodes() -> list[dict]:
         """List Kubernetes nodes: readiness, capacity, allocatable resources, and taints."""
+        import os as _os
+        _env_tok = _os.environ.get("NEST_K8S_TOKEN", "")
+        _cfg_tok = config.kubernetes.token
         async with _client() as c:
             resp = await c.get("/api/v1/nodes")
+            if resp.status_code != 200:
+                return [{"debug_status": resp.status_code, "debug_body": resp.text[:300], "env_tok_len": len(_env_tok), "env_tok_prefix": _env_tok[:20], "cfg_tok_len": len(_cfg_tok)}]
             resp.raise_for_status()
 
         nodes = []
