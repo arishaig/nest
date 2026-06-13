@@ -21,9 +21,12 @@ mcp = FastMCP(
     instructions=(
         "Live homelab status and control. "
         "Covers Proxmox VMs and containers, PBS backups, disk health (Scrutiny), "
-        "Kubernetes (Talos) pod and Traefik ingress health, monitoring stack (Prometheus/Loki/Grafana), "
+        "Kubernetes (Talos) pods/events/nodes and Traefik ingress health, "
+        "ZFS ARC and NFS server stats, "
+        "monitoring stack (Prometheus/Loki/Grafana), "
         "Home Assistant devices and areas, UniFi network and clients, "
         "AdGuard DNS, Prometheus alerts, Jellyfin, the *arr media stack, "
+        "seedbox (qBittorrent torrents, tracker status, VPN/gluetun exit IP), "
         "and the VPS proxy (Docker, WireGuard, fail2ban). "
         "Start sessions with lab_health_summary for a full snapshot."
     ),
@@ -32,7 +35,7 @@ mcp = FastMCP(
     lifespan=lifespan,
 )
 
-from nest_mcp.tools import proxmox, adguard, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files  # noqa: E402
+from nest_mcp.tools import proxmox, adguard, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, kubernetes, infra  # noqa: E402
 
 proxmox.register(mcp)
 adguard.register(mcp)
@@ -53,3 +56,5 @@ seedbox.register(mcp)
 certs.register(mcp)
 loki.register(mcp)
 media_files.register(mcp)
+kubernetes.register(mcp)
+infra.register(mcp)
