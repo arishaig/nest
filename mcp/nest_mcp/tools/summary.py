@@ -148,7 +148,7 @@ _K8S_JOBS = [
 async def _k8s() -> dict:
     scrape_query = 'up{job=~"' + "|".join(_K8S_JOBS) + '"}'
     # kube-state-metrics is scraped by Prometheus — use it for pod-phase summary
-    pod_query = 'count by (phase) (kube_pod_status_phase{phase!="Running",phase!="Succeeded"})'
+    pod_query = 'count by (phase) (kube_pod_status_phase{phase!="Running",phase!="Succeeded"} == 1)'
     node_query = 'kube_node_status_condition{condition="Ready",status="true"}'
 
     async with make_client(config.prometheus.url) as prom:
@@ -291,6 +291,7 @@ async def _unifi() -> dict:
             "state": d.get("state", 0),
         }
         for d in sorted(devices_data, key=lambda x: x.get("name", ""))
+        if d.get("type", "") not in ("ugw", "udm", "uxg")
     ]
 
     return {
