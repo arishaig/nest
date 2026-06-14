@@ -6,3 +6,4 @@ resources:
   - media/
   - headlamp/
   - mcp-rbac/
+  - nest-mcp/
