@@ -56,7 +56,7 @@ def client() -> LidarrClient:
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return TEMPLATES.TemplateResponse("index.html", {"request": request, "defaults": _defaults})
+    return TEMPLATES.TemplateResponse(request, "index.html", {"defaults": _defaults})
 
 
 @app.get("/api/artists")
