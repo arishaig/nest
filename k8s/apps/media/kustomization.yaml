@@ -5,9 +5,8 @@ resources:
   - media-nfs-pv.yaml
   - media-nfs-pvc.yaml
   # --- *arr stack ---
-  - lidarr-config-pvc.yaml
-  - lidarr-deployment.yaml
-  - lidarr-service.yaml
+  - lidarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - lidarr.yaml  # HelmRelease (app-template) — replaces deployment+service
   - lidarr-ui-deployment.yaml
   - lidarr-ui-service.yaml
   - bazarr-config-pvc.yaml
@@ -25,8 +24,8 @@ resources:
   # --- download clients ---
   - sabnzbd-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - sabnzbd.yaml  # HelmRelease (app-template) — replaces deployment+service
-  - recyclarr-config-pvc.yaml
-  - recyclarr-cronjob.yaml
+  - recyclarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - recyclarr.yaml  # HelmRelease (app-template) — replaces cronjob
   # --- request management ---
   - seerr-config-pvc.yaml
   - seerr-deployment.yaml
