@@ -19,8 +19,15 @@ spec:
         - name: anagnorisis
           image: ghcr.io/arishaig/anagnorisis:latest
           imagePullPolicy: Always
-          # Override default CMD (which redirects stdout to a file) so Loki collects logs
-          command: ["python", "app.py"]
+          # Use bash wrapper so we can merge stderr→stdout and see why Python exits.
+          # "exec" replaces bash with Python (clean PID 1 / signal handling).
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              echo "=== anagnorisis starting ===" &&
+              echo "python=$(which python || echo MISSING)" &&
+              echo "secret_set=${FLASK_SECRET_KEY:+yes}" &&
+              exec python -u app.py 2>&1
           ports:
             - containerPort: 5001
           env:
