@@ -9,7 +9,7 @@ data:
       host: 0.0.0.0
       port: 5001
       flask_secret_key: "${oc.env:FLASK_SECRET_KEY}"
-      project_config_directory: /mnt/project_config
+      project_config_directory: /project_config
 
     music:
       media_directory: /mnt/media/music

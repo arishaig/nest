@@ -43,7 +43,7 @@ spec:
               subPath: config.yaml
               readOnly: true
             - name: data
-              mountPath: /mnt/project_config
+              mountPath: /project_config
             - name: data
               mountPath: /app/models
               subPath: models
