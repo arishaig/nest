@@ -33,7 +33,7 @@ resource "proxmox_virtual_environment_container" "docker" {
   }
 
   memory {
-    dedicated = 12288
+    dedicated = 4096
     swap      = 512
   }
 
