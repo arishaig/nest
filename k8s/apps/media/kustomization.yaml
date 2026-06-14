@@ -13,22 +13,18 @@ resources:
   - bazarr-config-pvc.yaml
   - bazarr-deployment.yaml
   - bazarr-service.yaml
-  - subgen-models-pvc.yaml
-  - subgen-deployment.yaml
-  - subgen-service.yaml
-  - prowlarr-config-pvc.yaml
-  - prowlarr-deployment.yaml
-  - prowlarr-service.yaml
-  - sonarr-config-pvc.yaml
-  - sonarr-deployment.yaml
-  - sonarr-service.yaml
+  - subgen-models-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - subgen.yaml  # HelmRelease (app-template) — replaces deployment+service
+  - prowlarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - prowlarr.yaml  # HelmRelease (app-template) — replaces deployment+service
+  - sonarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - sonarr.yaml  # HelmRelease (app-template) — replaces deployment+service
   - radarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - radarr.yaml  # HelmRelease (app-template) — replaces deployment+service
   - flaresolverr.yaml  # HelmRelease (app-template) — replaces deployment+service
   # --- download clients ---
-  - sabnzbd-config-pvc.yaml
-  - sabnzbd-deployment.yaml
-  - sabnzbd-service.yaml
+  - sabnzbd-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - sabnzbd.yaml  # HelmRelease (app-template) — replaces deployment+service
   - recyclarr-config-pvc.yaml
   - recyclarr-cronjob.yaml
   # --- request management ---
