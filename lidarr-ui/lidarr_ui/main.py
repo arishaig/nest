@@ -191,4 +191,4 @@ async def finalize_artist(artist_id: int, body: FinalizePayload):
 
 
 def serve():
-    uvicorn.run(app, host="0.0.0.0", port=settings.port)
+    uvicorn.run(app, host="0.0.0.0", port=settings.listen_port)
