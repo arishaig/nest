@@ -52,8 +52,6 @@ jobs:
               - 'terraform/**'
             mcp:
               - 'mcp/**'
-              - 'playbooks/provision/mcp.yml'
-              - 'playbooks/provision/templates/mcp-secrets.env.j2'
 
   deploy-docker:
     needs: changes
@@ -260,31 +258,47 @@ jobs:
             playbooks/provision/k8s.yml \
             --vault-password-file "$RUNNER_TEMP/vault-pass"
 
-  deploy-mcp:
+  build-mcp:
     needs: changes
     if: needs.changes.outputs.mcp == 'true'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v6.0.3
 
-      - name: Write SSH key
-        run: |
-          install -d -m 700 "$RUNNER_TEMP/.ssh"
-          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
-          chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Write vault password
-        run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: mcp
+          push: true
+          tags: ghcr.io/arishaig/nest-mcp:latest
 
-      - name: Run mcp playbook
+  deploy-mcp:
+    needs: [changes, build-mcp]
+    if: needs.changes.outputs.mcp == 'true'
+    runs-on: self-hosted
+    steps:
+      - name: Write kubeconfig
         run: |
-          source /opt/ansible-runner/venv/bin/activate
-          ansible-playbook \
-            -i inventory/hosts.yml \
-            playbooks/provision/mcp.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
-            --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
-            --ssh-extra-args "-o StrictHostKeyChecking=no" \
-            --limit mcp
+          install -d -m 700 "$RUNNER_TEMP/.kube"
+          printf '%s' "${{ secrets.KUBECONFIG_TALOS }}" > "$RUNNER_TEMP/.kube/config"
+          chmod 600 "$RUNNER_TEMP/.kube/config"
+
+      - name: Rollout restart
+        env:
+          KUBECONFIG: "${{ runner.temp }}/.kube/config"
+        run: |
+          if kubectl get deployment/nest-mcp -n nest-mcp &>/dev/null; then
+            kubectl rollout restart deployment/nest-mcp -n nest-mcp
+          else
+            echo "Deployment not yet created by Flux — skipping rollout restart"
+          fi

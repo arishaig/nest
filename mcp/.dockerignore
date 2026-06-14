@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.gitignore
+launch.sh
+ha-launch.sh
+secrets.env.example
