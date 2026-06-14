@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Music</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen" x-data="app()" x-cloak>
+
+  <!-- Toast -->
+  <div class="fixed top-4 right-4 z-50 space-y-2">
+    <template x-for="t in toasts" :key="t.id">
+      <div class="px-4 py-2 rounded shadow-lg text-sm font-medium transition-all"
+           :class="t.type === 'error' ? 'bg-red-700' : 'bg-emerald-700'"
+           x-text="t.msg"></div>
+    </template>
+  </div>
+
+  <div class="max-w-5xl mx-auto px-4 py-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold text-white">Music</h1>
+      <div class="flex gap-2">
+        <button @click="tab = 'library'"
+                :class="tab === 'library' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'"
+                class="px-4 py-2 rounded text-sm font-medium transition-colors">Library</button>
+        <button @click="tab = 'add'"
+                :class="tab === 'add' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'"
+                class="px-4 py-2 rounded text-sm font-medium transition-colors">+ Add</button>
+      </div>
+    </div>
+
+    <!-- ── LIBRARY TAB ── -->
+    <div x-show="tab === 'library'">
+      <!-- Controls -->
+      <div class="flex items-center gap-3 mb-4">
+        <span class="text-sm text-gray-400" x-text="artists.length + ' artists'"></span>
+        <span class="text-sm text-gray-400">·</span>
+        <select x-model="sortKey" class="bg-gray-800 text-gray-200 text-sm rounded px-2 py-1 border border-gray-700">
+          <option value="sizeOnDisk">Sort by size</option>
+          <option value="albumCount">Sort by albums</option>
+          <option value="name">Sort by name</option>
+        </select>
+        <button @click="sortDir = sortDir === 'desc' ? 'asc' : 'desc'"
+                class="text-gray-400 hover:text-white text-sm px-2 py-1 rounded bg-gray-800 border border-gray-700">
+          <span x-text="sortDir === 'desc' ? '↓' : '↑'"></span>
+        </button>
+        <button @click="loadArtists()"
+                class="ml-auto text-sm text-gray-400 hover:text-white">
+          <svg x-show="loadingArtists" class="spin inline w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          <span x-show="!loadingArtists">↺ Refresh</span>
+        </button>
+      </div>
+
+      <!-- Artist table -->
+      <div class="rounded-lg overflow-hidden border border-gray-800">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-900 text-gray-400 text-left">
+              <th class="px-4 py-2 font-medium">Artist</th>
+              <th class="px-4 py-2 font-medium text-right">Albums</th>
+              <th class="px-4 py-2 font-medium text-right">Files</th>
+              <th class="px-4 py-2 font-medium text-right">Size</th>
+              <th class="px-4 py-2 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-if="artists.length === 0 && !loadingArtists">
+              <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No artists in library.</td></tr>
+            </template>
+            <template x-for="a in sortedArtists" :key="a.id">
+              <tbody>
+                <!-- Artist row -->
+                <tr class="border-t border-gray-800 cursor-pointer hover:bg-gray-900 transition-colors"
+                    @click="toggleArtist(a.id)">
+                  <td class="px-4 py-3">
+                    <div class="flex items-center gap-2">
+                      <svg class="w-3 h-3 text-gray-500 flex-shrink-0 transition-transform"
+                           :class="expandedArtistId === a.id ? 'rotate-90' : ''"
+                           fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M7.293 4.707a1 1 0 011.414 0L14 10l-5.293 5.293a1 1 0 01-1.414-1.414L11.586 10 6.586 5.414a1 1 0 010-1.707z" clip-rule="evenodd"/>
+                      </svg>
+                      <span class="font-medium" x-text="a.name"></span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-right text-gray-300" x-text="a.albumCount"></td>
+                  <td class="px-4 py-3 text-right text-gray-300" x-text="a.trackFileCount"></td>
+                  <td class="px-4 py-3 text-right text-gray-300" x-text="fmtSize(a.sizeOnDisk)"></td>
+                  <td class="px-4 py-3 text-right">
+                    <button @click.stop="confirmDeleteArtist(a)"
+                            class="text-xs px-2 py-1 rounded bg-red-900 hover:bg-red-700 text-red-200 transition-colors">
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+                <!-- Album sub-table -->
+                <tr x-show="expandedArtistId === a.id" class="bg-gray-950">
+                  <td colspan="5" class="pb-2">
+                    <div class="mx-4 rounded border border-gray-800 overflow-hidden">
+                      <template x-if="!albumsByArtist[a.id]">
+                        <div class="px-4 py-3 text-gray-500 text-xs">Loading…</div>
+                      </template>
+                      <template x-if="albumsByArtist[a.id] && albumsByArtist[a.id].length === 0">
+                        <div class="px-4 py-3 text-gray-500 text-xs">No albums on disk.</div>
+                      </template>
+                      <template x-if="albumsByArtist[a.id] && albumsByArtist[a.id].length > 0">
+                        <table class="w-full text-xs">
+                          <thead>
+                            <tr class="bg-gray-900 text-gray-500">
+                              <th class="px-3 py-1 text-left font-medium">Title</th>
+                              <th class="px-3 py-1 text-left font-medium">Type</th>
+                              <th class="px-3 py-1 text-right font-medium">Year</th>
+                              <th class="px-3 py-1 text-right font-medium">Files</th>
+                              <th class="px-3 py-1 text-right font-medium">Size</th>
+                              <th class="px-3 py-1 font-medium"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <template x-for="al in albumsByArtist[a.id]" :key="al.id">
+                              <tr class="border-t border-gray-800">
+                                <td class="px-3 py-1.5">
+                                  <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" :checked="al.monitored"
+                                           @change="toggleMonitor(al, $event.target.checked)"
+                                           class="accent-indigo-500 w-3 h-3" />
+                                    <span x-text="al.title"></span>
+                                  </label>
+                                </td>
+                                <td class="px-3 py-1.5 text-gray-500" x-text="al.albumType"></td>
+                                <td class="px-3 py-1.5 text-right text-gray-400" x-text="al.year"></td>
+                                <td class="px-3 py-1.5 text-right text-gray-400" x-text="al.trackFileCount"></td>
+                                <td class="px-3 py-1.5 text-right text-gray-400" x-text="fmtSize(al.sizeOnDisk)"></td>
+                                <td class="px-3 py-1.5 text-right">
+                                  <button x-show="al.trackFileCount > 0"
+                                          @click="deleteAlbumFiles(al, a)"
+                                          class="text-xs px-1.5 py-0.5 rounded bg-red-900 hover:bg-red-700 text-red-200 transition-colors">
+                                    Del files
+                                  </button>
+                                </td>
+                              </tr>
+                            </template>
+                          </tbody>
+                        </table>
+                      </template>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── ADD TAB ── -->
+    <div x-show="tab === 'add'">
+      <div class="mb-4">
+        <input x-model="searchQuery"
+               @input.debounce.400ms="searchArtists()"
+               type="text" placeholder="Search artist…"
+               class="w-full bg-gray-800 border border-gray-700 rounded px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500" />
+      </div>
+
+      <!-- Search results -->
+      <div x-show="!selectedArtist" class="space-y-2">
+        <template x-if="searching">
+          <div class="text-sm text-gray-400">Searching…</div>
+        </template>
+        <template x-for="r in searchResults" :key="r.foreignArtistId">
+          <div class="flex items-center justify-between p-3 rounded-lg bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors">
+            <div>
+              <div class="font-medium text-sm" x-text="r.name + (r.disambiguation ? ' (' + r.disambiguation + ')' : '')"></div>
+              <div class="text-xs text-gray-400 mt-0.5 line-clamp-2" x-text="r.overview"></div>
+              <div x-show="r.inLibrary" class="text-xs text-emerald-400 mt-0.5">Already in library</div>
+            </div>
+            <button @click="selectArtist(r)"
+                    :class="r.inLibrary ? 'bg-gray-700 hover:bg-gray-600' : 'bg-indigo-600 hover:bg-indigo-500'"
+                    class="ml-4 flex-shrink-0 text-sm px-3 py-1.5 rounded text-white transition-colors">
+              <span x-text="r.inLibrary ? 'Edit' : 'Add'"></span>
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <!-- Album picker -->
+      <div x-show="selectedArtist">
+        <div class="flex items-center gap-3 mb-4">
+          <button @click="selectedArtist = null; addedArtistId = null; lookupAlbums = []; checkedAlbums = new Set()"
+                  class="text-sm text-gray-400 hover:text-white">← Back</button>
+          <h2 class="text-base font-semibold" x-text="selectedArtist && selectedArtist.name"></h2>
+        </div>
+
+        <template x-if="loadingAlbums">
+          <div class="text-sm text-gray-400">Adding artist and fetching albums…</div>
+        </template>
+
+        <template x-if="!loadingAlbums && lookupAlbums.length > 0">
+          <div>
+            <div class="flex items-center gap-3 mb-3">
+              <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                <input type="checkbox"
+                       :checked="checkedAlbums.size === lookupAlbums.length"
+                       @change="toggleAll($event.target.checked)"
+                       class="accent-indigo-500" />
+                Select all (<span x-text="lookupAlbums.length"></span>)
+              </label>
+              <span class="text-gray-500 text-sm" x-text="checkedAlbums.size + ' selected'"></span>
+            </div>
+
+            <div class="rounded-lg overflow-hidden border border-gray-800 mb-4">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-gray-900 text-gray-400 text-left">
+                    <th class="px-4 py-2 w-8"></th>
+                    <th class="px-4 py-2 font-medium">Album</th>
+                    <th class="px-4 py-2 font-medium">Type</th>
+                    <th class="px-4 py-2 font-medium text-right">Year</th>
+                    <th class="px-4 py-2 font-medium text-right">Tracks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="al in lookupAlbums" :key="al.foreignAlbumId">
+                    <tr class="border-t border-gray-800 cursor-pointer hover:bg-gray-900"
+                        @click="toggleCheck(al.id)">
+                      <td class="px-4 py-2.5">
+                        <input type="checkbox"
+                               :checked="checkedAlbums.has(al.id)"
+                               @click.stop="toggleCheck(al.id)"
+                               class="accent-indigo-500" />
+                      </td>
+                      <td class="px-4 py-2.5 font-medium" x-text="al.title"></td>
+                      <td class="px-4 py-2.5 text-gray-400" x-text="al.albumType"></td>
+                      <td class="px-4 py-2.5 text-right text-gray-400" x-text="al.year"></td>
+                      <td class="px-4 py-2.5 text-right text-gray-400" x-text="al.trackCount"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <button @click="addSelected()"
+                      :disabled="checkedAlbums.size === 0 || adding"
+                      class="px-5 py-2 rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium text-white transition-colors">
+                <span x-show="!adding">Add <span x-text="checkedAlbums.size"></span> album<span x-show="checkedAlbums.size !== 1">s</span></span>
+                <span x-show="adding">Adding…</span>
+              </button>
+              <button @click="selectedArtist = null; lookupAlbums = []; checkedAlbums = new Set()"
+                      class="px-4 py-2 rounded bg-gray-800 hover:bg-gray-700 text-sm text-gray-300 transition-colors">Cancel</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Delete artist confirmation modal -->
+    <div x-show="deleteTarget" class="fixed inset-0 z-40 flex items-center justify-center bg-black/60">
+      <div class="bg-gray-900 rounded-lg border border-gray-700 p-6 w-96 shadow-xl" @click.stop>
+        <h3 class="text-base font-semibold mb-1">Remove artist?</h3>
+        <p class="text-sm text-gray-400 mb-4">
+          Remove <strong x-text="deleteTarget && deleteTarget.name"></strong> and delete all
+          <span x-text="deleteTarget && deleteTarget.trackFileCount"></span> files
+          (<span x-text="deleteTarget && fmtSize(deleteTarget.sizeOnDisk)"></span>)?
+        </p>
+        <label class="flex items-center gap-2 text-sm text-gray-300 mb-5 cursor-pointer">
+          <input type="checkbox" x-model="deleteExclude" class="accent-indigo-500" />
+          Add to exclusion list (prevent Spotify from re-adding)
+        </label>
+        <div class="flex gap-3">
+          <button @click="executeDeleteArtist()"
+                  class="px-4 py-2 rounded bg-red-700 hover:bg-red-600 text-sm text-white font-medium transition-colors">
+            Remove
+          </button>
+          <button @click="deleteTarget = null"
+                  class="px-4 py-2 rounded bg-gray-800 hover:bg-gray-700 text-sm text-gray-300 transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function fmtSize(bytes) {
+      if (!bytes) return '—';
+      const gb = bytes / 1024 / 1024 / 1024;
+      if (gb >= 1) return gb.toFixed(1) + ' GB';
+      const mb = bytes / 1024 / 1024;
+      return mb.toFixed(0) + ' MB';
+    }
+
+    function app() {
+      return {
+        tab: 'library',
+
+        // Library state
+        artists: [],
+        loadingArtists: false,
+        expandedArtistId: null,
+        albumsByArtist: {},
+        sortKey: 'sizeOnDisk',
+        sortDir: 'desc',
+
+        // Delete modal state
+        deleteTarget: null,
+        deleteExclude: true,
+
+        // Add state
+        searchQuery: '',
+        searchResults: [],
+        searching: false,
+        selectedArtist: null,
+        addedArtistId: null,
+        lookupAlbums: [],
+        loadingAlbums: false,
+        checkedAlbums: new Set(),
+        adding: false,
+
+        // Toast
+        toasts: [],
+
+        get sortedArtists() {
+          const dir = this.sortDir === 'desc' ? -1 : 1;
+          return [...this.artists].sort((a, b) => {
+            if (this.sortKey === 'name') return dir * a.name.localeCompare(b.name);
+            return dir * (a[this.sortKey] - b[this.sortKey]);
+          });
+        },
+
+        async init() {
+          await this.loadArtists();
+        },
+
+        async loadArtists() {
+          this.loadingArtists = true;
+          try {
+            const r = await fetch('/api/artists');
+            this.artists = await r.json();
+          } catch {
+            this.toast('Failed to load artists', 'error');
+          } finally {
+            this.loadingArtists = false;
+          }
+        },
+
+        async toggleArtist(id) {
+          if (this.expandedArtistId === id) {
+            this.expandedArtistId = null;
+            return;
+          }
+          this.expandedArtistId = id;
+          if (!this.albumsByArtist[id]) {
+            try {
+              const r = await fetch(`/api/artists/${id}/albums`);
+              this.albumsByArtist = { ...this.albumsByArtist, [id]: await r.json() };
+            } catch {
+              this.albumsByArtist = { ...this.albumsByArtist, [id]: [] };
+            }
+          }
+        },
+
+        confirmDeleteArtist(artist) {
+          this.deleteTarget = artist;
+          this.deleteExclude = true;
+        },
+
+        async executeDeleteArtist() {
+          const a = this.deleteTarget;
+          this.deleteTarget = null;
+          try {
+            await fetch(`/api/artists/${a.id}?deleteFiles=true&addImportExclusion=${this.deleteExclude}`, { method: 'DELETE' });
+            this.artists = this.artists.filter(x => x.id !== a.id);
+            if (this.expandedArtistId === a.id) this.expandedArtistId = null;
+            this.toast(`Removed ${a.name}`);
+          } catch {
+            this.toast(`Failed to remove ${a.name}`, 'error');
+          }
+        },
+
+        async deleteAlbumFiles(album, artist) {
+          if (!confirm(`Delete files for "${album.title}"? The album will remain in the library unmonitored.`)) return;
+          try {
+            await fetch(`/api/albums/${album.id}/files`, { method: 'DELETE' });
+            // Refresh album list
+            const r = await fetch(`/api/artists/${artist.id}/albums`);
+            this.albumsByArtist = { ...this.albumsByArtist, [artist.id]: await r.json() };
+            // Update artist stats
+            await this.loadArtists();
+            this.toast(`Deleted files for "${album.title}"`);
+          } catch {
+            this.toast(`Failed to delete files for "${album.title}"`, 'error');
+          }
+        },
+
+        async toggleMonitor(album, monitored) {
+          try {
+            await fetch(`/api/albums/${album.id}/monitor`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ monitored }),
+            });
+            album.monitored = monitored;
+          } catch {
+            this.toast('Failed to update monitoring', 'error');
+          }
+        },
+
+        async searchArtists() {
+          const q = this.searchQuery.trim();
+          if (!q) { this.searchResults = []; return; }
+          this.searching = true;
+          try {
+            const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+            this.searchResults = await r.json();
+          } catch {
+            this.toast('Search failed', 'error');
+          } finally {
+            this.searching = false;
+          }
+        },
+
+        async selectArtist(artist) {
+          this.selectedArtist = artist;
+          this.addedArtistId = null;
+          this.lookupAlbums = [];
+          this.checkedAlbums = new Set();
+          this.loadingAlbums = true;
+          try {
+            const r = await fetch('/api/artists', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                foreignArtistId: artist.foreignArtistId,
+                artistName: artist.name,
+              }),
+            });
+            if (!r.ok) throw new Error(await r.text());
+            const data = await r.json();
+            this.addedArtistId = data.id;
+            this.lookupAlbums = data.albums;
+          } catch (e) {
+            this.toast(e.message || 'Failed to add artist', 'error');
+            this.selectedArtist = null;
+          } finally {
+            this.loadingAlbums = false;
+          }
+        },
+
+        toggleCheck(id) {
+          const s = new Set(this.checkedAlbums);
+          if (s.has(id)) s.delete(id); else s.add(id);
+          this.checkedAlbums = s;
+        },
+
+        toggleAll(checked) {
+          this.checkedAlbums = checked ? new Set(this.lookupAlbums.map(a => a.id)) : new Set();
+        },
+
+        async addSelected() {
+          if (!this.addedArtistId || this.checkedAlbums.size === 0) return;
+          this.adding = true;
+          try {
+            const r = await fetch(`/api/artists/${this.addedArtistId}/finalize`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ albumIds: [...this.checkedAlbums] }),
+            });
+            if (!r.ok) throw new Error(await r.text());
+            const data = await r.json();
+            this.toast(`${this.selectedArtist.name} — ${data.queued} album(s) queued`);
+            this.selectedArtist = null;
+            this.addedArtistId = null;
+            this.lookupAlbums = [];
+            this.checkedAlbums = new Set();
+            this.searchQuery = '';
+            this.searchResults = [];
+            await this.loadArtists();
+            this.tab = 'library';
+          } catch (e) {
+            this.toast(e.message || 'Failed to queue albums', 'error');
+          } finally {
+            this.adding = false;
+          }
+        },
+
+        toast(msg, type = 'success') {
+          const id = Date.now();
+          this.toasts.push({ id, msg, type });
+          setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 4000);
+        },
+
+        fmtSize,
+      };
+    }
+  </script>
+</body>
+</html>

@@ -19,6 +19,13 @@ _KEY_MAP = {
     "prowlarr": lambda: config.arr.prowlarr_key,
 }
 
+_API_VERSION = {
+    "sonarr": "v3",
+    "radarr": "v3",
+    "lidarr": "v1",
+    "prowlarr": "v1",
+}
+
 
 def _arr_client(service: str):
     port = _PORTS[service]
@@ -35,7 +42,7 @@ def register(mcp: FastMCP) -> None:
     async def arr_status(service: ArrService) -> dict:
         """Get version and system status for a *arr service (sonarr, radarr, lidarr, or prowlarr)."""
         async with _arr_client(service) as client:
-            resp = await client.get("/api/v3/system/status")
+            resp = await client.get(f"/api/{_API_VERSION[service]}/system/status")
             resp.raise_for_status()
             d = resp.json()
             return {
@@ -51,7 +58,7 @@ def register(mcp: FastMCP) -> None:
     async def arr_queue(service: Literal["sonarr", "radarr", "lidarr"]) -> dict:
         """Get the current download queue for a *arr service (sonarr, radarr, or lidarr)."""
         async with _arr_client(service) as client:
-            resp = await client.get("/api/v3/queue", params={"pageSize": 50, "includeUnknownSeriesItems": True})
+            resp = await client.get(f"/api/{_API_VERSION[service]}/queue", params={"pageSize": 50, "includeUnknownSeriesItems": True})
             resp.raise_for_status()
             d = resp.json()
             records = d.get("records", [])
@@ -77,7 +84,7 @@ def register(mcp: FastMCP) -> None:
     async def arr_history(service: Literal["sonarr", "radarr", "lidarr"], limit: int = 20) -> list[dict]:
         """Get recent download history (grabs, imports, failures) for a *arr service."""
         async with _arr_client(service) as client:
-            resp = await client.get("/api/v3/history", params={"pageSize": limit, "sortKey": "date", "sortDir": "desc"})
+            resp = await client.get(f"/api/{_API_VERSION[service]}/history", params={"pageSize": limit, "sortKey": "date", "sortDir": "desc"})
             resp.raise_for_status()
             records = resp.json().get("records", [])
             return [

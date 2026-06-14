@@ -8,6 +8,8 @@ resources:
   - lidarr-config-pvc.yaml
   - lidarr-deployment.yaml
   - lidarr-service.yaml
+  - lidarr-ui-deployment.yaml
+  - lidarr-ui-service.yaml
   - bazarr-config-pvc.yaml
   - bazarr-deployment.yaml
   - bazarr-service.yaml
