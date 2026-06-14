@@ -276,11 +276,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image
-        uses: docker/build-push-action@v7
-        with:
-          context: mcp
-          push: true
-          tags: ghcr.io/arishaig/nest-mcp:latest
+        run: |
+          docker build -t ghcr.io/arishaig/nest-mcp:latest mcp/
+          docker push ghcr.io/arishaig/nest-mcp:latest
 
   deploy-mcp:
     needs: [changes, build-mcp]
