@@ -1,0 +1,91 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: sabnzbd
+  namespace: media
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      sabnzbd:
+        strategy: Recreate
+        pod:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 0
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=linuxserver/sabnzbd
+              repository: linuxserver/sabnzbd
+              tag: 5.0.3
+            env:
+              PUID: "0"
+              PGID: "0"
+              TZ: America/Los_Angeles
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["ls", "/data"]
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 15
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 8080
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            # SABnzbd 5.x defaults to a ~1G article cache, so an active queue
+            # blows past a 1Gi limit at startup. Once /incomplete became
+            # persistent (#123) the queue resumed on every boot and the pod
+            # OOM-looped 68 times; pre-#123 restarts wiped the queue, which
+            # hid it. 12Gi gives cache + par2 repair + unpack real headroom.
+            resources:
+              requests:
+                cpu: 100m
+                memory: 1Gi
+              limits:
+                cpu: "4"
+                memory: 12Gi
+    service:
+      app:
+        controller: sabnzbd
+        type: NodePort
+        ports:
+          http:
+            port: 8080
+            targetPort: 8080
+            nodePort: 30800
+    persistence:
+      config:
+        existingClaim: sabnzbd-config
+        advancedMounts:
+          sabnzbd:
+            app:
+              - path: /config
+      data:
+        existingClaim: media-nfs
+        advancedMounts:
+          sabnzbd:
+            app:
+              - path: /data

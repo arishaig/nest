@@ -1,0 +1,131 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prowlarr
+  namespace: media
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      prowlarr:
+        strategy: Recreate
+        pod:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 0
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=linuxserver/prowlarr
+              repository: linuxserver/prowlarr
+              tag: 2.3.5
+            env:
+              PUID: "0"
+              PGID: "0"
+              TZ: America/Los_Angeles
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /ping
+                    port: 9696
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /ping
+                    port: 9696
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+          exportarr:
+            image:
+              # renovate: datasource=docker depName=ghcr.io/onedr0p/exportarr
+              repository: ghcr.io/onedr0p/exportarr
+              tag: v2.3.0
+            args: ["prowlarr"]
+            env:
+              PORT: "9710"
+              URL: http://localhost:9696
+              APIKEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: prowlarr-api-key
+                    key: APIKEY
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 9710
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 9710
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+    service:
+      app:
+        controller: prowlarr
+        type: LoadBalancer
+        annotations:
+          metallb.io/loadBalancerIPs: "192.168.1.116"
+          metallb.io/allow-shared-ip: "metrics"
+        ports:
+          http:
+            port: 9696
+            targetPort: 9696
+            nodePort: 30696
+          metrics:
+            port: 9710
+            targetPort: 9710
+            nodePort: 30710
+    persistence:
+      config:
+        existingClaim: prowlarr-config
+        advancedMounts:
+          prowlarr:
+            app:
+              - path: /config
