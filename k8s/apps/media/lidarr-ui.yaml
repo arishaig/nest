@@ -1,0 +1,75 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: lidarr-ui
+  namespace: media
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      lidarr-ui:
+        strategy: Recreate
+        pod:
+          securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
+        containers:
+          app:
+            # ghcr.io/arishaig/lidarr-ui:latest — own CI image, rolling tag, no annotation.
+            image:
+              repository: ghcr.io/arishaig/lidarr-ui
+              tag: latest
+              pullPolicy: Always
+            env:
+              LIDARR_UI_LIDARR_URL: http://lidarr:8686
+              LIDARR_UI_LIDARR_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: lidarr-api-key
+                    key: APIKEY
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 8080
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 8080
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 20m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+    service:
+      app:
+        controller: lidarr-ui
+        ports:
+          http:
+            port: 8080
+            targetPort: 8080
