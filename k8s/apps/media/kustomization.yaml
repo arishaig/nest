@@ -25,8 +25,7 @@ resources:
   - radarr-config-pvc.yaml
   - radarr-deployment.yaml
   - radarr-service.yaml
-  - flaresolverr-deployment.yaml
-  - flaresolverr-service.yaml
+  - flaresolverr.yaml  # HelmRelease (app-template) — replaces deployment+service
   # --- download clients ---
   - sabnzbd-config-pvc.yaml
   - sabnzbd-deployment.yaml

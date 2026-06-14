@@ -86,7 +86,20 @@
     "managerFilePatterns": ["/k8s/.*\\.yaml/"]
   },
 
+  "flux": {
+    "managerFilePatterns": ["/k8s/.*\\.yaml/"]
+  },
+
   "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Container images inside Helm values (bjw-s app-template) — keyed off a renovate annotation since the flux manager only tracks chart versions, not in-values images",
+      "managerFilePatterns": ["/k8s/.*\\.yaml/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\s+repository:\\s*\\S+\\s+tag:\\s*(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "docker"
+    },
     {
       "customType": "regex",
       "description": "traefik binary version pin in vps.yml",
