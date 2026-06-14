@@ -21,26 +21,10 @@ spec:
           imagePullPolicy: Always
           # Use bash wrapper so we can merge stderr→stdout and see why Python exits.
           # "exec" replaces bash with Python (clean PID 1 / signal handling).
+          # Merge stderr→stdout so all tracebacks appear in Loki.
           command: ["/bin/sh", "-c"]
           args:
-            - |
-              cd /app && python -u -c "
-              import sys
-              sys.stdout.write('step1: python ok\n'); sys.stdout.flush()
-              import flask; sys.stdout.write('step2: flask ok\n'); sys.stdout.flush()
-              import flask_socketio; sys.stdout.write('step3: flask_socketio ok\n'); sys.stdout.flush()
-              import flask_migrate; sys.stdout.write('step4: flask_migrate ok\n'); sys.stdout.flush()
-              import omegaconf; sys.stdout.write('step5: omegaconf ok\n'); sys.stdout.flush()
-              from src.db_models import db; sys.stdout.write('step6: db_models ok\n'); sys.stdout.flush()
-              from src.task_manager import TaskManager; sys.stdout.write('step7: task_manager ok\n'); sys.stdout.flush()
-              from src.socket_events import CommonSocketEvents; sys.stdout.write('step8: socket_events ok\n'); sys.stdout.flush()
-              from src.log_streamer import LogStreamer; sys.stdout.write('step9: log_streamer ok\n'); sys.stdout.flush()
-              from src.app_factory import create_app; sys.stdout.write('step10: create_app imported\n'); sys.stdout.flush()
-              sys.stdout.write('step11: calling create_app\n'); sys.stdout.flush()
-              app, socketio, cfg = create_app('/app')
-              sys.stdout.write('step12: create_app done - starting server\n'); sys.stdout.flush()
-              socketio.run(app, host='0.0.0.0', port=5001, allow_unsafe_werkzeug=True)
-              " 2>&1
+            - "exec python -u app.py 2>&1"
           ports:
             - containerPort: 5001
           env:
