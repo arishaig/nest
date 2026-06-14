@@ -10,6 +10,8 @@
     [x-cloak] { display: none !important; }
     .spin { animation: spin 1s linear infinite; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { color: #e5e7eb; }
   </style>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen" x-data="app()" x-cloak>
@@ -24,53 +26,64 @@
   </div>
 
   <div class="max-w-5xl mx-auto px-4 py-6">
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-white">Music</h1>
-      <div class="flex gap-2">
+
+    <!-- Header + Tabs -->
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-white mb-4">Music</h1>
+      <div class="flex border-b border-gray-800">
         <button @click="tab = 'library'"
-                :class="tab === 'library' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'"
-                class="px-4 py-2 rounded text-sm font-medium transition-colors">Library</button>
+                :class="tab === 'library' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-gray-200'"
+                class="px-5 py-2.5 text-sm font-medium -mb-px transition-colors">
+          Library
+        </button>
         <button @click="tab = 'add'"
-                :class="tab === 'add' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'"
-                class="px-4 py-2 rounded text-sm font-medium transition-colors">+ Add</button>
+                :class="tab === 'add' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-gray-200'"
+                class="px-5 py-2.5 text-sm font-medium -mb-px transition-colors">
+          + Add
+        </button>
       </div>
     </div>
 
     <!-- ── LIBRARY TAB ── -->
     <div x-show="tab === 'library'">
-      <!-- Controls -->
+
+      <!-- Toolbar -->
       <div class="flex items-center gap-3 mb-4">
         <span class="text-sm text-gray-400" x-text="artists.length + ' artists'"></span>
-        <span class="text-sm text-gray-400">·</span>
-        <select x-model="sortKey" class="bg-gray-800 text-gray-200 text-sm rounded px-2 py-1 border border-gray-700">
-          <option value="sizeOnDisk">Sort by size</option>
-          <option value="albumCount">Sort by albums</option>
-          <option value="name">Sort by name</option>
-        </select>
-        <button @click="sortDir = sortDir === 'desc' ? 'asc' : 'desc'"
-                class="text-gray-400 hover:text-white text-sm px-2 py-1 rounded bg-gray-800 border border-gray-700">
-          <span x-text="sortDir === 'desc' ? '↓' : '↑'"></span>
-        </button>
-        <button @click="loadArtists()"
-                class="ml-auto text-sm text-gray-400 hover:text-white">
-          <svg x-show="loadingArtists" class="spin inline w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        <button @click="loadArtists()" class="ml-auto text-sm text-gray-400 hover:text-white flex items-center gap-1">
+          <svg x-show="loadingArtists" class="spin w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
-          <span x-show="!loadingArtists">↺ Refresh</span>
+          <span>↺ Refresh</span>
         </button>
       </div>
 
       <!-- Artist table -->
       <div class="rounded-lg overflow-hidden border border-gray-800">
-        <table class="w-full text-sm">
+        <table class="w-full text-sm table-fixed">
+          <colgroup>
+            <col style="width:42%">
+            <col style="width:9%">
+            <col style="width:9%">
+            <col style="width:12%">
+            <col style="width:28%">
+          </colgroup>
           <thead>
             <tr class="bg-gray-900 text-gray-400 text-left">
-              <th class="px-4 py-2 font-medium">Artist</th>
-              <th class="px-4 py-2 font-medium text-right">Albums</th>
-              <th class="px-4 py-2 font-medium text-right">Files</th>
-              <th class="px-4 py-2 font-medium text-right">Size</th>
-              <th class="px-4 py-2 font-medium"></th>
+              <th class="sortable px-4 py-2.5 font-medium" @click="sortBy('name')">
+                Artist <span x-text="sortIndicator('name')"></span>
+              </th>
+              <th class="sortable px-3 py-2.5 font-medium text-right" @click="sortBy('albumCount')">
+                Albums <span x-text="sortIndicator('albumCount')"></span>
+              </th>
+              <th class="sortable px-3 py-2.5 font-medium text-right" @click="sortBy('trackFileCount')">
+                Files <span x-text="sortIndicator('trackFileCount')"></span>
+              </th>
+              <th class="sortable px-3 py-2.5 font-medium text-right" @click="sortBy('sizeOnDisk')">
+                Size <span x-text="sortIndicator('sizeOnDisk')"></span>
+              </th>
+              <th class="px-3 py-2.5 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -82,30 +95,55 @@
                 <!-- Artist row -->
                 <tr class="border-t border-gray-800 cursor-pointer hover:bg-gray-900 transition-colors"
                     @click="toggleArtist(a.id)">
-                  <td class="px-4 py-3">
-                    <div class="flex items-center gap-2">
+                  <td class="px-4 py-2.5">
+                    <div class="flex items-center gap-2 min-w-0">
                       <svg class="w-3 h-3 text-gray-500 flex-shrink-0 transition-transform"
                            :class="expandedArtistId === a.id ? 'rotate-90' : ''"
                            fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M7.293 4.707a1 1 0 011.414 0L14 10l-5.293 5.293a1 1 0 01-1.414-1.414L11.586 10 6.586 5.414a1 1 0 010-1.707z" clip-rule="evenodd"/>
+                        <path fill-rule="evenodd"
+                              d="M7.293 4.707a1 1 0 011.414 0L14 10l-5.293 5.293a1 1 0 01-1.414-1.414L11.586 10 6.586 5.414a1 1 0 010-1.707z"
+                              clip-rule="evenodd"/>
                       </svg>
-                      <span class="font-medium" x-text="a.name"></span>
+                      <template x-if="a.poster">
+                        <img :src="'/api/image?path=' + encodeURIComponent(a.poster)"
+                             class="w-8 h-8 rounded-full object-cover flex-shrink-0 bg-gray-800"
+                             loading="lazy" />
+                      </template>
+                      <template x-if="!a.poster">
+                        <div class="w-8 h-8 rounded-full bg-gray-800 flex-shrink-0 flex items-center justify-center text-gray-600 text-xs font-bold"
+                             x-text="a.name[0]"></div>
+                      </template>
+                      <span class="font-medium truncate" x-text="a.name"></span>
                     </div>
                   </td>
-                  <td class="px-4 py-3 text-right text-gray-300" x-text="a.albumCount"></td>
-                  <td class="px-4 py-3 text-right text-gray-300" x-text="a.trackFileCount"></td>
-                  <td class="px-4 py-3 text-right text-gray-300" x-text="fmtSize(a.sizeOnDisk)"></td>
-                  <td class="px-4 py-3 text-right">
+                  <td class="px-3 py-2.5 text-right text-gray-300 tabular-nums" x-text="a.albumCount"></td>
+                  <td class="px-3 py-2.5 text-right text-gray-300 tabular-nums" x-text="a.trackFileCount"></td>
+                  <td class="px-3 py-2.5 text-right text-gray-300 tabular-nums" x-text="fmtSize(a.sizeOnDisk)"></td>
+                  <td class="px-3 py-2.5 text-right">
                     <button @click.stop="confirmDeleteArtist(a)"
                             class="text-xs px-2 py-1 rounded bg-red-900 hover:bg-red-700 text-red-200 transition-colors">
                       Remove
                     </button>
                   </td>
                 </tr>
+
                 <!-- Album sub-table -->
-                <tr x-show="expandedArtistId === a.id" class="bg-gray-950">
-                  <td colspan="5" class="pb-2">
-                    <div class="mx-4 rounded border border-gray-800 overflow-hidden">
+                <tr x-show="expandedArtistId === a.id" class="bg-gray-950 border-t border-gray-800">
+                  <td colspan="5" class="px-4 pb-3 pt-1">
+
+                    <!-- Bulk action bar -->
+                    <div x-show="checkedAlbumFiles.size > 0"
+                         class="flex items-center gap-3 mb-2 px-2 py-1.5 rounded bg-indigo-950 border border-indigo-800 text-xs">
+                      <span class="text-indigo-300" x-text="checkedAlbumFiles.size + ' album(s) selected'"></span>
+                      <button @click="bulkDeleteFiles(a)"
+                              class="px-2.5 py-1 rounded bg-red-800 hover:bg-red-600 text-red-100 font-medium transition-colors">
+                        Delete files for selected
+                      </button>
+                      <button @click="checkedAlbumFiles = new Set()"
+                              class="text-gray-400 hover:text-white ml-auto">Clear</button>
+                    </div>
+
+                    <div class="rounded border border-gray-800 overflow-hidden">
                       <template x-if="!albumsByArtist[a.id]">
                         <div class="px-4 py-3 text-gray-500 text-xs">Loading…</div>
                       </template>
@@ -113,38 +151,98 @@
                         <div class="px-4 py-3 text-gray-500 text-xs">No albums on disk.</div>
                       </template>
                       <template x-if="albumsByArtist[a.id] && albumsByArtist[a.id].length > 0">
-                        <table class="w-full text-xs">
+                        <table class="w-full text-xs table-fixed">
+                          <colgroup>
+                            <col style="width:4%">
+                            <col style="width:6%">
+                            <col style="width:38%">
+                            <col style="width:10%">
+                            <col style="width:8%">
+                            <col style="width:8%">
+                            <col style="width:10%">
+                            <col style="width:16%">
+                          </colgroup>
                           <thead>
                             <tr class="bg-gray-900 text-gray-500">
-                              <th class="px-3 py-1 text-left font-medium">Title</th>
-                              <th class="px-3 py-1 text-left font-medium">Type</th>
-                              <th class="px-3 py-1 text-right font-medium">Year</th>
-                              <th class="px-3 py-1 text-right font-medium">Files</th>
-                              <th class="px-3 py-1 text-right font-medium">Size</th>
-                              <th class="px-3 py-1 font-medium"></th>
+                              <th class="px-2 py-1.5 text-center">
+                                <input type="checkbox"
+                                       :checked="allFilesChecked(a.id)"
+                                       :indeterminate="someFilesChecked(a.id)"
+                                       @change="toggleAllFiles(a.id, $event.target.checked)"
+                                       class="accent-indigo-500 w-3 h-3"
+                                       title="Select all albums with files for bulk deletion" />
+                              </th>
+                              <th class="px-1 py-1.5"></th>
+                              <th class="sortable px-2 py-1.5 text-left font-medium"
+                                  @click="albumSortBy('title')">
+                                Title <span x-text="albumSortIndicator('title')"></span>
+                              </th>
+                              <th class="sortable px-2 py-1.5 text-left font-medium"
+                                  @click="albumSortBy('albumType')">
+                                Type <span x-text="albumSortIndicator('albumType')"></span>
+                              </th>
+                              <th class="sortable px-2 py-1.5 text-right font-medium"
+                                  @click="albumSortBy('year')">
+                                Year <span x-text="albumSortIndicator('year')"></span>
+                              </th>
+                              <th class="sortable px-2 py-1.5 text-right font-medium"
+                                  @click="albumSortBy('trackFileCount')">
+                                Files <span x-text="albumSortIndicator('trackFileCount')"></span>
+                              </th>
+                              <th class="sortable px-2 py-1.5 text-right font-medium"
+                                  @click="albumSortBy('sizeOnDisk')">
+                                Size <span x-text="albumSortIndicator('sizeOnDisk')"></span>
+                              </th>
+                              <th class="px-2 py-1.5"></th>
                             </tr>
                           </thead>
                           <tbody>
-                            <template x-for="al in albumsByArtist[a.id]" :key="al.id">
-                              <tr class="border-t border-gray-800">
-                                <td class="px-3 py-1.5">
-                                  <label class="flex items-center gap-1.5 cursor-pointer">
+                            <template x-for="al in sortedAlbums(a.id)" :key="al.id">
+                              <tr class="border-t border-gray-800 hover:bg-gray-900">
+                                <td class="px-2 py-2 text-center">
+                                  <template x-if="al.trackFileCount > 0">
+                                    <input type="checkbox"
+                                           :checked="checkedAlbumFiles.has(al.id)"
+                                           @change="toggleFileCheck(al.id, $event.target.checked)"
+                                           class="accent-indigo-500 w-3 h-3" />
+                                  </template>
+                                </td>
+                                <td class="px-1 py-2">
+                                  <template x-if="al.cover">
+                                    <img :src="'/api/image?path=' + encodeURIComponent(al.cover)"
+                                         class="w-7 h-7 object-cover rounded bg-gray-800"
+                                         loading="lazy" />
+                                  </template>
+                                  <template x-if="!al.cover">
+                                    <div class="w-7 h-7 rounded bg-gray-800"></div>
+                                  </template>
+                                </td>
+                                <td class="px-2 py-2">
+                                  <label class="flex items-center gap-1.5 cursor-pointer min-w-0">
                                     <input type="checkbox" :checked="al.monitored"
                                            @change="toggleMonitor(al, $event.target.checked)"
-                                           class="accent-indigo-500 w-3 h-3" />
-                                    <span x-text="al.title"></span>
+                                           class="accent-indigo-500 w-3 h-3 flex-shrink-0"
+                                           title="Monitored — Lidarr will grab new releases for this album" />
+                                    <span class="truncate" x-text="al.title"></span>
                                   </label>
                                 </td>
-                                <td class="px-3 py-1.5 text-gray-500" x-text="al.albumType"></td>
-                                <td class="px-3 py-1.5 text-right text-gray-400" x-text="al.year"></td>
-                                <td class="px-3 py-1.5 text-right text-gray-400" x-text="al.trackFileCount"></td>
-                                <td class="px-3 py-1.5 text-right text-gray-400" x-text="fmtSize(al.sizeOnDisk)"></td>
-                                <td class="px-3 py-1.5 text-right">
-                                  <button x-show="al.trackFileCount > 0"
-                                          @click="deleteAlbumFiles(al, a)"
-                                          class="text-xs px-1.5 py-0.5 rounded bg-red-900 hover:bg-red-700 text-red-200 transition-colors">
-                                    Del files
-                                  </button>
+                                <td class="px-2 py-2 text-gray-500 truncate" x-text="al.albumType"></td>
+                                <td class="px-2 py-2 text-right text-gray-400 tabular-nums" x-text="al.year"></td>
+                                <td class="px-2 py-2 text-right text-gray-400 tabular-nums" x-text="al.trackFileCount"></td>
+                                <td class="px-2 py-2 text-right text-gray-400 tabular-nums" x-text="fmtSize(al.sizeOnDisk)"></td>
+                                <td class="px-2 py-2 text-right space-x-1">
+                                  <template x-if="al.trackFileCount > 0">
+                                    <button @click="deleteAlbumFiles(al, a)"
+                                            class="text-xs px-1.5 py-0.5 rounded bg-red-900 hover:bg-red-700 text-red-200 transition-colors whitespace-nowrap">
+                                      Delete files
+                                    </button>
+                                  </template>
+                                  <template x-if="al.trackFileCount === 0">
+                                    <button @click="downloadAlbum(al, a)"
+                                            class="text-xs px-1.5 py-0.5 rounded bg-indigo-900 hover:bg-indigo-700 text-indigo-200 transition-colors whitespace-nowrap">
+                                      Download
+                                    </button>
+                                  </template>
                                 </td>
                               </tr>
                             </template>
@@ -176,22 +274,31 @@
           <div class="text-sm text-gray-400">Searching…</div>
         </template>
         <template x-for="r in searchResults" :key="r.foreignArtistId">
-          <div class="flex items-center justify-between p-3 rounded-lg bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors">
-            <div>
-              <div class="font-medium text-sm" x-text="r.name + (r.disambiguation ? ' (' + r.disambiguation + ')' : '')"></div>
+          <div class="flex items-center gap-3 p-3 rounded-lg bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors">
+            <template x-if="r.poster">
+              <img :src="'/api/image?path=' + encodeURIComponent(r.poster)"
+                   class="w-12 h-12 rounded-full object-cover flex-shrink-0 bg-gray-800" loading="lazy" />
+            </template>
+            <template x-if="!r.poster">
+              <div class="w-12 h-12 rounded-full bg-gray-800 flex-shrink-0 flex items-center justify-center text-gray-600 font-bold"
+                   x-text="r.name[0]"></div>
+            </template>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-sm truncate"
+                   x-text="r.name + (r.disambiguation ? ' (' + r.disambiguation + ')' : '')"></div>
               <div class="text-xs text-gray-400 mt-0.5 line-clamp-2" x-text="r.overview"></div>
               <div x-show="r.inLibrary" class="text-xs text-emerald-400 mt-0.5">Already in library</div>
             </div>
-            <button @click="selectArtist(r)"
+            <button @click="r.inLibrary ? goToLibraryArtist(r) : selectArtist(r)"
                     :class="r.inLibrary ? 'bg-gray-700 hover:bg-gray-600' : 'bg-indigo-600 hover:bg-indigo-500'"
-                    class="ml-4 flex-shrink-0 text-sm px-3 py-1.5 rounded text-white transition-colors">
-              <span x-text="r.inLibrary ? 'Edit' : 'Add'"></span>
+                    class="ml-2 flex-shrink-0 text-sm px-3 py-1.5 rounded text-white transition-colors">
+              <span x-text="r.inLibrary ? 'Go to library' : 'Add'"></span>
             </button>
           </div>
         </template>
       </div>
 
-      <!-- Album picker -->
+      <!-- Album picker (after artist is added) -->
       <div x-show="selectedArtist">
         <div class="flex items-center gap-3 mb-4">
           <button @click="selectedArtist = null; addedArtistId = null; lookupAlbums = []; checkedAlbums = new Set()"
@@ -217,30 +324,49 @@
             </div>
 
             <div class="rounded-lg overflow-hidden border border-gray-800 mb-4">
-              <table class="w-full text-sm">
+              <table class="w-full text-sm table-fixed">
+                <colgroup>
+                  <col style="width:5%">
+                  <col style="width:6%">
+                  <col style="width:47%">
+                  <col style="width:17%">
+                  <col style="width:11%">
+                  <col style="width:14%">
+                </colgroup>
                 <thead>
                   <tr class="bg-gray-900 text-gray-400 text-left">
-                    <th class="px-4 py-2 w-8"></th>
-                    <th class="px-4 py-2 font-medium">Album</th>
-                    <th class="px-4 py-2 font-medium">Type</th>
-                    <th class="px-4 py-2 font-medium text-right">Year</th>
-                    <th class="px-4 py-2 font-medium text-right">Tracks</th>
+                    <th class="px-3 py-2 w-8"></th>
+                    <th class="px-1 py-2"></th>
+                    <th class="px-3 py-2 font-medium">Album</th>
+                    <th class="px-3 py-2 font-medium">Type</th>
+                    <th class="px-3 py-2 font-medium text-right">Year</th>
+                    <th class="px-3 py-2 font-medium text-right">Tracks</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <template x-for="al in lookupAlbums" :key="al.foreignAlbumId">
+                  <template x-for="al in lookupAlbums" :key="al.id">
                     <tr class="border-t border-gray-800 cursor-pointer hover:bg-gray-900"
                         @click="toggleCheck(al.id)">
-                      <td class="px-4 py-2.5">
+                      <td class="px-3 py-2.5 text-center">
                         <input type="checkbox"
                                :checked="checkedAlbums.has(al.id)"
                                @click.stop="toggleCheck(al.id)"
                                class="accent-indigo-500" />
                       </td>
-                      <td class="px-4 py-2.5 font-medium" x-text="al.title"></td>
-                      <td class="px-4 py-2.5 text-gray-400" x-text="al.albumType"></td>
-                      <td class="px-4 py-2.5 text-right text-gray-400" x-text="al.year"></td>
-                      <td class="px-4 py-2.5 text-right text-gray-400" x-text="al.trackCount"></td>
+                      <td class="px-1 py-2.5">
+                        <template x-if="al.cover">
+                          <img :src="'/api/image?path=' + encodeURIComponent(al.cover)"
+                               class="w-8 h-8 object-cover rounded bg-gray-800"
+                               loading="lazy" />
+                        </template>
+                        <template x-if="!al.cover">
+                          <div class="w-8 h-8 rounded bg-gray-800"></div>
+                        </template>
+                      </td>
+                      <td class="px-3 py-2.5 font-medium truncate" x-text="al.title"></td>
+                      <td class="px-3 py-2.5 text-gray-400" x-text="al.albumType"></td>
+                      <td class="px-3 py-2.5 text-right text-gray-400 tabular-nums" x-text="al.year"></td>
+                      <td class="px-3 py-2.5 text-right text-gray-400 tabular-nums" x-text="al.trackCount"></td>
                     </tr>
                   </template>
                 </tbody>
@@ -254,7 +380,7 @@
                 <span x-show="!adding">Add <span x-text="checkedAlbums.size"></span> album<span x-show="checkedAlbums.size !== 1">s</span></span>
                 <span x-show="adding">Adding…</span>
               </button>
-              <button @click="selectedArtist = null; lookupAlbums = []; checkedAlbums = new Set()"
+              <button @click="selectedArtist = null; addedArtistId = null; lookupAlbums = []; checkedAlbums = new Set()"
                       class="px-4 py-2 rounded bg-gray-800 hover:bg-gray-700 text-sm text-gray-300 transition-colors">Cancel</button>
             </div>
           </div>
@@ -262,7 +388,7 @@
       </div>
     </div>
 
-    <!-- Delete artist confirmation modal -->
+    <!-- ── Remove Artist modal ── -->
     <div x-show="deleteTarget" class="fixed inset-0 z-40 flex items-center justify-center bg-black/60">
       <div class="bg-gray-900 rounded-lg border border-gray-700 p-6 w-96 shadow-xl" @click.stop>
         <h3 class="text-base font-semibold mb-1">Remove artist?</h3>
@@ -311,11 +437,18 @@
         sortKey: 'sizeOnDisk',
         sortDir: 'desc',
 
-        // Delete modal state
+        // Album sub-table sort
+        albumSortKey: 'year',
+        albumSortDir: 'desc',
+
+        // Bulk album file selection (for currently expanded artist)
+        checkedAlbumFiles: new Set(),
+
+        // Delete artist modal
         deleteTarget: null,
         deleteExclude: true,
 
-        // Add state
+        // Add tab state
         searchQuery: '',
         searchResults: [],
         searching: false,
@@ -329,6 +462,8 @@
         // Toast
         toasts: [],
 
+        // ── Computed ──────────────────────────────────────────────
+
         get sortedArtists() {
           const dir = this.sortDir === 'desc' ? -1 : 1;
           return [...this.artists].sort((a, b) => {
@@ -336,6 +471,51 @@
             return dir * (a[this.sortKey] - b[this.sortKey]);
           });
         },
+
+        sortedAlbums(artistId) {
+          const albums = this.albumsByArtist[artistId] || [];
+          const dir = this.albumSortDir === 'desc' ? -1 : 1;
+          return [...albums].sort((a, b) => {
+            const k = this.albumSortKey;
+            if (k === 'title' || k === 'albumType' || k === 'year')
+              return dir * (a[k] || '').localeCompare(b[k] || '');
+            return dir * ((a[k] || 0) - (b[k] || 0));
+          });
+        },
+
+        sortIndicator(key) {
+          if (this.sortKey !== key) return '';
+          return this.sortDir === 'desc' ? ' ↓' : ' ↑';
+        },
+
+        albumSortIndicator(key) {
+          if (this.albumSortKey !== key) return '';
+          return this.albumSortDir === 'desc' ? ' ↓' : ' ↑';
+        },
+
+        allFilesChecked(artistId) {
+          const withFiles = (this.albumsByArtist[artistId] || []).filter(a => a.trackFileCount > 0);
+          return withFiles.length > 0 && withFiles.every(a => this.checkedAlbumFiles.has(a.id));
+        },
+
+        someFilesChecked(artistId) {
+          const withFiles = (this.albumsByArtist[artistId] || []).filter(a => a.trackFileCount > 0);
+          return withFiles.some(a => this.checkedAlbumFiles.has(a.id)) && !this.allFilesChecked(artistId);
+        },
+
+        // ── Sort actions ──────────────────────────────────────────
+
+        sortBy(key) {
+          if (this.sortKey === key) this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc';
+          else { this.sortKey = key; this.sortDir = key === 'name' ? 'asc' : 'desc'; }
+        },
+
+        albumSortBy(key) {
+          if (this.albumSortKey === key) this.albumSortDir = this.albumSortDir === 'desc' ? 'asc' : 'desc';
+          else { this.albumSortKey = key; this.albumSortDir = key === 'title' || key === 'albumType' ? 'asc' : 'desc'; }
+        },
+
+        // ── Library actions ───────────────────────────────────────
 
         async init() {
           await this.loadArtists();
@@ -356,9 +536,11 @@
         async toggleArtist(id) {
           if (this.expandedArtistId === id) {
             this.expandedArtistId = null;
+            this.checkedAlbumFiles = new Set();
             return;
           }
           this.expandedArtistId = id;
+          this.checkedAlbumFiles = new Set();
           if (!this.albumsByArtist[id]) {
             try {
               const r = await fetch(`/api/artists/${id}/albums`);
@@ -366,6 +548,39 @@
             } catch {
               this.albumsByArtist = { ...this.albumsByArtist, [id]: [] };
             }
+          }
+        },
+
+        toggleFileCheck(albumId, checked) {
+          const s = new Set(this.checkedAlbumFiles);
+          if (checked) s.add(albumId); else s.delete(albumId);
+          this.checkedAlbumFiles = s;
+        },
+
+        toggleAllFiles(artistId, checked) {
+          const withFiles = (this.albumsByArtist[artistId] || []).filter(a => a.trackFileCount > 0);
+          const s = new Set(this.checkedAlbumFiles);
+          withFiles.forEach(a => checked ? s.add(a.id) : s.delete(a.id));
+          this.checkedAlbumFiles = s;
+        },
+
+        async bulkDeleteFiles(artist) {
+          const ids = [...this.checkedAlbumFiles];
+          if (!ids.length) return;
+          if (!confirm(`Delete files for ${ids.length} album(s)? Albums stay in the library unmonitored.`)) return;
+          try {
+            await fetch('/api/albums/bulk/files', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ albumIds: ids }),
+            });
+            this.checkedAlbumFiles = new Set();
+            const r = await fetch(`/api/artists/${artist.id}/albums`);
+            this.albumsByArtist = { ...this.albumsByArtist, [artist.id]: await r.json() };
+            await this.loadArtists();
+            this.toast(`Deleted files for ${ids.length} album(s)`);
+          } catch {
+            this.toast('Bulk delete failed', 'error');
           }
         },
 
@@ -380,7 +595,7 @@
           try {
             await fetch(`/api/artists/${a.id}?deleteFiles=true&addImportExclusion=${this.deleteExclude}`, { method: 'DELETE' });
             this.artists = this.artists.filter(x => x.id !== a.id);
-            if (this.expandedArtistId === a.id) this.expandedArtistId = null;
+            if (this.expandedArtistId === a.id) { this.expandedArtistId = null; this.checkedAlbumFiles = new Set(); }
             this.toast(`Removed ${a.name}`);
           } catch {
             this.toast(`Failed to remove ${a.name}`, 'error');
@@ -388,17 +603,29 @@
         },
 
         async deleteAlbumFiles(album, artist) {
-          if (!confirm(`Delete files for "${album.title}"? The album will remain in the library unmonitored.`)) return;
+          if (!confirm(`Delete files for "${album.title}"? The album stays in the library.`)) return;
           try {
             await fetch(`/api/albums/${album.id}/files`, { method: 'DELETE' });
-            // Refresh album list
             const r = await fetch(`/api/artists/${artist.id}/albums`);
             this.albumsByArtist = { ...this.albumsByArtist, [artist.id]: await r.json() };
-            // Update artist stats
             await this.loadArtists();
             this.toast(`Deleted files for "${album.title}"`);
           } catch {
             this.toast(`Failed to delete files for "${album.title}"`, 'error');
+          }
+        },
+
+        async downloadAlbum(album, artist) {
+          try {
+            await fetch(`/api/albums/${album.id}/download`, { method: 'POST' });
+            // Optimistically update monitored state
+            const updated = (this.albumsByArtist[artist.id] || []).map(a =>
+              a.id === album.id ? { ...a, monitored: true } : a
+            );
+            this.albumsByArtist = { ...this.albumsByArtist, [artist.id]: updated };
+            this.toast(`Searching for "${album.title}"…`);
+          } catch {
+            this.toast(`Failed to queue "${album.title}"`, 'error');
           }
         },
 
@@ -415,6 +642,8 @@
           }
         },
 
+        // ── Add tab actions ───────────────────────────────────────
+
         async searchArtists() {
           const q = this.searchQuery.trim();
           if (!q) { this.searchResults = []; return; }
@@ -426,6 +655,24 @@
             this.toast('Search failed', 'error');
           } finally {
             this.searching = false;
+          }
+        },
+
+        async goToLibraryArtist(result) {
+          this.tab = 'library';
+          this.searchQuery = '';
+          this.searchResults = [];
+          if (!this.artists.length) await this.loadArtists();
+          const id = result.libraryId;
+          this.expandedArtistId = id;
+          this.checkedAlbumFiles = new Set();
+          if (!this.albumsByArtist[id]) {
+            try {
+              const r = await fetch(`/api/artists/${id}/albums`);
+              this.albumsByArtist = { ...this.albumsByArtist, [id]: await r.json() };
+            } catch {
+              this.albumsByArtist = { ...this.albumsByArtist, [id]: [] };
+            }
           }
         },
 
@@ -492,6 +739,8 @@
             this.adding = false;
           }
         },
+
+        // ── Utilities ─────────────────────────────────────────────
 
         toast(msg, type = 'success') {
           const id = Date.now();

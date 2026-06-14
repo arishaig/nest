@@ -3,7 +3,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 from pydantic import BaseModel
@@ -15,6 +15,13 @@ _client: LidarrClient | None = None
 _defaults: dict = {}
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def _find_image(images: list[dict], cover_type: str) -> str:
+    for img in images:
+        if img.get("coverType") == cover_type:
+            return img.get("url", "")
+    return ""
 
 
 @asynccontextmanager
@@ -59,6 +66,19 @@ async def index(request: Request):
     return TEMPLATES.TemplateResponse(request, "index.html", {"defaults": _defaults})
 
 
+@app.get("/api/image")
+async def proxy_image(path: str = Query(...)):
+    try:
+        r = await client()._client.get(path)
+        return Response(
+            content=r.content,
+            media_type=r.headers.get("content-type", "image/jpeg"),
+            headers={"Cache-Control": "max-age=86400"},
+        )
+    except Exception:
+        return Response(status_code=404)
+
+
 @app.get("/api/artists")
 async def list_artists():
     artists = await client().get_artists()
@@ -74,6 +94,7 @@ async def list_artists():
             "sizeOnDisk": stats.get("sizeOnDisk", 0),
             "monitored": a.get("monitored", False),
             "path": a.get("path", ""),
+            "poster": _find_image(a.get("images", []), "poster"),
         })
     return sorted(result, key=lambda x: x["sizeOnDisk"], reverse=True)
 
@@ -93,6 +114,7 @@ async def list_albums(artist_id: int):
             "monitored": a.get("monitored", False),
             "trackFileCount": stats.get("trackFileCount", 0),
             "sizeOnDisk": stats.get("sizeOnDisk", 0),
+            "cover": _find_image(a.get("images", []), "cover"),
         })
     return sorted(result, key=lambda x: x.get("year", ""), reverse=True)
 
@@ -113,6 +135,17 @@ async def delete_album_files(album_id: int):
     return {"ok": True}
 
 
+class BulkAlbumFilesPayload(BaseModel):
+    albumIds: list[int]
+
+
+@app.delete("/api/albums/bulk/files")
+async def delete_bulk_album_files(body: BulkAlbumFilesPayload):
+    for album_id in body.albumIds:
+        await client().delete_album_files(album_id)
+    return {"deleted": len(body.albumIds)}
+
+
 class MonitorPayload(BaseModel):
     monitored: bool
 
@@ -120,6 +153,14 @@ class MonitorPayload(BaseModel):
 @app.put("/api/albums/{album_id}/monitor")
 async def set_album_monitored(album_id: int, body: MonitorPayload):
     await client().set_albums_monitored([album_id], body.monitored)
+    return {"ok": True}
+
+
+@app.post("/api/albums/{album_id}/download")
+async def download_album(album_id: int):
+    c = client()
+    await c.set_albums_monitored([album_id], True)
+    await c.trigger_album_search([album_id])
     return {"ok": True}
 
 
@@ -132,7 +173,7 @@ async def search_artists(q: str = Query(..., min_length=1)):
             "name": a.get("artistName", ""),
             "disambiguation": a.get("disambiguation", ""),
             "overview": (a.get("overview") or "")[:200],
-            "images": a.get("images", []),
+            "poster": _find_image(a.get("images", []), "poster"),
             "inLibrary": a.get("id") is not None,
             "libraryId": a.get("id"),
         }
@@ -172,6 +213,7 @@ async def add_artist(body: AddArtistPayload):
             "year": a.get("releaseDate", "")[:4] if a.get("releaseDate") else "",
             "albumType": a.get("albumType", ""),
             "trackCount": a.get("statistics", {}).get("trackCount", 0),
+            "cover": _find_image(a.get("images", []), "cover"),
         }
         for a in albums
     ]
