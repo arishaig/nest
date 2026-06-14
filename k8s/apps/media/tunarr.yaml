@@ -1,0 +1,57 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tunarr
+  namespace: media
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      tunarr:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=chrisbenincasa/tunarr
+              repository: chrisbenincasa/tunarr
+              tag: 1.3.5
+            env:
+              TZ: America/Los_Angeles
+              TUNARR_DATABASE_PATH: /config/tunarr
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+    service:
+      app:
+        controller: tunarr
+        type: NodePort
+        ports:
+          http:
+            port: 8000
+            targetPort: 8000
+            nodePort: 30802
+    persistence:
+      config:
+        existingClaim: tunarr-config
+        advancedMounts:
+          tunarr:
+            app:
+              - path: /config/tunarr
