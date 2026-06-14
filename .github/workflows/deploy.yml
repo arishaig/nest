@@ -23,6 +23,7 @@ jobs:
       k8s: ${{ steps.filter.outputs.k8s }}
       terraform: ${{ steps.filter.outputs.terraform }}
       mcp: ${{ steps.filter.outputs.mcp }}
+      lidarr_ui: ${{ steps.filter.outputs.lidarr_ui }}
     steps:
       - uses: actions/checkout@v6.0.3
       - uses: dorny/paths-filter@v4.0.1
@@ -52,6 +53,8 @@ jobs:
               - 'terraform/**'
             mcp:
               - 'mcp/**'
+            lidarr_ui:
+              - 'lidarr-ui/**'
 
   deploy-docker:
     needs: changes
@@ -299,4 +302,47 @@ jobs:
             kubectl rollout restart deployment/nest-mcp -n nest-mcp
           else
             echo "Deployment not yet created by Flux — skipping rollout restart"
+          fi
+
+  build-lidarr-ui:
+    needs: changes
+    if: needs.changes.outputs.lidarr_ui == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6.0.3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        run: |
+          docker build -t ghcr.io/arishaig/lidarr-ui:latest lidarr-ui/
+          docker push ghcr.io/arishaig/lidarr-ui:latest
+
+  deploy-lidarr-ui:
+    needs: [changes, build-lidarr-ui]
+    if: needs.changes.outputs.lidarr_ui == 'true'
+    runs-on: self-hosted
+    steps:
+      - name: Write kubeconfig
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.kube"
+          printf '%s' "${{ secrets.KUBECONFIG_TALOS }}" > "$RUNNER_TEMP/.kube/config"
+          chmod 600 "$RUNNER_TEMP/.kube/config"
+
+      - name: Rollout restart
+        env:
+          KUBECONFIG: "${{ runner.temp }}/.kube/config"
+        run: |
+          if kubectl get deployment/lidarr-ui -n media &>/dev/null; then
+            kubectl rollout restart deployment/lidarr-ui -n media
+          else
+            echo "Deployment not yet applied by Flux — skipping rollout restart"
           fi

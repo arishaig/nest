@@ -340,3 +340,21 @@ spec:
         - name: watcharr
           port: 3080
   tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: lidarr-ui
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`music.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: lidarr-ui
+          port: 8080
+  tls: {}
