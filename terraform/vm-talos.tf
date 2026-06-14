@@ -38,10 +38,11 @@ resource "proxmox_virtual_environment_vm" "talos" {
   }
 
   memory {
-    # 32GB: alpha runs every workload (beta/gamma are control-plane-only
-    # 4GB test VMs). Host budget after this bump: ~13GB available of 101GB
-    # — keep margin, the host OOM-killed the PBS VM when it hit zero.
-    dedicated = 32768
+    # 24GB: host has 94GB usable; 66GB committed to other VMs/LXCs/ARC
+    # with alpha stopped, leaving ~28GB. 24GB for alpha gives ~4GB headroom.
+    # (Was 32GB; reduced 2026-06-14 after OOM kills when Anagnorisis loaded
+    # CLAP+Jina models pushed alpha's actual usage over the host limit.)
+    dedicated = 24576
   }
 
   efi_disk {
