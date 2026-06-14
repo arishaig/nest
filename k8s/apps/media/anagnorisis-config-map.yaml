@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: anagnorisis-config
+  namespace: media
+data:
+  config.yaml: |
+    main:
+      host: 0.0.0.0
+      port: 5001
+      flask_secret_key: "${oc.env:FLASK_SECRET_KEY}"
+      project_config_directory: /config
+
+    music:
+      media_directory: /music
+      media_formats:
+        - .mp3
+        - .flac
+        - .wav
+        - .ogg
+        - .aac
+        - .m4a
+        - .opus
+      rating_update_interval_minutes: 30
+      rating_update_batch_size: 100
+      description_update_interval_minutes: null  # omni disabled on CPU
+      description_update_batch_size: null
+
+    # Non-music modules disabled (no media directories configured)
+    images:
+      media_directory: null
+    videos:
+      media_directory: null
+    text:
+      media_directory: null
+
+    audio_embedder:
+      model_name: "laion/clap-htsat-fused"
+      device: cpu
+
+    image_embedder:
+      model_name: "google/siglip-base-patch16-224"
+      device: cpu
+
+    text_embedder:
+      model_name: "jinaai/jina-embeddings-v3"
+      device: cpu
+      chunk_size: 384
+      chunk_overlap: 128
+      embedding_dimension: 1024
+
+    omni:
+      model_name: null  # disabled — GPU required for practical use

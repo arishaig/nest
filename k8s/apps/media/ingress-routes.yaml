@@ -358,3 +358,21 @@ spec:
         - name: lidarr-ui
           port: 8080
   tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: anagnorisis
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`anagnorisis.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: anagnorisis
+          port: 5001
+  tls: {}
