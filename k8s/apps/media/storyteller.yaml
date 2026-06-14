@@ -1,0 +1,72 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: storyteller
+  namespace: media
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      storyteller:
+        strategy: Recreate
+        containers:
+          app:
+            # registry.gitlab.com/storyteller-platform/storyteller:latest — private
+            # GitLab registry + rolling tag, Renovate intentionally disabled.
+            image:
+              repository: registry.gitlab.com/storyteller-platform/storyteller
+              tag: latest
+            env:
+              STORYTELLER_DB_DIR: /config
+              STORYTELLER_DATA_DIR: /data
+              STORYTELLER_SECRET_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: storyteller-secret
+                    key: SECRET_KEY
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+    service:
+      app:
+        controller: storyteller
+        type: NodePort
+        ports:
+          http:
+            port: 8001
+            targetPort: 8001
+            nodePort: 30810
+    persistence:
+      config:
+        existingClaim: storyteller-config
+        advancedMounts:
+          storyteller:
+            app:
+              - path: /config
+      media:
+        existingClaim: media-nfs
+        advancedMounts:
+          storyteller:
+            app:
+              - path: /data
+                subPath: storyteller
+              - path: /books
+                subPath: media/books

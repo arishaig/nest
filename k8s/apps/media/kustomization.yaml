@@ -7,8 +7,7 @@ resources:
   # --- *arr stack ---
   - lidarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - lidarr.yaml  # HelmRelease (app-template) — replaces deployment+service
-  - lidarr-ui-deployment.yaml
-  - lidarr-ui-service.yaml
+  - lidarr-ui.yaml  # HelmRelease (app-template) — replaces deployment+service
   - bazarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - bazarr.yaml  # HelmRelease (app-template) — replaces deployment+service
   # bazarr-sync-job.yaml is intentionally NOT here — manual one-shot Job (TTL self-cleans)
@@ -27,12 +26,10 @@ resources:
   - recyclarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - recyclarr.yaml  # HelmRelease (app-template) — replaces cronjob
   # --- request management ---
-  - seerr-config-pvc.yaml
-  - seerr-deployment.yaml
-  - seerr-service.yaml
-  - recommendarr-data-pvc.yaml
-  - recommendarr-deployment.yaml
-  - recommendarr-service.yaml
+  - seerr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - seerr.yaml  # HelmRelease (app-template) — replaces deployment+service
+  - recommendarr-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - recommendarr.yaml  # HelmRelease (app-template) — replaces deployment+service
   # --- anagnorisis (music recommendation / rating) ---
   - anagnorisis-config-pvc.yaml
   - anagnorisis-config-map.yaml
@@ -42,29 +39,22 @@ resources:
   - tunarr-config-pvc.yaml
   - tunarr-deployment.yaml
   - tunarr-service.yaml
-  - metube-deployment.yaml
-  - metube-service.yaml
-  - medialyze-config-pvc.yaml
-  - medialyze-deployment.yaml
-  - medialyze-service.yaml
-  - storyteller-config-pvc.yaml
-  - storyteller-deployment.yaml
-  - storyteller-service.yaml
+  - metube.yaml  # HelmRelease (app-template) — replaces deployment+service (no PVC; uses media-nfs)
+  - medialyze-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - medialyze.yaml  # HelmRelease (app-template) — replaces deployment+service
+  - storyteller-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - storyteller.yaml  # HelmRelease (app-template) — replaces deployment+service
   # --- tracking / watchlists ---
-  - watcharr-data-pvc.yaml
-  - watcharr-deployment.yaml
-  - watcharr-service.yaml
-  - watchback-data-pvc.yaml
-  - watchback-deployment.yaml
-  - watchback-service.yaml
+  - watcharr-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - watcharr.yaml  # HelmRelease (app-template) — replaces deployment+service
+  - watchback-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - watchback.yaml  # HelmRelease (app-template) — replaces deployment+service
   # --- dashboard ---
-  - homepage-config-pvc.yaml
-  - homepage-deployment.yaml
-  - homepage-service.yaml
+  - homepage-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - homepage.yaml  # HelmRelease (app-template) — replaces deployment+service
   # --- file access ---
-  - copyparty-config-pvc.yaml
-  - copyparty-deployment.yaml
-  - copyparty-service.yaml
+  - copyparty-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - copyparty.yaml  # HelmRelease (app-template) — replaces deployment+service
   # --- mealie + database ---
   - postgres-data-pvc.yaml
   - postgres-deployment.yaml
