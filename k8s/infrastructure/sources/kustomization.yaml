@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # Helm chart sources. Lives under infrastructure (conceptually a cluster
+  # primitive). App HelmReleases resolve against it by eventual consistency —
+  # they retry until the source exists. A hard apps->infrastructure dependsOn
+  # is deferred to the infra-charts phase, where ordering is load-bearing, to
+  # keep this pilot's blast radius to a single app.
+  - app-template.yaml
