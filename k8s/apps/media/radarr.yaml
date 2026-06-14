@@ -1,0 +1,140 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: radarr
+  namespace: media
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      radarr:
+        strategy: Recreate
+        pod:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 0
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=linuxserver/radarr
+              repository: linuxserver/radarr
+              tag: 6.1.1
+            env:
+              PUID: "0"
+              PGID: "0"
+              TZ: America/Los_Angeles
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /ping
+                    port: 7878
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /ping
+                    port: 7878
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+          exportarr:
+            image:
+              # renovate: datasource=docker depName=ghcr.io/onedr0p/exportarr
+              repository: ghcr.io/onedr0p/exportarr
+              tag: v2.3.0
+            args: ["radarr"]
+            env:
+              PORT: "9708"
+              URL: http://localhost:7878
+              APIKEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: radarr-api-key
+                    key: APIKEY
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 9708
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 9708
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+    service:
+      app:
+        controller: radarr
+        type: LoadBalancer
+        annotations:
+          metallb.io/loadBalancerIPs: "192.168.1.116"
+          metallb.io/allow-shared-ip: "metrics"
+        ports:
+          http:
+            port: 7878
+            targetPort: 7878
+            nodePort: 30878
+          metrics:
+            port: 9708
+            targetPort: 9708
+            nodePort: 30708
+    persistence:
+      # existingClaim — bind to the live PVCs; app-template creates NOTHING.
+      # The config PVC stays a raw manifest (radarr-config-pvc.yaml) so Flux
+      # never prunes it. Data rides through the conversion untouched.
+      config:
+        existingClaim: radarr-config
+        advancedMounts:
+          radarr:
+            app:
+              - path: /config
+      data:
+        existingClaim: media-nfs
+        advancedMounts:
+          radarr:
+            app:
+              - path: /data
