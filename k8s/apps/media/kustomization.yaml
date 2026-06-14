@@ -10,9 +10,9 @@ resources:
   - lidarr-service.yaml
   - lidarr-ui-deployment.yaml
   - lidarr-ui-service.yaml
-  - bazarr-config-pvc.yaml
-  - bazarr-deployment.yaml
-  - bazarr-service.yaml
+  - bazarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - bazarr.yaml  # HelmRelease (app-template) — replaces deployment+service
+  # bazarr-sync-job.yaml is intentionally NOT here — manual one-shot Job (TTL self-cleans)
   - subgen-models-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - subgen.yaml  # HelmRelease (app-template) — replaces deployment+service
   - prowlarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
