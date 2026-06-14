@@ -275,6 +275,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check GHCR token scope
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          GHCR_TOKEN=$(curl -fsSL -u "${{ github.actor }}:$GH_TOKEN" \
+            "https://ghcr.io/token?scope=repository:arishaig/nest-mcp:push&service=ghcr.io" \
+            | jq -r '.token')
+          echo "GHCR token acquired: $([ -n "$GHCR_TOKEN" ] && echo yes || echo no)"
+          curl -fsSL -H "Authorization: Bearer $GHCR_TOKEN" \
+            "https://ghcr.io/v2/arishaig/nest-mcp/tags/list" || echo "tags/list failed (expected for new package)"
+
       - name: Build and push image
         run: |
           docker build -t ghcr.io/arishaig/nest-mcp:latest mcp/
