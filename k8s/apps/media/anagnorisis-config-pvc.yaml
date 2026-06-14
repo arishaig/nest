@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: anagnorisis-config
+  namespace: media
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-nvme
+  resources:
+    requests:
+      storage: 20Gi  # CLAP (~1.4 GB) + Jina (~1 GB) + embedding cache + DB

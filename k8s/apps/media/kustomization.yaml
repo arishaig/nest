@@ -40,6 +40,11 @@ resources:
   - recommendarr-data-pvc.yaml
   - recommendarr-deployment.yaml
   - recommendarr-service.yaml
+  # --- anagnorisis (music recommendation / rating) ---
+  - anagnorisis-config-pvc.yaml
+  - anagnorisis-config-map.yaml
+  - anagnorisis-deployment.yaml
+  - anagnorisis-service.yaml
   # --- media servers / tools ---
   - tunarr-config-pvc.yaml
   - tunarr-deployment.yaml

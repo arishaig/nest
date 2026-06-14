@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anagnorisis
+  namespace: media
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: anagnorisis
+  template:
+    metadata:
+      labels:
+        app: anagnorisis
+    spec:
+      containers:
+        - name: anagnorisis
+          image: ghcr.io/arishaig/anagnorisis:latest
+          imagePullPolicy: Always
+          # Override default CMD (which redirects stdout to a file) so Loki collects logs
+          command: ["python", "app.py"]
+          ports:
+            - containerPort: 5001
+          env:
+            - name: FLASK_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anagnorisis-secret
+                  key: FLASK_SECRET_KEY
+            - name: RUNNING_IN_DOCKER
+              value: "true"
+            - name: CONTAINER_NAME
+              value: "anagnorisis"
+          volumeMounts:
+            - name: config-yaml
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: data
+              mountPath: /config
+            - name: media
+              mountPath: /media
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+            limits:
+              memory: 6Gi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5001
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5001
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+      volumes:
+        - name: config-yaml
+          configMap:
+            name: anagnorisis-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: anagnorisis-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-nfs
