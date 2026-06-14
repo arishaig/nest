@@ -44,16 +44,19 @@ spec:
               readOnly: true
             - name: data
               mountPath: /config
+            - name: data
+              mountPath: /app/models
+              subPath: models
             - name: media
               mountPath: /media
               readOnly: true
           resources:
             requests:
               cpu: 100m
-              memory: 1Gi
+              memory: 2Gi
             limits:
               cpu: "2"
-              memory: 3Gi
+              memory: 6Gi
           livenessProbe:
             httpGet:
               path: /
