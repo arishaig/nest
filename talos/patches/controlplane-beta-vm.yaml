@@ -1,10 +1,15 @@
-# Test control-plane VM (4GB): exists for control-plane HA only.
-# Workloads stay on alpha — on 2026-06-11 the scheduler spread the media
-# stack onto beta/gamma and both thrashed (memory ~100%, gamma re-reading
-# 200MB/s of evicted page cache), crash-looping Authelia/MetalLB and
-# stalling Loki on the shared NVMe.
+# Test control-plane VM (4GB). Schedulable as of 2026-06-15 to rehearse the
+# multi-node topology before the RPi5s land. Workloads previously stayed on
+# alpha — on 2026-06-11 the scheduler spread the media stack onto beta/gamma
+# and both thrashed (memory ~100%, gamma re-reading 200MB/s of evicted page
+# cache), crash-looping Authelia/MetalLB and stalling Loki on the shared NVMe.
+# That risk is now contained by pinning the heavy/bursty pods to alpha
+# (nest.arishaig.site/workloads=general in controlplane.yaml + nodeAffinity on
+# the media HelmReleases), so only light services may land here.
+# ROLLBACK: set this back to false and re-apply (talosctl patch mc) — the
+# control-plane NoSchedule taint returns and roaming pods reschedule to alpha.
 cluster:
-  allowSchedulingOnControlPlanes: false
+  allowSchedulingOnControlPlanes: true
   etcd:
     advertisedSubnets:
       - 192.168.1.0/24

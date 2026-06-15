@@ -1,8 +1,10 @@
 # Test control-plane VM sized like an RPi5 (4 cores / 8GB): rehearses the
-# node add/remove flow before the real Pis arrive. Control-plane only until
-# workload memory requests are right-sized (see controlplane-beta-vm.yaml).
+# node add/remove flow before the real Pis arrive. Schedulable as of
+# 2026-06-15 to rehearse the multi-node topology; heavy/bursty pods are
+# pinned to alpha so only light services land here (see controlplane-beta-vm.yaml).
+# ROLLBACK: set this back to false and re-apply (talosctl patch mc).
 cluster:
-  allowSchedulingOnControlPlanes: false
+  allowSchedulingOnControlPlanes: true
   etcd:
     advertisedSubnets:
       - 192.168.1.0/24
