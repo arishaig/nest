@@ -1,0 +1,105 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mealie
+  namespace: media
+spec:
+  interval: 1h
+  # mealie needs postgres reachable to start; postgres is a separate HelmRelease
+  # in the same kustomization. mealie retries the DB connection on boot (same as
+  # the raw setup), so no hard dependsOn is required.
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      mealie:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=ghcr.io/mealie-recipes/mealie
+              repository: ghcr.io/mealie-recipes/mealie
+              tag: v3.19.2
+            env:
+              TZ: America/Los_Angeles
+              ALLOW_SIGNUP: "false"
+              BASE_URL: https://mealie.arishaig.site
+              DB_ENGINE: postgres
+              OIDC_AUTH_ENABLED: "true"
+              OIDC_SIGNUP_ENABLED: "true"
+              OIDC_CONFIGURATION_URL: https://auth.arishaig.site/.well-known/openid-configuration
+              OIDC_CLIENT_ID: mealie
+              OIDC_PROVIDER_NAME: Authelia
+              OIDC_AUTO_REDIRECT: "false"
+              OIDC_SIGNING_ALGORITHM: RS256
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: mealie-secret
+                    key: OIDC_CLIENT_SECRET
+              POSTGRES_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: postgres-secret
+                    key: POSTGRES_USER
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: postgres-secret
+                    key: POSTGRES_PASSWORD
+              POSTGRES_SERVER: postgres
+              POSTGRES_PORT: "5432"
+              POSTGRES_DB: mealie
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/app/about
+                    port: 9000
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/app/about
+                    port: 9000
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+    service:
+      app:
+        controller: mealie
+        type: NodePort
+        ports:
+          http:
+            port: 9000
+            targetPort: 9000
+            nodePort: 30813
+    persistence:
+      data:
+        existingClaim: mealie-data
+        advancedMounts:
+          mealie:
+            app:
+              - path: /app/data
