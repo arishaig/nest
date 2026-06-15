@@ -82,12 +82,13 @@
         extra_opts: ["--strip-components=1"]
       notify: Restart nest-mcp
 
-    # Probe the venv interpreter rather than trusting a `creates:` file: a stale
-    # venv shipped from the workstation (different Python, dangling interpreter
-    # symlink) has bin/python and bin/pip3 present but they fail to exec with
-    # ENOENT. rc != 0 covers "missing" and "broken" alike.
-    - name: Probe existing venv interpreter
-      ansible.builtin.command: "{{ mcp_venv }}/bin/python -c 'import sys'"
+    # Probe the exact binary the install step uses (bin/pip3), not the
+    # interpreter: in a venv shipped from the workstation, bin/python resolves
+    # fine but the console scripts (pip3 etc.) keep a shebang pointing at the
+    # workstation venv path, so they fail to exec with ENOENT. rc != 0 covers
+    # "missing" and "wrong shebang" alike.
+    - name: Probe existing venv pip
+      ansible.builtin.command: "{{ mcp_venv }}/bin/pip3 --version"
       register: mcp_venv_probe
       changed_when: false
       failed_when: false
