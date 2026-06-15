@@ -5,6 +5,13 @@ cluster:
       - 192.168.1.0/24
 
 machine:
+  # alpha is the large workload node. Heavy/bursty pods (sabnzbd 12Gi limit,
+  # anagnorisis, tdarr, subgen, the DBs) are pinned here via nodeAffinity on
+  # this label, so that when beta/delta become schedulable they only take the
+  # light services — never the pods that thrashed the small nodes on
+  # 2026-06-11 (see controlplane-beta-vm.yaml).
+  nodeLabels:
+    nest.arishaig.site/workloads: general
   network:
     interfaces:
       - interface: ens18
