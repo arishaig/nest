@@ -139,7 +139,7 @@ jobs:
           done
           exit $fail
 
-  terraform:
+  tofu:
     runs-on: self-hosted
     env:
       TF_PLUGIN_CACHE_DIR: /opt/terraform-plugin-cache
