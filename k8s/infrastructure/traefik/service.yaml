@@ -7,6 +7,12 @@ metadata:
     metallb.io/loadBalancerIPs: "192.168.1.117"
 spec:
   type: LoadBalancer
+  # Preserve the real client source IP (no SNAT) so the `local-only` ipAllowList
+  # middleware sees the LAN client (192.168.0.0/16) instead of a SNAT'd pod IP,
+  # which was causing 403s on local-only routes (tunarr, watcharr). Safe under
+  # MetalLB L2: it only announces the VIP from a node with a ready traefik
+  # endpoint, and traefik runs on the single schedulable node.
+  externalTrafficPolicy: Local
   selector:
     app: traefik
   ports:
