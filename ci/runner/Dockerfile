@@ -25,6 +25,15 @@ ARG KUBECTL_VERSION=1.32.0
 # shellcheck pinned to 0.10.0: the SC2015 exclude in the shellcheck lint job is
 # tuned to it (0.11.0 dropped that warning). renovate: datasource=github-releases depName=koalaman/shellcheck
 ARG SHELLCHECK_VERSION=0.10.0
+# helm backs the helm-render lint job (flux-local shells out to `helm template`).
+# Held on the 3.x line: Flux's helm-controller and flux-local are helm-v3-based,
+# and v4 changes CLI behaviour. renovate: datasource=github-releases depName=helm/helm
+ARG HELM_VERSION=3.21.1
+# talosctl backs the talos-config-validate lint job. Keep in lock-step with
+# talos_version in terraform/terraform.tfvars. renovate: datasource=github-releases depName=siderolabs/talos
+ARG TALOSCTL_VERSION=1.13.4
+# flux-local renders the HelmReleases for the helm-render job. renovate: datasource=pypi depName=flux-local
+ARG FLUX_LOCAL_VERSION=8.3.0
 
 USER root
 
@@ -69,7 +78,20 @@ RUN set -eux; \
     # shellcheck (pinned binary release, not apt)
     curl -fsSL -o shellcheck.tar.xz "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"; \
     tar -xJf shellcheck.tar.xz; install -m 0755 "shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck; \
+    # helm
+    curl -fsSL -o helm.tar.gz "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz"; \
+    tar -xzf helm.tar.gz; install -m 0755 linux-amd64/helm /usr/local/bin/helm; \
+    # talosctl (single binary)
+    curl -fsSL -o talosctl "https://github.com/siderolabs/talos/releases/download/v${TALOSCTL_VERSION}/talosctl-linux-amd64"; \
+    install -m 0755 talosctl /usr/local/bin/talosctl; \
     cd /; rm -rf "$tmp"
+
+# flux-local in its own venv, entrypoint symlinked onto PATH. Kept out of the
+# ansible venv so its (pydantic etc.) deps can't clash, and on PATH directly
+# because the helm-render job runs `flux-local` without sourcing a venv.
+RUN python3 -m venv /opt/flux-local/venv \
+    && /opt/flux-local/venv/bin/pip install --no-cache-dir "flux-local==${FLUX_LOCAL_VERSION}" \
+    && ln -s /opt/flux-local/venv/bin/flux-local /usr/local/bin/flux-local
 
 # Ansible venv at the path the workflows `source`. Versions float to match
 # runner.yml (which does not pin them either).

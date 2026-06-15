@@ -28,6 +28,12 @@
     kubectl_version: "1.32.0"
     kustomize_version: "5.8.1"
     kubeconform_version: "0.7.0"
+    # helm/talosctl/flux-local back the helm-render and talos-config-validate
+    # lint jobs. helm stays on 3.x (Flux's helm-controller + flux-local are
+    # helm-v3-based); talosctl_version tracks talos_version in terraform.tfvars.
+    helm_version: "3.21.1"
+    talosctl_version: "1.13.4"
+    flux_local_version: "8.3.0"
 
   tasks:
     - name: Install runner and Ansible dependencies
@@ -198,6 +204,61 @@
             - /tmp/kustomize
             - /tmp/kubeconform.tar.gz
             - /tmp/kubeconform
+
+    - name: Install helm for the helm-render CI job
+      block:
+        - name: Download helm tarball
+          ansible.builtin.get_url:
+            url: "https://get.helm.sh/helm-v{{ helm_version }}-linux-amd64.tar.gz"
+            dest: /tmp/helm.tar.gz
+            mode: "0644"
+
+        - name: Extract helm tarball
+          ansible.builtin.unarchive:
+            src: /tmp/helm.tar.gz
+            dest: /tmp
+            remote_src: true
+
+        - name: Install helm binary
+          ansible.builtin.copy:
+            src: /tmp/linux-amd64/helm
+            dest: /usr/local/bin/helm
+            mode: "0755"
+            remote_src: true
+
+        - name: Clean up helm download
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /tmp/helm.tar.gz
+            - /tmp/linux-amd64
+
+    - name: Install talosctl for the talos-config-validate CI job
+      ansible.builtin.get_url:
+        url: "https://github.com/siderolabs/talos/releases/download/v{{ talosctl_version }}/talosctl-linux-amd64"
+        dest: /usr/local/bin/talosctl
+        mode: "0755"
+
+    # flux-local lives in its own venv (keeps its deps off the ansible venv) and
+    # is symlinked onto PATH because the helm-render job runs it without
+    # sourcing a venv — matching ci/runner/Dockerfile.
+    - name: Create flux-local venv
+      ansible.builtin.command:
+        cmd: python3 -m venv /opt/flux-local/venv
+        creates: /opt/flux-local/venv/bin/activate
+
+    - name: Install flux-local in venv
+      ansible.builtin.pip:
+        name: "flux-local=={{ flux_local_version }}"
+        virtualenv: /opt/flux-local/venv
+        state: present
+
+    - name: Symlink flux-local onto PATH
+      ansible.builtin.file:
+        src: /opt/flux-local/venv/bin/flux-local
+        dest: /usr/local/bin/flux-local
+        state: link
 
     - name: Create Ansible venv
       ansible.builtin.command:
