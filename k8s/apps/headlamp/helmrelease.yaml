@@ -1,0 +1,92 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      headlamp:
+        replicas: 1
+        strategy: Recreate
+        # SA + cluster-admin ClusterRoleBinding are managed in rbac.yaml; bind to
+        # the existing SA (token automount lets Headlamp auth via the in-cluster
+        # kubeconfig). See headlamp-auth-followup: revisit when v0.43.0 lands.
+        serviceAccount:
+          create: false
+          name: headlamp
+        containers:
+          app:
+            image:
+              repository: ghcr.io/headlamp-k8s/headlamp
+              tag: v0.42.0
+            args:
+              - -in-cluster
+              - -plugins-dir=/headlamp/plugins
+              - -kubeconfig
+              - /etc/headlamp/kubeconfig/config
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 4466
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 4466
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+    service:
+      app:
+        controller: headlamp
+        ports:
+          http:
+            port: 4466
+            targetPort: 4466
+    persistence:
+      kubeconfig:
+        type: configMap
+        name: headlamp-kubeconfig
+        advancedMounts:
+          headlamp:
+            app:
+              - path: /etc/headlamp/kubeconfig
+                readOnly: true

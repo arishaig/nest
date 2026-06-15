@@ -31,10 +31,9 @@ resources:
   - recommendarr-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - recommendarr.yaml  # HelmRelease (app-template) — replaces deployment+service
   # --- anagnorisis (music recommendation / rating) ---
-  - anagnorisis-config-pvc.yaml
-  - anagnorisis-config-map.yaml
-  - anagnorisis-deployment.yaml
-  - anagnorisis-service.yaml
+  - anagnorisis-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - anagnorisis-config-map.yaml  # kept raw — HelmRelease mounts via persistence
+  - anagnorisis.yaml  # HelmRelease (app-template) — replaces deployment+service
   # --- media servers / tools ---
   - tunarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - tunarr.yaml  # HelmRelease (app-template) — replaces deployment+service
