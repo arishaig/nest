@@ -179,3 +179,31 @@
           stringData:
             ansible-on-nest: "{{ nest_mcp_ssh_private_key }}"
       no_log: true
+
+    # ARC (Actions Runner Controller) auth for the arc-lint runner scale set.
+    # The listener long-polls GitHub with this token; reuses the same PAT the
+    # LXC runner provisioning uses. The namespace is also defined in the Flux
+    # arc/ kustomization — created here too so the secret can apply before Flux
+    # reconciles. TODO: migrate to a GitHub App (see docs/tech-debt.md).
+    - name: Create arc-runners namespace
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: arc-runners
+
+    - name: Create ARC GitHub auth secret
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: arc-github-secret
+            namespace: arc-runners
+          type: Opaque
+          stringData:
+            github_token: "{{ vault_github_runner_pat }}"
+      no_log: true

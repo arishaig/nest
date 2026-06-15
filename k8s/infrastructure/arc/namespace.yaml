@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arc-systems
+---
+# Ephemeral runner pods land here. The arc-github-secret (PAT) is created in
+# this namespace out-of-band by playbooks/provision/k8s.yml.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arc-runners

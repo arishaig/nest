@@ -1,0 +1,24 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: gha-runner-scale-set-controller
+  namespace: arc-systems
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: gha-runner-scale-set-controller
+      version: 0.14.2
+      sourceRef:
+        kind: HelmRepository
+        name: actions-runner-controller
+        namespace: flux-system
+  values:
+    # The controller watches AutoscalingRunnerSets and reconciles listener +
+    # ephemeral runner pods. One controller serves every scale set.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
