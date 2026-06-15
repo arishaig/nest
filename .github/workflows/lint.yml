@@ -3,6 +3,10 @@ name: Lint
 on:
   pull_request:
     branches: [main]
+  push:
+    # Re-validate main after merge so the README status badge reflects the
+    # default branch, not just the last PR.
+    branches: [main]
   workflow_dispatch:
 
 jobs:

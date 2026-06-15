@@ -19,6 +19,16 @@ on:
       - 'k8s/**'
       - 'terraform/terraform.tfvars'
       - '.github/workflows/integration.yml'
+  push:
+    # Re-run on main after merge (same path filter) so the README status badge
+    # reflects the default branch. Path-filtered to keep the heavy DinD job off
+    # unrelated main pushes.
+    branches: [main]
+    paths:
+      - 'talos/**'
+      - 'k8s/**'
+      - 'terraform/terraform.tfvars'
+      - '.github/workflows/integration.yml'
   workflow_dispatch:
 
 jobs:
