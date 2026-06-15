@@ -14,6 +14,18 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
+    # Pinned to alpha (nest.arishaig.site/workloads=general): the 12Gi memory
+    # limit far exceeds beta/delta capacity, so it must never schedule there
+    # once they're schedulable. See talos/patches/controlplane.yaml.
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
     controllers:
       sabnzbd:
         strategy: Recreate

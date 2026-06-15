@@ -14,6 +14,18 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
+    # Pinned to alpha (nest.arishaig.site/workloads=general): the 4Gi memory
+    # limit (whisper models) exceeds beta capacity, so it must never schedule
+    # there once beta/delta are schedulable.
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
     controllers:
       subgen:
         strategy: Recreate

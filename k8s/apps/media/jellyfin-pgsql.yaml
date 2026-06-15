@@ -14,6 +14,19 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
+    # Prefer alpha (nest.arishaig.site/workloads=general): stateful DB, 2Gi
+    # limit fits delta but keep it with the workload node. Soft so it can
+    # still reschedule if alpha is unavailable.
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
     controllers:
       jellyfin-pgsql:
         strategy: Recreate
