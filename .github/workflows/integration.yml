@@ -47,7 +47,9 @@ jobs:
           curl -fsSL "https://get.helm.sh/helm-v3.21.1-linux-amd64.tar.gz" | sudo tar -xz -C /usr/local/bin --strip-components=1 linux-amd64/helm
           curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.1/kustomize_v5.8.1_linux_amd64.tar.gz" \
             | sudo tar -xz -C /usr/local/bin kustomize
-          pipx install flux-local==8.3.0
+          # flux-local 7.11.0, not 8.x: 8.x requires Python >=3.13 and the
+          # runner's pipx Python is 3.12. Kept in sync with the runner image.
+          pipx install flux-local==7.11.0
 
       - name: Load br_netfilter for flannel
         # Talos's docker provisioner uses flannel (vxlan); flannel crashloops
