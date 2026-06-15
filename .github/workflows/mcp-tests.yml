@@ -1,24 +1,18 @@
 name: MCP Tests
 
-# Unit tests + coverage for the nest_mcp server (mcp/). Runs on every PR that
-# touches mcp/ as a gate (pytest enforces --cov-fail-under). On push to main it
-# also regenerates the self-hosted coverage badge (assets/coverage.svg) and
-# commits it back, mirroring the docs.yml diagram-regeneration pattern.
+# Unit tests + coverage for the nest_mcp server (mcp/). Runs only on PRs that
+# touch mcp/, before merge — pytest enforces --cov-fail-under, and the job also
+# verifies the committed coverage badge (assets/coverage.svg) is current. The
+# badge is regenerated and committed by whoever changes mcp/ (genbadge); this
+# gate fails the PR if it drifts, so the badge stays honest without a redundant
+# post-merge run.
 on:
   pull_request:
     branches: [main]
     paths:
       - 'mcp/**'
       - '.github/workflows/mcp-tests.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'mcp/**'
-      - '.github/workflows/mcp-tests.yml'
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   mcp-tests:
@@ -37,16 +31,15 @@ jobs:
           pip install -e ".[test]"
           pytest
 
-      - name: Regenerate coverage badge
+      - name: Verify the committed coverage badge is current
         working-directory: mcp
-        run: genbadge coverage -i coverage.xml -o ../assets/coverage.svg
-
-      - name: Commit badge if changed (main only)
-        if: github.event_name == 'push'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/arishaig/nest.git"
-          git add assets/coverage.svg
-          git diff --staged --quiet || git commit -m "chore: update mcp coverage badge [skip ci]"
-          git push
+          genbadge coverage -i coverage.xml -o /tmp/coverage.svg
+          fresh=$(grep -oE 'coverage: [0-9.]+%' /tmp/coverage.svg | head -1)
+          committed=$(grep -oE 'coverage: [0-9.]+%' ../assets/coverage.svg | head -1)
+          echo "committed badge: ${committed:-<none>} | actual: ${fresh}"
+          if [ "$fresh" != "$committed" ]; then
+            echo "::error::Coverage badge is stale. Regenerate and commit it:"
+            echo "::error::  cd mcp && genbadge coverage -i coverage.xml -o ../assets/coverage.svg"
+            exit 1
+          fi
