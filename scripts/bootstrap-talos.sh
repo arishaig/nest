@@ -8,7 +8,7 @@
 #   - gh        https://cli.github.com/
 #
 # Usage:
-#   1. Run `terraform apply` to create the VM and download the ISO.
+#   1. Run `tofu apply` to create the VM and download the ISO.
 #   2. Boot VM 110 in Proxmox — it will start in Talos maintenance mode and
 #      get a DHCP IP. Find that IP in the Proxmox console or your DHCP leases.
 #   3. Run: ./scripts/bootstrap-talos.sh <dhcp-ip>

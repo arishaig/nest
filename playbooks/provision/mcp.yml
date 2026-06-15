@@ -11,6 +11,9 @@
     mcp_dir: /opt/nest-mcp
     mcp_venv: /opt/nest-mcp/.venv
     mcp_secrets: /etc/nest-mcp/secrets.env
+    # Backs the terraform_plan MCP tool, which shells out to `tofu`.
+    # Renovate-managed; keep in sync with runner.yml's opentofu_version.
+    opentofu_version: "1.12.0"
 
   tasks:
     - name: Install Python venv and pip
@@ -18,7 +21,37 @@
         name:
           - python3-venv
           - python3-pip
+          - unzip
         state: present
+
+    - name: Install OpenTofu (backs the terraform_plan MCP tool)
+      block:
+        - name: Download OpenTofu zip
+          ansible.builtin.get_url:
+            url: "https://github.com/opentofu/opentofu/releases/download/v{{ opentofu_version }}/tofu_{{ opentofu_version }}_linux_amd64.zip"
+            dest: /tmp/tofu.zip
+            mode: "0644"
+
+        - name: Extract OpenTofu zip
+          ansible.builtin.unarchive:
+            src: /tmp/tofu.zip
+            dest: /tmp
+            remote_src: true
+
+        - name: Install tofu binary
+          ansible.builtin.copy:
+            src: /tmp/tofu
+            dest: /usr/local/bin/tofu
+            mode: "0755"
+            remote_src: true
+
+        - name: Clean up OpenTofu download
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /tmp/tofu.zip
+            - /tmp/tofu
 
     - name: Create MCP app directory
       ansible.builtin.file:

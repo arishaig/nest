@@ -3,7 +3,7 @@
 # ──────────────────────────────────────────────
 # Single control-plane node that also schedules workloads
 # (allowSchedulingOnControlPlanes: true in talos/patches/controlplane.yaml).
-# Bootstrap: run scripts/bootstrap-talos.sh after `terraform apply`.
+# Bootstrap: run scripts/bootstrap-talos.sh after `tofu apply`.
 
 resource "proxmox_download_file" "talos_iso" {
   node_name           = var.pve_node

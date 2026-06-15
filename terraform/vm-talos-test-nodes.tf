@@ -6,7 +6,7 @@
 # gamma (114) was removed 2026-06-11 as the rehearsal of the node-replacement
 # flow: delta (115, sized like an 8GB Pi 5) joined as a 4th etcd member first,
 # then gamma was drained + `talosctl reset --graceful` + node deleted.
-# Remove this file and run `terraform apply` once RPi5s replace them.
+# Remove this file and run `tofu apply` once RPi5s replace them.
 # ──────────────────────────────────────────────────────────────────────────────
 
 resource "proxmox_virtual_environment_vm" "talos_beta_vm" {

@@ -4,7 +4,7 @@
 
 # ansible-on-nest
 
-Terraform + Ansible IaC for a Proxmox home lab with a Vultr VPS proxy.
+OpenTofu + Ansible IaC for a Proxmox home lab with a Vultr VPS proxy.
 
 See [docs/design.md](docs/design.md) for the full technical design and architecture overview.
 See [docs/dependencies.md](docs/dependencies.md) for a dependency inventory with licenses and GitHub links.
@@ -35,7 +35,7 @@ docs/               Generated outputs
 
 ```bash
 # Apply infra
-terraform -chdir=terraform apply -var-file=secrets.tfvars
+tofu -chdir=terraform apply -var-file=secrets.tfvars
 
 # Run all playbooks
 ansible-playbook playbooks/site.yml --ask-vault-pass

@@ -293,19 +293,19 @@ else
 fi
 
 # =====================================================================
-# Local — nest-mcp Proxmox token from terraform state
+# Local — nest-mcp Proxmox token from OpenTofu state
 # =====================================================================
 NEST_MCP_PVE_TOKEN=$(existing "nest_mcp_pve_token")
 if [[ -n "$NEST_MCP_PVE_TOKEN" ]]; then
     info "nest-mcp Proxmox token: in vault"
 else
-    info "Reading nest-mcp Proxmox token from terraform state..."
-    RAW_TOKEN=$(cd "$REPO_DIR/terraform" && terraform output -raw nest_mcp_token 2>/dev/null || true)
+    info "Reading nest-mcp Proxmox token from OpenTofu state..."
+    RAW_TOKEN=$(cd "$REPO_DIR/terraform" && tofu output -raw nest_mcp_token 2>/dev/null || true)
     if [[ -n "$RAW_TOKEN" ]]; then
         NEST_MCP_PVE_TOKEN="nest-mcp@pve!nest-mcp=${RAW_TOKEN}"
         info "  nest-mcp Proxmox token: extracted"
     else
-        warn "  nest-mcp Proxmox token: not available — run 'terraform apply' first"
+        warn "  nest-mcp Proxmox token: not available — run 'tofu apply' first"
         NEST_MCP_PVE_TOKEN="CHANGEME"
     fi
 fi

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Import existing infrastructure into Terraform state.
+# Import existing infrastructure into OpenTofu state.
 # Run from the terraform/ directory:
 #   chmod +x import.sh && ./import.sh
 #
@@ -11,7 +11,7 @@ OPTS="-var-file=secrets.tfvars"
 
 import() {
   echo "  Importing $1..."
-  terraform import $OPTS "$1" "$2" 2>&1 || echo "  (skipped — may already be imported)"
+  tofu import $OPTS "$1" "$2" 2>&1 || echo "  (skipped — may already be imported)"
 }
 
 echo "=== Importing PVE Users ==="
@@ -90,4 +90,4 @@ import adguard_list_filter.hagezi_threat_intel 1771729535
 
 echo ""
 echo "=== Import complete ==="
-echo "Run 'terraform plan -var-file=secrets.tfvars' to check for drift."
+echo "Run 'tofu plan -var-file=secrets.tfvars' to check for drift."

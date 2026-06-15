@@ -217,11 +217,11 @@ jobs:
             root@66.42.79.175
           for _ in $(seq 1 10); do nc -z 127.0.0.1 13000 2>/dev/null && break; sleep 1; done
 
-      - name: Terraform init
-        run: terraform -chdir=terraform init -input=false
+      - name: OpenTofu init
+        run: tofu -chdir=terraform init -input=false
 
-      - name: Terraform apply
-        run: terraform -chdir=terraform apply -var-file=secrets.tfvars -auto-approve -input=false
+      - name: OpenTofu apply
+        run: tofu -chdir=terraform apply -var-file=secrets.tfvars -auto-approve -input=false
 
       - name: Save terraform state
         # No error suppression here: the runner user must be able to write

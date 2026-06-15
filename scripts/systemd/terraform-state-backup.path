@@ -1,6 +1,7 @@
-# Watches the Terraform state file and triggers an encrypted backup to the NAS
-# whenever it changes — i.e. after every `terraform apply`. No workflow change:
-# keep running `terraform apply` as usual.
+# Watches the OpenTofu state file and triggers an encrypted backup to the NAS
+# whenever it changes — i.e. after every `tofu apply`. No workflow change:
+# keep running `tofu apply` as usual. (The state file is still terraform.tfstate
+# and the unit name is unchanged, so the existing install keeps working.)
 #
 # Install once, as your normal user (NOT root):
 #
@@ -16,8 +17,8 @@
 #   touch /home/isaac/Projects/ansible-on-nest/terraform/terraform.tfstate
 #   sleep 2
 #   journalctl --user -u terraform-state-backup.service -n 20
-# A backup run in the log confirms the chain works. Terraform writes state via
-# atomic rename, so confirm with a real `terraform apply` too before relying
+# A backup run in the log confirms the chain works. OpenTofu writes state via
+# atomic rename, so confirm with a real `tofu apply` too before relying
 # on this for disaster recovery.
 
 [Unit]

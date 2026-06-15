@@ -8,7 +8,7 @@
 # Usage:  ansible-playbook playbooks/site.yml --ask-vault-pass
 #
 # Not covered here — run separately:
-#   - Terraform (LXC/VM definitions, AdGuard DNS rewrites): `terraform apply`
+#   - OpenTofu (LXC/VM definitions, AdGuard DNS rewrites): `tofu apply`
 #   - provision/pve-passthrough.yml: parametrized (lxc_id), run per-container
 #     by Terraform, not as part of a full converge.
 #   - provision/k8s.yml: k8s secrets (requires vault + kubectl pointing at cluster)
