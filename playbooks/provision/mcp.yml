@@ -11,6 +11,11 @@
     mcp_dir: /opt/nest-mcp
     mcp_venv: /opt/nest-mcp/.venv
     mcp_secrets: /etc/nest-mcp/secrets.env
+    # Normalized so exclude_path matches the archived file paths. The previous
+    # "{{ playbook_dir }}/../../mcp" form left a literal ../.. in the string,
+    # which never matched the globbed paths — so the workstation's local .venv
+    # got bundled and shipped onto the container.
+    mcp_src: "{{ playbook_dir | dirname | dirname }}/mcp"
     # Backs the terraform_plan MCP tool, which shells out to `tofu`.
     # Renovate-managed; keep in sync with runner.yml's opentofu_version.
     opentofu_version: "1.12.0"
@@ -61,11 +66,11 @@
 
     - name: Create MCP archive on control node
       ansible.builtin.archive:
-        path: "{{ playbook_dir }}/../../mcp"
+        path: "{{ mcp_src }}"
         dest: /tmp/nest-mcp.tar.gz
         exclude_path:
-          - "{{ playbook_dir }}/../../mcp/.venv"
-          - "{{ playbook_dir }}/../../mcp/.git"
+          - "{{ mcp_src }}/.venv"
+          - "{{ mcp_src }}/.git"
         format: gz
       delegate_to: localhost
       become: false
@@ -77,13 +82,21 @@
         extra_opts: ["--strip-components=1"]
       notify: Restart nest-mcp
 
-    # Guard on pip3, not python: a venv created before python3-venv was
-    # installed has bin/python but no pip. Re-running `python3 -m venv` on the
-    # existing dir runs ensurepip and repairs it now that python3-venv exists.
-    - name: Create Python virtual environment
+    # Probe the venv interpreter rather than trusting a `creates:` file: a stale
+    # venv shipped from the workstation (different Python, dangling interpreter
+    # symlink) has bin/python and bin/pip3 present but they fail to exec with
+    # ENOENT. rc != 0 covers "missing" and "broken" alike.
+    - name: Probe existing venv interpreter
+      ansible.builtin.command: "{{ mcp_venv }}/bin/python -c 'import sys'"
+      register: mcp_venv_probe
+      changed_when: false
+      failed_when: false
+
+    - name: Create or rebuild Python virtual environment
       ansible.builtin.command:
-        cmd: python3 -m venv {{ mcp_venv }}
-        creates: "{{ mcp_venv }}/bin/pip3"
+        cmd: "python3 -m venv --clear {{ mcp_venv }}"
+      when: mcp_venv_probe.rc | default(1) != 0
+      changed_when: true
 
     - name: Install MCP package into venv
       ansible.builtin.pip:
