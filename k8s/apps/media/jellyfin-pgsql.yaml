@@ -1,0 +1,95 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: jellyfin-pgsql
+  namespace: media
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      jellyfin-pgsql:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=ghcr.io/jpvenson/jellyfin.pgsql
+              repository: ghcr.io/jpvenson/jellyfin.pgsql
+              tag: 10.11.8-1
+            env:
+              # Library DB lives in the shared `postgres` service (DB: jellyfin),
+              # not a bundled instance — despite the image name.
+              POSTGRES_HOST: postgres
+              POSTGRES_PORT: "5432"
+              POSTGRES_DB: jellyfin
+              POSTGRES_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: postgres-secret
+                    key: POSTGRES_USER
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: postgres-secret
+                    key: POSTGRES_PASSWORD
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 8096
+                  initialDelaySeconds: 60
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 8096
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+    service:
+      app:
+        controller: jellyfin-pgsql
+        type: NodePort
+        ports:
+          http:
+            port: 8096
+            targetPort: 8096
+            nodePort: 30814
+    persistence:
+      config:
+        existingClaim: jellyfin-pgsql-config
+        advancedMounts:
+          jellyfin-pgsql:
+            app:
+              - path: /config
+      media:
+        existingClaim: media-nfs
+        advancedMounts:
+          jellyfin-pgsql:
+            app:
+              - path: /data
+                readOnly: true
