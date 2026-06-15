@@ -77,10 +77,13 @@
         extra_opts: ["--strip-components=1"]
       notify: Restart nest-mcp
 
+    # Guard on pip3, not python: a venv created before python3-venv was
+    # installed has bin/python but no pip. Re-running `python3 -m venv` on the
+    # existing dir runs ensurepip and repairs it now that python3-venv exists.
     - name: Create Python virtual environment
       ansible.builtin.command:
         cmd: python3 -m venv {{ mcp_venv }}
-        creates: "{{ mcp_venv }}/bin/python"
+        creates: "{{ mcp_venv }}/bin/pip3"
 
     - name: Install MCP package into venv
       ansible.builtin.pip:
