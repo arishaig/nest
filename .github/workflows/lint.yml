@@ -7,7 +7,7 @@ on:
 
 jobs:
   ansible-lint:
-    runs-on: self-hosted
+    runs-on: arc-lint
     steps:
       - uses: actions/checkout@v6.0.3
       - name: Write vault password
@@ -23,7 +23,7 @@ jobs:
           ANSIBLE_VAULT_PASSWORD_FILE="$RUNNER_TEMP/vault-pass" ansible-lint playbooks/
 
   yamllint:
-    runs-on: self-hosted
+    runs-on: arc-lint
     steps:
       - uses: actions/checkout@v6.0.3
       - name: Run yamllint
@@ -37,7 +37,7 @@ jobs:
           yamllint .
 
   config-validate:
-    runs-on: self-hosted
+    runs-on: arc-lint
     steps:
       - uses: actions/checkout@v6.0.3
       - name: Validate Docker Compose schemas
@@ -68,14 +68,14 @@ jobs:
           exit $rc
 
   deploy-coverage:
-    runs-on: self-hosted
+    runs-on: arc-lint
     steps:
       - uses: actions/checkout@v6.0.3
       - name: Check deploy filter covers all services
         run: scripts/check-deploy-coverage.sh
 
   talos-rpi5-overlay:
-    runs-on: self-hosted
+    runs-on: arc-lint
     steps:
       - uses: actions/checkout@v6.0.3
       - name: Check Image Factory serves rpi_5 for the pinned Talos version
@@ -86,7 +86,7 @@ jobs:
         run: scripts/check-talos-rpi5-overlay.sh
 
   prometheus-validate:
-    runs-on: self-hosted
+    runs-on: arc-lint
     steps:
       - uses: actions/checkout@v6.0.3
       - name: Validate Prometheus alerting rules
@@ -102,7 +102,7 @@ jobs:
           rm -f "$tmp"
 
   shellcheck:
-    runs-on: self-hosted
+    runs-on: arc-lint
     steps:
       - uses: actions/checkout@v6.0.3
       - name: Run shellcheck
@@ -113,7 +113,7 @@ jobs:
         run: shellcheck --exclude=SC2015 scripts/*.sh
 
   k8s-validate:
-    runs-on: self-hosted
+    runs-on: arc-lint
     steps:
       - uses: actions/checkout@v6.0.3
       - name: Build and validate k8s manifests
@@ -140,9 +140,7 @@ jobs:
           exit $fail
 
   tofu:
-    runs-on: self-hosted
-    env:
-      TF_PLUGIN_CACHE_DIR: /opt/terraform-plugin-cache
+    runs-on: arc-lint
     steps:
       - uses: actions/checkout@v6.0.3
       - name: Check OpenTofu formatting
