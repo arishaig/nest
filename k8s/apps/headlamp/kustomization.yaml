@@ -4,6 +4,5 @@ resources:
   - namespace.yaml
   - rbac.yaml
   - kubeconfig.yaml
-  - deployment.yaml
-  - service.yaml
+  - helmrelease.yaml
   - ingress-route.yaml
