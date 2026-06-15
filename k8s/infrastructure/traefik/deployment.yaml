@@ -21,6 +21,20 @@ spec:
       serviceAccountName: traefik
       hostNetwork: false
       affinity:
+        # Pin to alpha (nest.arishaig.site/workloads=general). traefik fronts
+        # an externalTrafficPolicy:Local LB and WG ingress terminates on alpha
+        # (SPOF) — if a replica drifts off alpha, alpha loses its local
+        # endpoint and ingress drops. Required so the podAntiAffinity below
+        # (which would otherwise spread replicas onto beta/delta once they
+        # became schedulable, #193) keeps both replicas on alpha. Revisit when
+        # WG ingress is no longer alpha-coupled.
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
