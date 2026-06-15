@@ -25,9 +25,9 @@ spec:
     # Pre-existing secret (key: github_token) created by
     # playbooks/provision/k8s.yml from vault_github_runner_pat.
     githubConfigSecret: arc-github-secret
-    # Scale to zero when idle; burst up to 4 concurrent lint jobs.
+    # Scale to zero when idle; burst up to 16 concurrent lint jobs.
     minRunners: 0
-    maxRunners: 4
+    maxRunners: 16
     # No lint job builds images, so default (non-dind) containerMode stays.
     template:
       spec:
@@ -35,9 +35,15 @@ spec:
           - name: runner
             image: ghcr.io/arishaig/nest-ci-runner:latest
             command: ["/home/runner/run.sh"]
+            # Lint jobs are short (≤~40s) and light, so requests are tiny: a
+            # dozen-plus fit on alpha (the only schedulable node — beta/delta
+            # are control-plane NoSchedule), which has ~790m CPU free after
+            # existing workloads (12 × 50m = 600m). With no CPU limit they
+            # burst on the otherwise-idle cores and merely contend — slower,
+            # never failing — during a large batch.
             resources:
               requests:
-                cpu: 250m
-                memory: 512Mi
+                cpu: 50m
+                memory: 256Mi
               limits:
-                memory: 2Gi
+                memory: 1Gi
