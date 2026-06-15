@@ -36,9 +36,8 @@ resources:
   - anagnorisis-deployment.yaml
   - anagnorisis-service.yaml
   # --- media servers / tools ---
-  - tunarr-config-pvc.yaml
-  - tunarr-deployment.yaml
-  - tunarr-service.yaml
+  - tunarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - tunarr.yaml  # HelmRelease (app-template) — replaces deployment+service
   - metube.yaml  # HelmRelease (app-template) — replaces deployment+service (no PVC; uses media-nfs)
   - medialyze-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - medialyze.yaml  # HelmRelease (app-template) — replaces deployment+service
@@ -65,10 +64,9 @@ resources:
   - mealie-deployment.yaml
   - mealie-service.yaml
   # --- tdarr server + node ---
-  - tdarr-pvc.yaml
-  - tdarr-server-deployment.yaml
-  - tdarr-server-service.yaml
-  - tdarr-node-deployment.yaml
+  - tdarr-pvc.yaml  # kept raw (data safety) — both HelmReleases bind via existingClaim (shared)
+  - tdarr.yaml  # HelmRelease (app-template) — replaces tdarr-server deployment+service
+  - tdarr-node.yaml  # HelmRelease (app-template) — replaces tdarr-node deployment (no service)
   # --- jellyfin (postgres backend; primary instance at jellyfin.arishaig.site) ---
   - jellyfin-pgsql-config-pvc.yaml
   - jellyfin-pgsql-deployment.yaml

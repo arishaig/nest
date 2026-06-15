@@ -1,0 +1,69 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tdarr-node
+  namespace: media
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      tdarr-node:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=ghcr.io/haveagitgat/tdarr_node
+              repository: ghcr.io/haveagitgat/tdarr_node
+              tag: 2.77.01
+            env:
+              TZ: America/Los_Angeles
+              PUID: "1000"
+              PGID: "1000"
+              serverIP: tdarr
+              serverPort: "8266"
+              inContainer: "true"
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 500m
+                memory: 512Mi
+              limits:
+                memory: 4Gi
+    # no service — the node dials out to the tdarr server service (serverIP: tdarr)
+    persistence:
+      data:
+        existingClaim: tdarr-data
+        advancedMounts:
+          tdarr-node:
+            app:
+              - path: /app/configs
+                subPath: configs
+              - path: /app/logs
+                subPath: logs
+      media:
+        existingClaim: media-nfs
+        advancedMounts:
+          tdarr-node:
+            app:
+              - path: /media
+                readOnly: true
+      transcode-cache:
+        type: emptyDir
+        advancedMounts:
+          tdarr-node:
+            app:
+              - path: /temp
