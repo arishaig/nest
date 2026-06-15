@@ -145,10 +145,10 @@ jobs:
       TF_PLUGIN_CACHE_DIR: /opt/terraform-plugin-cache
     steps:
       - uses: actions/checkout@v6.0.3
-      - name: Check Terraform formatting
-        run: terraform -chdir=terraform fmt -check -recursive
-      - name: Validate Terraform configuration
+      - name: Check OpenTofu formatting
+        run: tofu -chdir=terraform fmt -check -recursive
+      - name: Validate OpenTofu configuration
         run: |
           cd terraform
-          terraform init -backend=false -input=false
-          terraform validate
+          tofu init -backend=false -input=false
+          tofu validate

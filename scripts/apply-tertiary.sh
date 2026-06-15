@@ -24,4 +24,4 @@ for _ in $(seq 1 10); do
 done
 
 cd "$(dirname "$0")/../terraform"
-terraform apply --var-file=secrets.tfvars "$@"
+tofu apply --var-file=secrets.tfvars "$@"

@@ -3,6 +3,6 @@
 vps_wg_public_key: "0hhiYuAcp7f0eka44vO9lNF48vgtjF4E1o4IUzJjMlc="
 nest_wg_public_key: "F7nQWaV8PFtqrmlcPcs55OXYmctBBVZTPPxqltJ8yVU="
 
-# Set this to the output of `terraform apply` before running site.yml.
+# Set this to the output of `tofu apply` before running site.yml.
 # Also update inventory/hosts.yml vps-proxy ansible_host to the same IP.
 vps_public_ip: "66.42.79.175"

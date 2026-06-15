@@ -7,7 +7,7 @@
 # on the fileserver.
 #
 # Normally run automatically by the terraform-state-backup.path systemd unit
-# whenever terraform.tfstate changes (i.e. after every `terraform apply`).
+# whenever terraform.tfstate changes (i.e. after every `tofu apply`).
 # Can also be run by hand.
 #
 # Encryption uses ansible-vault. Because systemd runs non-interactively, a

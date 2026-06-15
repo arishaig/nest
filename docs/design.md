@@ -358,7 +358,7 @@ tool that gives a full live snapshot of the homelab in one call.
 GitHub Actions self-hosted runner at `192.168.1.18`. Runs the `validate` workflow on every push.
 
 CI validates:
-- `terraform validate` (provider auth is mocked — SSH keys via `file("~/")` are present on the runner)
+- `tofu validate` (provider auth is mocked — SSH keys via `file("~/")` are present on the runner)
 - `ansible-lint` (via venv)
 - `yamllint` (shared `.yamllint` config)
 - `shellcheck` 0.10.0 on all shell scripts
@@ -369,7 +369,7 @@ No Docker daemon access. Ansible vault password is on the runner for `--ask-vaul
 
 ## IaC Tooling
 
-### Terraform Providers
+### OpenTofu Providers
 
 | Provider | Version | Purpose |
 |---|---|---|
@@ -380,6 +380,7 @@ No Docker daemon access. Ansible vault password is on the runner for `--ask-vaul
 | hashicorp/null | = 3.3.0 | VPS Ansible provisioning trigger |
 
 State: local (`terraform/terraform.tfstate`), backed up to NAS via rclone (encrypted).
+The state filename is unchanged under OpenTofu (`tofu` defaults to `terraform.tfstate`).
 Secrets in `terraform/secrets.tfvars` (gitignored).
 
 ### Ansible
@@ -393,20 +394,20 @@ Secrets: `inventory/group_vars/all/vault.yml` (ansible-vault, password in `~/.co
 3. `alloy.yml` — Grafana Alloy on all hosts
 4. `update_apt.yml`, `update_docker.yml`, `update_proxmox.yml`
 
-Terraform triggers Ansible via `local-exec` on resource creation. Subsequent converges run `site.yml` manually.
+OpenTofu triggers Ansible via `local-exec` on resource creation. Subsequent converges run `site.yml` manually.
 
 ### Flux GitOps (k8s)
 
 `k8s/` is watched by Flux running in the `flux-system` namespace on Talos. Any commit to `main` that changes `k8s/` is automatically reconciled into the cluster — no manual `kubectl apply` needed.
 
-Talos cluster config lives in `talos/`. Bootstrap: `scripts/bootstrap-talos.sh` after initial `terraform apply`.
+Talos cluster config lives in `talos/`. Bootstrap: `scripts/bootstrap-talos.sh` after initial `tofu apply`.
 
 ### Deployment Workflow
 
 **First-time provisioning:**
 ```bash
 cd terraform
-terraform apply -var-file=secrets.tfvars   # creates infra + triggers Ansible
+tofu apply -var-file=secrets.tfvars   # creates infra + triggers Ansible
 ```
 
 **Day-to-day:**
@@ -415,7 +416,7 @@ terraform apply -var-file=secrets.tfvars   # creates infra + triggers Ansible
 ansible-playbook playbooks/site.yml --ask-vault-pass
 
 # Infrastructure changes
-terraform -chdir=terraform apply -var-file=secrets.tfvars
+tofu -chdir=terraform apply -var-file=secrets.tfvars
 
 # Diagrams
 python3 scripts/generate_diagram.py

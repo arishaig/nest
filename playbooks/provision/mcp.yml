@@ -11,6 +11,14 @@
     mcp_dir: /opt/nest-mcp
     mcp_venv: /opt/nest-mcp/.venv
     mcp_secrets: /etc/nest-mcp/secrets.env
+    # Normalized so exclude_path matches the archived file paths. The previous
+    # "{{ playbook_dir }}/../../mcp" form left a literal ../.. in the string,
+    # which never matched the globbed paths — so the workstation's local .venv
+    # got bundled and shipped onto the container.
+    mcp_src: "{{ playbook_dir | dirname | dirname }}/mcp"
+    # Backs the terraform_plan MCP tool, which shells out to `tofu`.
+    # Renovate-managed; keep in sync with runner.yml's opentofu_version.
+    opentofu_version: "1.12.0"
 
   tasks:
     - name: Install Python venv and pip
@@ -18,7 +26,37 @@
         name:
           - python3-venv
           - python3-pip
+          - unzip
         state: present
+
+    - name: Install OpenTofu (backs the terraform_plan MCP tool)
+      block:
+        - name: Download OpenTofu zip
+          ansible.builtin.get_url:
+            url: "https://github.com/opentofu/opentofu/releases/download/v{{ opentofu_version }}/tofu_{{ opentofu_version }}_linux_amd64.zip"
+            dest: /tmp/tofu.zip
+            mode: "0644"
+
+        - name: Extract OpenTofu zip
+          ansible.builtin.unarchive:
+            src: /tmp/tofu.zip
+            dest: /tmp
+            remote_src: true
+
+        - name: Install tofu binary
+          ansible.builtin.copy:
+            src: /tmp/tofu
+            dest: /usr/local/bin/tofu
+            mode: "0755"
+            remote_src: true
+
+        - name: Clean up OpenTofu download
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /tmp/tofu.zip
+            - /tmp/tofu
 
     - name: Create MCP app directory
       ansible.builtin.file:
@@ -28,11 +66,11 @@
 
     - name: Create MCP archive on control node
       ansible.builtin.archive:
-        path: "{{ playbook_dir }}/../../mcp"
+        path: "{{ mcp_src }}"
         dest: /tmp/nest-mcp.tar.gz
         exclude_path:
-          - "{{ playbook_dir }}/../../mcp/.venv"
-          - "{{ playbook_dir }}/../../mcp/.git"
+          - "{{ mcp_src }}/.venv"
+          - "{{ mcp_src }}/.git"
         format: gz
       delegate_to: localhost
       become: false
@@ -44,10 +82,22 @@
         extra_opts: ["--strip-components=1"]
       notify: Restart nest-mcp
 
-    - name: Create Python virtual environment
+    # Probe the exact binary the install step uses (bin/pip3), not the
+    # interpreter: in a venv shipped from the workstation, bin/python resolves
+    # fine but the console scripts (pip3 etc.) keep a shebang pointing at the
+    # workstation venv path, so they fail to exec with ENOENT. rc != 0 covers
+    # "missing" and "wrong shebang" alike.
+    - name: Probe existing venv pip
+      ansible.builtin.command: "{{ mcp_venv }}/bin/pip3 --version"
+      register: mcp_venv_probe
+      changed_when: false
+      failed_when: false
+
+    - name: Create or rebuild Python virtual environment
       ansible.builtin.command:
-        cmd: python3 -m venv {{ mcp_venv }}
-        creates: "{{ mcp_venv }}/bin/python"
+        cmd: "python3 -m venv --clear {{ mcp_venv }}"
+      when: mcp_venv_probe.rc | default(1) != 0
+      changed_when: true
 
     - name: Install MCP package into venv
       ansible.builtin.pip:

@@ -82,7 +82,7 @@ Alternate joins and removals so etcd member count stays sane
 2. Join delta-rpi5 → remove delta-vm (same, against .114).
 3. PR: delete `terraform/vm-talos-test-nodes.tf`,
    `talos/patches/controlplane-beta-vm.yaml`, `controlplane-delta-vm.yaml`;
-   CI terraform apply removes VMs 113/115.
+   CI tofu apply removes VMs 113/115.
 
 ## Upgrades
 

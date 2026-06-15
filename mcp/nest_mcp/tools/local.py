@@ -98,11 +98,11 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def terraform_plan() -> dict:
-        """Run terraform plan (read-only) against the live infrastructure and return the proposed changes. Calls provider APIs so may take 30-60s."""
+        """Run an OpenTofu plan (read-only) against the live infrastructure and return the proposed changes. Calls provider APIs so may take 30-60s."""
         terraform_dir = os.path.join(REPO_ROOT, "terraform")
         secrets = os.path.join(terraform_dir, "secrets.tfvars")
         result = await _run(
-            ["terraform", "plan", f"-var-file={secrets}", "-no-color", "-compact-warnings"],
+            ["tofu", "plan", f"-var-file={secrets}", "-no-color", "-compact-warnings"],
             cwd=terraform_dir,
             timeout=120,
         )

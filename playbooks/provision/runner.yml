@@ -19,8 +19,10 @@
     runner_user: github-runner
     runner_repo_url: "https://github.com/arishaig/nest"
     ansible_venv: /opt/ansible-runner/venv
-    # promtool/amtool/kustomize/kubeconform back CI lint jobs (lint.yml). Versions
-    # are renovate-managed; bumping them re-installs via the checksum-aware copy.
+    # opentofu/promtool/amtool/kustomize/kubeconform back CI jobs (lint.yml,
+    # deploy.yml). Versions are renovate-managed; bumping them re-installs via
+    # the checksum-aware copy.
+    opentofu_version: "1.12.0"
     prometheus_version: "3.12.0"
     alertmanager_version: "0.32.2"
     kubectl_version: "1.32.0"
@@ -40,26 +42,42 @@
           - shellcheck
           - gnupg
           - graphviz
+          - unzip
         state: present
         update_cache: true
 
-    - name: Add HashiCorp apt signing key
-      ansible.builtin.get_url:
-        url: https://apt.releases.hashicorp.com/gpg
-        dest: /usr/share/keyrings/hashicorp-archive-keyring.asc
-        mode: "0644"
+    # CI (lint.yml + deploy.yml) drives infra with OpenTofu, not Terraform.
+    # Installed from the upstream release zip — same download/extract/copy
+    # pattern as the other CI binaries below, and renovate-managed via
+    # opentofu_version.
+    - name: Install OpenTofu
+      block:
+        - name: Download OpenTofu zip
+          ansible.builtin.get_url:
+            url: "https://github.com/opentofu/opentofu/releases/download/v{{ opentofu_version }}/tofu_{{ opentofu_version }}_linux_amd64.zip"
+            dest: /tmp/tofu.zip
+            mode: "0644"
 
-    - name: Add HashiCorp apt repository
-      ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.asc] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
-        filename: hashicorp
-        state: present
+        - name: Extract OpenTofu zip
+          ansible.builtin.unarchive:
+            src: /tmp/tofu.zip
+            dest: /tmp
+            remote_src: true
 
-    - name: Install Terraform
-      ansible.builtin.apt:
-        name: terraform
-        state: present
-        update_cache: true
+        - name: Install tofu binary
+          ansible.builtin.copy:
+            src: /tmp/tofu
+            dest: /usr/local/bin/tofu
+            mode: "0755"
+            remote_src: true
+
+        - name: Clean up OpenTofu download
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /tmp/tofu.zip
+            - /tmp/tofu
 
     - name: Add Docker apt signing key
       ansible.builtin.get_url:
@@ -202,7 +220,9 @@
         cmd: "{{ ansible_venv }}/bin/ansible-galaxy collection install ansible.posix community.general kubernetes.core"
       changed_when: true
 
-    - name: Create Terraform plugin cache directory
+    # Path unchanged: OpenTofu honors TF_PLUGIN_CACHE_DIR (set in lint.yml /
+    # deploy.yml), so the existing cache dir keeps working.
+    - name: Create OpenTofu plugin cache directory
       ansible.builtin.file:
         path: /opt/terraform-plugin-cache
         state: directory
@@ -212,7 +232,7 @@
     # The deploy-terraform job persists state here between runs. It must be
     # writable by the runner user — when it was root-owned, every state save
     # silently failed and applies ran against stale state (2026-06-11).
-    - name: Create Terraform state directory
+    - name: Create OpenTofu state directory
       ansible.builtin.file:
         path: /opt/terraform-state/nest
         state: directory

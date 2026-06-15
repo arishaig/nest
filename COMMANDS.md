@@ -18,19 +18,19 @@ ansible-playbook playbooks/provision/site.yml --ask-vault-pass --limit docker
 ansible-playbook playbooks/site.yml --ask-vault-pass --check
 ```
 
-## Terraform
+## OpenTofu
 
 ```bash
 cd terraform
 
 # Plan changes
-terraform plan -var-file=secrets.tfvars
+tofu plan -var-file=secrets.tfvars
 
 # Apply changes
-terraform apply -var-file=secrets.tfvars
+tofu apply -var-file=secrets.tfvars
 
 # Target a specific resource (e.g. AdGuard rewrites)
-terraform apply -var-file=secrets.tfvars -target=adguard_rewrite_rule.rewrites
+tofu apply -var-file=secrets.tfvars -target=adguard_rewrite_rule.rewrites
 ```
 
 ## Kubernetes
