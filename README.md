@@ -6,6 +6,9 @@
 
 OpenTofu + Ansible IaC for a Proxmox home lab with a Vultr VPS proxy.
 
+[![Lint](https://github.com/arishaig/nest/actions/workflows/lint.yml/badge.svg)](https://github.com/arishaig/nest/actions/workflows/lint.yml)
+[![Integration](https://github.com/arishaig/nest/actions/workflows/integration.yml/badge.svg)](https://github.com/arishaig/nest/actions/workflows/integration.yml)
+
 See [docs/design.md](docs/design.md) for the full technical design and architecture overview.
 See [docs/dependencies.md](docs/dependencies.md) for a dependency inventory with licenses and GitHub links.
 
