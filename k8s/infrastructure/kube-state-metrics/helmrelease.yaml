@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: kube-state-metrics
-      version: 6.4.2  # appVersion 2.16.0 — matches the previously vendored image
+      version: 7.4.0  # appVersion 2.16.0 — matches the previously vendored image
       sourceRef:
         kind: HelmRepository
         name: prometheus-community
