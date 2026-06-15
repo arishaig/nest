@@ -21,7 +21,7 @@ jobs:
       vps: ${{ steps.filter.outputs.vps }}
       pve: ${{ steps.filter.outputs.pve }}
       k8s: ${{ steps.filter.outputs.k8s }}
-      terraform: ${{ steps.filter.outputs.terraform }}
+      tofu: ${{ steps.filter.outputs.tofu }}
       mcp: ${{ steps.filter.outputs.mcp }}
       lidarr_ui: ${{ steps.filter.outputs.lidarr_ui }}
     steps:
@@ -49,7 +49,7 @@ jobs:
             k8s:
               - 'playbooks/provision/k8s.yml'
               - 'playbooks/provision/templates/k8s/**'
-            terraform:
+            tofu:
               - 'terraform/**'
             mcp:
               - 'mcp/**'
@@ -171,9 +171,9 @@ jobs:
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit pve
 
-  deploy-terraform:
+  deploy-tofu:
     needs: changes
-    if: needs.changes.outputs.terraform == 'true'
+    if: needs.changes.outputs.tofu == 'true'
     runs-on: self-hosted
     env:
       TF_PLUGIN_CACHE_DIR: /opt/terraform-plugin-cache
@@ -194,13 +194,13 @@ jobs:
           printf '%s' "$TF_SECRETS" > terraform/secrets.tfvars
           chmod 600 terraform/secrets.tfvars
 
-      - name: Restore terraform state
+      - name: Restore OpenTofu state
         # Fail hard if the state is missing: applying with an empty state
         # re-creates every resource (duplicated AdGuard rewrites and orphaned
         # the gamma VM on 2026-06-11 when saves had been silently failing).
         run: |
           if [ ! -f "$TF_STATE_DIR/terraform.tfstate" ]; then
-            echo "::error::No terraform state at $TF_STATE_DIR — refusing a stateless apply. Restore the state manually first."
+            echo "::error::No OpenTofu state at $TF_STATE_DIR — refusing a stateless apply. Restore the state manually first."
             exit 1
           fi
           cp "$TF_STATE_DIR/terraform.tfstate" terraform/terraform.tfstate
@@ -223,7 +223,7 @@ jobs:
       - name: OpenTofu apply
         run: tofu -chdir=terraform apply -var-file=secrets.tfvars -auto-approve -input=false
 
-      - name: Save terraform state
+      - name: Save OpenTofu state
         # No error suppression here: the runner user must be able to write
         # $TF_STATE_DIR (it silently could not between 06-11 and 06-12, so
         # every apply ran against a stale state). A failed save fails the job.
