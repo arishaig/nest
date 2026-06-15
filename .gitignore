@@ -24,3 +24,11 @@ playbooks/provision/files/foundry/*.zip
 talos/clusterconfig/
 __pycache__/
 *.pyc
+
+# Python test/coverage artifacts (mcp/)
+.venv*/
+mcp/.venv*/
+mcp/coverage.xml
+mcp/.coverage
+.pytest_cache/
+*.egg-info/
