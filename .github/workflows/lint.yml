@@ -139,6 +139,44 @@ jobs:
           done
           exit $fail
 
+  helm-render:
+    runs-on: arc-lint
+    steps:
+      - uses: actions/checkout@v6.0.3
+      - name: Render HelmReleases and validate the output
+        # kustomize build (the k8s-validate job) passes Flux HelmRelease CRs
+        # through opaquely — it never invokes Helm — so the Deployments,
+        # Services and PVCs the bjw-s app-template chart actually renders are
+        # otherwise unvalidated. flux-local resolves each HelmRelease against
+        # its (public OCI) HelmRepository, runs helm template, and we pipe the
+        # rendered manifests through kubeconform against the k8s 1.32 schema.
+        run: |
+          flux-local test --enable-helm --path k8s/flux-system --kube-version 1.32.0
+          flux-local build all --enable-helm --output-file "$RUNNER_TEMP/rendered.yaml" k8s/flux-system
+          kubeconform \
+            -strict \
+            -ignore-missing-schemas \
+            -kubernetes-version 1.32.0 \
+            -summary \
+            "$RUNNER_TEMP/rendered.yaml"
+      - name: Check no workload owns its own PVC
+        # Data-safety contract: every config/state PVC must be a raw, Flux-owned
+        # manifest bound via existingClaim, never created by the app-template
+        # chart (which Flux would then prune → data loss). Reuses the render
+        # above to avoid a second helm pull.
+        run: scripts/check-helm-pvc-safety.sh "$RUNNER_TEMP/rendered.yaml"
+
+  talos-config-validate:
+    runs-on: arc-lint
+    steps:
+      - uses: actions/checkout@v6.0.3
+      - name: Render and validate Talos machine configs
+        # Generates each control-plane machine config from talos/patches/ with
+        # throwaway secrets and runs `talosctl validate -m metal`. Catches a
+        # malformed patch (bad field, broken interface/VIP) before it reaches a
+        # node — the VM/network surface the docker integration test can't cover.
+        run: scripts/check-talos-config.sh
+
   tofu:
     runs-on: arc-lint
     steps:

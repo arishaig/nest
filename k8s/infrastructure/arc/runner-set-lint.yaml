@@ -22,6 +22,15 @@ spec:
     # .github/workflows/lint.yml.
     runnerScaleSetName: arc-lint
     githubConfigUrl: https://github.com/arishaig/nest
+    # Point the manager RoleBinding at the controller's ServiceAccount
+    # explicitly instead of relying on the chart's in-cluster Deployment
+    # discovery (by label app.kubernetes.io/part-of=gha-rs-controller). The
+    # name is <controller release>-gha-rs-controller in arc-systems — exactly
+    # what discovery resolves to — so this is behaviour-preserving, removes a
+    # runtime lookup, and lets the chart render offline for `flux-local test`.
+    controllerServiceAccount:
+      name: gha-runner-scale-set-controller-gha-rs-controller
+      namespace: arc-systems
     # Pre-existing secret (key: github_token) created by
     # playbooks/provision/k8s.yml from vault_github_runner_pat.
     githubConfigSecret: arc-github-secret
