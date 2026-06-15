@@ -1,0 +1,30 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-state-metrics
+  namespace: kube-state-metrics
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: kube-state-metrics
+      version: 6.1.5  # appVersion 2.16.0 — matches the previously vendored image
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  values:
+    # External Prometheus scrapes the MetalLB shared-IP .116:8080 (job
+    # kube-state-metrics). nodePort is vestigial — left to the chart default.
+    service:
+      type: LoadBalancer
+      port: 8080
+      annotations:
+        metallb.io/loadBalancerIPs: "192.168.1.116"
+        metallb.io/allow-shared-ip: "metrics"
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        memory: 192Mi
