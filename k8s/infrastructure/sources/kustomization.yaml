@@ -8,3 +8,4 @@ resources:
   # keep this pilot's blast radius to a single app.
   - app-template.yaml
   - prometheus-community.yaml
+  - actions-runner-controller.yaml

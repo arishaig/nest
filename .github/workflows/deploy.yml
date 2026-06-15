@@ -24,6 +24,7 @@ jobs:
       tofu: ${{ steps.filter.outputs.tofu }}
       mcp: ${{ steps.filter.outputs.mcp }}
       lidarr_ui: ${{ steps.filter.outputs.lidarr_ui }}
+      ci_runner: ${{ steps.filter.outputs.ci_runner }}
     steps:
       - uses: actions/checkout@v6.0.3
       - uses: dorny/paths-filter@v4.0.1
@@ -55,6 +56,8 @@ jobs:
               - 'mcp/**'
             lidarr_ui:
               - 'lidarr-ui/**'
+            ci_runner:
+              - 'ci/runner/**'
 
   deploy-docker:
     needs: changes
@@ -346,3 +349,29 @@ jobs:
           else
             echo "Deployment not yet applied by Flux — skipping rollout restart"
           fi
+
+  # Custom runner image for the ARC arc-lint scale set. Built on a
+  # GitHub-hosted runner (cluster-independent — no bootstrap loop), pushed to
+  # GHCR. ARC pulls :latest per ephemeral pod (imagePullPolicy Always), so no
+  # rollout step is needed — the next lint job picks up the new image.
+  build-ci-runner:
+    needs: changes
+    if: needs.changes.outputs.ci_runner == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6.0.3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        run: |
+          docker build -t ghcr.io/arishaig/nest-ci-runner:latest ci/runner/
+          docker push ghcr.io/arishaig/nest-ci-runner:latest

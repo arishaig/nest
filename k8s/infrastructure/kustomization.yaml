@@ -11,6 +11,7 @@ resources:
   - alloy/
   - kube-state-metrics/
   - rpi5-net-tuning/
+  - arc/
 
 # Self-heal transient install/upgrade failures for infra HelmReleases (same as
 # the media kustomization). Applies to every HelmRelease in this tree.
