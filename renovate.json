@@ -70,6 +70,11 @@
       "description": "cadvisor GitHub releases are ahead of GCR — v0.56+ not published to gcr.io; disable until GCR catches up",
       "matchPackageNames": ["google/cadvisor"],
       "enabled": false
+    },
+    {
+      "description": "helm (CI helm-render tool) stays on the 3.x line — Flux's helm-controller and flux-local are helm-v3-based; v4 changes CLI behaviour",
+      "matchPackageNames": ["helm/helm"],
+      "allowedVersions": "<4.0.0"
     }
   ],
 
@@ -162,6 +167,32 @@
       "depNameTemplate": "yannh/kubeconform",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "helm version pin (CI helm-render) in runner.yml",
+      "managerFilePatterns": ["/playbooks/provision/runner\\.yml/"],
+      "matchStrings": ["helm_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "helm/helm",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "talosctl version pin (CI talos-config-validate) in runner.yml — moves in lockstep with talos_version",
+      "managerFilePatterns": ["/playbooks/provision/runner\\.yml/"],
+      "matchStrings": ["talosctl_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "siderolabs/talos",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "flux-local version pin (CI helm-render) in runner.yml",
+      "managerFilePatterns": ["/playbooks/provision/runner\\.yml/"],
+      "matchStrings": ["flux_local_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "flux-local",
+      "datasourceTemplate": "pypi"
     },
     {
       "customType": "regex",
