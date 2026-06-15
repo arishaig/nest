@@ -20,7 +20,7 @@ nest-mcp-serve = "nest_mcp.serve:main"
 [project.optional-dependencies]
 test = [
     "pytest==8.4.2",
-    "pytest-asyncio==1.2.0",
+    "pytest-asyncio==1.4.0",
     "pytest-cov==7.0.0",
     "genbadge[coverage]==1.1.2",
     # genbadge imports pkg_resources, removed in setuptools 81+.
