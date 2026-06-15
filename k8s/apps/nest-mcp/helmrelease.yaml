@@ -1,0 +1,118 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nest-mcp
+  namespace: nest-mcp
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      nest-mcp:
+        replicas: 3
+        # app-template defaults to Recreate; pin RollingUpdate to keep the
+        # zero-downtime rollout the raw Deployment had (multi-replica HTTP svc).
+        strategy: RollingUpdate
+        # SA + read-only ClusterRole are managed externally in mcp-rbac/; just
+        # bind to it (do not let the chart create its own).
+        serviceAccount:
+          create: false
+          name: nest-mcp
+        # Copy SSH key secret (root-owned) to a writable emptyDir, chown to uid
+        # 1000, and chmod 600 — required because OpenSSH rejects group-readable
+        # keys and Secret volumes can't be chowned to non-root at mount time.
+        initContainers:
+          setup-ssh:
+            image:
+              repository: busybox
+              tag: stable
+            command:
+              - sh
+              - -c
+              - |
+                cp /ssh-secret/ansible-on-nest /ssh/ansible-on-nest &&
+                chown 1000:1000 /ssh/ansible-on-nest &&
+                chmod 600 /ssh/ansible-on-nest
+            securityContext:
+              runAsUser: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
+        containers:
+          app:
+            # NOTE: ghcr.io/arishaig/nest-mcp must be set to public visibility
+            # at https://github.com/users/arishaig/packages/container/nest-mcp/settings
+            # (no secrets are baked into the image — all come from nest-mcp-secrets)
+            image:
+              repository: ghcr.io/arishaig/nest-mcp
+              tag: latest
+              pullPolicy: Always
+            envFrom:
+              - secretRef:
+                  name: nest-mcp-secrets
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 8765
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 8765
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+    service:
+      app:
+        controller: nest-mcp
+        ports:
+          http:
+            port: 8765
+            targetPort: 8765
+    persistence:
+      ssh-key-secret:
+        type: secret
+        name: nest-mcp-ssh-key
+        advancedMounts:
+          nest-mcp:
+            setup-ssh:
+              - path: /ssh-secret
+                readOnly: true
+      ssh-key-writable:
+        type: emptyDir
+        advancedMounts:
+          nest-mcp:
+            setup-ssh:
+              - path: /ssh
+            app:
+              - path: /home/app/.ssh
+                readOnly: true
