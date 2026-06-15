@@ -17,5 +17,31 @@ dependencies = [
 nest-mcp = "nest_mcp.__main__:main"
 nest-mcp-serve = "nest_mcp.serve:main"
 
+[project.optional-dependencies]
+test = [
+    "pytest==8.4.2",
+    "pytest-asyncio==1.2.0",
+    "pytest-cov==7.0.0",
+    "genbadge[coverage]==1.1.2",
+    # genbadge imports pkg_resources, removed in setuptools 81+.
+    "setuptools<81",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["nest_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+asyncio_mode = "auto"
+addopts = "--cov=nest_mcp --cov-report=term-missing --cov-report=xml --cov-fail-under=85"
+
+[tool.coverage.run]
+source = ["nest_mcp"]
+# Entry points / server wiring are exercised by import (registration) but their
+# runtime main()/serve() paths start a network server — not unit-testable.
+omit = [
+    "nest_mcp/__main__.py",
+    "nest_mcp/serve.py",
+    "nest_mcp/auth.py",
+]
