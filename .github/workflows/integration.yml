@@ -1,0 +1,118 @@
+name: Integration
+
+# Docker-in-Docker integration test: boots a real Talos cluster in Docker on a
+# GitHub-hosted runner (the arc-lint runners deliberately have no Docker daemon),
+# proves a control plane + worker node actually spin up Ready, then server-side
+# dry-run applies the rendered manifests against the live API to catch CRD-schema
+# and admission errors that kubeconform/flux-local (no API server) cannot.
+#
+# Path-filtered: cluster-create + image pull is minutes, too slow for every PR.
+# Scope note: this exercises the Kubernetes/cluster layer only. The Proxmox/VM
+# layer — the ens18 interface, static IPs and the .115 VIP in talos/patches/ —
+# is validated statically by the talos-config-validate job in lint.yml; docker
+# networking neither applies nor needs it.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'talos/**'
+      - 'k8s/**'
+      - 'terraform/terraform.tfvars'
+      - '.github/workflows/integration.yml'
+  workflow_dispatch:
+
+jobs:
+  talos-node-spinup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLUSTER: ci
+    steps:
+      - uses: actions/checkout@v6.0.3
+
+      - name: Install talosctl, kubectl, helm, kustomize and flux-local
+        # talosctl is pinned to talos_version in terraform.tfvars so the test
+        # boots the image we actually run. kubectl follows current stable;
+        # flux-local (+ helm/kustomize) renders the HelmReleases for the apply.
+        run: |
+          set -euo pipefail
+          talos_version="$(grep -oP '^talos_version\s*=\s*"\K[^"]+' terraform/terraform.tfvars)"
+          echo "TALOS_VERSION=${talos_version}" >> "$GITHUB_ENV"
+          sudo curl -fsSL -o /usr/local/bin/talosctl \
+            "https://github.com/siderolabs/talos/releases/download/${talos_version}/talosctl-linux-amd64"
+          sudo chmod +x /usr/local/bin/talosctl
+          kver="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+          sudo curl -fsSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/${kver}/bin/linux/amd64/kubectl"
+          sudo chmod +x /usr/local/bin/kubectl
+          curl -fsSL "https://get.helm.sh/helm-v3.21.1-linux-amd64.tar.gz" | sudo tar -xz -C /usr/local/bin --strip-components=1 linux-amd64/helm
+          curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.1/kustomize_v5.8.1_linux_amd64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin kustomize
+          pipx install flux-local==8.3.0
+
+      - name: Load br_netfilter for flannel
+        # Talos's docker provisioner uses flannel (vxlan); flannel crashloops
+        # without br_netfilter, leaving CoreDNS stuck in ContainerCreating and
+        # the cluster health-check timing out. Loading the module up front is the
+        # documented prerequisite for bridge-based CNI.
+        run: |
+          sudo modprobe br_netfilter
+          sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
+
+      - name: Create Talos cluster (1 control plane + 1 worker)
+        # `cluster create` blocks on a full health check (nodes, kube-proxy,
+        # CoreDNS) before returning, so reaching this step's end already proves
+        # the cluster formed. kubeconfig is merged into the default path.
+        run: |
+          talosctl cluster create docker \
+            --name "$CLUSTER" \
+            --workers 1 \
+            --image "ghcr.io/siderolabs/talos:${TALOS_VERSION}" \
+            --talosconfig-destination "$RUNNER_TEMP/talosconfig"
+
+      - name: Wait for all nodes Ready
+        # Explicit confirmation of the headline deliverable: a node spins up and
+        # joins. Redundant with the health-check above, but it fails loudly with
+        # node status if anything regressed.
+        run: |
+          kubectl wait --for=condition=Ready nodes --all --timeout=180s
+          kubectl get nodes -o wide
+
+      - name: Install CRDs needed for the dry-run apply
+        # Register the CRDs the rendered CRs reference, from the repo's own
+        # pinned manifests (exact version fidelity, no external pulls). Flux and
+        # Traefik ship CRD-only manifests with no admission webhooks, so they
+        # register cleanly. cert-manager / MetalLB / ARC CRDs live in upstream
+        # charts not vendored here (and bring webhooks) — their CRs are skipped
+        # at render time below and remain covered by kubeconform in lint.yml.
+        run: |
+          kubectl apply --server-side -f k8s/flux-system/flux-system/gotk-components.yaml
+          kubectl apply --server-side -f k8s/infrastructure/traefik/crd.yaml
+
+      - name: Server-side dry-run apply of the rendered manifests
+        # The highest-value dynamic check: validates every workload (Deployments,
+        # Services, PVCs…), Flux CRs and Traefik routes against the live API
+        # server — admission, defaulting and CRD-schema errors kubeconform and
+        # flux-local cannot see. Namespaces are created first so namespaced
+        # resources resolve; we apply (not dry-run) the Namespaces themselves.
+        # PodSecurity "restricted" warnings on these throwaway namespaces are
+        # expected and non-fatal (they carry no enforce label); they'd only turn
+        # into hard rejections if a rendered Namespace ever set
+        # pod-security.kubernetes.io/enforce.
+        run: |
+          flux-local build all --enable-helm \
+            --skip-kinds Certificate,ClusterIssuer,IPAddressPool,L2Advertisement,AutoscalingRunnerSet \
+            --output-file "$RUNNER_TEMP/rendered.yaml" \
+            k8s/flux-system
+          # Every namespace a resource lives in must exist for a namespaced
+          # server dry-run to resolve (dry-run never creates the namespace
+          # itself). Create each referenced namespace up front; create-or-noop.
+          grep -hoE '^  namespace: [a-z0-9-]+' "$RUNNER_TEMP/rendered.yaml" \
+            | awk '{print $2}' | sort -u \
+            | while read -r ns; do
+                kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
+              done
+          kubectl apply --dry-run=server -f "$RUNNER_TEMP/rendered.yaml"
+
+      - name: Tear down the cluster
+        if: always()
+        run: talosctl cluster destroy --name "$CLUSTER" || true
