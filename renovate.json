@@ -75,6 +75,11 @@
       "description": "helm (CI helm-render tool) stays on the 3.x line — Flux's helm-controller and flux-local are helm-v3-based; v4 changes CLI behaviour",
       "matchPackageNames": ["helm/helm"],
       "allowedVersions": "<4.0.0"
+    },
+    {
+      "description": "flux-local (CI helm-render tool) stays on 7.x — 8.x requires Python >=3.13 and the runner images ship 3.12",
+      "matchPackageNames": ["flux-local"],
+      "allowedVersions": "<8.0.0"
     }
   ],
 
@@ -193,6 +198,15 @@
       "matchStrings": ["flux_local_version:\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "flux-local",
       "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "description": "flux CLI version pin (CI helm-render) in runner.yml",
+      "managerFilePatterns": ["/playbooks/provision/runner\\.yml/"],
+      "matchStrings": ["flux_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "fluxcd/flux2",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
     },
     {
       "customType": "regex",

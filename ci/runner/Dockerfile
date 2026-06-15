@@ -32,8 +32,12 @@ ARG HELM_VERSION=3.21.1
 # talosctl backs the talos-config-validate lint job. Keep in lock-step with
 # talos_version in terraform/terraform.tfvars. renovate: datasource=github-releases depName=siderolabs/talos
 ARG TALOSCTL_VERSION=1.13.4
-# flux-local renders the HelmReleases for the helm-render job. renovate: datasource=pypi depName=flux-local
-ARG FLUX_LOCAL_VERSION=8.3.0
+# flux-local renders the HelmReleases for the helm-render job. Held on 7.x:
+# 8.x requires Python >=3.13 and this base image ships 3.12. renovate: datasource=pypi depName=flux-local
+ARG FLUX_LOCAL_VERSION=7.11.0
+# flux CLI — flux-local 7.x shells out to `flux build ks` to build Flux
+# Kustomizations. Pinned to the version the cluster bootstraps. renovate: datasource=github-releases depName=fluxcd/flux2
+ARG FLUX_VERSION=2.8.8
 
 USER root
 
@@ -84,6 +88,9 @@ RUN set -eux; \
     # talosctl (single binary)
     curl -fsSL -o talosctl "https://github.com/siderolabs/talos/releases/download/v${TALOSCTL_VERSION}/talosctl-linux-amd64"; \
     install -m 0755 talosctl /usr/local/bin/talosctl; \
+    # flux CLI
+    curl -fsSL -o flux.tar.gz "https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSION}/flux_${FLUX_VERSION}_linux_amd64.tar.gz"; \
+    tar -xzf flux.tar.gz flux; install -m 0755 flux /usr/local/bin/flux; \
     cd /; rm -rf "$tmp"
 
 # flux-local in its own venv, entrypoint symlinked onto PATH. Kept out of the
