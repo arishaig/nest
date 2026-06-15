@@ -11,3 +11,21 @@ resources:
   - alloy/
   - kube-state-metrics/
   - rpi5-net-tuning/
+
+# Self-heal transient install/upgrade failures for infra HelmReleases (same as
+# the media kustomization). Applies to every HelmRelease in this tree.
+patches:
+  - target:
+      kind: HelmRelease
+    patch: |
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata:
+        name: all
+      spec:
+        install:
+          remediation:
+            retries: 3
+        upgrade:
+          remediation:
+            retries: 3

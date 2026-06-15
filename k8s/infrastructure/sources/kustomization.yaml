@@ -7,3 +7,4 @@ resources:
   # is deferred to the infra-charts phase, where ordering is load-bearing, to
   # keep this pilot's blast radius to a single app.
   - app-template.yaml
+  - prometheus-community.yaml
