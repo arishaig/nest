@@ -33,7 +33,11 @@
     # helm-v3-based); talosctl_version tracks talos_version in terraform.tfvars.
     helm_version: "3.21.1"
     talosctl_version: "1.13.4"
-    flux_local_version: "8.3.0"
+    # Held on 7.x: flux-local 8.x requires Python >=3.13 (runners ship 3.12).
+    flux_local_version: "7.11.0"
+    # flux CLI — flux-local 7.x shells out to `flux build ks`. Pinned to the
+    # version the cluster bootstraps.
+    flux_version: "2.8.8"
 
   tasks:
     - name: Install runner and Ansible dependencies
@@ -239,6 +243,35 @@
         url: "https://github.com/siderolabs/talos/releases/download/v{{ talosctl_version }}/talosctl-linux-amd64"
         dest: /usr/local/bin/talosctl
         mode: "0755"
+
+    - name: Install flux CLI (flux-local shells out to it)
+      block:
+        - name: Download flux CLI tarball
+          ansible.builtin.get_url:
+            url: "https://github.com/fluxcd/flux2/releases/download/v{{ flux_version }}/flux_{{ flux_version }}_linux_amd64.tar.gz"
+            dest: /tmp/flux.tar.gz
+            mode: "0644"
+
+        - name: Extract flux CLI tarball
+          ansible.builtin.unarchive:
+            src: /tmp/flux.tar.gz
+            dest: /tmp
+            remote_src: true
+
+        - name: Install flux binary
+          ansible.builtin.copy:
+            src: /tmp/flux
+            dest: /usr/local/bin/flux
+            mode: "0755"
+            remote_src: true
+
+        - name: Clean up flux CLI download
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /tmp/flux.tar.gz
+            - /tmp/flux
 
     # flux-local lives in its own venv (keeps its deps off the ansible venv) and
     # is symlinked onto PATH because the helm-render job runs it without
