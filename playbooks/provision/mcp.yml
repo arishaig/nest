@@ -18,7 +18,7 @@
     mcp_src: "{{ playbook_dir | dirname | dirname }}/mcp"
     # Backs the terraform_plan MCP tool, which shells out to `tofu`.
     # Renovate-managed; keep in sync with runner.yml's opentofu_version.
-    opentofu_version: "1.12.0"
+    opentofu_version: "1.12.1"
 
   tasks:
     - name: Install Python venv and pip
