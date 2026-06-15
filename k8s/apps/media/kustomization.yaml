@@ -72,3 +72,22 @@ resources:
   - jellyfin-pgsql-deployment.yaml
   - jellyfin-pgsql-service.yaml
   - ingress-routes.yaml
+
+# Self-heal transient install/upgrade failures (e.g. helm-controller client
+# rate-limiting during a large reconcile burst). Applies to every HelmRelease
+# in this kustomization so individual files stay clean.
+patches:
+  - target:
+      kind: HelmRelease
+    patch: |
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata:
+        name: all
+      spec:
+        install:
+          remediation:
+            retries: 3
+        upgrade:
+          remediation:
+            retries: 3
