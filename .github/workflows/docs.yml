@@ -1,8 +1,15 @@
 name: Docs
 
+# Architecture diagrams are generated from the IaC by scripts/generate_diagram.py.
+# When a PR changes the inputs, regenerate on the self-hosted runner (the canonical
+# renderer — graphviz/font output is host-specific) and commit the PNGs back onto
+# the PR's own branch, so they reach main through the normal PR flow.
+#
+# main is PR-only (repo ruleset), so this never pushes to main directly. The push
+# uses the default GITHUB_TOKEN, which by design does NOT re-trigger workflows —
+# that's what prevents a regenerate→push→regenerate loop.
 on:
-  push:
-    branches: [main]
+  pull_request:
     paths:
       - 'inventory/hosts.yml'
       - 'terraform/lxc-*.tf'
@@ -14,19 +21,26 @@ permissions:
 jobs:
   regenerate-diagrams:
     runs-on: self-hosted
+    # Fork PRs get a read-only GITHUB_TOKEN and can't push back — skip them.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v6.0.3
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Regenerate architecture diagrams
         run: |
           source /opt/ansible-runner/venv/bin/activate
           python3 scripts/generate_diagram.py
 
-      - name: Commit updated diagrams if changed
+      - name: Commit regenerated diagrams to the PR branch if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/arishaig/nest.git"
           git add docs/architecture.png docs/architecture-flow.png
-          git diff --staged --quiet || git commit -m "chore: regenerate architecture diagrams [skip ci]"
-          git push
+          if git diff --staged --quiet; then
+            echo "Diagrams already up to date."
+          else
+            git commit -m "chore: regenerate architecture diagrams"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
