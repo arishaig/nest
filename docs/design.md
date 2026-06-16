@@ -48,9 +48,16 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 |---|---|---|---|
 | 107 | homeassistant | 192.168.4.50 (VLAN 4) | Home Assistant OS |
 | 110 | talos | 192.168.1.110 | Talos Linux — k8s control plane "alpha" (4 vCPU, 24 GB RAM) |
-| 113 | talos-beta-vm | 192.168.1.111 | Talos control plane "beta" — temporary test VM until RPi5s arrive |
-| 114 | talos-gamma-vm | 192.168.1.112 | Talos control plane "gamma" — temporary test VM until RPi5s arrive |
+| 113 | talos-beta-vm | 192.168.1.111 | Talos control plane "beta" (2 vCPU, 4 GB) — temporary test VM until RPi5s arrive |
+| 115 | talos-delta-vm | 192.168.1.114 | Talos control plane "delta" (4 vCPU, 8 GB) — temporary test VM until RPi5s arrive |
 | 500 | backup | 192.168.1.113 | Proxmox Backup Server |
+
+All three control-plane nodes are schedulable (beta/delta were flipped to rehearse the
+multi-node topology ahead of the RPi5 swap). Heavy media workloads are pinned to alpha
+(~24 GB) via the `nest.arishaig.site/workloads=general` node label / nodeSelector, so the
+small beta/delta nodes only carry control-plane and light pods. The earlier "gamma" test VM
+(was VM 114 / .112) was removed during a node-swap rehearsal that validated the
+add-then-remove etcd flow for the Pi migration; .112 is now free.
 
 Cluster-level IPs (not VMs): `192.168.1.115` Talos API VIP (port 6443 only — kube-proxy
 in nftables mode does not serve NodePorts on it), `192.168.1.116` MetalLB metrics LB
@@ -190,9 +197,16 @@ so the LXC can be started manually and used as a scratch Docker host when needed
 ## Kubernetes (Talos VM 110)
 
 Three-node Talos Linux control plane: alpha VM `192.168.1.110` plus temporary test
-VMs beta `192.168.1.111` / gamma `192.168.1.112` (to be replaced by Raspberry Pi 5s).
-API VIP `192.168.1.115` (port 6443 only). Managed by **Flux** watching `k8s/` in this
-repo — git is the live source of truth with continuous reconciliation.
+VMs beta `192.168.1.111` / delta `192.168.1.114` (to be replaced by Raspberry Pi 5s).
+All three are schedulable; heavy media pods are pinned to alpha via the
+`nest.arishaig.site/workloads=general` node label. API VIP `192.168.1.115` (port 6443
+only). Managed by **Flux** watching `k8s/` in this repo — git is the live source of
+truth with continuous reconciliation.
+
+Workloads are deployed as Flux `HelmRelease`s using the [bjw-s `app-template`](https://github.com/bjw-s-labs/helm-charts)
+chart (one app = one HelmRelease values block, the k8s analogue of a single compose
+service); cluster primitives (Traefik, cert-manager, MetalLB, ARC, kube-state-metrics)
+use their official upstream charts. See [k8s-helm-migration.md](k8s-helm-migration.md).
 
 Storage classes:
 - `nfs-nvme` — nfs-subdir-external-provisioner pointing at PVE `rpool/data/k8s-configs`; used for app configs
@@ -353,17 +367,36 @@ tool that gives a full live snapshot of the homelab in one call.
 
 ---
 
-## CI Runner (LXC 108)
+## CI / CD
 
-GitHub Actions self-hosted runner at `192.168.1.18`. Runs the `validate` workflow on every push.
+GitHub Actions runs on two runner pools, split by blast radius:
 
-CI validates:
-- `tofu validate` (provider auth is mocked — SSH keys via `file("~/")` are present on the runner)
-- `ansible-lint` (via venv)
-- `yamllint` (shared `.yamllint` config)
-- `shellcheck` 0.10.0 on all shell scripts
+- **`arc-lint`** — ephemeral Kubernetes pods via Actions Runner Controller (ARC) in the
+  `arc-runners` namespace (image `ghcr.io/arishaig/nest-ci-runner:latest`, `minRunners: 0`).
+  Stateless PR lint/validate jobs run here. See [arc-runners.md](arc-runners.md).
+- **LXC 108 `ci` (`192.168.1.18`), `self-hosted`** — the recovery-critical deploy jobs that
+  hold OpenTofu state, secrets, and the kubeconfig deliberately stay on the dedicated LXC, so
+  the cluster's deploys never depend on the cluster being up. Has no Docker daemon; ansible
+  vault password is on the runner for `--ask-vault-pass`-free runs.
 
-No Docker daemon access. Ansible vault password is on the runner for `--ask-vault-pass`-free lint runs.
+### Workflows
+
+| Workflow | Trigger | Runs on | What it does |
+|---|---|---|---|
+| `lint.yml` | every push / PR | `arc-lint` | `tofu validate`, `ansible-lint`, `yamllint`, `shellcheck` 0.10.0, `promtool`/`amtool` rule checks, `kubeconform` (k8s-validate), **helm-render** (flux-local renders every HelmRelease → kubeconform + `check-helm-pvc-safety.sh`), **talos-config-validate** (`talosctl gen config`/`validate -m metal` over `talos/patches/`), deploy-coverage + RPi5 overlay checks |
+| `integration.yml` | PR/push touching `talos/**`, `k8s/**`, tfvars | `ubuntu-latest` | Boots a **Talos-in-Docker** cluster (`talosctl cluster create docker`), waits for nodes `Ready`, then server-side dry-run applies the rendered manifests against the ephemeral API |
+| `mcp-tests.yml` | PR touching `mcp/**` | `ubuntu-latest` | `pytest` for `nest_mcp` (86 tests, ~92% coverage, `--cov-fail-under=85`) + verifies the committed `assets/coverage.svg` badge is current |
+| `deploy.yml` | push to `main` | `self-hosted` (+ `ubuntu-latest` image builds) | `deploy-tofu`, `deploy-k8s` (Flux reconcile), per-host ansible deploys, and image builds (`build-mcp`, `build-lidarr-ui`, `build-ci-runner`) |
+| `docs.yml` | push to `main` touching inventory/`lxc-*.tf`/diagram script | `self-hosted` | Regenerates `docs/architecture*.png` from `scripts/generate_diagram.py` and commits if changed |
+
+The unit tier (helm-render + talos-config-validate) proves the manifests/machine configs are
+well-formed; the Docker integration tier proves a cluster actually forms and a node joins. The
+QEMU-only multi-control-plane etcd quorum rehearsal is out of scope for CI (the talosctl docker
+provisioner is single-control-plane) and stays a manual runbook step.
+
+> New tooling baked into the `arc-lint` image (`ci/runner/Dockerfile`) requires a merge-first
+> image-rebuild PR, because `build-ci-runner` only runs on push to `main`. Keep
+> `ci/runner/Dockerfile` and `playbooks/provision/runner.yml` in sync (LXC-runner parity).
 
 ---
 

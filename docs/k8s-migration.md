@@ -1,5 +1,9 @@
 # k8s Migration Roadmap
 
+> **Status (2026-06):** migration complete — all app services run on k8s and the
+> cluster is now a **3-node** control plane (alpha/beta/delta). This document is the
+> historical roadmap; for current-state architecture see [design.md](design.md).
+
 Migration from Docker Compose on LXCs to Flux-managed Talos k8s.  
 Goal: git as the live source of truth with a continuous reconciliation loop (Flux), not push-on-demand Ansible.
 

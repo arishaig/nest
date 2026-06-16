@@ -38,6 +38,24 @@ REPO_ROOT = Path(__file__).parent.parent
 
 
 # ---------------------------------------------------------------------------
+# Solarized Light palette (chrome only — service logos are fixed full-colour PNGs)
+# ---------------------------------------------------------------------------
+
+BASE3   = "#fdf6e3"  # canvas background
+BASE2   = "#eee8d5"  # outer cluster fill
+INNER   = "#e3dcc6"  # nested cluster fill (distinct from BASE2 so they don't muddy)
+BASE1   = "#93a1a1"  # cluster borders
+BASE00  = "#657b83"  # edges / body text
+BASE01  = "#586e75"  # emphasised text (titles, labels)
+
+DIAGRAM_GRAPH = {"bgcolor": BASE3, "fontcolor": BASE01, "fontname": "Sans"}
+DIAGRAM_NODE  = {"fontcolor": BASE01, "fontname": "Sans"}
+DIAGRAM_EDGE  = {"color": BASE00, "fontcolor": BASE00, "fontname": "Sans"}
+CLUSTER       = {"bgcolor": BASE2, "pencolor": BASE1, "fontcolor": BASE01, "fontname": "Sans"}
+CLUSTER_INNER = {**CLUSTER, "bgcolor": INNER}
+
+
+# ---------------------------------------------------------------------------
 # Parsing
 # ---------------------------------------------------------------------------
 
@@ -103,95 +121,93 @@ def host_label(name: str, hosts: dict, suffix: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
+    """Topology view: what runs where. One job — inventory + structural shape.
+
+    The request path lives in the flow diagram; monitoring / logging / backup
+    are cross-cutting planes that touch every host, so they're stated once as a
+    caption instead of drawn as 30 crossing edges.
+    """
     out_file = str(out_dir / "architecture")
-    graph_attr = {"pad": "0.75", "splines": "ortho", "nodesep": "0.60", "ranksep": "0.90"}
-    node_attr  = {"fontsize": "11"}
+    # Caption carries the cross-cutting planes so the graph stays a clean inventory.
+    caption = ("ansible-on-nest\n\n"
+               "Cross-cutting (not drawn): Prometheus + Loki (monitoring LXC) scrape metrics "
+               "and collect Alloy logs from every host · PBS backs up all guests · "
+               "Flux reconciles k8s/ from git")
+    graph_attr = {**DIAGRAM_GRAPH, "pad": "0.75", "nodesep": "0.60", "ranksep": "0.90",
+                  "fontsize": "11", "labelloc": "b"}
+    node_attr  = {**DIAGRAM_NODE, "fontsize": "11"}
 
     with Diagram(
-        "ansible-on-nest",
+        caption,
         filename=out_file,
         outformat=fmt,
         show=False,
         direction="TB",
         graph_attr=graph_attr,
         node_attr=node_attr,
+        edge_attr=DIAGRAM_EDGE,
     ):
         internet = Internet("Internet\n/ Clients")
 
-        with Cluster("Vultr VPS — 66.42.79.175"):
-            vps_traefik = Traefik("Traefik\n:80 / :443")
-            vps_wg      = VPN("WireGuard\n10.10.0.1")
-            vps_obs     = Server("node_exporter\n+ Alloy")
+        with Cluster("Vultr VPS — 66.42.79.175", graph_attr=CLUSTER):
+            vps_traefik = Traefik("Traefik\nTCP passthrough :443")
+            VPN("WireGuard 10.10.0.1")
+            Coredns("AdGuard Home\n(tertiary DNS)")
 
-        with Cluster("Proxmox VE — 192.168.1.16"):
+        with Cluster("Proxmox VE — 192.168.1.16", graph_attr=CLUSTER):
 
-            with Cluster(lxc_label("docker", hosts, lxcs)):
-                nest_traefik = Traefik("Traefik")
-                nest_docker  = Docker("Docker services\n(Sonarr · Radarr · Jellyfin…)")
-                nest_wg      = VPN("WireGuard\n10.10.0.2")
+            with Cluster("Talos k8s — alpha 110 · beta 113 · delta 115\n"
+                         "Flux GitOps · API VIP .115 · k8s Traefik @ MetalLB .117",
+                         graph_attr=CLUSTER_INNER):
+                nest_traefik = Traefik("k8s Traefik + Authelia")
+                Docker("app-template HelmReleases\n(Sonarr · Radarr · Jellyfin · Seerr…)")
 
-            with Cluster(lxc_label("monitoring", hosts, lxcs)):
-                prom = Prometheus("Prometheus")
-                graf = Grafana("Grafana")
-                lok  = Server("Loki + Ruler\n← Alloy (all hosts)")
+            with Cluster(lxc_label("monitoring", hosts, lxcs), graph_attr=CLUSTER):
+                Prometheus("Prometheus")
+                Grafana("Grafana")
+                Server("Loki + Ruler")
 
-            with Cluster(lxc_label("fileserver", hosts, lxcs)):
-                files = Ceph("Samba")
+            with Cluster(lxc_label("fileserver", hosts, lxcs), graph_attr=CLUSTER):
+                Ceph("Samba / NFS\n/Tank/media_root")
 
-            with Cluster(lxc_label("scrutiny", hosts, lxcs)):
-                scrut = Server("Scrutiny\n(SMART)")
+            with Cluster(lxc_label("seedbox", hosts, lxcs), graph_attr=CLUSTER):
+                Server("qBittorrent\n+ Gluetun VPN")
 
-            with Cluster(lxc_label("seedbox", hosts, lxcs)):
-                seed = Server("qBittorrent\n+ Gluetun VPN")
+            with Cluster(lxc_label("musicbrainz", hosts, lxcs), graph_attr=CLUSTER):
+                Server("MusicBrainz")
 
-            with Cluster(lxc_label("musicbrainz", hosts, lxcs)):
-                mb = Server("MusicBrainz")
+            with Cluster(lxc_label("scrutiny", hosts, lxcs), graph_attr=CLUSTER):
+                Server("Scrutiny\n(SMART)")
 
-            with Cluster(lxc_label("dns-secondary", hosts, lxcs)):
-                adguard2 = Coredns("AdGuard Home\n(secondary)")
-                unbound2 = Server("Unbound")
+            with Cluster(lxc_label("dns-secondary", hosts, lxcs), graph_attr=CLUSTER):
+                adguard2 = Coredns("AdGuard Home\n(secondary) + Unbound")
 
-            with Cluster(lxc_label("mcp", hosts, lxcs)):
-                mcp = Server("nest-mcp\n:8765")
+            with Cluster(lxc_label("mcp", hosts, lxcs), graph_attr=CLUSTER):
+                Server("nest-mcp :8765")
 
-            with Cluster(lxc_label("ci", hosts, lxcs)):
-                ci = Server("GitHub Actions\nrunner")
+            with Cluster(lxc_label("ci", hosts, lxcs), graph_attr=CLUSTER):
+                Server("Actions runner\n(deploy)")
 
-            with Cluster("VM 107: homeassistant\n192.168.4.50 (VLAN 4)"):
-                ha = Server("Home Assistant OS")
+            with Cluster(lxc_label("foundry", hosts, lxcs), graph_attr=CLUSTER):
+                Server("FoundryVTT")
 
-            with Cluster("VM 500: backup\n192.168.1.113"):
-                pbs = Server("Proxmox\nBackup Server")
+            with Cluster(lxc_label("docker", hosts, lxcs), graph_attr=CLUSTER):
+                Docker("decommissioned\n(scratch host)")
 
-        with Cluster(host_label("adguard", hosts, "(primary DNS)")):
-            adguard = Coredns("AdGuard Home")
-            unbound = Server("Unbound")
+            with Cluster("VM 107: homeassistant\n192.168.4.50 (VLAN 4)", graph_attr=CLUSTER):
+                Server("Home Assistant OS")
 
-        # Ingress path
-        internet >> vps_traefik >> vps_wg
-        vps_wg   >> Edge(label="WireGuard tunnel", style="dashed") >> nest_wg
-        nest_wg  >> nest_traefik >> nest_docker
+            with Cluster("VM 500: backup\n192.168.1.113", graph_attr=CLUSTER):
+                Server("Proxmox Backup Server")
 
-        # DNS
-        adguard  >> Edge(label="upstream") >> unbound
-        adguard2 >> Edge(label="upstream") >> unbound2
-        adguard  >> Edge(label="failover", style="dashed") >> adguard2
+        with Cluster(host_label("adguard", hosts, "(primary DNS)"), graph_attr=CLUSTER):
+            adguard = Coredns("AdGuard Home\n+ Unbound")
 
-        # Monitoring — metrics
-        lxc_targets = [nest_docker, files, scrut, seed, mb, ha, pbs, mcp, ci]
-        prom >> Edge(label="scrape") >> lxc_targets
-        prom >> Edge(label="scrape\n(WireGuard)", style="dashed") >> vps_obs
-        graf - [prom, lok]
-
-        # Log shipping — representative edges only (all hosts run Alloy; label on node)
-        nest_docker >> Edge(style="dashed", color="steelblue") >> lok
-        vps_obs     >> Edge(style="dashed", color="steelblue") >> lok
-
-        # Backups
-        [nest_docker, files, scrut, seed, mb, ha] >> Edge(label="backup") >> pbs
-
-        # DNS (representative)
-        nest_docker >> Edge(label="DNS", style="dotted", color="gray") >> adguard
+        # Only the structural edges a reader can't infer from the boxes alone.
+        internet     >> Edge(label="HTTPS") >> vps_traefik
+        vps_traefik  >> Edge(label="WireGuard tunnel", style="dashed") >> nest_traefik
+        internet     >> Edge(label="DNS", style="dotted") >> adguard
+        adguard      >> Edge(label="failover", style="dashed") >> adguard2
 
     print(f"Written: {out_file}.{fmt}")
 
@@ -202,8 +218,9 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
 
 def generate_flow(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
     out_file = str(out_dir / "architecture-flow")
-    graph_attr = {"pad": "0.80", "splines": "ortho", "nodesep": "0.80", "ranksep": "1.10"}
-    node_attr  = {"fontsize": "13"}
+    graph_attr = {**DIAGRAM_GRAPH, "pad": "0.80", "splines": "ortho",
+                  "nodesep": "0.80", "ranksep": "1.10", "labelloc": "b"}
+    node_attr  = {**DIAGRAM_NODE, "fontsize": "13"}
 
     with Diagram(
         "ansible-on-nest — Client Flow",
@@ -213,22 +230,23 @@ def generate_flow(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
         direction="LR",
         graph_attr=graph_attr,
         node_attr=node_attr,
+        edge_attr=DIAGRAM_EDGE,
     ):
         client = Internet("Client")
 
-        with Cluster("Vultr VPS\n66.42.79.175"):
+        with Cluster("Vultr VPS\n66.42.79.175", graph_attr=CLUSTER):
             vps_traefik = Traefik("Traefik\nTCP passthrough\n:443")
             vps_wg      = VPN("WireGuard\n10.10.0.1")
 
-        with Cluster(lxc_label("docker", hosts, lxcs)):
-            nest_wg        = VPN("WireGuard\n10.10.0.2")
-            nest_traefik   = Traefik("Traefik\nTLS termination\nPROXY protocol v2")
+        with Cluster("Talos k8s cluster\nFlux GitOps", graph_attr=CLUSTER):
+            nest_wg        = VPN("WireGuard\n10.10.0.3 (alpha)")
+            nest_traefik   = Traefik("k8s Traefik\nMetalLB 192.168.1.117\nTLS term · PROXY v2")
             authelia       = Server("Authelia\nSSO / 2FA")
             svc_protected  = Docker("Protected services\n(Sonarr · Radarr · Grafana…)")
             svc_local      = Docker("LAN-only services\n(Tunarr · Watcharr)")
             svc_open       = Docker("Open services\n(Jellyfin · Seerr)")
 
-        with Cluster(host_label("adguard", hosts, "(primary DNS)")):
+        with Cluster(host_label("adguard", hosts, "(primary DNS)"), graph_attr=CLUSTER):
             adguard = Coredns("AdGuard Home\n+ Unbound")
 
         client      >> Edge(label="HTTPS") >> vps_traefik
@@ -241,7 +259,7 @@ def generate_flow(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
         nest_traefik >> Edge(label="local-only") >> svc_local
         nest_traefik >> Edge(label="no auth") >> svc_open
 
-        client >> Edge(label="DNS", style="dotted", color="gray") >> adguard
+        client >> Edge(label="DNS", style="dotted") >> adguard
 
     print(f"Written: {out_file}.{fmt}")
 

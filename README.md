@@ -27,12 +27,15 @@ See [docs/dependencies.md](docs/dependencies.md) for a dependency inventory with
 ## Layout
 
 ```
-terraform/          HCL resources (PVE LXCs/VMs, AdGuard DNS rewrites)
+terraform/          OpenTofu/HCL resources (PVE LXCs/VMs, AdGuard + Cloudflare DNS)
 playbooks/          Ansible — post-provision config, Docker services, nftables
 inventory/          hosts.yml
-mcp/                Nest MCP server (homelab tools for Claude Code)
-scripts/            Tooling (diagram generation)
-docs/               Generated outputs
+k8s/                Flux GitOps tree — infrastructure/ + apps/ (Talos cluster)
+talos/              Talos machine configs + control-plane patches
+mcp/                Nest MCP server (homelab tools for Claude Code) + tests
+ci/                 arc-lint runner image (ghcr.io/arishaig/nest-ci-runner)
+scripts/            Tooling — diagram generation + CI check/bootstrap scripts
+docs/               Design, dependencies, runbooks, generated diagrams
 ```
 
 ## Quick commands
