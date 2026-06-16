@@ -34,8 +34,10 @@ spec:
           app:
             image:
               repository: ghcr.io/arishaig/anagnorisis
-              tag: latest
-              pullPolicy: Always
+              # Immutable sha tag from the docker-build workflow. Bump this to roll
+              # out a new build — Flux reconciles the change from git (no kubectl).
+              tag: sha-fde6d16
+              pullPolicy: IfNotPresent
             # Use sh wrapper so we can merge stderr→stdout (tracebacks land in
             # Loki); exec replaces sh with Python for clean PID 1 / signals.
             command: ["/bin/sh", "-c"]
