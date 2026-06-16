@@ -98,13 +98,13 @@ def parse_tf_lxcs(tf_dir: Path) -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 
 def lxc_label(name: str, hosts: dict, lxcs: dict) -> str:
+    # "LXC <vmid>: <name>" + IP only. The terraform description is deliberately
+    # omitted: it's wider than the single-icon cluster body and overflows the
+    # frame, and the icon + node label inside already say what the host does.
     vmid = lxcs.get(name, {}).get("vmid")
     ip   = hosts.get(name, {}).get("ip", "")
-    desc = lxcs.get(name, {}).get("description", "")
     prefix = f"LXC {vmid}: {name}" if vmid else name
     parts = [prefix, ip]
-    if desc:
-        parts.append(f"({desc})")
     return "\n".join(p for p in parts if p)
 
 
@@ -157,10 +157,10 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
         with Cluster("Proxmox VE — 192.168.1.16", graph_attr=CLUSTER):
 
             with Cluster("Talos k8s — alpha 110 · beta 113 · delta 115\n"
-                         "Flux GitOps · API VIP .115 · k8s Traefik @ MetalLB .117",
+                         "Flux GitOps · API VIP .115 · ingress @ .117",
                          graph_attr=CLUSTER_INNER):
-                nest_traefik = Traefik("k8s Traefik + Authelia")
-                Docker("app-template HelmReleases\n(Sonarr · Radarr · Jellyfin · Seerr…)")
+                nest_traefik = Traefik("k8s Traefik\n+ Authelia")
+                Docker("app-template\nHelmReleases\n(Sonarr · Radarr\nJellyfin…)")
 
             with Cluster(lxc_label("monitoring", hosts, lxcs), graph_attr=CLUSTER):
                 Prometheus("Prometheus")
