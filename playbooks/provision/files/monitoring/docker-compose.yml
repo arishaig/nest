@@ -99,6 +99,34 @@ services:
     restart: unless-stopped
     volumes:
       - ./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    # Pin all probe hostnames to the MetalLB ingress IP so probes succeed even
+    # when the primary Pi DNS (Unbound) is down. TLS SNI and cert validation
+    # still work correctly because URLs retain the real hostname.
+    extra_hosts:
+      - "auth.arishaig.site:192.168.1.117"
+      - "backup.arishaig.site:192.168.1.117"
+      - "bazarr.arishaig.site:192.168.1.117"
+      - "copyparty.arishaig.site:192.168.1.117"
+      - "dash.arishaig.site:192.168.1.117"
+      - "jellyfin.arishaig.site:192.168.1.117"
+      - "lidarr.arishaig.site:192.168.1.117"
+      - "mcp.arishaig.site:192.168.1.117"
+      - "mealie.arishaig.site:192.168.1.117"
+      - "medialyze.arishaig.site:192.168.1.117"
+      - "monitoring.arishaig.site:192.168.1.117"
+      - "nzbd.arishaig.site:192.168.1.117"
+      - "prowlarr.arishaig.site:192.168.1.117"
+      - "proxmox.arishaig.site:192.168.1.117"
+      - "radarr.arishaig.site:192.168.1.117"
+      - "recommendarr.arishaig.site:192.168.1.117"
+      - "requests.arishaig.site:192.168.1.117"
+      - "scrutiny.arishaig.site:192.168.1.117"
+      - "sonarr.arishaig.site:192.168.1.117"
+      - "storyteller.arishaig.site:192.168.1.117"
+      - "torrent.arishaig.site:192.168.1.117"
+      - "tunarr.arishaig.site:192.168.1.117"
+      - "watcharr.arishaig.site:192.168.1.117"
+      - "watchback.arishaig.site:192.168.1.117"
 
 volumes:
   prometheus_data:
