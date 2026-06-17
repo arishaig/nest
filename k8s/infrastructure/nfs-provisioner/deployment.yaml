@@ -18,7 +18,7 @@ spec:
       serviceAccountName: nfs-provisioner
       containers:
         - name: nfs-provisioner
-          image: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner:v4.0.2
+          image: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner:v4.0.18
           env:
             - name: PROVISIONER_NAME
               value: k8s-sigs.io/nfs-nvme
