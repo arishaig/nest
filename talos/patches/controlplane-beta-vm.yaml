@@ -13,6 +13,21 @@ cluster:
   etcd:
     advertisedSubnets:
       - 192.168.1.0/24
+  apiServer:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 768Mi
+  controllerManager:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+  scheduler:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
 
 machine:
   network:
