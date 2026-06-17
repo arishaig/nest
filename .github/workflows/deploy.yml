@@ -25,6 +25,7 @@ jobs:
       mcp: ${{ steps.filter.outputs.mcp }}
       lidarr_ui: ${{ steps.filter.outputs.lidarr_ui }}
       ci_runner: ${{ steps.filter.outputs.ci_runner }}
+      adguard: ${{ steps.filter.outputs.adguard }}
     steps:
       - uses: actions/checkout@v6.0.3
       - uses: dorny/paths-filter@v4.0.1
@@ -58,6 +59,38 @@ jobs:
               - 'lidarr-ui/**'
             ci_runner:
               - 'ci/runner/**'
+            adguard:
+              - 'playbooks/provision/adguard.yml'
+              - 'playbooks/provision/templates/adguard/**'
+
+  deploy-adguard:
+    needs: changes
+    if: needs.changes.outputs.adguard == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6.0.3
+
+      - name: Write SSH key
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.ssh"
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
+          chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
+
+      - name: Write vault password
+        run: |
+          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
+          chmod 600 "$RUNNER_TEMP/vault-pass"
+
+      - name: Run adguard playbook
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          ansible-playbook \
+            -i inventory/hosts.yml \
+            playbooks/provision/adguard.yml \
+            --vault-password-file "$RUNNER_TEMP/vault-pass" \
+            --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
+            --ssh-extra-args "-o StrictHostKeyChecking=no" \
+            --limit 'adguard,dns-secondary'
 
   deploy-docker:
     needs: changes

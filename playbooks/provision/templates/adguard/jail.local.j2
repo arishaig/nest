@@ -1,0 +1,13 @@
+[DEFAULT]
+bantime  = 1h
+findtime = 10m
+maxretry = 5
+banaction = nftables-multiport
+banaction_allports = nftables-allports
+# Full exemption for loopback and management LAN (this host, PVE, CI runner, etc.)
+ignoreip = 127.0.0.1/8 ::1 192.168.1.0/24
+
+[sshd]
+enabled  = true
+backend  = systemd
+maxretry = 25
