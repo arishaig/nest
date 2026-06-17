@@ -345,6 +345,48 @@
         state: started
         daemon_reload: true
 
+    - name: Create journald conf.d directory
+      ansible.builtin.file:
+        path: /etc/systemd/journald.conf.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Configure persistent journald
+      ansible.builtin.copy:
+        content: |
+          [Journal]
+          Storage=persistent
+        dest: /etc/systemd/journald.conf.d/persistent.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart systemd-journald
+
+    - name: Install fail2ban
+      when: local_network | default(true)
+      ansible.builtin.apt:
+        name: fail2ban
+        state: present
+
+    - name: Deploy fail2ban jail config
+      when: local_network | default(true)
+      ansible.builtin.template:
+        src: adguard/jail.local.j2
+        dest: /etc/fail2ban/jail.local
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload fail2ban
+
+    - name: Enable and start fail2ban
+      when: local_network | default(true)
+      ansible.builtin.systemd:
+        name: fail2ban
+        enabled: true
+        state: started
+
   handlers:
     - name: Restart chrony
       ansible.builtin.systemd:
@@ -366,3 +408,13 @@
       ansible.builtin.systemd:
         name: AdGuardHome
         state: restarted
+
+    - name: Restart systemd-journald
+      ansible.builtin.systemd:
+        name: systemd-journald
+        state: restarted
+
+    - name: Reload fail2ban
+      ansible.builtin.systemd:
+        name: fail2ban
+        state: reloaded
