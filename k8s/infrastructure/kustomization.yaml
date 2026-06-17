@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - sources/
   - local-path-provisioner/
+  - volume-snapshot-crds/
   - nfs-provisioner/
   - cert-manager/
   - metallb/
