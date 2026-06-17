@@ -26,6 +26,8 @@ spec:
               value: "192.168.1.16"
             - name: NFS_PATH
               value: /rpool/data/k8s-configs
+            - name: ENABLE_LEADER_ELECTION
+              value: "false"
           volumeMounts:
             - name: nfs-root
               mountPath: /persistentvolumes
