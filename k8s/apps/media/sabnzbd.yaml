@@ -39,7 +39,7 @@ spec:
             image:
               # renovate: datasource=docker depName=linuxserver/sabnzbd
               repository: linuxserver/sabnzbd
-              tag: 5.0.3
+              tag: 5.0.4
             env:
               PUID: "0"
               PGID: "0"
