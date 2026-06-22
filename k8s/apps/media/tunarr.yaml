@@ -22,7 +22,7 @@ spec:
             image:
               # renovate: datasource=docker depName=chrisbenincasa/tunarr
               repository: chrisbenincasa/tunarr
-              tag: 1.3.6
+              tag: 1.3.7
             env:
               TZ: America/Los_Angeles
               TUNARR_DATABASE_PATH: /config/tunarr
