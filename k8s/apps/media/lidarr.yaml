@@ -41,8 +41,8 @@ spec:
                     path: /ping
                     port: 8686
                   initialDelaySeconds: 30
-                  periodSeconds: 30
-                  timeoutSeconds: 5
+                  periodSeconds: 60
+                  timeoutSeconds: 15
                   failureThreshold: 3
               readiness:
                 enabled: true
@@ -52,8 +52,8 @@ spec:
                     path: /ping
                     port: 8686
                   initialDelaySeconds: 10
-                  periodSeconds: 10
-                  timeoutSeconds: 5
+                  periodSeconds: 30
+                  timeoutSeconds: 10
                   failureThreshold: 3
               startup:
                 enabled: false
