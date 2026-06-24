@@ -28,8 +28,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
   bios = "ovmf"
 
   agent {
-    enabled = true
-    timeout = "30s"
+    enabled = false
   }
 
   cpu {
@@ -64,7 +63,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
   boot_order = ["scsi0", "ide0"]
 
   cdrom {
-    file_id   = proxmox_download_file.talos_iso.id
+    file_id   = ""
     interface = "ide0"
   }
 
@@ -81,7 +80,6 @@ resource "proxmox_virtual_environment_vm" "talos" {
   lifecycle {
     ignore_changes = [
       disk,
-      cdrom,
       efi_disk,
     ]
   }

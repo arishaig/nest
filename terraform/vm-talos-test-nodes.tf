@@ -53,7 +53,7 @@ resource "proxmox_virtual_environment_vm" "talos_beta_vm" {
   boot_order = ["scsi0", "ide0"]
 
   cdrom {
-    file_id   = proxmox_download_file.talos_iso.id
+    file_id   = ""
     interface = "ide0"
   }
 
@@ -70,7 +70,6 @@ resource "proxmox_virtual_environment_vm" "talos_beta_vm" {
   lifecycle {
     ignore_changes = [
       disk,
-      cdrom,
       efi_disk,
     ]
   }
@@ -124,7 +123,7 @@ resource "proxmox_virtual_environment_vm" "talos_delta_vm" {
   boot_order = ["scsi0", "ide0"]
 
   cdrom {
-    file_id   = proxmox_download_file.talos_iso.id
+    file_id   = ""
     interface = "ide0"
   }
 
@@ -141,7 +140,6 @@ resource "proxmox_virtual_environment_vm" "talos_delta_vm" {
   lifecycle {
     ignore_changes = [
       disk,
-      cdrom,
       efi_disk,
     ]
   }
