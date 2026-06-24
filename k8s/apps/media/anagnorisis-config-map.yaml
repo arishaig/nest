@@ -22,20 +22,10 @@ data:
         - .m4a
         - .opus
       rating_update_interval_minutes: 30
-      rating_update_batch_size: 100
+      rating_update_batch_size: 25
       description_update_interval_minutes: null  # omni disabled on CPU
       description_update_batch_size: null
 
-    # Non-music modules disabled (no media directories configured)
-    images:
-      media_directory: null
-      media_formats: []
-    videos:
-      media_directory: null
-      media_formats: []
-    text:
-      media_directory: null
-      media_formats: []
 
     audio_embedder:
       model_name: "laion/clap-htsat-fused"
