@@ -27,7 +27,7 @@ jobs:
       ci_runner: ${{ steps.filter.outputs.ci_runner }}
       adguard: ${{ steps.filter.outputs.adguard }}
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - uses: dorny/paths-filter@v4.0.1
         id: filter
         with:
@@ -68,7 +68,7 @@ jobs:
     if: needs.changes.outputs.adguard == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
       - name: Write SSH key
         run: |
@@ -97,7 +97,7 @@ jobs:
     if: needs.changes.outputs.docker == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
       - name: Write SSH key
         run: |
@@ -125,7 +125,7 @@ jobs:
     if: needs.changes.outputs.monitoring == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
       - name: Write SSH key
         run: |
@@ -154,7 +154,7 @@ jobs:
     if: needs.changes.outputs.vps == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
       - name: Write SSH key
         run: |
@@ -183,7 +183,7 @@ jobs:
     if: needs.changes.outputs.pve == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
       - name: Write SSH key
         run: |
@@ -215,7 +215,7 @@ jobs:
       TF_PLUGIN_CACHE_DIR: /opt/terraform-plugin-cache
       TF_STATE_DIR: /opt/terraform-state/nest
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
       - name: Write SSH key
         run: |
@@ -274,7 +274,7 @@ jobs:
     if: needs.changes.outputs.k8s == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
       - name: Write vault password
         run: |
@@ -305,7 +305,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -348,7 +348,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -395,7 +395,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
       - name: Log in to GHCR
         uses: docker/login-action@v4

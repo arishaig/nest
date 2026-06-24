@@ -38,7 +38,7 @@ jobs:
     env:
       CLUSTER: ci
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
       - name: Install talosctl, kubectl, helm, kustomize and flux-local
         # talosctl is pinned to talos_version in terraform.tfvars so the test

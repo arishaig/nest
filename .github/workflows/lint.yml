@@ -13,7 +13,7 @@ jobs:
   ansible-lint:
     runs-on: arc-lint
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Write vault password
         run: |
           printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
@@ -29,7 +29,7 @@ jobs:
   yamllint:
     runs-on: arc-lint
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Run yamllint
         # Covers the GitOps service payload under playbooks/provision/files/,
         # which ansible-lint deliberately excludes. Lenient by design — see
@@ -43,7 +43,7 @@ jobs:
   config-validate:
     runs-on: arc-lint
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Validate Docker Compose schemas
         # --no-interpolate validates structure without substituting the
         # vault-derived env vars (which aren't present in CI).
@@ -74,14 +74,14 @@ jobs:
   deploy-coverage:
     runs-on: arc-lint
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Check deploy filter covers all services
         run: scripts/check-deploy-coverage.sh
 
   talos-rpi5-overlay:
     runs-on: arc-lint
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Check Image Factory serves rpi_5 for the pinned Talos version
         # Overlay releases can lag a Talos patch release by a few days
         # (siderolabs/talos#12748); merging a version bump before the overlay
@@ -92,7 +92,7 @@ jobs:
   prometheus-validate:
     runs-on: arc-lint
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Validate Prometheus alerting rules
         run: promtool check rules playbooks/provision/files/monitoring/prometheus/rules/*.yml
       - name: Validate Alertmanager config
@@ -108,7 +108,7 @@ jobs:
   shellcheck:
     runs-on: arc-lint
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Run shellcheck
         # The runner's shellcheck is 0.10.0, which flags SC2015 on the benign
         # `[[ -z x ]] && x=... || true` set-e guards in pull-secrets.sh (0.11.0
@@ -119,7 +119,7 @@ jobs:
   k8s-validate:
     runs-on: arc-lint
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Build and validate k8s manifests
         # kustomize build catches missing file references and broken overlays.
         # kubeconform validates the rendered manifests against the k8s 1.32 API
@@ -146,7 +146,7 @@ jobs:
   helm-render:
     runs-on: arc-lint
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Render HelmReleases and validate the output
         # kustomize build (the k8s-validate job) passes Flux HelmRelease CRs
         # through opaquely — it never invokes Helm — so the Deployments,
@@ -173,7 +173,7 @@ jobs:
   talos-config-validate:
     runs-on: arc-lint
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Render and validate Talos machine configs
         # Generates each control-plane machine config from talos/patches/ with
         # throwaway secrets and runs `talosctl validate -m metal`. Catches a
@@ -184,7 +184,7 @@ jobs:
   tofu:
     runs-on: arc-lint
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Check OpenTofu formatting
         run: tofu -chdir=terraform fmt -check -recursive
       - name: Validate OpenTofu configuration
