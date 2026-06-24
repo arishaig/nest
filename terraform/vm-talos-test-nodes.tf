@@ -22,8 +22,7 @@ resource "proxmox_virtual_environment_vm" "talos_beta_vm" {
   bios = "ovmf"
 
   agent {
-    enabled = true
-    timeout = "30s"
+    enabled = false
   }
 
   cpu {
@@ -94,8 +93,7 @@ resource "proxmox_virtual_environment_vm" "talos_delta_vm" {
   bios = "ovmf"
 
   agent {
-    enabled = true
-    timeout = "30s"
+    enabled = false
   }
 
   cpu {
