@@ -29,10 +29,13 @@ data:
     # Non-music modules disabled (no media directories configured)
     images:
       media_directory: null
+      media_formats: []
     videos:
       media_directory: null
+      media_formats: []
     text:
       media_directory: null
+      media_formats: []
 
     audio_embedder:
       model_name: "laion/clap-htsat-fused"
