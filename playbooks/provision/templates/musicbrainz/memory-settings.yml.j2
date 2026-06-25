@@ -1,0 +1,23 @@
+services:
+  db:
+    command: >-
+      postgres
+      -c shared_buffers=4GB
+      -c effective_cache_size=8GB
+      -c work_mem=32MB
+      -c maintenance_work_mem=512MB
+    mem_limit: 8g
+
+  search:
+    environment:
+      SOLR_HEAP: 2g
+    mem_limit: 3g
+
+  musicbrainz:
+    mem_limit: 2g
+
+  indexer:
+    mem_limit: 1g
+
+  redis:
+    mem_limit: 512m

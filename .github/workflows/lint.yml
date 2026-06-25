@@ -39,6 +39,14 @@ jobs:
           source /opt/ansible-runner/venv/bin/activate
           unset VIRTUAL_ENV
           yamllint .
+      - name: Lint YAML-structured Jinja2 templates
+        # yamllint skips .j2 files when given a directory; lint pure-YAML
+        # templates explicitly. Jinja-only templates (env files, conf files)
+        # are excluded — only Compose/YAML-structured ones belong here.
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          unset VIRTUAL_ENV
+          yamllint playbooks/provision/templates/musicbrainz/memory-settings.yml.j2
 
   config-validate:
     runs-on: arc-lint

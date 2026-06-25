@@ -118,12 +118,39 @@
         owner: "{{ musicbrainz_user }}"
         mode: "0755"
 
+    - name: Ensure local/compose directory exists
+      ansible.builtin.file:
+        path: "{{ musicbrainz_dir }}/local/compose"
+        state: directory
+        owner: "{{ musicbrainz_user }}"
+        mode: "0755"
+
     - name: Template postgres.env
       ansible.builtin.template:
         src: templates/musicbrainz/postgres.env.j2
         dest: "{{ musicbrainz_dir }}/default/postgres.env"
         owner: "{{ musicbrainz_user }}"
         mode: "0600"
+
+    - name: Template memory-settings.yml
+      ansible.builtin.template:
+        src: templates/musicbrainz/memory-settings.yml.j2
+        dest: "{{ musicbrainz_dir }}/local/compose/memory-settings.yml"
+        owner: "{{ musicbrainz_user }}"
+        mode: "0644"
+      notify: Recreate MusicBrainz stack
+
+    - name: Schedule weekly search index rebuild
+      ansible.builtin.cron:
+        name: musicbrainz-reindex
+        user: "{{ musicbrainz_user }}"
+        minute: "0"
+        hour: "1"
+        weekday: "0"
+        job: >-
+          cd {{ musicbrainz_dir }} &&
+          /usr/bin/docker compose exec -T indexer python -m sir reindex
+          >> /home/{{ musicbrainz_user }}/reindex.log 2>&1
 
     - name: Start MusicBrainz stack
       ansible.builtin.command:
@@ -137,3 +164,11 @@
         name: docker
         state: restarted
         daemon_reload: true
+
+    - name: Recreate MusicBrainz stack
+      ansible.builtin.command:
+        cmd: docker compose up -d --force-recreate
+        chdir: "{{ musicbrainz_dir }}"
+      become: true
+      become_user: "{{ musicbrainz_user }}"
+      changed_when: true
