@@ -1,6 +1,7 @@
 ---
 # Provision LXC 101: MusicBrainz mirror
 # common.yml must run first (handled by site.yml and the Terraform provisioner).
+# Memory limits and reindex cron added 2026-06-25 (#248).
 
 - name: MusicBrainz provisioning
   hosts: musicbrainz
