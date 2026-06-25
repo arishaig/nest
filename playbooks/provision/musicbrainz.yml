@@ -102,6 +102,7 @@
         repo: https://github.com/metabrainz/musicbrainz-docker.git
         dest: "{{ musicbrainz_dir }}"
         version: master
+        force: true
       become: true
       become_user: "{{ musicbrainz_user }}"
 
