@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force_musicbrainz:
+        description: 'Force deploy musicbrainz'
+        type: boolean
+        default: false
 
 # Serialize deploys: never let two ansible runs hit the same hosts at once.
 # Queue rather than cancel — interrupting a half-applied playbook is worse
@@ -69,7 +74,7 @@ jobs:
 
   deploy-musicbrainz:
     needs: changes
-    if: needs.changes.outputs.musicbrainz == 'true'
+    if: needs.changes.outputs.musicbrainz == 'true' || inputs.force_musicbrainz == true
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v7.0.0
