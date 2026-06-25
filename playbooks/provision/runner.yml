@@ -31,7 +31,7 @@
     # helm/talosctl/flux-local back the helm-render and talos-config-validate
     # lint jobs. helm stays on 3.x (Flux's helm-controller + flux-local are
     # helm-v3-based); talosctl_version tracks talos_version in terraform.tfvars.
-    helm_version: "3.21.1"
+    helm_version: "3.21.2"
     talosctl_version: "1.13.4"
     # Held on 7.x: flux-local 8.x requires Python >=3.13 (runners ship 3.12).
     flux_local_version: "7.11.0"
