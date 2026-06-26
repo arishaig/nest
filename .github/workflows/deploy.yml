@@ -310,11 +310,16 @@ jobs:
           SCHEMATIC=$(grep 'talos_schematic_id' terraform/terraform.tfvars | grep -oP '"[a-f0-9]+"' | tr -d '"')
           IMAGE="factory.talos.dev/installer/${SCHEMATIC}:${TARGET}"
 
-          for NODE in 192.168.1.110 192.168.1.111 192.168.1.114; do
-            RUNNING=$(talosctl --talosconfig "$TC" version --nodes "$NODE" 2>/dev/null | awk '/Tag:/{print $2}' | tail -1)
+          curl -sL "https://github.com/siderolabs/talos/releases/download/${TARGET}/talosctl-linux-amd64" \
+            -o "$RUNNER_TEMP/talosctl"
+          chmod +x "$RUNNER_TEMP/talosctl"
+          TALOSCTL="$RUNNER_TEMP/talosctl"
+
+          for NODE in 192.168.1.110; do
+            RUNNING=$("$TALOSCTL" --talosconfig "$TC" version --nodes "$NODE" 2>/dev/null | awk '/Tag:/{print $2}' | tail -1)
             if [ "$RUNNING" != "$TARGET" ]; then
               echo "Upgrading $NODE: $RUNNING → $TARGET"
-              talosctl --talosconfig "$TC" upgrade --nodes "$NODE" --image "$IMAGE" --wait
+              "$TALOSCTL" --talosconfig "$TC" upgrade --nodes "$NODE" --image "$IMAGE" --wait
             else
               echo "$NODE already on $TARGET, skipping"
             fi
