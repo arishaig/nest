@@ -20,11 +20,10 @@ cluster:
         memory: 128Mi
 
 machine:
-  # alpha is the large workload node. Heavy/bursty pods (sabnzbd 12Gi limit,
-  # anagnorisis, tdarr, subgen, the DBs) are pinned here via nodeAffinity on
-  # this label, so that when beta/delta become schedulable they only take the
-  # light services — never the pods that thrashed the small nodes on
-  # 2026-06-11 (see controlplane-beta-vm.yaml).
+  # alpha is the single workload node. Heavy/bursty pods (sabnzbd 12Gi,
+  # anagnorisis 6Gi, subgen 4Gi, tdarr-node 4Gi, the DBs) are pinned here via
+  # nodeAffinity. RPi5 nodes (beta/delta) will take lighter workloads once they
+  # replace the temporary test VMs removed 2026-06-26.
   nodeLabels:
     nest.arishaig.site/workloads: general
   network:
@@ -45,6 +44,14 @@ machine:
     nodeIP:
       validSubnets:
         - 192.168.1.0/24
+    extraArgs:
+      # Reserve memory for kubelet/OS so pod pressure triggers eviction before
+      # the OOM killer fires. Without this, kubelet itself was OOM-killed every
+      # ~68 minutes on alpha (heavy AI workloads: sabnzbd 12Gi, anagnorisis 6Gi,
+      # subgen 4Gi). Fixed long-term by reclaiming 12GB from beta/delta VMs
+      # (2026-06-26), but eviction thresholds remain as a safety net.
+      kube-reserved: memory=2Gi
+      eviction-hard: memory.available<1Gi
   time:
     servers:
       - 192.168.7.7

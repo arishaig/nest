@@ -37,10 +37,11 @@ resource "proxmox_virtual_environment_vm" "talos" {
   }
 
   memory {
-    # 30GB: monitoring LXC reduced 12GB→6GB 2026-06-25, freeing 6GB for alpha.
-    # (Was 32GB; reduced to 24GB on 2026-06-14 after host OOM when Anagnorisis
-    # loaded CLAP+Jina models. Raised back to 30GB after alpha kubelet OOM kills.)
-    dedicated = 30720
+    # 40GB: beta/delta test VMs (4GB+8GB) removed 2026-06-26 — RAM reclaimed for
+    # alpha once RPi5s made the multi-node rehearsal purpose redundant.
+    # (History: was 32GB → 24GB 2026-06-14 after host OOM from Anagnorisis
+    # CLAP+Jina models → 30GB 2026-06-25 after kubelet OOM kills.)
+    dedicated = 40960
   }
 
   efi_disk {
