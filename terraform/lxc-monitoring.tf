@@ -21,8 +21,8 @@ resource "proxmox_virtual_environment_container" "monitoring" {
   }
 
   memory {
-    dedicated = 12288
-    swap      = 12288
+    dedicated = 6144
+    swap      = 6144
   }
 
   disk {

@@ -37,11 +37,10 @@ resource "proxmox_virtual_environment_vm" "talos" {
   }
 
   memory {
-    # 24GB: host has 94GB usable; 66GB committed to other VMs/LXCs/ARC
-    # with alpha stopped, leaving ~28GB. 24GB for alpha gives ~4GB headroom.
-    # (Was 32GB; reduced 2026-06-14 after OOM kills when Anagnorisis loaded
-    # CLAP+Jina models pushed alpha's actual usage over the host limit.)
-    dedicated = 24576
+    # 30GB: monitoring LXC reduced 12GB→6GB 2026-06-25, freeing 6GB for alpha.
+    # (Was 32GB; reduced to 24GB on 2026-06-14 after host OOM when Anagnorisis
+    # loaded CLAP+Jina models. Raised back to 30GB after alpha kubelet OOM kills.)
+    dedicated = 30720
   }
 
   efi_disk {
