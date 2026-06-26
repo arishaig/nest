@@ -31,13 +31,6 @@
         mode: "0644"
       when: inventory_hostname == 'docker'
 
-    - name: Ensure Redis data directory exists
-      ansible.builtin.file:
-        path: /mnt/app_config/redis
-        state: directory
-        mode: "0755"
-      when: inventory_hostname == 'docker'
-
     - name: Template Authelia configuration
       ansible.builtin.template:
         src: "{{ playbook_dir }}/provision/templates/docker/authelia-configuration.yml.j2"

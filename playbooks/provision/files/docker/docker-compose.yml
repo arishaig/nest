@@ -131,15 +131,6 @@ services:
   #   image: authelia/authelia:4.39.20
   #   ...
 
-  # redis — migrated to k8s (k8s/infrastructure/authelia/redis-*.yaml)
-  # redis:
-  #   image: redis:8.8.0-alpine
-  #   ...
-
-  # redis-exporter — decommissioned with redis
-  # redis-exporter:
-  #   image: oliver006/redis_exporter:v1.84.0
-  #   ...
 
   # postgres-exporter — Docker postgres decommissioned; needs re-deployment pointing at k8s postgres
   # postgres-exporter: ...
