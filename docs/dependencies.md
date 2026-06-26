@@ -302,7 +302,7 @@ Proxmox VE (192.168.1.16)
 │   │   ├── Traefik (TLS termination, MetalLB LB 192.168.1.117) → authelia forwardAuth
 │   │   ├── cert-manager (wildcard cert, Cloudflare DNS-01)
 │   │   ├── MetalLB (traefik-pool .117, metrics-pool .116)
-│   │   ├── Authelia + Redis (SSO/2FA)
+│   │   ├── Authelia + Valkey (SSO/2FA)
 │   │   ├── Alloy DaemonSet → Loki · nfs-subdir-provisioner (nfs-nvme)
 │   │   └── ARC (arc-lint ephemeral CI runners) · kube-state-metrics · Headlamp
 │   └── apps (bjw-s app-template HelmReleases):

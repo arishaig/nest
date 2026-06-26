@@ -157,7 +157,7 @@ infrastructure needed for internal access.
 Authelia runs in k8s (`authelia` namespace), exposed at `auth.arishaig.site` via an IngressRoute.
 k8s Traefik uses it as a `forwardAuth` middleware (CRD name `authelia` in the `traefik` namespace;
 `forwardAuth` address: `http://authelia.authelia.svc.cluster.local:9091/api/authz/forward-auth`).
-Redis runs in k8s (`authelia` namespace) as Authelia's session store.
+Valkey runs in k8s (`authelia` namespace) as Authelia's session store.
 
 **Authelia required (most services):** bazarr, copyparty, lidarr, medialyze,
 mealie, prowlarr, radarr, recommendarr, sabnzbd, sonarr, storyteller, watchback.
@@ -217,7 +217,7 @@ Storage classes:
 | Namespace | Components |
 |---|---|
 | `traefik` | Traefik v3 ingress controller (MetalLB LB 192.168.1.117:80/443/8080), middlewares, IngressRoute CRDs, ExternalName services |
-| `authelia` | Authelia SSO, Redis session store, redis-exporter and Authelia metrics (shared metrics LB 192.168.1.116:9121/:9959) |
+| `authelia` | Authelia SSO, Valkey session store, redis-exporter and Authelia metrics (shared metrics LB 192.168.1.116:9121/:9959) |
 | `metallb-system` | MetalLB L2: `traefik-pool` (192.168.1.117/32) and `metrics-pool` (192.168.1.116/32) |
 | `cert-manager` | Wildcard cert from Cloudflare DNS-01 challenge; cert stored as k8s Secret |
 | `alloy` | Grafana Alloy DaemonSet — ships all pod logs to Loki; parses Traefik access logs as JSON |

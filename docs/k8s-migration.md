@@ -82,7 +82,7 @@ Fixed manually on 2026-06-08 by copying directly on PVE: `cp /rpool/data/docker-
 
 ---
 
-### Traefik + Authelia + Redis ✅ DONE
+### Traefik + Authelia + Valkey ✅ DONE
 
 All three running in k8s (`traefik`, `authelia` namespaces). Metrics scraping via hostPort (9959 authelia, 9121 redis-exporter). All Prometheus targets healthy as of 2026-06-09.
 
