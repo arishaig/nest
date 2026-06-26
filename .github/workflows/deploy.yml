@@ -297,6 +297,29 @@ jobs:
       - name: OpenTofu apply
         run: tofu -chdir=terraform apply -var-file=secrets.tfvars -auto-approve -input=false
 
+      - name: Upgrade Talos nodes if version changed
+        env:
+          TALOSCONFIG_DATA: ${{ secrets.TALOSCONFIG }}
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.talos"
+          printf '%s' "$TALOSCONFIG_DATA" > "$RUNNER_TEMP/.talos/config"
+          chmod 600 "$RUNNER_TEMP/.talos/config"
+          TC="$RUNNER_TEMP/.talos/config"
+
+          TARGET=$(grep 'talos_version' terraform/terraform.tfvars | grep -oP 'v[\d.]+')
+          SCHEMATIC=$(grep 'talos_schematic_id' terraform/terraform.tfvars | grep -oP '"[a-f0-9]+"' | tr -d '"')
+          IMAGE="factory.talos.dev/installer/${SCHEMATIC}:${TARGET}"
+
+          for NODE in 192.168.1.110 192.168.1.111 192.168.1.114; do
+            RUNNING=$(talosctl --talosconfig "$TC" version --nodes "$NODE" 2>/dev/null | awk '/Tag:/{print $2}' | tail -1)
+            if [ "$RUNNING" != "$TARGET" ]; then
+              echo "Upgrading $NODE: $RUNNING → $TARGET"
+              talosctl --talosconfig "$TC" upgrade --nodes "$NODE" --image "$IMAGE" --wait
+            else
+              echo "$NODE already on $TARGET, skipping"
+            fi
+          done
+
       - name: Save OpenTofu state
         # No error suppression here: the runner user must be able to write
         # $TF_STATE_DIR (it silently could not between 06-11 and 06-12, so
