@@ -1,0 +1,61 @@
+# Restarts the kube-flannel pod when its service account token becomes
+# Unauthorized after a node reboot (e.g. Talos upgrade or VM stop/start).
+# Flannel holds the token in memory and won't pick up a kubelet-rotated token
+# without a restart — but it doesn't crash, so kubelet never restarts it.
+#
+# hostNetwork: true is load-bearing: if flannel's CNI is broken, pod sandboxes
+# fail for all normal pods. This pod bypasses that by using the host network
+# directly, same as flannel itself does.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: flannel-watchdog
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: flannel-watchdog
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: flannel-watchdog
+    spec:
+      serviceAccountName: flannel-watchdog
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: watchdog
+          image: bitnami/kubectl:1.32
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              echo "flannel-watchdog starting on ${NODE_NAME}, waiting 3m for cluster to settle"
+              sleep 180
+              while true; do
+                FLANNEL_POD=$(kubectl get pods -n kube-system \
+                  --field-selector="spec.nodeName=${NODE_NAME}" \
+                  -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+                  | grep '^kube-flannel')
+                if [ -n "$FLANNEL_POD" ]; then
+                  if kubectl logs -n kube-system "$FLANNEL_POD" --since=2m 2>/dev/null | grep -q "Unauthorized"; then
+                    echo "$(date -u): ${FLANNEL_POD} stuck with Unauthorized errors, restarting"
+                    kubectl delete pod -n kube-system "$FLANNEL_POD"
+                    sleep 120
+                  fi
+                fi
+                sleep 60
+              done
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
