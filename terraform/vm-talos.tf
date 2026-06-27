@@ -28,7 +28,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
   bios = "ovmf"
 
   agent {
-    enabled = false
+    enabled = true
   }
 
   cpu {
