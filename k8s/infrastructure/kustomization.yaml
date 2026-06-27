@@ -12,6 +12,7 @@ resources:
   - alloy/
   - kube-state-metrics/
   - rpi5-net-tuning/
+  - flannel-watchdog/
   - arc/
 
 # Self-heal transient install/upgrade failures for infra HelmReleases (same as
