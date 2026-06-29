@@ -56,7 +56,5 @@ spec:
         advancedMounts:
           watchback:
             app:
-              - path: /config
-                subPath: config
-              - path: /static
-                subPath: static
+              - path: /app/data
+                subPath: data
