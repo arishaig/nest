@@ -7,54 +7,23 @@ spec:
   interval: 1h
   chart:
     spec:
-      chart: app-template
-      version: 4.6.0
+      chart: watchback
+      # renovate: datasource=docker depName=ghcr.io/arishaig/watchback
+      version: ">=1.0.0"
       sourceRef:
         kind: HelmRepository
-        name: bjw-s
+        name: watchback
         namespace: flux-system
   values:
-    controllers:
-      watchback:
-        strategy: Recreate
-        containers:
-          app:
-            image:
-              # renovate: datasource=docker depName=ghcr.io/arishaig/watchback
-              repository: ghcr.io/arishaig/watchback
-              tag: 1.0.0
-            securityContext:
-              runAsUser: 0
-            env:
-              PUID: "1000"
-              PGID: "1000"
-            probes:
-              liveness:
-                enabled: false
-              readiness:
-                enabled: false
-              startup:
-                enabled: false
-            resources:
-              requests:
-                cpu: 10m
-                memory: 64Mi
-              limits:
-                memory: 256Mi
     service:
-      app:
-        controller: watchback
-        type: NodePort
-        ports:
-          http:
-            port: 8484
-            targetPort: 8484
-            nodePort: 30804
+      type: NodePort
+      port: 8484
+      nodePort: 30804
     persistence:
-      data:
-        existingClaim: watchback-data
-        advancedMounts:
-          watchback:
-            app:
-              - path: /app/data
-                subPath: data
+      existingClaim: watchback-data
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi

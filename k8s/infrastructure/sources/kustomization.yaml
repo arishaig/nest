@@ -9,3 +9,4 @@ resources:
   - app-template.yaml
   - prometheus-community.yaml
   - actions-runner-controller.yaml
+  - watchback.yaml
