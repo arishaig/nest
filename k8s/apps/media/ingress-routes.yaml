@@ -294,6 +294,12 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
+    - match: "Host(`watchback.arishaig.site`) && PathPrefix(`/mcp`)"
+      kind: Rule
+      priority: 10
+      services:
+        - name: watchback
+          port: 8484
     - match: "Host(`watchback.arishaig.site`)"
       kind: Rule
       middlewares:
