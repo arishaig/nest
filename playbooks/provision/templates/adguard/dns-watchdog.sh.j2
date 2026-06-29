@@ -1,0 +1,76 @@
+#!/bin/bash
+# Monitors Unbound health and escalates through restarts when it hangs.
+# Runs every 15 seconds via dns-watchdog.timer.
+#
+# Escalation (after 60s of continuous failure):
+#   1. restart unbound
+#   2. restart AdGuardHome (clears any stuck forwarding state)
+#   3. stop AdGuardHome (primary only) — kernel returns ICMP port-unreachable
+#      so clients fail over to the secondary immediately
+# Self-healing: if AdGuardHome is stopped and Unbound is healthy, start it.
+
+FAIL_STAMP=/run/dns-watchdog-fail
+GRACE_SECONDS=60
+LOG_TAG=dns-watchdog
+IS_PRIMARY={{ adguard_primary | default(false) | lower }}
+
+probe_unbound() {
+    # CHAOS TXT id.server: any response (including REFUSED with hide-identity)
+    # means the process is alive; only a timeout means it is wedged.
+    dig @127.0.0.1 -p 5335 CH TXT id.server +time=2 +tries=1 +noall >/dev/null 2>&1
+}
+
+if probe_unbound; then
+    rm -f "$FAIL_STAMP"
+    if ! systemctl is-active --quiet AdGuardHome; then
+        logger -t "$LOG_TAG" "Unbound healthy; restarting AdGuardHome"
+        systemctl start AdGuardHome
+    fi
+    exit 0
+fi
+
+NOW=$(date +%s)
+
+if [ ! -f "$FAIL_STAMP" ]; then
+    echo "$NOW" > "$FAIL_STAMP"
+    logger -t "$LOG_TAG" "Unbound unresponsive; starting ${GRACE_SECONDS}s grace period"
+    exit 0
+fi
+
+FAIL_TIME=$(cat "$FAIL_STAMP")
+ELAPSED=$(( NOW - FAIL_TIME ))
+
+if [ "$ELAPSED" -lt "$GRACE_SECONDS" ]; then
+    logger -t "$LOG_TAG" "Unbound still unresponsive (${ELAPSED}s / ${GRACE_SECONDS}s)"
+    exit 0
+fi
+
+# Grace period expired — escalate. Reset stamp so the next cycle starts fresh
+# regardless of whether we recover here.
+rm -f "$FAIL_STAMP"
+
+logger -t "$LOG_TAG" "Unbound unresponsive for ${ELAPSED}s; restarting unbound"
+systemctl restart unbound
+sleep 10
+
+if probe_unbound; then
+    logger -t "$LOG_TAG" "Unbound recovered after restart"
+    if ! systemctl is-active --quiet AdGuardHome; then
+        systemctl start AdGuardHome
+    fi
+    exit 0
+fi
+
+logger -t "$LOG_TAG" "Unbound still unresponsive; restarting AdGuardHome"
+systemctl restart AdGuardHome
+sleep 10
+
+if probe_unbound; then
+    logger -t "$LOG_TAG" "Unbound recovered after AdGuardHome restart"
+    exit 0
+fi
+
+if [ "$IS_PRIMARY" = "true" ]; then
+    logger -t "$LOG_TAG" "Unbound still unresponsive; stopping AdGuardHome to force client failover"
+    systemctl stop AdGuardHome
+fi
