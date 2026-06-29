@@ -296,7 +296,6 @@ spec:
   routes:
     - match: "Host(`watchback.arishaig.site`) && PathPrefix(`/mcp`)"
       kind: Rule
-      priority: 10
       services:
         - name: watchback
           port: 8484
