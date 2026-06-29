@@ -21,6 +21,7 @@ spec:
       nodePort: 30804
     persistence:
       existingClaim: watchback-data
+      subPath: data
     resources:
       requests:
         cpu: 10m
