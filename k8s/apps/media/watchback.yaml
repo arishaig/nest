@@ -19,11 +19,10 @@ spec:
         strategy: Recreate
         containers:
           app:
-            # ghcr.io/arishaig/watchback:latest — SHA-tagged own CI image, Renovate
-            # intentionally disabled (no version annotation; rolling tag).
             image:
+              # renovate: datasource=docker depName=ghcr.io/arishaig/watchback
               repository: ghcr.io/arishaig/watchback
-              tag: latest
+              tag: 1.0.0
             securityContext:
               runAsUser: 0
             env:
