@@ -387,6 +387,56 @@
         enabled: true
         state: started
 
+    # ── DNS watchdog (Unbound health monitor + auto-recovery) ──
+
+    - name: Install dig (bind9-dnsutils)
+      ansible.builtin.apt:
+        name: bind9-dnsutils
+        state: present
+
+    - name: Deploy dns-watchdog script
+      ansible.builtin.template:
+        src: templates/adguard/dns-watchdog.sh.j2
+        dest: /usr/local/bin/dns-watchdog.sh
+        mode: "0755"
+      notify: Restart dns-watchdog timer
+
+    - name: Create dns-watchdog systemd service
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=DNS watchdog: monitor Unbound and recover
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/bin/dns-watchdog.sh
+        dest: /etc/systemd/system/dns-watchdog.service
+        mode: "0644"
+      notify: Restart dns-watchdog timer
+
+    - name: Create dns-watchdog systemd timer
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=DNS watchdog timer
+
+          [Timer]
+          OnBootSec=2min
+          OnUnitActiveSec=15s
+
+          [Install]
+          WantedBy=timers.target
+        dest: /etc/systemd/system/dns-watchdog.timer
+        mode: "0644"
+      notify: Restart dns-watchdog timer
+
+    - name: Enable and start dns-watchdog timer
+      ansible.builtin.systemd:
+        name: dns-watchdog.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+
   handlers:
     - name: Restart chrony
       ansible.builtin.systemd:
@@ -418,3 +468,9 @@
       ansible.builtin.systemd:
         name: fail2ban
         state: reloaded
+
+    - name: Restart dns-watchdog timer
+      ansible.builtin.systemd:
+        name: dns-watchdog.timer
+        state: restarted
+        daemon_reload: true
