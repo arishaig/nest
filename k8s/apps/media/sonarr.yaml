@@ -27,7 +27,7 @@ spec:
             image:
               # renovate: datasource=docker depName=linuxserver/sonarr
               repository: linuxserver/sonarr
-              tag: 4.0.18
+              tag: 4.0.19
             env:
               PUID: "0"
               PGID: "0"
