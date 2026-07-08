@@ -66,12 +66,18 @@ resource "proxmox_virtual_environment_vm" "talos" {
 
   scsi_hardware = "virtio-scsi-single"
 
-  boot_order = ["scsi0", "ide0"]
+  boot_order = ["scsi0"]
 
-  cdrom {
-    file_id   = ""
-    interface = "ide0"
-  }
+  # No cdrom block: the install ISO was only needed for first boot (see
+  # scripts/bootstrap-talos.sh). An empty-file_id ide0 cdrom device was kept
+  # around after provisioning to dodge an older PVE bug ("volume does not
+  # exist" on stop/start), but PVE 9.2.2's qemu-server now rejects it outright
+  # on cold start: "the 'host_cdrom' block driver requires a file name" —
+  # QEMU exits 1 and the VM never comes up. Dropping the device entirely
+  # removes the failure mode instead of chasing another "empty" state that
+  # happens to work on this PVE version. 2026-07-08 outage: the cores 4->8
+  # change forced a full stop/start of VM 110 and hit this for the first
+  # time; it would have broken on any future reboot regardless.
 
   network_device {
     bridge = "vmbr0"
