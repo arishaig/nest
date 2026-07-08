@@ -184,6 +184,26 @@ scrape_configs:
     static_configs:
       - targets: ['speedtest-exporter:9798']
 
+  # Internal health endpoints probed over the compose network — separate job
+  # so ExternalEndpointDown (public-path symptom alert) doesn't match them.
+  # Loki's /ready returns 503 when the ruler/ingester is sick even while
+  # /metrics keeps answering, so up{job="loki"} can't see it.
+  - job_name: 'blackbox-internal'
+    scrape_interval: 60s
+    metrics_path: /probe
+    params:
+      module: [http_endpoint]
+    static_configs:
+      - targets:
+          - http://loki:3100/ready
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
   - job_name: 'blackbox'
     scrape_interval: 60s
     metrics_path: /probe
