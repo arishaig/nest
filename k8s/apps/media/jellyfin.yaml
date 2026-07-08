@@ -1,7 +1,11 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: jellyfin-pgsql
+  # Renamed from jellyfin-pgsql — this is the Jellyfin server (jpvenson's
+  # postgres-backed build from the sqlite->postgres migration), not a database.
+  # The config PVC keeps its original jellyfin-pgsql-config name: it's bound
+  # to live data and renaming a PVC means migrating the volume.
+  name: jellyfin
   namespace: media
 spec:
   interval: 1h
@@ -14,9 +18,9 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
-    # Prefer alpha (nest.arishaig.site/workloads=general): stateful DB, 2Gi
-    # limit fits delta but keep it with the workload node. Soft so it can
-    # still reschedule if alpha is unavailable.
+    # Prefer alpha (nest.arishaig.site/workloads=general). Soft so it can
+    # still reschedule if alpha is unavailable (delta is gone; the old "2Gi
+    # fits delta" sizing rationale went with it).
     defaultPodOptions:
       affinity:
         nodeAffinity:
@@ -28,7 +32,7 @@ spec:
                     operator: In
                     values: [general]
     controllers:
-      jellyfin-pgsql:
+      jellyfin:
         strategy: Recreate
         containers:
           app:
@@ -77,15 +81,19 @@ spec:
                   failureThreshold: 3
               startup:
                 enabled: false
+            # 4Gi: the 2Gi limit OOM-killed Jellyfin repeatedly during evening
+            # streaming (3× on 2026-07-07 alone) — this is the Jellyfin server
+            # itself despite the pgsql name, and transcode/stream buffers spike
+            # past 2Gi under concurrent use.
             resources:
               requests:
                 cpu: 100m
-                memory: 512Mi
+                memory: 1Gi
               limits:
-                memory: 2Gi
+                memory: 4Gi
     service:
       app:
-        controller: jellyfin-pgsql
+        controller: jellyfin
         type: NodePort
         ports:
           http:
@@ -96,13 +104,13 @@ spec:
       config:
         existingClaim: jellyfin-pgsql-config
         advancedMounts:
-          jellyfin-pgsql:
+          jellyfin:
             app:
               - path: /config
       media:
         existingClaim: media-nfs
         advancedMounts:
-          jellyfin-pgsql:
+          jellyfin:
             app:
               - path: /data
                 readOnly: true

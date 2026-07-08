@@ -7,7 +7,7 @@ services:
   # Bazarr-Sync — removed from Docker; run via k8s Job (see k8s/apps/media/bazarr-sync-job.yaml)
   # bazarr-sync: ...
 
-  # Jellyfin — decommissioned; migrated to k8s (k8s/apps/media/jellyfin-pgsql-*.yaml)
+  # Jellyfin — decommissioned; migrated to k8s (k8s/apps/media/jellyfin*.yaml)
   # Config archived at /mnt/app_config/jellyfin.bak on the fileserver NFS mount.
   # jellyfin: ...
 

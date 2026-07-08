@@ -99,7 +99,7 @@ Cluster-primitive charts:
 | Group | Apps | Target |
 |---|---|---|
 | **acquisition** | sonarr, radarr, prowlarr, bazarr, lidarr(prarr), sabnzbd, recyclarr, flaresolverr, subgen | app-template |
-| **streaming** | jellyfin-pgsql, tunarr, tdarr (server+node) | app-template |
+| **streaming** | jellyfin, tunarr, tdarr (server+node) | app-template |
 | **requests** | seerr, recommendarr | app-template |
 | **tracking** | watcharr, watchback | app-template |
 | **tools** | metube, medialyze, storyteller, copyparty | app-template |

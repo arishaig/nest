@@ -228,7 +228,7 @@ Storage classes:
 
 | Namespace | Services |
 |---|---|
-| `media` | sonarr+exportarr, radarr+exportarr, lidarr+exportarr, bazarr+exportarr, prowlarr+exportarr, flaresolverr, sabnzbd, seerr, tunarr, watcharr, watchback, homepage, copyparty, medialyze, metube, recommendarr, storyteller, subgen, tdarr+node, mealie+postgres (postgres-exporter hostPort 9187), recyclarr (CronJob), jellyfin-pgsql |
+| `media` | sonarr+exportarr, radarr+exportarr, lidarr+exportarr, bazarr+exportarr, prowlarr+exportarr, flaresolverr, sabnzbd, seerr, tunarr, watcharr, watchback, homepage, copyparty, medialyze, metube, recommendarr, storyteller, subgen, tdarr+node, mealie+postgres (postgres-exporter hostPort 9187), recyclarr (CronJob), jellyfin |
 | `cloudflare-ddns` | cloudflare-ddns — keeps `vpn.arishaig.site` current |
 | `headlamp` | Headlamp — Kubernetes UI |
 

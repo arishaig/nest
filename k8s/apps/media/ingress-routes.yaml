@@ -174,7 +174,7 @@ spec:
     - match: "Host(`jellyfin.arishaig.site`)"
       kind: Rule
       services:
-        - name: jellyfin-pgsql
+        - name: jellyfin
           port: 8096
   tls: {}
 ---
