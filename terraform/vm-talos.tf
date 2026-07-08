@@ -32,7 +32,13 @@ resource "proxmox_virtual_environment_vm" "talos" {
   }
 
   cpu {
-    cores = 4
+    # 8 cores: at 4, evening media load (Jellyfin + transcode jobs) pinned the
+    # VM at ~100% for 15+ min stretches (2026-07-08 03:36Z incident) — starved
+    # apiserver/etcd, cancelled controller watch streams, and crash-looped
+    # MetalLB via liveness timeouts. CPU requests were also 97% committed,
+    # blocking scheduling. Host has 12 cores at load ~2.
+    # NOTE: applying this reboots the VM (brief full-cluster outage).
+    cores = 8
     type  = "host"
   }
 

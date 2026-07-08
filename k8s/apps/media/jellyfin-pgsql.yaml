@@ -14,9 +14,9 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
-    # Prefer alpha (nest.arishaig.site/workloads=general): stateful DB, 2Gi
-    # limit fits delta but keep it with the workload node. Soft so it can
-    # still reschedule if alpha is unavailable.
+    # Prefer alpha (nest.arishaig.site/workloads=general). Soft so it can
+    # still reschedule if alpha is unavailable (delta is gone; the old "2Gi
+    # fits delta" sizing rationale went with it).
     defaultPodOptions:
       affinity:
         nodeAffinity:
@@ -77,12 +77,16 @@ spec:
                   failureThreshold: 3
               startup:
                 enabled: false
+            # 4Gi: the 2Gi limit OOM-killed Jellyfin repeatedly during evening
+            # streaming (3× on 2026-07-07 alone) — this is the Jellyfin server
+            # itself despite the pgsql name, and transcode/stream buffers spike
+            # past 2Gi under concurrent use.
             resources:
               requests:
                 cpu: 100m
-                memory: 512Mi
+                memory: 1Gi
               limits:
-                memory: 2Gi
+                memory: 4Gi
     service:
       app:
         controller: jellyfin-pgsql
