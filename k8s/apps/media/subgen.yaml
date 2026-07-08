@@ -39,7 +39,7 @@ spec:
             image:
               # renovate: datasource=docker depName=mccloud/subgen versioning=regex:^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)-cpu$
               repository: mccloud/subgen
-              tag: 2026.06.4-cpu
+              tag: 2026.06.5-cpu
             env:
               WEBHOOK_PORT: "9000"
               WHISPER_MODEL: medium
