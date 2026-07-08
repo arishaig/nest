@@ -38,7 +38,7 @@ Storage: `nfs-nvme` StorageClass (nfs-subdir-external-provisioner → `rpool/dat
 | storyteller | media | nfs-nvme PVC | NodePort 30810 |
 | mealie + postgres | media | nfs-nvme PVC | NodePort 30813 |
 | recyclarr | media | nfs-nvme PVC | CronJob (no http port) |
-| jellyfin-pgsql | media | nfs-nvme PVC + external postgres | NodePort 30814; routed at `jellyfin.arishaig.site`; Docker Jellyfin decommissioned |
+| jellyfin | media | nfs-nvme PVC + external postgres | NodePort 30814; routed at `jellyfin.arishaig.site`; Docker Jellyfin decommissioned |
 
 Traefik on the Docker LXC routes public domains to k8s NodePorts via `external-services.yml` (temporary bridge until Traefik itself moves).
 
@@ -78,7 +78,7 @@ Fixed manually on 2026-06-08 by copying directly on PVE: `cp /rpool/data/docker-
 
 ### Jellyfin cutover ✅ DONE
 
-`jellyfin-pgsql` is the primary instance at `jellyfin.arishaig.site`. Docker Jellyfin removed from docker-compose.yml; config archived at `/mnt/app_config/jellyfin.bak` on the fileserver NFS mount.
+`jellyfin` (HelmRelease; renamed from `jellyfin-pgsql`) is the primary instance at `jellyfin.arishaig.site`. Docker Jellyfin removed from docker-compose.yml; config archived at `/mnt/app_config/jellyfin.bak` on the fileserver NFS mount.
 
 ---
 
@@ -132,7 +132,7 @@ Ports 30000–32767 are the k8s NodePort range. Allocated so far:
 | 30809 | recommendarr http | → 3000 |
 | 30810 | storyteller http | → 8001 |
 | 30813 | mealie http | → 9000 |
-| 30814 | jellyfin-pgsql http | → 8096 |
+| 30814 | jellyfin http | → 8096 |
 | 30815 | tdarr web UI | → 8265 |
 | 30816 | tdarr server (node comms) | → 8266 |
 | 30878 | radarr http | → 7878 |

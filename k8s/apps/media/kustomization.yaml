@@ -64,8 +64,8 @@ resources:
   - tdarr.yaml  # HelmRelease (app-template) — replaces tdarr-server deployment+service
   - tdarr-node.yaml  # HelmRelease (app-template) — replaces tdarr-node deployment (no service)
   # --- jellyfin (postgres backend; primary instance at jellyfin.arishaig.site) ---
-  - jellyfin-pgsql-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
-  - jellyfin-pgsql.yaml  # HelmRelease (app-template) — replaces deployment+service
+  - jellyfin-pgsql-config-pvc.yaml  # kept raw (data safety) — PVC keeps legacy name, bound to live data
+  - jellyfin.yaml  # HelmRelease (app-template) — renamed from jellyfin-pgsql (it's the Jellyfin server)
   - ingress-routes.yaml
 
 # Self-heal transient install/upgrade failures (e.g. helm-controller client

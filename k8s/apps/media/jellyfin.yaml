@@ -1,7 +1,11 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: jellyfin-pgsql
+  # Renamed from jellyfin-pgsql — this is the Jellyfin server (jpvenson's
+  # postgres-backed build from the sqlite->postgres migration), not a database.
+  # The config PVC keeps its original jellyfin-pgsql-config name: it's bound
+  # to live data and renaming a PVC means migrating the volume.
+  name: jellyfin
   namespace: media
 spec:
   interval: 1h
@@ -28,7 +32,7 @@ spec:
                     operator: In
                     values: [general]
     controllers:
-      jellyfin-pgsql:
+      jellyfin:
         strategy: Recreate
         containers:
           app:
@@ -89,7 +93,7 @@ spec:
                 memory: 4Gi
     service:
       app:
-        controller: jellyfin-pgsql
+        controller: jellyfin
         type: NodePort
         ports:
           http:
@@ -100,13 +104,13 @@ spec:
       config:
         existingClaim: jellyfin-pgsql-config
         advancedMounts:
-          jellyfin-pgsql:
+          jellyfin:
             app:
               - path: /config
       media:
         existingClaim: media-nfs
         advancedMounts:
-          jellyfin-pgsql:
+          jellyfin:
             app:
               - path: /data
                 readOnly: true
