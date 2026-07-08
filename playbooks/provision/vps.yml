@@ -9,7 +9,7 @@
   gather_facts: true
 
   vars:
-    traefik_version: "3.7.5"
+    traefik_version: "3.7.6"
     traefik_arch: "amd64"
     node_exporter_version: "1.11.1"
     alloy_version: "1.17.0"
