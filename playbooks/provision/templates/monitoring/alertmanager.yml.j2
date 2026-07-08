@@ -5,6 +5,7 @@ route:
   group_by: ['alertname', 'instance']
   group_wait: 30s
   group_interval: 5m
+  # Default cadence (criticals): re-page every 4h until resolved.
   repeat_interval: 4h
   receiver: 'homeassistant'
   routes:
@@ -13,6 +14,43 @@ route:
       group_wait: 0s
       repeat_interval: 168h
       receiver: 'homeassistant'
+    # Warnings notify once and remind daily. If they re-page every 4h like
+    # criticals, the phone channel stops meaning "act now" — PBSBackupStale
+    # alone sent ~30 redundant pings over 5 days in June 2026.
+    - match:
+        severity: warning
+      repeat_interval: 24h
+      receiver: 'homeassistant'
+
+# Suppress alerts that are consequences of one already firing, so an incident
+# is one notification, not a cascade. Inhibition only applies where the
+# `equal` labels actually match on both sides (e.g. instance "vps-proxy" or
+# "talos"); pairs with differing instance formats are simply unaffected.
+inhibit_rules:
+  # A dead host explains every service-level alert scoped to the same instance
+  # (HostDown on vps-proxy covers TraefikVPSDown; the vps node scrape and
+  # Traefik share instance="vps-proxy").
+  - source_matchers:
+      - 'alertname = HostDown'
+    target_matchers:
+      - 'alertname != HostDown'
+    equal: ['instance']
+  # A NotReady node explains all pod/deployment churn and k8s service alerts
+  # (everything scraped from the cluster carries instance="talos").
+  - source_matchers:
+      - 'alertname = KubeNodeNotReady'
+    target_matchers:
+      - 'alertname =~ "KubePodCrashLooping|KubePodNotReady|KubeDeploymentReplicasMismatch|KubeStateMetricsDown|TraefikK8sDown|AutheliaDown|ValkeyDown|PostgresDown"'
+    equal: ['instance']
+  # All-resolvers-down pages once; the per-instance warnings add nothing.
+  - source_matchers:
+      - 'alertname = AdGuardAllDown'
+    target_matchers:
+      - 'alertname = AdGuardDown'
+  - source_matchers:
+      - 'alertname = UnboundAllDown'
+    target_matchers:
+      - 'alertname = UnboundDown'
 
 receivers:
   - name: 'homeassistant'

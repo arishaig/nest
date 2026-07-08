@@ -9,16 +9,24 @@ groups:
           summary: "Alerting pipeline is operational"
           description: "Weekly confirmation that Prometheus → Alertmanager → HA → phone is working."
 
+  # Reachability alerts use majority-failure ratios (avg_over_time(up[30m]) < 0.5)
+  # instead of `up == 0` + `for: 30m`. A `for` clause requires the condition on
+  # every evaluation, so a single successful scrape resets the clock — a target
+  # failing 90% of scrapes would never fire. Meanwhile the WireGuard scrape path
+  # to the VPS drops ~6% of scrapes, which put the old form into pending
+  # thousands of times per fortnight without firing. The ratio form is robust in
+  # both directions: one dropped scrape can't start it, one lucky scrape can't
+  # reset it.
   - name: hosts
     rules:
       - alert: HostDown
-        expr: up{job=~"node|vps", instance!="docker.arishaig.site"} == 0
-        for: 30m
+        expr: avg_over_time(up{job=~"node|vps", instance!="docker.arishaig.site"}[30m]) < 0.5
+        for: 5m
         labels:
           severity: critical
         annotations:
           summary: "Host {{ $labels.instance }} is down"
-          description: "node_exporter on {{ $labels.instance }} has been unreachable for 30 minutes."
+          description: "node_exporter on {{ $labels.instance }} has failed most scrapes over the last 30 minutes."
 
       - alert: HighCPU
         expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
@@ -29,8 +37,12 @@ groups:
           summary: "High CPU on {{ $labels.instance }}"
           description: "CPU usage is {{ printf \"%.0f\" $value }}% for 10 minutes."
 
+      # musicbrainz is excluded: its DB imports sit >95% for hours by design
+      # (83% 7-day average with long bursts), which kept this alert firing for
+      # ~18h per fortnight with nothing to act on. Actual OOM kills inside the
+      # LXC still surface via the OOMKill alert on the proxmox host counter.
       - alert: HighMemory
-        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        expr: (1 - (node_memory_MemAvailable_bytes{instance!="musicbrainz.arishaig.site"} / node_memory_MemTotal_bytes)) * 100 > 95
         for: 2h
         labels:
           severity: warning
@@ -68,13 +80,13 @@ groups:
   - name: services
     rules:
       - alert: CAdvisorDown
-        expr: up{job="cadvisor", instance!="docker.arishaig.site:8081"} == 0
-        for: 30m
+        expr: avg_over_time(up{job="cadvisor", instance!="docker.arishaig.site:8081"}[30m]) < 0.5
+        for: 5m
         labels:
           severity: warning
         annotations:
           summary: "cAdvisor unreachable on {{ $labels.instance }}"
-          description: "Cannot scrape container metrics from {{ $labels.instance }}."
+          description: "Container metrics from {{ $labels.instance }} have failed most scrapes over the last 30 minutes."
 
       - alert: ContainerDown
         expr: |
@@ -90,46 +102,60 @@ groups:
           summary: "Container {{ $labels.name }} is down"
           description: "Container {{ $labels.name }} on {{ $labels.instance }} has not been seen for over 30 minutes."
 
+      # Threshold matches KubePodCrashLooping: >4 restarts in 30m means a real
+      # loop, while a host reboot (one restart per container) stays quiet.
       - alert: ContainerRestarting
         expr: |
           changes(container_start_time_seconds{
             job="cadvisor",
             image!="",
             name=~"/.+"
-          }[15m]) > 2
-        for: 0m
+          }[30m]) > 4
+        for: 5m
         labels:
           severity: warning
         annotations:
           summary: "Container {{ $labels.name }} is crash-looping"
-          description: "Container {{ $labels.name }} on {{ $labels.instance }} has restarted {{ $value | printf \"%.0f\" }} times in the last 15 minutes."
+          description: "Container {{ $labels.name }} on {{ $labels.instance }} has restarted {{ $value | printf \"%.0f\" }} times in the last 30 minutes."
 
       - alert: ProxmoxNodeDown
-        expr: up{job="proxmox"} == 0
-        for: 30m
+        expr: avg_over_time(up{job="proxmox"}[30m]) < 0.5
+        for: 5m
         labels:
           severity: critical
         annotations:
           summary: "Proxmox exporter unreachable"
-          description: "pve-exporter has been unreachable for 30 minutes."
+          description: "pve-exporter has failed most scrapes over the last 30 minutes."
 
+      # One resolver down is degraded redundancy, not an outage — clients fail
+      # over to the remaining AdGuard instances. Warning per instance; the
+      # critical page is AdGuardAllDown below.
       - alert: AdGuardDown
-        expr: up{job="adguard"} == 0
-        for: 30m
+        expr: avg_over_time(up{job="adguard"}[30m]) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AdGuard Home down ({{ $labels.dns_role }})"
+          description: "AdGuard Home exporter ({{ $labels.dns_role }}, {{ $labels.instance }}) has failed most scrapes over the last 30 minutes."
+
+      - alert: AdGuardAllDown
+        expr: absent(up{job="adguard"} == 1)
+        for: 10m
         labels:
           severity: critical
         annotations:
-          summary: "AdGuard Home down ({{ $labels.dns_role }})"
-          description: "AdGuard Home exporter ({{ $labels.dns_role }}, {{ $labels.instance }}) has been unreachable for 30 minutes."
+          summary: "All AdGuard Home instances are unreachable"
+          description: "No AdGuard exporter (primary, secondary, or tertiary) is reachable. DNS for the whole network may be down."
 
       - alert: QBittorrentDown
-        expr: up{job="qbittorrent"} == 0
-        for: 30m
+        expr: avg_over_time(up{job="qbittorrent"}[30m]) < 0.5
+        for: 5m
         labels:
           severity: warning
         annotations:
           summary: "qBittorrent exporter is down"
-          description: "qBittorrent metrics have been unreachable for 30 minutes."
+          description: "qBittorrent metrics have failed most scrapes over the last 30 minutes."
 
       - alert: HomeAssistantDown
         expr: absent_over_time(alloy_build_info{servername="HomeAssistant"}[30m])
@@ -149,14 +175,30 @@ groups:
           summary: "ZFS pool {{ $labels.zpool }} is {{ $labels.state }}"
           description: "ZFS pool {{ $labels.zpool }} on proxmox entered state {{ $labels.state }}."
 
+      # Warning per instance for the same reason as AdGuardDown: the July 2026
+      # primary-Unbound incident ran 17h at critical with zero user-visible
+      # impact because the secondary carried resolution. The `or` arm catches
+      # the exporter itself going unreachable, which the old `unbound_up == 0`
+      # form was blind to (absent series never compares equal to 0).
       - alert: UnboundDown
-        expr: unbound_up == 0
-        for: 30m
+        expr: |
+          avg_over_time(unbound_up[30m]) < 0.5
+            or avg_over_time(up{job="unbound"}[30m]) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unbound is down ({{ $labels.dns_role }}, {{ $labels.instance }})"
+          description: "Unbound recursive resolver ({{ $labels.dns_role }}, {{ $labels.instance }}) has been failing for most of the last 30 minutes. DNS redundancy is reduced."
+
+      - alert: UnboundAllDown
+        expr: absent(unbound_up == 1)
+        for: 10m
         labels:
           severity: critical
         annotations:
-          summary: "Unbound is down ({{ $labels.dns_role }}, {{ $labels.instance }})"
-          description: "Unbound recursive resolver ({{ $labels.dns_role }}, {{ $labels.instance }}) has been unreachable for 30 minutes. DNS resolution may be degraded."
+          summary: "All Unbound resolvers are down"
+          description: "No Unbound instance (primary, secondary, or tertiary) is reporting healthy. Upstream DNS resolution is broken."
 
       # LXCs share the PVE host kernel, so every LXC node exporter reports the
       # same oom_kill counter — one host event used to page once per LXC.
@@ -172,50 +214,55 @@ groups:
           description: "A process was OOM-killed on {{ $labels.instance }} (for the proxmox host this includes processes inside any LXC)."
 
       - alert: TraefikVPSDown
-        expr: up{job="traefik-vps"} == 0
-        for: 30m
+        expr: avg_over_time(up{job="traefik-vps"}[30m]) < 0.5
+        for: 5m
         labels:
           severity: critical
         annotations:
           summary: "VPS Traefik proxy is down"
-          description: "Traefik on the VPS proxy has been unreachable for 30 minutes. All inbound traffic through the VPS is broken."
+          description: "Traefik on the VPS proxy has failed most scrapes over the last 30 minutes. All inbound traffic through the VPS is broken."
 
       - alert: TraefikK8sDown
-        expr: up{job="traefik-k8s"} == 0
-        for: 30m
+        expr: avg_over_time(up{job="traefik-k8s"}[30m]) < 0.5
+        for: 5m
         labels:
           severity: critical
         annotations:
           summary: "k8s Traefik ingress is down"
-          description: "Traefik on the Talos k8s node has been unreachable for 30 minutes. All cluster ingress is broken."
+          description: "Traefik on the Talos k8s node has failed most scrapes over the last 30 minutes. All cluster ingress is broken."
 
       - alert: AutheliaDown
-        expr: up{job="authelia"} == 0
-        for: 30m
+        expr: avg_over_time(up{job="authelia"}[30m]) < 0.5
+        for: 5m
         labels:
           severity: critical
         annotations:
           summary: "Authelia is down"
-          description: "Authelia metrics endpoint has been unreachable for 30 minutes. Authentication for all protected services is broken."
+          description: "Authelia metrics endpoint has failed most scrapes over the last 30 minutes. Authentication for all protected services is broken."
 
       - alert: ValkeyDown
-        expr: up{job="redis"} == 0
-        for: 30m
+        expr: avg_over_time(up{job="redis"}[30m]) < 0.5
+        for: 5m
         labels:
           severity: warning
         annotations:
           summary: "Valkey exporter is down"
-          description: "Valkey (Authelia session cache) metrics have been unreachable for 30 minutes."
+          description: "Valkey (Authelia session cache) metrics have failed most scrapes over the last 30 minutes."
 
       - alert: PostgresDown
-        expr: up{job="postgres"} == 0
-        for: 30m
+        expr: avg_over_time(up{job="postgres"}[30m]) < 0.5
+        for: 5m
         labels:
           severity: warning
         annotations:
           summary: "Postgres exporter is down"
-          description: "Postgres (Mealie database) metrics have been unreachable for 30 minutes."
+          description: "Postgres (Mealie database) metrics have failed most scrapes over the last 30 minutes."
 
+      # Lifecycle note: a deleted guest keeps firing this until its snapshots
+      # age out of PBS (~5 days) — the beta/delta VM teardown (guests 113/115,
+      # June 2026) paged twice a day for 5.5 days about machines that no longer
+      # existed. When decommissioning a guest, prune its PBS backup group as
+      # part of removal.
       - alert: PBSBackupStale
         expr: time() - pbs_backup_last_snapshot_timestamp_seconds > 30 * 3600
         for: 30m
@@ -230,37 +277,82 @@ groups:
       # Restart counts come from kube-state-metrics; AutheliaDown et al. only
       # catch sustained scrape failures, so a pod cycling every few minutes
       # (like the 2026-06-11 Authelia liveness-probe crash loop) was invisible.
+      # Threshold is >4 in 30m so that node-wide single-restart events (Talos
+      # upgrades, reboots, brief resource pressure) don't fan out into a page
+      # per pod — the old >2-in-15m form fired ~71h across ~50 pods in one
+      # fortnight, almost all of it one underlying node condition. A real
+      # crash loop (CrashLoopBackOff caps at 5m) still crosses this easily.
       - alert: KubePodCrashLooping
         expr: |
-          increase(kube_pod_container_status_restarts_total{job="kube-state-metrics"}[15m]) > 2
-        for: 0m
+          increase(kube_pod_container_status_restarts_total{job="kube-state-metrics"}[30m]) > 4
+        for: 5m
         labels:
           severity: warning
         annotations:
           summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping"
-          description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has restarted {{ $value | printf \"%.0f\" }} times in the last 15 minutes."
+          description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has restarted {{ $value | printf \"%.0f\" }} times in the last 30 minutes."
 
-      # If kube-state-metrics itself dies, KubePodCrashLooping goes silently
-      # blind — page on that rather than discovering it during an incident.
-      - alert: KubeStateMetricsDown
-        expr: up{job="kube-state-metrics"} == 0
+      # Symptom-level coverage that crash-loop counting can't provide: a pod
+      # that never starts increments no restart counter. flannel-watchdog sat
+      # Pending for 10 days (July 2026) with zero alerts.
+      - alert: KubePodNotReady
+        expr: |
+          sum by (namespace, pod, instance) (
+            kube_pod_status_phase{job="kube-state-metrics", phase=~"Pending|Unknown"}
+          ) > 0
         for: 30m
         labels:
           severity: warning
         annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is not running"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in Pending or Unknown state for more than 30 minutes."
+
+      # 30m tolerates slow rollouts (large image pulls) while catching
+      # deployments that quietly lose all replicas.
+      - alert: KubeDeploymentReplicasMismatch
+        expr: |
+          kube_deployment_spec_replicas{job="kube-state-metrics"}
+            > kube_deployment_status_replicas_available{job="kube-state-metrics"}
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} is under-replicated"
+          description: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has had fewer available replicas than desired for more than 30 minutes."
+
+      - alert: KubeNodeNotReady
+        expr: kube_node_status_condition{job="kube-state-metrics", condition="Ready", status="true"} == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node {{ $labels.node }} is NotReady"
+          description: "Kubernetes node {{ $labels.node }} has been NotReady for more than 10 minutes."
+
+      # If kube-state-metrics itself dies, KubePodCrashLooping goes silently
+      # blind — page on that rather than discovering it during an incident.
+      - alert: KubeStateMetricsDown
+        expr: avg_over_time(up{job="kube-state-metrics"}[30m]) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
           summary: "kube-state-metrics is down"
-          description: "kube-state-metrics has been unreachable for 30 minutes. Pod crash-loop alerting is blind until it recovers."
+          description: "kube-state-metrics has failed most scrapes over the last 30 minutes. Pod crash-loop alerting is blind until it recovers."
 
   - name: endpoints
     rules:
+      # This is the true user-facing symptom alert (probes the public path),
+      # so it uses a tighter 15m window than the scrape-path rules — it pages
+      # in ~20 minutes instead of 30+ while staying flap-proof.
       - alert: ExternalEndpointDown
-        expr: probe_success{job="blackbox"} == 0
-        for: 30m
+        expr: avg_over_time(probe_success{job="blackbox"}[15m]) < 0.5
+        for: 5m
         labels:
           severity: critical
         annotations:
           summary: "External endpoint {{ $labels.instance }} is unreachable"
-          description: "{{ $labels.instance }} has been unreachable for 30 minutes. DNS, Cloudflare, VPS proxy, or the service itself may be down."
+          description: "{{ $labels.instance }} has failed most probes over the last 15 minutes. DNS, Cloudflare, VPS proxy, or the service itself may be down."
 
   - name: network
     rules:
@@ -276,13 +368,13 @@ groups:
   - name: media
     rules:
       - alert: MediaAppDown
-        expr: up{job=~"sonarr|radarr|lidarr|prowlarr|bazarr"} == 0
-        for: 30m
+        expr: avg_over_time(up{job=~"sonarr|radarr|lidarr|prowlarr|bazarr"}[30m]) < 0.5
+        for: 5m
         labels:
           severity: warning
         annotations:
           summary: "{{ $labels.job }} is down"
-          description: "{{ $labels.job }} on {{ $labels.instance }} has been unreachable for 30 minutes."
+          description: "{{ $labels.job }} on {{ $labels.instance }} has failed most scrapes over the last 30 minutes."
 
   - name: logging
     rules:
@@ -309,3 +401,18 @@ groups:
         annotations:
           summary: "Loki is failing log push requests"
           description: "Loki returned {{ $value | printf \"%.0f\" }} 5xx responses to push requests in the last 15 minutes. Ingestion is degraded and Loki ruler alerts may be unreliable."
+
+      # Loki can serve /metrics (so up{job="loki"} stays 1) while /ready
+      # returns 503 and the ruler stops evaluating — which silently disables
+      # the entire Loki-ruler alert family (LogIngestionGap, SystemdUnitFailed,
+      # the security rules, GluetunVPNError). Same watchman logic as
+      # KubeStateMetricsDown: alert on the alerting path itself. Probed via
+      # blackbox because readiness is not exposed as a metric.
+      - alert: LokiNotReady
+        expr: avg_over_time(probe_success{job="blackbox-internal", instance="http://loki:3100/ready"}[15m]) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Loki is not ready"
+          description: "Loki's /ready endpoint has been failing for most of the last 15 minutes. Loki-ruler alerts (log ingestion gaps, systemd failures, security rules) may be silently disabled."
