@@ -27,7 +27,7 @@ spec:
             image:
               # renovate: datasource=docker depName=linuxserver/bazarr
               repository: linuxserver/bazarr
-              tag: 1.5.6
+              tag: 1.6.0
             env:
               PUID: "0"
               PGID: "0"
