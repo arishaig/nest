@@ -1,0 +1,41 @@
+name: CodeQL
+
+# Advanced setup (not GitHub's autodetected default setup): default setup only
+# scans python + actions in the top-level checkout, misses the anagnorisis
+# submodule entirely, and uses the shallow "default" query suite. This uses
+# security-and-quality and checks out submodules so anagnorisis/ is covered.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, actions]
+    steps:
+      - uses: actions/checkout@v7.0.0
+        with:
+          submodules: recursive
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - uses: github/codeql-action/autobuild@v3
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
