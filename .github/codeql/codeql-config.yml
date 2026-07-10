@@ -1,0 +1,13 @@
+name: "CodeQL config"
+
+queries:
+  - uses: security-and-quality
+
+paths-ignore:
+  - '**/.venv/**'
+  - '**/node_modules/**'
+  - '**/tests/**'
+  - '**/test/**'
+  - 'anagnorisis/static/**'
+  - 'anagnorisis/wiki/**'
+  - 'anagnorisis/research/**'
