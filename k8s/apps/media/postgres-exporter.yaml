@@ -22,7 +22,7 @@ spec:
             image:
               # renovate: datasource=docker depName=prometheuscommunity/postgres-exporter
               repository: prometheuscommunity/postgres-exporter
-              tag: v0.20.0
+              tag: v0.20.1
             # Original used DATA_SOURCE_NAME with $(VAR) interpolation, which
             # requires ordered env. app-template renders env from a sorted map,
             # so use the order-independent DATA_SOURCE_URI/USER/PASS form instead
