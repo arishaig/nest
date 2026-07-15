@@ -30,7 +30,7 @@ machine:
     # ghcr.io/siderolabs/installer would drop the Pi firmware/DTB on upgrade.
     # Renovate bumps this tag in lockstep with talos_version in
     # terraform/terraform.tfvars; CI cross-checks them.
-    image: factory.talos.dev/installer/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f:v1.13.5
+    image: factory.talos.dev/installer/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f:v1.13.6
   network:
     interfaces:
       # Pi 5 onboard ethernet is end0 (RP1/macb), not eth0 like the Pi 4 —
