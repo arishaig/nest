@@ -10,7 +10,7 @@ dependencies = [
     "mcp[cli]==1.28.1",
     "httpx==0.28.1",
     "pydantic-settings==2.14.2",
-    "uvicorn==0.50.0",
+    "uvicorn==0.51.0",
 ]
 
 [project.scripts]
