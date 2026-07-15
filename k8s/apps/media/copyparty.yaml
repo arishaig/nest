@@ -22,7 +22,7 @@ spec:
             image:
               # renovate: datasource=docker depName=copyparty/ac
               repository: copyparty/ac
-              tag: 1.20.16
+              tag: 1.20.18
             args: ["--acao", "https://copyparty.arishaig.site"]
             probes:
               liveness:
