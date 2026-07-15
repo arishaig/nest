@@ -295,7 +295,27 @@ jobs:
         run: tofu -chdir=terraform init -input=false
 
       - name: OpenTofu apply
-        run: tofu -chdir=terraform apply -var-file=secrets.tfvars -auto-approve -input=false
+        run: |
+          tofu -chdir=terraform apply -var-file=secrets.tfvars -auto-approve -input=false \
+            2>&1 | tee "$RUNNER_TEMP/tofu-apply.log"
+
+      - name: Notify on Vultr API IP allowlist block
+        # tofu apply fails at plan/refresh time for ALL resources (not just
+        # Vultr's) whenever Vultr's account-level API Access Control rejects
+        # the runner's current egress IP — a silent CI-only failure otherwise.
+        # Pushed into Alertmanager (not HA directly) to reuse the existing
+        # severity routing/repeat-interval/grouping instead of a bespoke path.
+        # See 2026-07-15 Talos v1.13.6 deploy failure.
+        if: failure()
+        run: |
+          LOG="$RUNNER_TEMP/tofu-apply.log"
+          if [ -f "$LOG" ] && grep -q "Unauthorized IP address" "$LOG"; then
+            IP=$(grep -oP 'Unauthorized IP address: \K[0-9.]+' "$LOG" | head -1)
+            curl -sf -X POST "http://192.168.1.44:9093/api/v2/alerts" \
+              -H "Content-Type: application/json" \
+              -d "[{\"labels\":{\"alertname\":\"VultrAPIBlocked\",\"severity\":\"warning\",\"instance\":\"ci\"},\"annotations\":{\"summary\":\"Vultr API blocked CI deploy\",\"description\":\"tofu apply failed: Vultr rejected CI IP ${IP}. Add it under Account > API > Access Control in the Vultr console.\"}}]" \
+              || echo "::warning::Failed to push VultrAPIBlocked alert to Alertmanager"
+          fi
 
       - name: Upgrade Talos nodes if version changed
         env:
