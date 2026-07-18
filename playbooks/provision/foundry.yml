@@ -83,19 +83,25 @@
         mode: "0755"
 
     # --- Deploy Foundry application ---
+    - name: Check whether FoundryVTT is already installed
+      ansible.builtin.stat:
+        path: "{{ foundry_app_dir }}/main.js"
+      register: foundry_installed
+
     - name: Check for foundry zip on controller
       ansible.builtin.stat:
         path: "{{ playbook_dir }}/files/foundry/foundryvtt.zip"
       register: foundry_zip
       delegate_to: localhost
       become: false
+      when: not foundry_installed.stat.exists
 
     - name: Fail if foundryvtt.zip is missing
       ansible.builtin.fail:
         msg: >
           Missing playbooks/provision/files/foundry/foundryvtt.zip —
           download the "Node.js" release from your Foundry license page and place it there.
-      when: not foundry_zip.stat.exists
+      when: not foundry_installed.stat.exists and not foundry_zip.stat.exists
 
     - name: Upload and extract FoundryVTT zip
       ansible.builtin.unarchive:
