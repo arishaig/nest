@@ -37,7 +37,7 @@
 
     - name: Add NodeSource repository
       ansible.builtin.copy:
-        content: "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_22.x nodistro main\n"
+        content: "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_24.x nodistro main\n"
         dest: /etc/apt/sources.list.d/nodesource.list
         mode: "0644"
       notify: Update apt cache
@@ -48,7 +48,7 @@
     - name: Install Node.js
       ansible.builtin.apt:
         name: nodejs
-        state: present
+        state: latest
         update_cache: false
 
     # --- foundry user and directories ---
