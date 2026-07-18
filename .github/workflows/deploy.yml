@@ -32,6 +32,7 @@ jobs:
       ci_runner: ${{ steps.filter.outputs.ci_runner }}
       adguard: ${{ steps.filter.outputs.adguard }}
       musicbrainz: ${{ steps.filter.outputs.musicbrainz }}
+      foundry: ${{ steps.filter.outputs.foundry }}
     steps:
       - uses: actions/checkout@v7.0.0
       - uses: dorny/paths-filter@v4.0.2
@@ -71,6 +72,10 @@ jobs:
             musicbrainz:
               - 'playbooks/provision/musicbrainz.yml'
               - 'playbooks/provision/templates/musicbrainz/**'
+            foundry:
+              - 'playbooks/provision/foundry.yml'
+              - 'playbooks/provision/files/foundry/**'
+              - 'playbooks/provision/templates/foundry/**'
 
   deploy-musicbrainz:
     needs: changes
@@ -129,6 +134,35 @@ jobs:
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit 'adguard,dns-secondary'
+
+  deploy-foundry:
+    needs: changes
+    if: needs.changes.outputs.foundry == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - name: Write SSH key
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.ssh"
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
+          chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
+
+      - name: Write vault password
+        run: |
+          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
+          chmod 600 "$RUNNER_TEMP/vault-pass"
+
+      - name: Run foundry playbook
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          ansible-playbook \
+            -i inventory/hosts.yml \
+            playbooks/provision/foundry.yml \
+            --vault-password-file "$RUNNER_TEMP/vault-pass" \
+            --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
+            --ssh-extra-args "-o StrictHostKeyChecking=no" \
+            --limit foundry
 
   deploy-docker:
     needs: changes
