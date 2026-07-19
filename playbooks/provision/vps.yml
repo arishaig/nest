@@ -11,7 +11,7 @@
   vars:
     traefik_version: "3.7.7"
     traefik_arch: "amd64"
-    node_exporter_version: "1.12.0"
+    node_exporter_version: "1.12.1"
     alloy_version: "1.17.1"
 
   tasks:
