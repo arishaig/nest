@@ -48,7 +48,7 @@ spec:
                 FLANNEL_POD=$(kubectl get pods -n kube-system \
                   --field-selector="spec.nodeName=${NODE_NAME}" \
                   -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
-                  | grep '^kube-flannel')
+                  | grep '^kube-flannel' || true)
                 if [ -n "$FLANNEL_POD" ]; then
                   if kubectl logs -n kube-system "$FLANNEL_POD" --since=2m 2>/dev/null | grep -q "Unauthorized"; then
                     echo "$(date -u): ${FLANNEL_POD} stuck with Unauthorized errors, restarting"
