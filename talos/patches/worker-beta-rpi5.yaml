@@ -1,18 +1,24 @@
-# RPi5 worker node (8GB). Boots from SD card — u-boot on Pi5 cannot boot from
-# NVMe yet (siderolabs/sbc-raspberrypi#23). The M.2 NVMe is used as a data
-# disk only once Linux is up. Converts talos-beta-rpi5 from control-plane to
-# worker-only as part of the control-plane migration — see
+# RPi5 worker node (8GB). Boots from SD card ONLY — NVMe is not installed and
+# not used, even as a data disk. Converts talos-beta-rpi5 from control-plane
+# to worker-only as part of the control-plane migration — see
 # /home/isaac/.claude/plans/silly-riding-stroustrup.md (Phase 2). No
 # `cluster:` block: workers don't run control-plane components.
 #
-# Re-adds the EPHEMERAL-on-NVMe relocation after a prior attempt hit
-# "exec format error" on kubelet (see docs/rpi5-talos.md known issues,
-# 2026-07-20). SMART data on the drive (smartctl -d sntjmicron) came back
-# clean — PASSED, 0 media/data integrity errors, 100% spare — but showed 25
-# unsafe shutdowns, strongly suggesting the earlier corruption was
-# self-inflicted (torn writes from hard power-cycling during troubleshooting)
-# rather than a bad drive or a real Talos/NVMe incompatibility. Retry
-# assumes a clean, graceful join with no manual power cycling.
+# NVMe conclusively ruled out 2026-07-20 (see docs/rpi5-talos.md known
+# issues for the full story): mainline U-Boot has no PCIe driver support on
+# RPi5 at all — not a bug being fixed, a feature never upstreamed
+# (siderolabs/sbc-raspberrypi#23, RFC at
+# https://lists.denx.de/pipermail/u-boot/2025-February/579540.html). This
+# reproduced identically across two different drives (an Intel Optane H10
+# and a plain NVMe SSD) and held even with BOOT_ORDER=0xf461 (SD-first) and
+# PCIE_PROBE=0 both confirmed correct — U-Boot's own device enumeration
+# still touches NVMe regardless of boot order. A community fork
+# (talos-rpi5/talos-builder) carries the out-of-tree U-Boot patches, but its
+# last real commit was 2025-11-08 — predates the official rpi_5 overlay this
+# cluster depends on for ethernet — so adopting it isn't worth the
+# officially-supported ground it'd give up. Revisit only if
+# siderolabs/sbc-raspberrypi#23 closes or those U-Boot PCIe patches land
+# upstream.
 machine:
   install:
     disk: /dev/mmcblk0
@@ -55,13 +61,3 @@ apiVersion: v1alpha1
 kind: HostnameConfig
 auto: "off"
 hostname: talos-beta-rpi5
----
-# Relocates EPHEMERAL (/var — container images, kubelet state) onto the
-# NVMe, off the SD card. Only takes effect on a fresh install — this
-# reset+rejoin is exactly the mechanism that makes it apply cleanly.
-apiVersion: v1alpha1
-kind: VolumeConfig
-name: EPHEMERAL
-provisioning:
-  diskSelector:
-    match: disk.transport == 'nvme' && !system_disk

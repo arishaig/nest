@@ -163,16 +163,30 @@ talosctl upgrade --nodes 192.168.1.112 \
 - [sbc-raspberrypi#90](https://github.com/siderolabs/sbc-raspberrypi/issues/90)
   — the official Active Cooler fan doesn't spin under Talos; passive cooling
   or an always-on fan case is safer.
-- **NVMe + `talosctl reset --graceful` (confirmed 2026-07-20, root cause not
-  isolated):** relocating EPHEMERAL onto the NVMe via `VolumeConfig`, then
-  running `talosctl reset --graceful` on beta-rpi5, reproducibly left the
-  node either stuck on the RPi5 bootloader recovery screen ("Configure this
-  Raspberry Pi 5", no bootable partition found on any device) or, on the one
-  occasion it did boot, with kubelet crash-looping on
-  `exec /usr/local/bin/kubelet: exec format error`. This happened across two
-  different SD cards (ruling out a bad card) and repeated after a second
-  reset. Removing the `VolumeConfig` block and physically pulling the NVMe
-  drive resolved it immediately. Until this is root-caused, don't relocate
-  EPHEMERAL to NVMe on any RPi5 node that will go through `reset` — including
-  gamma's eventual worker conversion — without treating it as a deliberate,
-  isolated experiment rather than a routine join.
+- **NVMe is not usable on RPi5 with Talos at all — conclusively ruled out
+  2026-07-20, not just a beta-rpi5-specific quirk.** Relocating EPHEMERAL
+  onto NVMe via `VolumeConfig` and then running `talosctl reset --graceful`
+  on beta-rpi5 reproducibly left the node either stuck on the RPi5
+  bootloader recovery screen ("Configure this Raspberry Pi 5", no bootable
+  partition found on any device) or, on the one occasion it did boot, with
+  kubelet crash-looping on `exec /usr/local/bin/kubelet: exec format error`.
+  Root cause: **mainline U-Boot has no PCIe driver support on RPi5 at all** —
+  not a bug awaiting a fix, a feature never upstreamed
+  ([siderolabs/sbc-raspberrypi#23](https://github.com/siderolabs/sbc-raspberrypi/issues/23),
+  RFC patch series at
+  https://lists.denx.de/pipermail/u-boot/2025-February/579540.html). U-Boot's
+  own device enumeration touches NVMe regardless of `BOOT_ORDER` or
+  `PCIE_PROBE` — confirmed by testing with `BOOT_ORDER=0xf461` (SD-first) and
+  `PCIE_PROBE=0` both verified correct on the board, and by reproducing the
+  failure identically across two different drives (an Intel Optane H10 and a
+  plain NVMe SSD — ruling out drive-specific behavior; the H10's dual-die
+  bifurcated architecture is a real but separate compatibility concern on top
+  of this). A community fork, `talos-rpi5/talos-builder`, carries the
+  out-of-tree U-Boot PCIe patches, but its last real commit was 2025-11-08 —
+  predating the official `rpi_5` overlay this cluster depends on for
+  ethernet — so it isn't worth adopting over the officially-supported image.
+  **Decision: RPi5 nodes in this cluster run SD-card-only, no NVMe, until
+  siderolabs/sbc-raspberrypi#23 closes or those U-Boot PCIe patches land
+  upstream** (tracked automatically — see `scripts/check-rpi5-nvme-issue.sh`
+  / `.github/workflows/rpi5-nvme-watch.yml`). This applies to gamma's
+  eventual worker conversion too, not just beta.

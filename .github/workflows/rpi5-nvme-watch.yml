@@ -1,0 +1,28 @@
+name: RPi5 NVMe Upstream Watch
+
+# Watches for upstream changes that would unblock NVMe on RPi5 nodes (see
+# docs/rpi5-talos.md "Known issues" — mainline U-Boot has no PCIe driver
+# support on RPi5, tracked at siderolabs/sbc-raspberrypi#23). Opens a
+# tracking issue in this repo if the upstream issue closes or the
+# talos-rpi5/talos-builder fork shows renewed activity, so a fix surfaces
+# via normal GitHub notifications instead of requiring anyone to remember to
+# check.
+on:
+  schedule:
+    - cron: '0 13 * * 1' # Mondays 13:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+
+jobs:
+  check:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - name: Check RPi5 NVMe upstream status
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: ./scripts/check-rpi5-nvme-issue.sh
