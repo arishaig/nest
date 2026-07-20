@@ -1,0 +1,80 @@
+# Recovery-side complement to rpi5-net-tuning: that DaemonSet tries to
+# prevent the Pi 5 RP1/macb NIC from wedging under sustained traffic
+# (siderolabs/sbc-raspberrypi#91) by disabling EEE/TSO/GSO up front, but if
+# the link wedges anyway, nothing brings it back — flannel-watchdog only
+# restarts the flannel pod, which can't help if the underlying link is down.
+# This pings the gateway and bounces the interface after 3 consecutive
+# failures, based on https://gist.github.com/serialx/8bf9e8eff425b1c7ddf1fa1d3785bbd0
+# (adapted: configurable gateway, resource sizing, comments — code is ours).
+# Remove alongside rpi5-net-tuning once the upstream kernel fix lands.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rpi5-nic-watchdog
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: rpi5-nic-watchdog
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rpi5-nic-watchdog
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rpi5-nic-watchdog
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      tolerations:
+        # The Pi nodes are control-plane only (allowSchedulingOnControlPlanes: false)
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      containers:
+        - name: watchdog
+          image: alpine:3.24
+          securityContext:
+            privileged: true
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              apk add --no-cache iproute2 >/dev/null
+              # Pi 5 onboard NIC; fall back to the first ethernet-ish
+              # interface so a kernel rename doesn't break this.
+              IFACE=end0
+              [ -e "/sys/class/net/${IFACE}" ] || IFACE=$(ls /sys/class/net | grep -E '^(end|enp|eth)' | head -1)
+              GATEWAY=192.168.1.1
+              echo "nic-watchdog starting on ${NODE_NAME}, monitoring ${IFACE} via ${GATEWAY}"
+              FAILS=0
+              while true; do
+                if ping -c1 -W2 "${GATEWAY}" >/dev/null 2>&1; then
+                  FAILS=0
+                else
+                  FAILS=$((FAILS + 1))
+                  echo "$(date -u): ping to ${GATEWAY} failed (${FAILS}/3)"
+                  if [ "${FAILS}" -ge 3 ]; then
+                    echo "$(date -u): ${IFACE} unreachable after 3 failed pings, bouncing link"
+                    ip link set "${IFACE}" down
+                    sleep 2
+                    ip link set "${IFACE}" up
+                    FAILS=0
+                    sleep 30
+                    continue
+                  fi
+                fi
+                sleep 10
+              done
+          resources:
+            requests:
+              cpu: 5m
+              memory: 24Mi
+            limits:
+              memory: 64Mi
