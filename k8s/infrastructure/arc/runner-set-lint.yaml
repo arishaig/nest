@@ -40,16 +40,25 @@ spec:
     # No lint job builds images, so default (non-dind) containerMode stays.
     template:
       spec:
+        # ghcr.io/arishaig/nest-ci-runner is amd64-only (single-platform
+        # image, no arm64 variant). beta-rpi5 became a general-purpose
+        # schedulable worker as of the control-plane migration (2026-07-20,
+        # Phase 2) — before that, both RPi5 nodes were control-plane-only
+        # (NoSchedule) so this never mattered. Without this, roughly half of
+        # ephemeral runner pods land on the arm64 node and fail immediately
+        # ("exec format error"), which looked like ARC being "stuck" (churning
+        # pods, queued jobs never completing) rather than a scheduling bug.
+        nodeSelector:
+          kubernetes.io/arch: amd64
         containers:
           - name: runner
             image: ghcr.io/arishaig/nest-ci-runner:latest
             command: ["/home/runner/run.sh"]
             # Lint jobs are short (≤~40s) and light, so requests are tiny: a
-            # dozen-plus fit on alpha (the only schedulable node — beta/delta
-            # are control-plane NoSchedule), which has ~790m CPU free after
-            # existing workloads (12 × 50m = 600m). With no CPU limit they
-            # burst on the otherwise-idle cores and merely contend — slower,
-            # never failing — during a large batch.
+            # dozen-plus fit on alpha (the only schedulable amd64 node), which
+            # has ~790m CPU free after existing workloads (12 × 50m = 600m).
+            # With no CPU limit they burst on the otherwise-idle cores and
+            # merely contend — slower, never failing — during a large batch.
             resources:
               requests:
                 cpu: 50m
