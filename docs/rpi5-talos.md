@@ -163,3 +163,16 @@ talosctl upgrade --nodes 192.168.1.112 \
 - [sbc-raspberrypi#90](https://github.com/siderolabs/sbc-raspberrypi/issues/90)
   — the official Active Cooler fan doesn't spin under Talos; passive cooling
   or an always-on fan case is safer.
+- **NVMe + `talosctl reset --graceful` (confirmed 2026-07-20, root cause not
+  isolated):** relocating EPHEMERAL onto the NVMe via `VolumeConfig`, then
+  running `talosctl reset --graceful` on beta-rpi5, reproducibly left the
+  node either stuck on the RPi5 bootloader recovery screen ("Configure this
+  Raspberry Pi 5", no bootable partition found on any device) or, on the one
+  occasion it did boot, with kubelet crash-looping on
+  `exec /usr/local/bin/kubelet: exec format error`. This happened across two
+  different SD cards (ruling out a bad card) and repeated after a second
+  reset. Removing the `VolumeConfig` block and physically pulling the NVMe
+  drive resolved it immediately. Until this is root-caused, don't relocate
+  EPHEMERAL to NVMe on any RPi5 node that will go through `reset` — including
+  gamma's eventual worker conversion — without treating it as a deliberate,
+  isolated experiment rather than a routine join.

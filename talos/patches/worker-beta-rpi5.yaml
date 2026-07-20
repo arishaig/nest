@@ -1,9 +1,23 @@
-# RPi5 worker node (8GB). Boots from SD card — u-boot on Pi5 cannot boot from
-# NVMe yet (siderolabs/sbc-raspberrypi#23). The M.2 NVMe is used as a data
-# disk only once Linux is up. Converts talos-beta-rpi5 from control-plane to
-# worker-only as part of the control-plane migration — see
+# RPi5 worker node (8GB). Boots from SD card. Converts talos-beta-rpi5 from
+# control-plane to worker-only as part of the control-plane migration — see
 # /home/isaac/.claude/plans/silly-riding-stroustrup.md (Phase 2). No
 # `cluster:` block: workers don't run control-plane components.
+#
+# NVMe is currently NOT installed/relocated to (see docs/rpi5-talos.md's
+# "Known issues" — confirmed 2026-07-20: relocating EPHEMERAL onto this
+# node's NVMe via VolumeConfig, combined with `talosctl reset --graceful`,
+# reproducibly left the node unable to boot (RPi5 bootloader recovery
+# screen) or, when it did boot, kubelet failed with "exec format error".
+# Removing the VolumeConfig block (and the physical NVMe drive) resolved it
+# immediately. Root cause not fully isolated — re-add the VolumeConfig block
+# below as a deliberate, separate experiment once there's room to burn
+# another reset cycle on it, not as part of routine joins:
+#   apiVersion: v1alpha1
+#   kind: VolumeConfig
+#   name: EPHEMERAL
+#   provisioning:
+#     diskSelector:
+#       match: disk.transport == 'nvme' && !system_disk
 machine:
   install:
     disk: /dev/mmcblk0
@@ -46,13 +60,3 @@ apiVersion: v1alpha1
 kind: HostnameConfig
 auto: "off"
 hostname: talos-beta-rpi5
----
-# Relocates EPHEMERAL (/var — container images, kubelet state) onto the
-# NVMe, off the SD card. Only takes effect on a fresh install — this
-# reset+rejoin is exactly the mechanism that makes it apply cleanly.
-apiVersion: v1alpha1
-kind: VolumeConfig
-name: EPHEMERAL
-provisioning:
-  diskSelector:
-    match: disk.transport == 'nvme' && !system_disk
