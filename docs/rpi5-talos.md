@@ -1,7 +1,19 @@
 # Talos on Raspberry Pi 5
 
 Runbook for replacing the temporary x86 control-plane test VMs (beta VM 113,
-delta VM 115) with two Raspberry Pi 5 (8GB) nodes booting Talos from NVMe.
+delta VM 115) with two Raspberry Pi 5 (8GB) nodes booting Talos from the SD
+card, with NVMe used as a data disk.
+
+**NVMe boot does not work on Pi5 as of 2026-07-17.** u-boot's NVMe driver
+hangs silently at the boot logo — confirmed on both an Intel Optane H10 and a
+plain Samsung NVMe drive, so it's a generic upstream limitation
+([siderolabs/sbc-raspberrypi#23](https://github.com/siderolabs/sbc-raspberrypi/issues/23)),
+not a drive-compatibility issue. UART is disabled for `[pi5]` in Talos's
+shipped config.txt, so there's no serial output to debug the hang. NVMe works
+fine as a secondary data disk once Linux (Talos's real kernel) is up — it's
+on a separate PCIe root complex from RP1/Ethernet, using the mainlined
+`pcie-brcmstb` driver, confirmed via `talosctl get disks --insecure` showing
+a clean single-namespace `nvme0n1`.
 
 Pi 5 support is in the **official** `siderolabs/sbc-raspberrypi` overlay
 (v0.1.8+, Jan 2026) and served by the official Image Factory — no community
@@ -42,16 +54,27 @@ the whole cluster stays on one release.
 
 ## One-time hardware prep (per Pi)
 
-1. Boot Raspberry Pi OS Lite from a scratch SD card.
+1. Boot Raspberry Pi OS Lite from a scratch SD card (needed once, to set the
+   EEPROM — not needed again after this).
 2. Update the bootloader EEPROM: `sudo rpi-eeprom-update -a && sudo reboot`.
-3. Set NVMe-first boot order: `sudo rpi-eeprom-config --edit` →
-   `BOOT_ORDER=0xf416` (NVMe → USB → SD → repeat). The official M.2 HAT needs
-   no `PCIE_PROBE` setting.
-4. Shut down, remove the SD card.
+3. Set SD-first boot order and disable PCIe probing: `sudo rpi-eeprom-config --edit` →
+   `BOOT_ORDER=0xf461` (SD → NVMe → USB → repeat) **and `PCIE_PROBE=0`**.
+   `PCIE_PROBE=1` is the factory default on some units and forces the
+   bootloader to link-train PCIe/NVMe as part of its own init sequence,
+   independent of `BOOT_ORDER` — this hangs at the u-boot logo on affected
+   units regardless of whether NVMe is even physically present (confirmed
+   2026-07-19 on talos-beta-rpi5: hung both with and without the drive
+   inserted until this was set to 0). NVMe is still fully usable as a data
+   disk under Talos's own kernel with `PCIE_PROBE=0` — that's a completely
+   separate, mainlined driver path unrelated to the bootloader's probe.
+   Verify with `sudo rpi-eeprom-config` (no `--edit`) before moving on — don't
+   assume a prior prep pass actually stuck.
+4. Shut down, insert the NVMe drive (used later as a data disk only).
 
 ## Flash and join (per Pi, one at a time)
 
-1. Flash NVMe over a USB adapter:
+1. Flash the **SD card** (not the NVMe) with the Talos image, over a USB
+   adapter/reader:
 
    ```bash
    VER=$(grep -oP 'talos_version\s*=\s*"\K[^"]+' terraform/terraform.tfvars)
@@ -60,9 +83,13 @@ the whole cluster stays on one release.
    sudo dd if=metal-arm64.raw of=/dev/sdX conv=fsync bs=4M status=progress
    ```
 
-2. Install NVMe in the Pi, connect ethernet, power on. It boots into Talos
-   maintenance mode on a DHCP address — find it in UniFi.
-3. Join (same rehearsed flow as the gamma swap):
+2. Insert the SD card (with the NVMe also installed), connect ethernet, power
+   on. It boots into Talos maintenance mode on a DHCP address — find it in
+   UniFi. Before joining, you can confirm the NVMe is visible as a data disk
+   with `talosctl -n <dhcp-ip> -e <dhcp-ip> get disks --insecure`.
+3. Join (same rehearsed flow as the gamma swap). The `controlplane-*-rpi5.yaml`
+   patches install to `/dev/mmcblk0` (SD), not `/dev/nvme0n1` — installing to
+   NVMe would hit the same u-boot boot hang described above.
 
    ```bash
    ./scripts/join-talos-node.sh beta-rpi5 <dhcp-ip>    # or delta-rpi5
@@ -71,6 +98,25 @@ the whole cluster stays on one release.
 4. Verify before touching the next node: `talosctl --nodes 192.168.1.115 etcd members`
    and `kubectl get nodes -o wide` (expect `arm64`, Ready). Confirm the
    `rpi5-net-tuning` DaemonSet (kube-system) has a pod on the new node.
+
+   **If the new member stays `LEARNER: true` indefinitely** even after its
+   raft index matches the leader's (`talosctl -n <leader-ip>,<node-ip> etcd
+   status`), Talos isn't retrying promotion — it appears to attempt this once
+   during the join/upgrade flow and doesn't retry later (confirmed
+   2026-07-19: beta-rpi5 sat fully caught-up-but-unpromoted for 10+ minutes
+   after an `talosctl upgrade`-triggered reboot delayed catch-up past that
+   window). `talosctl` has no CLI command to force it. Fix by promoting
+   directly against etcd's own API using a short-lived client cert signed by
+   the cluster's etcd CA (from `~/.talos/clusterconfig/secrets.yaml`,
+   `certs.etcd`), then delete the cert/key material immediately:
+
+   ```bash
+   # extract certs.etcd.{crt,key} (base64) from secrets.yaml to ca.crt/ca.key,
+   # generate+sign a throwaway client cert against that CA, then:
+   etcdctl --endpoints=https://<leader-ip>:2379 \
+     --cacert=ca.crt --cert=client.crt --key=client.key \
+     member promote <learner-member-id>
+   ```
 
 ## Retire the VMs (after both Pis are healthy)
 
