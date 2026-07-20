@@ -1,0 +1,55 @@
+# Dedicated control-plane VM (2 vCPU / 4GB, x86) — joins the existing
+# alpha+beta-rpi5 etcd as a third, fault-tolerant member. Control-plane only:
+# workloads stay on alpha (nest.arishaig.site/workloads=general), never here.
+# See /home/isaac/.claude/plans/silly-riding-stroustrup.md for the full
+# control-plane migration this is Phase 1 of.
+cluster:
+  allowSchedulingOnControlPlanes: false
+  etcd:
+    advertisedSubnets:
+      - 192.168.1.0/24
+  apiServer:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 768Mi
+  controllerManager:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+  scheduler:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+machine:
+  network:
+    interfaces:
+      - interface: ens18
+        dhcp: false
+        addresses:
+          - 192.168.1.119/24
+        vip:
+          ip: 192.168.1.115
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+    nameservers:
+      - 192.168.7.7
+      - 192.168.7.8
+  kubelet:
+    nodeIP:
+      validSubnets:
+        - 192.168.1.0/24
+  time:
+    servers:
+      - 192.168.7.7
+# Hostname lives in its own config document since Talos 1.13 — setting
+# machine.network.hostname alongside it fails validation.
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+auto: "off"
+hostname: talos-alpha-control

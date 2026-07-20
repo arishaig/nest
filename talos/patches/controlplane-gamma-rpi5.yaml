@@ -63,7 +63,7 @@ machine:
 apiVersion: v1alpha1
 kind: HostnameConfig
 auto: "off"
-hostname: talos-delta-rpi5
+hostname: talos-gamma-rpi5
 ---
 # Relocates EPHEMERAL (/var — etcd data, container images, kubelet state)
 # onto the NVMe, off the SD card, since u-boot can't boot from NVMe but

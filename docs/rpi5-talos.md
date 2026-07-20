@@ -25,7 +25,7 @@ issues below matter.
 | Node | Hostname | IP | Replaces | Patch |
 |---|---|---|---|---|
 | Pi 1 | `talos-beta-rpi5` | 192.168.1.112 | talos-beta-vm (VM 113, .111) | `talos/patches/controlplane-beta-rpi5.yaml` |
-| Pi 2 | `talos-delta-rpi5` | 192.168.1.118 | talos-delta-vm (VM 115, .114) | `talos/patches/controlplane-delta-rpi5.yaml` |
+| Pi 2 | `talos-gamma-rpi5` | 192.168.1.118 | talos-delta-vm (VM 115, .114) | `talos/patches/controlplane-gamma-rpi5.yaml` |
 
 Both are control-plane only (`allowSchedulingOnControlPlanes: false`);
 workloads stay on alpha. **Reserve .112 and .118 in UniFi** before joining so
@@ -92,7 +92,7 @@ the whole cluster stays on one release.
    NVMe would hit the same u-boot boot hang described above.
 
    ```bash
-   ./scripts/join-talos-node.sh beta-rpi5 <dhcp-ip>    # or delta-rpi5
+   ./scripts/join-talos-node.sh beta-rpi5 <dhcp-ip>    # or gamma-rpi5
    ```
 
 4. Verify before touching the next node: `talosctl --nodes 192.168.1.115 etcd members`
@@ -125,7 +125,7 @@ Alternate joins and removals so etcd member count stays sane
 
 1. Join beta-rpi5 → remove beta-vm: `kubectl drain <node> --ignore-daemonsets`,
    `talosctl --nodes 192.168.1.111 reset --graceful`, `kubectl delete node <node>`.
-2. Join delta-rpi5 → remove delta-vm (same, against .114).
+2. Join gamma-rpi5 → remove delta-vm (same, against .114).
 3. PR: delete `terraform/vm-talos-test-nodes.tf`,
    `talos/patches/controlplane-beta-vm.yaml`, `controlplane-delta-vm.yaml`;
    CI tofu apply removes VMs 113/115.
