@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: redis-exporter
-          image: oliver006/redis_exporter:v1.86.0
+          image: oliver006/redis_exporter:v1.87.0
           env:
             - name: REDIS_ADDR
               value: "redis://redis.authelia.svc.cluster.local:6379"
