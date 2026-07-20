@@ -10,10 +10,14 @@
 # Talos v1.13.2+ (we're on v1.13.6) already carries lukaszraczylo's upstream
 # macb kernel patches (siderolabs/pkgs#1526, #1546), which add a driver-level
 # TX-stall detector that self-recovers most hangs in ~3s — so this is now
-# defense-in-depth, not the primary mitigation. Two pieces below (IRQ
-# affinity re-pin, kubeprism socket kill) are adapted from the DaemonSet
-# lukaszraczylo still runs in production despite the kernel fix:
+# defense-in-depth, not the primary mitigation. The kubeprism socket kill
+# below is adapted from the DaemonSet lukaszraczylo still runs in production
+# despite the kernel fix:
 # https://github.com/siderolabs/sbc-raspberrypi/issues/91#issuecomment-4471965156
+# (that DaemonSet also pins end0's IRQ off CPU0 — tried here too, but
+# confirmed via exec+manual write that smp_affinity rejects it with EPERM
+# on this kernel/hardware, consistent with a managed-affinity IRQ that
+# doesn't accept userspace overrides. Dropped rather than keep dead code.)
 #
 # Remove alongside rpi5-net-tuning once the upstream kernel fix is confirmed
 # to fully eliminate the underlying race, not just auto-recover it.
@@ -64,23 +68,11 @@ spec:
               GATEWAY=192.168.1.1
               echo "nic-watchdog starting on ${NODE_NAME}, monitoring ${IFACE} via ${GATEWAY}"
 
-              # Pin the NIC's IRQ off CPU0 so it doesn't contend with
-              # everything else on the busiest core. Best-effort: harmless
-              # if the driver doesn't expose a matching /proc/interrupts line.
-              pin_irq() {
-                IRQ=$(awk -v i="${IFACE}\$" '$0 ~ i {sub(/:/,"",$1); print $1; exit}' /proc/interrupts)
-                [ -n "${IRQ}" ] && echo 8 > "/proc/irq/${IRQ}/smp_affinity" 2>/dev/null || true
-              }
-              pin_irq
-
               recover() {
                 echo "$(date -u): ${IFACE} unreachable after 3 failed pings, bouncing link"
                 ip link set "${IFACE}" down || true
                 sleep 2
                 ip link set "${IFACE}" up || true
-                # Link down/up re-registers the IRQ and resets affinity to
-                # default — re-pin it.
-                pin_irq
                 # Kubelet holds a long-lived TCP connection to the local
                 # kubeprism proxy (127.0.0.1:7445); it doesn't notice the
                 # link bounce on its own and can sit on a dead socket until
