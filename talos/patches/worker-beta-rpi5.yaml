@@ -1,0 +1,58 @@
+# RPi5 worker node (8GB). Boots from SD card — u-boot on Pi5 cannot boot from
+# NVMe yet (siderolabs/sbc-raspberrypi#23). The M.2 NVMe is used as a data
+# disk only once Linux is up. Converts talos-beta-rpi5 from control-plane to
+# worker-only as part of the control-plane migration — see
+# /home/isaac/.claude/plans/silly-riding-stroustrup.md (Phase 2). No
+# `cluster:` block: workers don't run control-plane components.
+machine:
+  install:
+    disk: /dev/mmcblk0
+    # Must be the Image Factory installer with the rpi_5 overlay — a plain
+    # ghcr.io/siderolabs/installer would drop the Pi firmware/DTB on upgrade.
+    # Renovate bumps this tag in lockstep with talos_version in
+    # terraform/terraform.tfvars; CI cross-checks them.
+    image: factory.talos.dev/installer/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f:v1.13.6
+  network:
+    interfaces:
+      # Pi 5 onboard ethernet is end0 (RP1/macb), not eth0 like the Pi 4 —
+      # select the only physical NIC instead of hardcoding the name.
+      - deviceSelector:
+          physical: true
+        dhcp: false
+        addresses:
+          - 192.168.1.112/24
+        # No `vip:` entry — vip is how a node campaigns to hold the
+        # control-plane VIP via etcd leader election (control-plane-only).
+        # Workers reach the API via cluster.controlPlane.endpoint + KubePrism,
+        # not vip. Carrying vip on a worker either fails validation or could
+        # wrongly win 192.168.1.115 with no apiserver behind it.
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+    nameservers:
+      - 192.168.7.7
+      - 192.168.7.8
+  kubelet:
+    nodeIP:
+      validSubnets:
+        - 192.168.1.0/24
+  time:
+    servers:
+      - 192.168.7.7
+# Hostname lives in its own config document since Talos 1.13 — setting
+# machine.network.hostname alongside it fails validation.
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+auto: "off"
+hostname: talos-beta-rpi5
+---
+# Relocates EPHEMERAL (/var — container images, kubelet state) onto the
+# NVMe, off the SD card. Only takes effect on a fresh install — this
+# reset+rejoin is exactly the mechanism that makes it apply cleanly.
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: EPHEMERAL
+provisioning:
+  diskSelector:
+    match: disk.transport == 'nvme' && !system_disk

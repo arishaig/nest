@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Join an additional Talos control-plane node to the existing talos-nest cluster.
+# Join an additional Talos node (control-plane or worker) to the existing
+# talos-nest cluster.
 #
 # Prerequisites:
 #   - Cluster already bootstrapped via bootstrap-talos.sh
@@ -7,14 +8,19 @@
 #   - New VM/node booted from the same Talos ISO, sitting in maintenance mode
 #
 # Usage:
-#   ./scripts/join-talos-node.sh <node-name> <dhcp-ip>
+#   ./scripts/join-talos-node.sh [--worker] <node-name> <dhcp-ip>
 #
+#   --worker:  join as a worker instead of control-plane. Loads
+#              talos/patches/worker-<node-name>.yaml and skips the etcd
+#              membership check (workers never join etcd).
 #   node-name: matches a patch file in talos/patches/ e.g. "talos-beta-vm"
-#              will load talos/patches/controlplane-<node-name>.yaml
+#              will load talos/patches/controlplane-<node-name>.yaml (or
+#              worker-<node-name>.yaml with --worker)
 #   dhcp-ip:   current DHCP IP of the node in maintenance mode
 #
-# Example:
+# Examples:
 #   ./scripts/join-talos-node.sh talos-beta-vm 192.168.1.200
+#   ./scripts/join-talos-node.sh --worker beta-rpi5 192.168.1.201
 
 set -euo pipefail
 
@@ -34,18 +40,36 @@ check_cmd() {
 check_cmd talosctl
 check_cmd kubectl
 
+WORKER=false
+if [[ "${1:-}" == "--worker" ]]; then
+  WORKER=true
+  shift
+fi
+
 if [[ $# -lt 2 ]]; then
-  echo "Usage: $0 <node-name> <dhcp-ip>"
-  echo "  node-name: e.g. talos-beta-vm (must have talos/patches/controlplane-<node-name>.yaml)"
+  echo "Usage: $0 [--worker] <node-name> <dhcp-ip>"
+  echo "  --worker:  join as a worker (talos/patches/worker-<node-name>.yaml)"
+  echo "  node-name: e.g. talos-beta-vm (must have a matching patch file)"
   echo "  dhcp-ip:   DHCP IP of the new node in Talos maintenance mode"
   exit 1
 fi
 
 NODE_NAME="$1"
 DHCP_IP="$2"
-PATCH_FILE="${REPO_ROOT}/talos/patches/controlplane-${NODE_NAME}.yaml"
 SECRETS_FILE="${CONFIG_DIR}/secrets.yaml"
 NODE_CONFIG_DIR="${CONFIG_DIR}/${NODE_NAME}"
+
+if [[ "${WORKER}" == true ]]; then
+  PATCH_FILE="${REPO_ROOT}/talos/patches/worker-${NODE_NAME}.yaml"
+  PATCH_FLAG="--config-patch-worker"
+  OUTPUT_TYPE="worker"
+  NODE_CONFIG_FILE="${NODE_CONFIG_DIR}/worker.yaml"
+else
+  PATCH_FILE="${REPO_ROOT}/talos/patches/controlplane-${NODE_NAME}.yaml"
+  PATCH_FLAG="--config-patch-control-plane"
+  OUTPUT_TYPE="controlplane"
+  NODE_CONFIG_FILE="${NODE_CONFIG_DIR}/controlplane.yaml"
+fi
 
 if [[ ! -f "${PATCH_FILE}" ]]; then
   echo "ERROR: Patch file not found: ${PATCH_FILE}" >&2
@@ -60,7 +84,7 @@ if [[ ! -f "${SECRETS_FILE}" ]]; then
   exit 1
 fi
 
-echo "==> Joining ${NODE_NAME} to cluster ${CLUSTER_NAME}"
+echo "==> Joining ${NODE_NAME} to cluster ${CLUSTER_NAME} (type: ${OUTPUT_TYPE})"
 echo "    DHCP IP (maintenance mode): ${DHCP_IP}"
 echo "    Patch:                      ${PATCH_FILE}"
 echo "    Cluster endpoint (VIP):     ${CLUSTER_ENDPOINT}"
@@ -72,11 +96,11 @@ mkdir -p "${NODE_CONFIG_DIR}"
 
 talosctl gen config "${CLUSTER_NAME}" "${CLUSTER_ENDPOINT}" \
   --with-secrets "${SECRETS_FILE}" \
-  --config-patch @"${PATCH_FILE}" \
+  "${PATCH_FLAG}" @"${PATCH_FILE}" \
   --output-dir "${NODE_CONFIG_DIR}" \
   --force
 
-echo "    Config written to ${NODE_CONFIG_DIR}/controlplane.yaml"
+echo "    Config written to ${NODE_CONFIG_FILE}"
 
 # ── Step 2: Apply config (triggers install + reboot) ────────────────────────
 echo ""
@@ -86,7 +110,7 @@ echo "    The node will install Talos and reboot (~2 minutes)."
 talosctl apply-config \
   --nodes "${DHCP_IP}" \
   --insecure \
-  --file "${NODE_CONFIG_DIR}/controlplane.yaml"
+  --file "${NODE_CONFIG_FILE}"
 
 # Determine static IP from the patch file
 STATIC_IP=$(grep -A2 "addresses:" "${PATCH_FILE}" | grep -oP '192\.\d+\.\d+\.\d+' | head -1)
@@ -103,13 +127,24 @@ until talosctl --nodes "${STATIC_IP}" version &>/dev/null; do
 done
 echo "    Node is up."
 
-# ── Step 4: Verify etcd membership ──────────────────────────────────────────
+# ── Step 4: Verify membership ────────────────────────────────────────────────
 echo ""
-echo "==> [4/4] Verifying etcd membership..."
-sleep 30  # give etcd time to add the new member
-talosctl --nodes "${CLUSTER_VIP}" etcd members
-echo ""
-kubectl get nodes
-echo ""
-echo "==> Done! ${NODE_NAME} has joined the cluster."
-echo "    Confirm 3-member etcd with: talosctl --nodes ${CLUSTER_VIP} etcd members"
+if [[ "${WORKER}" == true ]]; then
+  echo "==> [4/4] Verifying node readiness (workers don't join etcd)..."
+  until kubectl get nodes -o wide | grep -q "${STATIC_IP}"; do
+    echo "    Waiting for node to register with the API server..."
+    sleep 10
+  done
+  kubectl get nodes -o wide
+  echo ""
+  echo "==> Done! ${NODE_NAME} has joined the cluster as a worker."
+else
+  echo "==> [4/4] Verifying etcd membership..."
+  sleep 30  # give etcd time to add the new member
+  talosctl --nodes "${CLUSTER_VIP}" etcd members
+  echo ""
+  kubectl get nodes
+  echo ""
+  echo "==> Done! ${NODE_NAME} has joined the cluster."
+  echo "    Confirm 3-member etcd with: talosctl --nodes ${CLUSTER_VIP} etcd members"
+fi
