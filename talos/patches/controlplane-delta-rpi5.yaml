@@ -1,7 +1,9 @@
-# RPi5 control-plane node (8GB, NVMe via M.2 HAT). Replaces talos-delta-vm
-# (VM 115) using the add-then-remove etcd flow rehearsed with gamma —
-# see docs/rpi5-talos.md. Control-plane only: workloads stay on alpha
-# (see controlplane-beta-vm.yaml for why).
+# RPi5 control-plane node (8GB). Boots from SD card — u-boot on Pi5 cannot
+# boot from NVMe yet (siderolabs/sbc-raspberrypi#23, confirmed 2026-07-17 on
+# multiple drives, not a drive-compatibility issue). The M.2 NVMe is used as
+# a data disk only once Linux is up. Replaces talos-delta-vm (VM 115) using
+# the add-then-remove etcd flow rehearsed with gamma — see docs/rpi5-talos.md.
+# Control-plane only: workloads stay on alpha (see controlplane-beta-vm.yaml).
 cluster:
   allowSchedulingOnControlPlanes: false
   etcd:
@@ -25,7 +27,7 @@ cluster:
 
 machine:
   install:
-    disk: /dev/nvme0n1
+    disk: /dev/mmcblk0
     # Must be the Image Factory installer with the rpi_5 overlay — a plain
     # ghcr.io/siderolabs/installer would drop the Pi firmware/DTB on upgrade.
     # Renovate bumps this tag in lockstep with talos_version in
@@ -62,3 +64,14 @@ apiVersion: v1alpha1
 kind: HostnameConfig
 auto: "off"
 hostname: talos-delta-rpi5
+---
+# Relocates EPHEMERAL (/var — etcd data, container images, kubelet state)
+# onto the NVMe, off the SD card, since u-boot can't boot from NVMe but
+# Talos's own kernel reads/writes it fine once booted (see comment above).
+# Takes effect on first install since this node hasn't joined yet.
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: EPHEMERAL
+provisioning:
+  diskSelector:
+    match: disk.transport == 'nvme' && !system_disk
