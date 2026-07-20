@@ -18,7 +18,7 @@ resource "proxmox_download_file" "talos_iso" {
 resource "proxmox_virtual_environment_vm" "talos" {
   node_name   = var.pve_node
   vm_id       = 110
-  name        = "talos"
+  name        = "talos-alpha"
   description = "Talos Linux — single-node Kubernetes cluster"
   tags        = ["kubernetes", "infrastructure"]
 
