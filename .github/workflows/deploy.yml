@@ -38,10 +38,19 @@ jobs:
       musicbrainz: ${{ steps.filter.outputs.musicbrainz }}
       foundry: ${{ steps.filter.outputs.foundry }}
     steps:
+      # fetch-depth 2 so paths-filter has a parent commit to diff against on
+      # workflow_dispatch runs — with the default shallow (depth 1) checkout
+      # and no `base`, it can't resolve a diff at all and falls back to
+      # treating every tracked file as newly added, marking every filter
+      # (and therefore every deploy job) as changed regardless of what was
+      # actually touched.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 2
       - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
         with:
+          base: ${{ github.event.before || 'HEAD~1' }}
           filters: |
             docker:
               - 'playbooks/provision/files/docker/**'
