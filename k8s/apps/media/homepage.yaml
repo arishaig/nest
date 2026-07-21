@@ -14,6 +14,18 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
+    # Pinned to beta-rpi5 (nest.arishaig.site/workloads=rpi5): first real
+    # workload trial on the Pi post-migration — stateless, low-consequence,
+    # arm64-compatible. See talos/patches/worker-beta-rpi5.yaml.
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [rpi5]
     controllers:
       homepage:
         strategy: Recreate
