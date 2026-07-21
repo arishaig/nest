@@ -22,7 +22,7 @@ locals {
     "storyteller.local.arishaig.site" = "192.168.1.117"
 
     # Direct-IP entries (no Traefik conflict)
-    "backlight.arishaig.site"   = "192.168.4.97"
+    "backlight.arishaig.site"   = "192.168.4.212"
     "files.arishaig.site"       = "192.168.1.17"
     "musicbrainz.arishaig.site" = "192.168.1.197"
     "adguard.arishaig.site"     = "dns.arishaig.site"
