@@ -14,6 +14,12 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
+    # chrisbenincasa/tunarr has no arm64 build — pin off beta-rpi5 so it
+    # doesn't crash-loop there ("exec format error") now that the Pi is
+    # schedulable. See k8s/apps/media/homepage.yaml for the beta-rpi5 story.
+    defaultPodOptions:
+      nodeSelector:
+        kubernetes.io/arch: amd64
     controllers:
       tunarr:
         strategy: Recreate

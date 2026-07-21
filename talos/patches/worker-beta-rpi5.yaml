@@ -20,9 +20,11 @@
 # siderolabs/sbc-raspberrypi#23 closes or those U-Boot PCIe patches land
 # upstream.
 machine:
-  # First light workload trial (2026-07-21): homepage dashboard, pinned here
-  # via nodeAffinity in k8s/apps/media/homepage.yaml. Stateless, low-consequence
-  # if the Pi has a bad day, and gethomepage/homepage ships arm64 images.
+  # Available for pinning a workload specifically to this node if ever
+  # needed; unused as of 2026-07-21 — arm64-safe workloads (e.g. homepage)
+  # are left unpinned to float between alpha/beta, amd64-only ones (e.g.
+  # tunarr, watchback) get `nodeSelector: kubernetes.io/arch: amd64` instead.
+  # See k8s/apps/media/*.yaml.
   nodeLabels:
     nest.arishaig.site/workloads: rpi5
   install:
