@@ -9,6 +9,10 @@ on:
         description: 'Force deploy musicbrainz'
         type: boolean
         default: false
+      force_lidarr_ui:
+        description: 'Force rebuild/deploy lidarr-ui'
+        type: boolean
+        default: false
 
 # Serialize deploys: never let two ansible runs hit the same hosts at once.
 # Queue rather than cancel — interrupting a half-applied playbook is worse
@@ -462,7 +466,7 @@ jobs:
 
   build-lidarr-ui:
     needs: changes
-    if: needs.changes.outputs.lidarr_ui == 'true'
+    if: needs.changes.outputs.lidarr_ui == 'true' || inputs.force_lidarr_ui == true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -493,7 +497,7 @@ jobs:
 
   deploy-lidarr-ui:
     needs: [changes, build-lidarr-ui]
-    if: needs.changes.outputs.lidarr_ui == 'true'
+    if: needs.changes.outputs.lidarr_ui == 'true' || inputs.force_lidarr_ui == true
     runs-on: self-hosted
     steps:
       - name: Write kubeconfig
