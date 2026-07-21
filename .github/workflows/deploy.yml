@@ -34,8 +34,8 @@ jobs:
       musicbrainz: ${{ steps.filter.outputs.musicbrainz }}
       foundry: ${{ steps.filter.outputs.foundry }}
     steps:
-      - uses: actions/checkout@v7.0.0
-      - uses: dorny/paths-filter@v4.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
         with:
           filters: |
@@ -82,7 +82,7 @@ jobs:
     if: needs.changes.outputs.musicbrainz == 'true' || inputs.force_musicbrainz == true
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Write SSH key
         run: |
@@ -111,7 +111,7 @@ jobs:
     if: needs.changes.outputs.adguard == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Write SSH key
         run: |
@@ -140,7 +140,7 @@ jobs:
     if: needs.changes.outputs.foundry == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Write SSH key
         run: |
@@ -169,7 +169,7 @@ jobs:
     if: needs.changes.outputs.docker == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Write SSH key
         run: |
@@ -197,7 +197,7 @@ jobs:
     if: needs.changes.outputs.monitoring == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Write SSH key
         run: |
@@ -226,7 +226,7 @@ jobs:
     if: needs.changes.outputs.vps == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Write SSH key
         run: |
@@ -255,7 +255,7 @@ jobs:
     if: needs.changes.outputs.pve == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Write SSH key
         run: |
@@ -287,7 +287,7 @@ jobs:
       TF_PLUGIN_CACHE_DIR: /opt/terraform-plugin-cache
       TF_STATE_DIR: /opt/terraform-state/nest
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Write SSH key
         run: |
@@ -394,7 +394,7 @@ jobs:
     if: needs.changes.outputs.k8s == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Write vault password
         run: |
@@ -425,10 +425,10 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -468,19 +468,28 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      # Multi-arch (amd64+arm64) so this can schedule onto beta-rpi5 — plain
+      # python:3.14-slim base with no arch-specific deps, so no emulation
+      # surprises expected.
       - name: Build and push image
-        run: |
-          docker build -t ghcr.io/arishaig/lidarr-ui:latest lidarr-ui/
-          docker push ghcr.io/arishaig/lidarr-ui:latest
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: lidarr-ui/
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/arishaig/lidarr-ui:latest
 
   deploy-lidarr-ui:
     needs: [changes, build-lidarr-ui]
@@ -515,10 +524,10 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
