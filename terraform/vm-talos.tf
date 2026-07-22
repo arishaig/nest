@@ -1,8 +1,11 @@
 # ──────────────────────────────────────────────
-# VM 110: Talos Linux — single-node Kubernetes
+# VM 110: Talos Linux — general-purpose worker node
 # ──────────────────────────────────────────────
-# Single control-plane node that also schedules workloads
-# (allowSchedulingOnControlPlanes: true in talos/patches/controlplane.yaml).
+# Worker-only (talos/patches/worker-alpha.yaml) as of the control-plane
+# migration to a dedicated VM — see vm-talos-alpha-control.tf and
+# /home/isaac/.claude/plans/silly-riding-stroustrup.md. Still the sole
+# workload node (nest.arishaig.site/workloads: general label) — Traefik's
+# nodeAffinity and the WireGuard ingress tunnel both depend on that.
 # Bootstrap: run scripts/bootstrap-talos.sh after `tofu apply`.
 
 resource "proxmox_download_file" "talos_iso" {

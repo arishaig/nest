@@ -1,0 +1,46 @@
+# WireGuard client interface on alpha for the public ingress tunnel — see
+# docs/design.md "WireGuard Tunnel" section. This is NOT applied via
+# gen config (worker-alpha.yaml / controlplane.yaml) because it carries a
+# private key that must never be committed. Historically it was applied
+# out-of-band and undocumented, which meant a `talosctl reset` on alpha
+# (2026-07-21, control-plane migration Phase 4) silently wiped it and took
+# down all external ingress until this gap was found and fixed.
+#
+# Reapply after any full reset/rejoin of alpha:
+#   1. Copy this file, substitute <TALOS_WG_PRIVATE_KEY> with the real value
+#      (ansible-vault view inventory/group_vars/all/vault.yml, key
+#      talos_wg_private_key) — do this in a scratch file, never in git.
+#   2. Validate: talosctl gen config test-cluster https://192.168.1.115:6443
+#      --with-secrets <(talosctl gen secrets -o /dev/stdout)
+#      --config-patch-worker @talos/patches/worker-alpha.yaml
+#      --config-patch-worker @<scratch-file> --output-types worker
+#      --output /tmp/out.yaml --with-docs=false --with-examples=false
+#      && talosctl validate -c /tmp/out.yaml -m metal
+#   3. Apply live, no reboot needed:
+#      talosctl --nodes 192.168.1.110 patch machineconfig --patch @<scratch-file>
+#   4. Verify: `wg show` on the VPS (66.42.79.175) shows a fresh handshake
+#      for peer Q4UFZdOAN2L0qZXmFJTKB4YiagVI3W7BtQNQPtDZJB8=, and
+#      `talosctl --nodes 192.168.1.110 get routes` shows a route to
+#      10.10.0.1/32 via wg0 (NOT auto-created from the peer's allowedIPs —
+#      must be declared explicitly, see routes: block below).
+#
+# The VPS side (playbooks/provision/templates/wireguard/wg0-vps.conf.j2)
+# already trusts this interface's public key (hardcoded, since it never
+# changes) — no VPS-side changes needed when reapplying this.
+machine:
+  network:
+    interfaces:
+      - interface: wg0
+        mtu: 1420
+        addresses:
+          - 10.10.0.3/32
+        routes:
+          - network: 10.10.0.1/32
+        wireguard:
+          privateKey: <TALOS_WG_PRIVATE_KEY>
+          peers:
+            - publicKey: 0hhiYuAcp7f0eka44vO9lNF48vgtjF4E1o4IUzJjMlc=
+              endpoint: 66.42.79.175:51820
+              allowedIPs:
+                - 10.10.0.1/32
+              persistentKeepaliveInterval: 25s

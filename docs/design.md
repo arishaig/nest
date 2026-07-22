@@ -97,10 +97,17 @@ VPS side: `10.10.0.1/24`, ListenPort 51820, MTU 1420. Two peers:
 - **Talos k8s node** (`10.10.0.3/32, 192.168.1.117/32`) — receives all public HTTPS ingress for the MetalLB ingress LB
 - **Docker LXC** (`10.10.0.2/32, 192.168.1.44/32`) — retained so the monitoring LXC (192.168.1.44) can reach VPS metrics over WireGuard; does **not** handle public ingress
 
-Talos k8s side: `10.10.0.3/32`, MTU 1420 (managed by Talos config in `talos/` directory)
+Talos k8s side: `10.10.0.3/32`, MTU 1420. **Not** applied via `gen config` (the
+private key can't be committed) — see
+`talos/patches/wireguard-alpha.yaml.example` for the exact interface shape and
+reapply steps. This is a live-patched, out-of-band interface: a `talosctl
+reset` on alpha wipes it silently and takes down all external ingress until
+it's reapplied (hit 2026-07-21 during the control-plane migration). Also
+needs an explicit `routes:` entry for `10.10.0.1/32 via wg0` — Talos does not
+auto-install a route from the peer's `allowedIPs` the way `wg-quick` does.
 Docker LXC side: `10.10.0.2/24`, MTU 1420
 
-Keys: public keys stored in `inventory/group_vars/all/vars.yml`; private keys in `vault.yml`.
+Keys: public keys stored in `inventory/group_vars/all/vars.yml`; private keys in `vault.yml` (`talos_wg_private_key` for alpha's wg0).
 
 ### k8s Traefik (MetalLB LoadBalancer 192.168.1.117)
 

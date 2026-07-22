@@ -21,6 +21,15 @@ spec:
     # Prefer alpha (nest.arishaig.site/workloads=general). Soft so it can
     # still reschedule if alpha is unavailable (delta is gone; the old "2Gi
     # fits delta" sizing rationale went with it).
+    #
+    # Hard amd64 pin: ghcr.io/jpvenson/jellyfin.pgsql has no arm64 build. Before
+    # beta-rpi5/gamma-rpi5 became schedulable workers, this never mattered
+    # (soft alpha preference always won since nothing else existed); once
+    # RPi5 nodes joined as workers (2026-07 control-plane migration), an
+    # alpha drain (or just scheduler luck) can land it on an arm64 node,
+    # where it sits in permanent ImagePullBackOff. Hit exactly this
+    # 2026-07-22 after alpha's Phase 4 drain/rejoin. Same fix already applied
+    # to tunarr/watchback for the same reason.
     defaultPodOptions:
       affinity:
         nodeAffinity:
@@ -31,6 +40,8 @@ spec:
                   - key: nest.arishaig.site/workloads
                     operator: In
                     values: [general]
+      nodeSelector:
+        kubernetes.io/arch: amd64
     controllers:
       jellyfin:
         strategy: Recreate

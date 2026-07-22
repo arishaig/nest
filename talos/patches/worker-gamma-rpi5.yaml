@@ -1,0 +1,60 @@
+# RPi5 worker node (8GB). Boots from SD card ONLY — NVMe is not installed and
+# not used, even as a data disk. Joins talos-gamma-rpi5 directly as a worker
+# (it was never joined as control-plane) as part of the control-plane
+# migration — see /home/isaac/.claude/plans/silly-riding-stroustrup.md
+# (Phase 3). No `cluster:` block: workers don't run control-plane components.
+#
+# NVMe conclusively ruled out 2026-07-20 for RPi5 generally (see
+# docs/rpi5-talos.md known issues for the full story): mainline U-Boot has no
+# PCIe driver support on RPi5 at all — not a bug being fixed, a feature never
+# upstreamed (siderolabs/sbc-raspberrypi#23). This applies to gamma too —
+# SD-only is the accepted stable end state, not a stopgap.
+machine:
+  # Available for pinning a workload specifically to this node if ever
+  # needed; unused as of 2026-07-21 — arm64-safe workloads (e.g. homepage)
+  # are left unpinned to float between alpha/beta/gamma, amd64-only ones
+  # (e.g. tunarr, watchback) get `nodeSelector: kubernetes.io/arch: amd64`
+  # instead. See k8s/apps/media/*.yaml.
+  nodeLabels:
+    nest.arishaig.site/workloads: rpi5
+  install:
+    disk: /dev/mmcblk0
+    # Must be the Image Factory installer with the rpi_5 overlay — a plain
+    # ghcr.io/siderolabs/installer would drop the Pi firmware/DTB on upgrade.
+    # Renovate bumps this tag in lockstep with talos_version in
+    # terraform/terraform.tfvars; CI cross-checks them.
+    image: factory.talos.dev/installer/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f:v1.13.6
+  network:
+    interfaces:
+      # Pi 5 onboard ethernet is end0 (RP1/macb), not eth0 like the Pi 4 —
+      # select the only physical NIC instead of hardcoding the name.
+      - deviceSelector:
+          physical: true
+        dhcp: false
+        addresses:
+          - 192.168.1.118/24
+        # No `vip:` entry — vip is how a node campaigns to hold the
+        # control-plane VIP via etcd leader election (control-plane-only).
+        # Workers reach the API via cluster.controlPlane.endpoint + KubePrism,
+        # not vip. Carrying vip on a worker either fails validation or could
+        # wrongly win 192.168.1.115 with no apiserver behind it.
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+    nameservers:
+      - 192.168.7.7
+      - 192.168.7.8
+  kubelet:
+    nodeIP:
+      validSubnets:
+        - 192.168.1.0/24
+  time:
+    servers:
+      - 192.168.7.7
+# Hostname lives in its own config document since Talos 1.13 — setting
+# machine.network.hostname alongside it fails validation.
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+auto: "off"
+hostname: talos-gamma-rpi5
