@@ -35,7 +35,7 @@ data:
 
       <section id="ps" class="active">
         <p>Open PowerShell (not as admin needed) and run:</p>
-        <pre>irm http://192.168.1.110:30817/get/install.ps1 | iex</pre>
+        <pre>irm https://omni-media.arishaig.site/get/install.ps1 | iex</pre>
         <p class="note">Requires <a href="https://git-scm.com/download/win">git</a> and
         <a href="https://www.python.org/downloads/">Python 3.10+</a> already installed.
         Registers a startup shortcut, so it'll be running next time you log in too.</p>
@@ -43,7 +43,7 @@ data:
 
       <section id="sh">
         <p>Open a WSL terminal and run:</p>
-        <pre>curl -fsSL http://192.168.1.110:30817/get/install.sh | bash</pre>
+        <pre>curl -fsSL https://omni-media.arishaig.site/get/install.sh | bash</pre>
         <p class="note">Requires <code>git</code>, <code>python3</code>/<code>python3-venv</code>,
         and (for GPU use) the <a href="https://docs.nvidia.com/cuda/wsl-user-guide/index.html">NVIDIA CUDA on WSL</a>
         driver already installed. No auto-start on WSL — re-run the same command
@@ -77,7 +77,7 @@ data:
     $RepoUrl      = "https://github.com/arishaig/Anagnorisis.git"
     $InstallDir   = "$env:LOCALAPPDATA\omni-describe\app"
     $DataDir      = "$env:LOCALAPPDATA\omni-describe\data"
-    $MediaBaseUrl = "http://192.168.1.110:30817"
+    $MediaBaseUrl = "https://omni-media.arishaig.site"
 
     function Require-Command($name, $hint) {
         if (-not (Get-Command $name -ErrorAction SilentlyContinue)) {
@@ -166,7 +166,7 @@ data:
     REPO_URL="https://github.com/arishaig/Anagnorisis.git"
     INSTALL_DIR="${HOME}/.local/share/omni-describe/app"
     DATA_DIR="${HOME}/.local/share/omni-describe/data"
-    MEDIA_BASE_URL="http://192.168.1.110:30817"
+    MEDIA_BASE_URL="https://omni-media.arishaig.site"
 
     require() {
       command -v "$1" >/dev/null 2>&1 || { echo "Missing required command: $1 ($2)"; exit 1; }
