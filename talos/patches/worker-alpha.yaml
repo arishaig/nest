@@ -1,0 +1,53 @@
+# alpha's worker patch — converts talos-a2c-1b8 from control-plane+etcd to
+# worker-only as part of the control-plane migration — see
+# /home/isaac/.claude/plans/silly-riding-stroustrup.md (Phase 4). No
+# `cluster:` block: workers don't run control-plane components. Control-plane
+# now lives solely on alpha-control (talos/patches/controlplane-alpha-control.yaml).
+machine:
+  # alpha remains the single general-purpose workload node. Heavy/bursty pods
+  # (sabnzbd 12Gi, anagnorisis 6Gi, subgen 4Gi, tdarr-node 4Gi, the DBs) stay
+  # pinned here via nodeAffinity, and Traefik's nodeAffinity + the WireGuard
+  # ingress tunnel on wg0 both depend on this label being unchanged.
+  nodeLabels:
+    nest.arishaig.site/workloads: general
+  network:
+    interfaces:
+      - interface: ens18
+        dhcp: false
+        addresses:
+          - 192.168.1.110/24
+        # No `vip:` entry — vip is how a node campaigns to hold the
+        # control-plane VIP via etcd leader election (control-plane-only).
+        # Workers reach the API via cluster.controlPlane.endpoint + KubePrism,
+        # not vip. Carrying vip on a worker either fails validation or could
+        # wrongly win 192.168.1.115 with no apiserver behind it.
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+    nameservers:
+      - 192.168.7.7
+      - 192.168.7.8
+  kubelet:
+    nodeIP:
+      validSubnets:
+        - 192.168.1.0/24
+    extraArgs:
+      # Reserve memory for kubelet/OS so pod pressure triggers eviction before
+      # the OOM killer fires. Without this, kubelet itself was OOM-killed every
+      # ~68 minutes on alpha (heavy AI workloads: sabnzbd 12Gi, anagnorisis 6Gi,
+      # subgen 4Gi). Unrelated to alpha's control-plane role — kept as-is.
+      kube-reserved: memory=2Gi
+      eviction-hard: memory.available<1Gi
+  time:
+    servers:
+      - 192.168.7.7
+# Hostname lives in its own config document since Talos 1.13. alpha had no
+# explicit HostnameConfig before this migration (relied on Talos's
+# auto-generated name) — pinning it here so reset+rejoin doesn't produce a
+# different random hostname, which would break the local-path PV's
+# node-affinity and any other hostname-keyed references.
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+auto: "off"
+hostname: talos-a2c-1b8
