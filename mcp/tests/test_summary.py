@@ -1,6 +1,6 @@
 import httpx
 
-from nest_mcp.tools import summary
+from nest_mcp.tools import summary, kubernetes
 from helpers import load_tools, patch_http, patch_ssh
 
 
@@ -26,6 +26,12 @@ def test_overall_status_branches():
     assert summary._overall_status([], {"proxmox": {"error": "x"}}) == "degraded"
     assert summary._overall_status(
         [], {"k8s": {"scraped_services": {"down": 1}}}) == "degraded"
+    assert summary._overall_status(
+        [], {"k8s_nodes": [{"name": "alpha", "ready": False}]}) == "degraded"
+    assert summary._overall_status(
+        [], {"k8s_nodes": [{"name": "alpha", "ready": True}],
+             "monitoring": {"prometheus": "ok", "loki": "ok", "grafana": "ok",
+                            "scrape_targets_down": 0}}) == "ok"
     assert summary._overall_status(
         [], {"monitoring": {"prometheus": "ok", "loki": "ok", "grafana": "ok",
                             "scrape_targets_down": 0}}) == "ok"
@@ -68,8 +74,36 @@ class _FakeSession:
         return httpx.Response(200, json={"data": [{"name": "ap1", "satisfaction": 99, "type": "uap"}]})
 
 
+def _k8s_handler(request):
+    path = request.url.path
+    if path == "/api/v1/nodes":
+        return httpx.Response(200, json={"items": [
+            {"metadata": {"name": "alpha"},
+             "status": {"conditions": [{"type": "Ready", "status": "True"}]}},
+        ]})
+    if path == "/api/v1/pods":
+        return httpx.Response(200, json={"items": [
+            {"metadata": {"namespace": "media", "name": "radarr"},
+             "spec": {"nodeName": "alpha", "containers": [{}]},
+             "status": {"phase": "Running", "containerStatuses": [{"ready": True}]}},
+        ]})
+    return httpx.Response(404, json={})
+
+
+async def test_k8s_nodes_section(monkeypatch):
+    monkeypatch.setattr(kubernetes, "_client",
+                        lambda: httpx.AsyncClient(transport=httpx.MockTransport(_k8s_handler),
+                                                  base_url="https://k8s"))
+    out = await summary._k8s_nodes()
+    assert out == [{"name": "alpha", "ready": True, "pods_total": 1, "pods_running": 1,
+                     "pods_completed": 0, "pods_not_ready": 0, "problem_pods": []}]
+
+
 async def test_lab_health_summary_aggregates(monkeypatch):
     patch_http(monkeypatch, summary, _make_client_routes())
+    monkeypatch.setattr(kubernetes, "_client",
+                        lambda: httpx.AsyncClient(transport=httpx.MockTransport(_k8s_handler),
+                                                  base_url="https://k8s"))
     # NOTE: summary.httpx is the global httpx module, shared with the helper that
     # builds make_client's mock. Honor an explicit transport (make_client's case)
     # and only fall back to the PBS handler for _pbs's transport-less construction.
@@ -95,6 +129,7 @@ async def test_lab_health_summary_aggregates(monkeypatch):
     assert out["unifi"]["wan"]["ip"] == "1.2.3.4"
     assert out["dns"]["primary"]["queries_today"] == 100
     assert out["homeassistant"]["total_entities"] == 1
+    assert out["k8s_nodes"][0]["name"] == "alpha" and out["k8s_nodes"][0]["pods_total"] == 1
 
 
 async def test_proxmox_section_directly(monkeypatch):
