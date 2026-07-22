@@ -26,6 +26,25 @@ data:
       description_update_interval_minutes: null  # omni disabled on CPU
       description_update_batch_size: null
 
+    videos:
+      # Single flat root: the videos module only supports one media_directory,
+      # so this covers both movies/ and tv/ (siblings of music/ on the NFS share).
+      media_directory: /mnt/media
+      media_formats:
+        - .mp4
+        - .mkv
+        - .avi
+        - .mov
+        - .wmv
+        - .flv
+        - .ogv
+        - .mpeg
+        - .mpg
+        - .webm
+      rating_update_interval_minutes: 30
+      rating_update_batch_size: 25
+      description_update_interval_minutes: null  # omni disabled on CPU
+      description_update_batch_size: null
 
     audio_embedder:
       model_name: "laion/clap-htsat-fused"

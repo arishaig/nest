@@ -1,0 +1,225 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: omni-media-server-installer-config
+  namespace: media
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en">
+    <head>
+    <meta charset="utf-8">
+    <title>Omni Describe — install</title>
+    <style>
+      body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; max-width: 640px; margin: 60px auto; padding: 0 20px; line-height: 1.6; }
+      h1 { font-size: 22px; }
+      pre { background: #16171b; color: #e8e9ee; padding: 14px 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
+      .tabs { display: flex; gap: 8px; margin: 24px 0 8px; }
+      button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+      button.active { background: #4f6df5; color: white; border-color: #4f6df5; }
+      section { display: none; }
+      section.active { display: block; }
+      .note { color: #666; font-size: 13px; }
+    </style>
+    </head>
+    <body>
+      <h1>🎬 Omni Describe</h1>
+      <p>Runs on this machine's GPU and generates descriptions for your movie/TV
+      library. One-time install, then it starts automatically and lives at
+      <code>http://localhost:5050/</code>.</p>
+
+      <div class="tabs">
+        <button class="active" onclick="show('ps')">PowerShell</button>
+        <button onclick="show('sh')">WSL / bash</button>
+      </div>
+
+      <section id="ps" class="active">
+        <p>Open PowerShell (not as admin needed) and run:</p>
+        <pre>irm http://192.168.1.110:30817/get/install.ps1 | iex</pre>
+        <p class="note">Requires <a href="https://git-scm.com/download/win">git</a> and
+        <a href="https://www.python.org/downloads/">Python 3.10+</a> already installed.
+        Registers a startup shortcut, so it'll be running next time you log in too.</p>
+      </section>
+
+      <section id="sh">
+        <p>Open a WSL terminal and run:</p>
+        <pre>curl -fsSL http://192.168.1.110:30817/get/install.sh | bash</pre>
+        <p class="note">Requires <code>git</code>, <code>python3</code>/<code>python3-venv</code>,
+        and (for GPU use) the <a href="https://docs.nvidia.com/cuda/wsl-user-guide/index.html">NVIDIA CUDA on WSL</a>
+        driver already installed. No auto-start on WSL — re-run the same command
+        (or just <code>python omni_service/app.py</code> from the install dir) each
+        time you want it running.</p>
+      </section>
+
+      <script>
+        function show(id) {
+          document.querySelectorAll('section').forEach(s => s.classList.toggle('active', s.id === id));
+          document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase().includes(id === 'ps' ? 'powershell' : 'wsl')));
+        }
+      </script>
+    </body>
+    </html>
+  install.ps1: |
+    #Requires -Version 5.1
+    <#
+    Omni Describe — bootstrap installer (Windows / PowerShell)
+
+    Downloaded and piped into `iex` from the omni-media-server install page.
+    Clones the anagnorisis fork, creates a local venv, installs CUDA torch +
+    deps, points config at the LAN media server, registers a startup shortcut,
+    and launches the app.
+
+    Nothing here is baked into an image — every run does the real install
+    steps live on this machine, so there's no giant artifact to build/ship.
+    #>
+    $ErrorActionPreference = "Stop"
+
+    $RepoUrl      = "https://github.com/arishaig/Anagnorisis.git"
+    $InstallDir   = "$env:LOCALAPPDATA\omni-describe\app"
+    $DataDir      = "$env:LOCALAPPDATA\omni-describe\data"
+    $MediaBaseUrl = "http://192.168.1.110:30817"
+
+    function Require-Command($name, $hint) {
+        if (-not (Get-Command $name -ErrorAction SilentlyContinue)) {
+            Write-Error "$name is required but not found. $hint"
+            exit 1
+        }
+    }
+
+    Require-Command git    "Install from https://git-scm.com/download/win and re-run this command."
+    Require-Command python "Install Python 3.10+ from https://www.python.org/downloads/ and re-run this command."
+
+    New-Item -ItemType Directory -Force -Path (Split-Path $InstallDir) | Out-Null
+    New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+
+    if (Test-Path "$InstallDir\.git") {
+        Write-Host "Existing install found at $InstallDir — updating..."
+        Push-Location $InstallDir
+        git pull --ff-only
+        Pop-Location
+    } else {
+        Write-Host "Cloning to $InstallDir..."
+        git clone --depth 1 $RepoUrl $InstallDir
+    }
+
+    Push-Location $InstallDir
+
+    if (-not (Test-Path ".venv")) {
+        Write-Host "Creating virtual environment..."
+        python -m venv .venv
+    }
+
+    $Pip = ".\.venv\Scripts\pip.exe"
+    & $Pip install --upgrade pip
+
+    Write-Host "Installing CUDA-enabled torch (adjust the index URL below if this doesn't match your driver)..."
+    & $Pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+    Write-Host "Installing remaining dependencies..."
+    & $Pip install -r requirements.txt
+    & $Pip install requests xxhash
+
+    # Point this install's config at the LAN media server and its own local data dir.
+    $ConfigPath = "$InstallDir\omni_service\config.yaml"
+    $DataDirForward = $DataDir -replace '\\', '/'
+    (Get-Content $ConfigPath) `
+        -replace 'media_base_url:.*', "media_base_url: `"$MediaBaseUrl`"" `
+        -replace 'project_config_directory:.*', "project_config_directory: $DataDirForward" |
+        Set-Content $ConfigPath
+
+    # Register a startup shortcut so it's running again after every login.
+    $StartupDir = [Environment]::GetFolderPath("Startup")
+    $ShortcutPath = "$StartupDir\OmniDescribe.lnk"
+    $WshShell = New-Object -ComObject WScript.Shell
+    $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
+    $Shortcut.TargetPath = "$InstallDir\.venv\Scripts\pythonw.exe"
+    $Shortcut.Arguments = "omni_service\app.py"
+    $Shortcut.WorkingDirectory = $InstallDir
+    $Shortcut.WindowStyle = 7  # minimized
+    $Shortcut.Save()
+    Write-Host "Startup shortcut registered: $ShortcutPath"
+
+    Write-Host "Starting Omni Describe..."
+    Start-Process -FilePath "$InstallDir\.venv\Scripts\pythonw.exe" `
+        -ArgumentList "omni_service\app.py" -WorkingDirectory $InstallDir -WindowStyle Hidden
+
+    Start-Sleep -Seconds 3
+    Start-Process "http://localhost:5050/"
+
+    Pop-Location
+    Write-Host ""
+    Write-Host "Done. Omni Describe is running at http://localhost:5050/ and will start automatically on login."
+  install.sh: |
+    #!/usr/bin/env bash
+    # Omni Describe — bootstrap installer (WSL / Linux desktop)
+    #
+    # Downloaded and piped into `bash` from the omni-media-server install page.
+    # Clones the anagnorisis fork, creates a local venv, installs CUDA torch +
+    # deps, points config at the LAN media server, and launches the app.
+    #
+    # No auto-start is registered here (unlike the PowerShell version) — WSL
+    # doesn't have a reliable login hook the way Windows startup folders do.
+    # Re-run this same command, or just `python omni_service/app.py` from the
+    # install dir, whenever you want it running again.
+    set -euo pipefail
+
+    REPO_URL="https://github.com/arishaig/Anagnorisis.git"
+    INSTALL_DIR="${HOME}/.local/share/omni-describe/app"
+    DATA_DIR="${HOME}/.local/share/omni-describe/data"
+    MEDIA_BASE_URL="http://192.168.1.110:30817"
+
+    require() {
+      command -v "$1" >/dev/null 2>&1 || { echo "Missing required command: $1 ($2)"; exit 1; }
+    }
+
+    require git "install via your package manager, e.g. apt install git"
+    require python3 "install via your package manager, e.g. apt install python3 python3-venv"
+
+    mkdir -p "$(dirname "$INSTALL_DIR")" "$DATA_DIR"
+
+    if [ -d "$INSTALL_DIR/.git" ]; then
+      echo "Existing install found at $INSTALL_DIR — updating..."
+      git -C "$INSTALL_DIR" pull --ff-only
+    else
+      echo "Cloning to $INSTALL_DIR..."
+      git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
+    fi
+
+    cd "$INSTALL_DIR"
+
+    if [ ! -d .venv ]; then
+      echo "Creating virtual environment..."
+      python3 -m venv .venv
+    fi
+
+    ./.venv/bin/pip install --upgrade pip
+
+    echo "Installing CUDA-enabled torch (adjust the index URL below if this doesn't match your driver)..."
+    ./.venv/bin/pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+    echo "Installing remaining dependencies..."
+    ./.venv/bin/pip install -r requirements.txt
+    ./.venv/bin/pip install requests xxhash
+
+    CONFIG_PATH="omni_service/config.yaml"
+    sed -i \
+      -e "s|media_base_url:.*|media_base_url: \"${MEDIA_BASE_URL}\"|" \
+      -e "s|project_config_directory:.*|project_config_directory: ${DATA_DIR}|" \
+      "$CONFIG_PATH"
+
+    echo "Starting Omni Describe..."
+    nohup ./.venv/bin/python omni_service/app.py > "${DATA_DIR}/omni_service.log" 2>&1 &
+    disown
+
+    sleep 3
+    if command -v wslview >/dev/null 2>&1; then
+      wslview "http://localhost:5050/"
+    elif command -v cmd.exe >/dev/null 2>&1; then
+      cmd.exe /c start http://localhost:5050/ >/dev/null 2>&1 || true
+    else
+      echo "Open http://localhost:5050/ in your browser."
+    fi
+
+    echo ""
+    echo "Done. Omni Describe is running at http://localhost:5050/ (log: ${DATA_DIR}/omni_service.log)."
+    echo "Re-run this install command any time you want to start it again."

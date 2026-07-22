@@ -53,6 +53,12 @@ resources:
   # --- file access ---
   - copyparty-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - copyparty.yaml  # HelmRelease (app-template) — replaces deployment+service
+  # Temporary, unauthenticated read-only media HTTP source for the desktop
+  # GPU omni-describe tool (anagnorisis/omni_service) — NodePort only, no
+  # Traefik/Authelia. Safe to remove once that tool is no longer in use.
+  - omni-media-server-config-map.yaml
+  - omni-media-server-installer-config-map.yaml  # download page + install.ps1/install.sh
+  - omni-media-server.yaml  # HelmRelease (app-template) — nginx, autoindex json, range GET
   # --- mealie + database ---
   - postgres-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - postgres.yaml  # HelmRelease (app-template) — replaces deployment+service
