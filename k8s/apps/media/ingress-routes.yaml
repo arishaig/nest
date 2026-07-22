@@ -381,3 +381,26 @@ spec:
         - name: anagnorisis
           port: 5001
   tls: {}
+---
+# Temporary — unauthenticated on purpose (media browse/hash API + install
+# scripts for the omni_service desktop GPU tool), but LAN-restricted via
+# local-only so it isn't reachable through the public *.arishaig.site
+# wildcard. Remove alongside k8s/apps/media/omni-media-server*.yaml once
+# that tool is no longer in use.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: omni-media-server
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`omni-media.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: local-only
+          namespace: traefik
+      services:
+        - name: omni-media-server
+          port: 8080
+  tls: {}

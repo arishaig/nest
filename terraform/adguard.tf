@@ -45,6 +45,7 @@ locals {
     "glances.arishaig.site"      = "192.168.1.117"
     "mealie.arishaig.site"       = "192.168.1.117"
     "copyparty.arishaig.site"    = "192.168.1.117"
+    "omni-media.arishaig.site"   = "192.168.1.117" # temporary — see k8s/apps/media/omni-media-server*.yaml
     "recommendarr.arishaig.site" = "192.168.1.117"
     "watcharr.arishaig.site"     = "192.168.1.117"
     "tunarr.arishaig.site"       = "192.168.1.117"

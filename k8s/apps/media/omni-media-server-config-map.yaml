@@ -13,10 +13,12 @@ data:
       server {
         listen 8080;
 
-        # No accounts, no TLS — deliberately unauthenticated. Only reachable
-        # via the NodePort on the LAN (192.168.1.0/24), never through
-        # Traefik/Authelia. Temporary: serves the omni-service GPU tool
-        # (see anagnorisis/omni_service) with read-only, range-capable HTTP
+        # No accounts — deliberately unauthenticated (no Authelia). Reachable
+        # via https://omni-media.arishaig.site (Traefik, gated by the
+        # local-only LAN IP allowlist middleware — see ingress-routes.yaml)
+        # or directly via NodePort 30817, bypassing Traefik entirely.
+        # Temporary: serves the omni-service GPU tool (see
+        # anagnorisis/omni_service) with read-only, range-capable HTTP
         # access to the media share so it never needs an NFS mount itself.
         root /media;
         autoindex on;
