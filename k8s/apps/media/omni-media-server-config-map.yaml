@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: omni-media-server-config
+  namespace: media
+data:
+  nginx.conf: |
+    events {}
+    http {
+      include       /etc/nginx/mime.types;
+      default_type  application/octet-stream;
+
+      server {
+        listen 8080;
+
+        # No accounts, no TLS — deliberately unauthenticated. Only reachable
+        # via the NodePort on the LAN (192.168.1.0/24), never through
+        # Traefik/Authelia. Temporary: serves the omni-service GPU tool
+        # (see anagnorisis/omni_service) with read-only, range-capable HTTP
+        # access to the media share so it never needs an NFS mount itself.
+        root /media;
+        autoindex on;
+        autoindex_format json;
+
+        location / {
+          add_header Accept-Ranges bytes always;
+        }
+
+        # Download page + bootstrap install scripts for the desktop app.
+        location /get/ {
+          alias /installer/;
+          autoindex off;
+          index index.html;
+          default_type text/plain;
+        }
+      }
+    }
