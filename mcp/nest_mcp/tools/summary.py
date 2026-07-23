@@ -7,6 +7,7 @@ from mcp.server.fastmcp import FastMCP
 from nest_mcp import config
 from nest_mcp.http_client import make_client
 from nest_mcp.ssh_client import ssh_run
+from nest_mcp.tools import kubernetes
 from nest_mcp.tools.unifi import get_session
 
 
@@ -216,6 +217,13 @@ async def _k8s() -> dict:
     }
 
 
+async def _k8s_nodes() -> list[dict]:
+    nodes_items, pods_items = await asyncio.gather(
+        kubernetes._fetch_nodes(), kubernetes._fetch_pods()
+    )
+    return kubernetes._node_pod_stats(nodes_items, pods_items)
+
+
 async def _monitoring() -> dict:
     async with make_client(config.prometheus.url) as prom:
         async with make_client(config.loki.url) as loki:
@@ -369,6 +377,10 @@ def _overall_status(alerts: list, sections: dict) -> str:
         return "critical"
     has_error = any(isinstance(v, dict) and "error" in v for k, v in sections.items() if k != "alerts")
     k8s_degraded = sections.get("k8s", {}).get("scraped_services", {}).get("down", 0) > 0
+    k8s_nodes_section = sections.get("k8s_nodes", [])
+    k8s_nodes_degraded = isinstance(k8s_nodes_section, list) and any(
+        not n.get("ready", True) for n in k8s_nodes_section
+    )
     monitoring_degraded = any(
         v not in ("ok",) and isinstance(v, str)
         for v in [
@@ -377,7 +389,7 @@ def _overall_status(alerts: list, sections: dict) -> str:
             sections.get("monitoring", {}).get("grafana", ""),
         ]
     ) or sections.get("monitoring", {}).get("scrape_targets_down", 0) > 0
-    if alerts or has_error or k8s_degraded or monitoring_degraded:
+    if alerts or has_error or k8s_degraded or k8s_nodes_degraded or monitoring_degraded:
         return "degraded"
     return "ok"
 
@@ -385,13 +397,14 @@ def _overall_status(alerts: list, sections: dict) -> str:
 def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def lab_health_summary() -> dict:
-        """Single-call homelab health summary covering Proxmox, PBS, disks, k8s, VPS, UniFi, Home Assistant, DNS, monitoring stack, and Prometheus alerts. Use this to orient at the start of a session."""
-        keys = ["proxmox", "backups", "disks", "k8s", "monitoring", "vps", "unifi", "homeassistant", "dns", "alerts"]
+        """Single-call homelab health summary covering Proxmox, PBS, disks, k8s (including per-node pod distribution), VPS, UniFi, Home Assistant, DNS, monitoring stack, and Prometheus alerts. Use this to orient at the start of a session."""
+        keys = ["proxmox", "backups", "disks", "k8s", "k8s_nodes", "monitoring", "vps", "unifi", "homeassistant", "dns", "alerts"]
         raw = await asyncio.gather(
             _proxmox(),
             _pbs(),
             _scrutiny(),
             _k8s(),
+            _k8s_nodes(),
             _monitoring(),
             _vps(),
             _unifi(),

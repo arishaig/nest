@@ -1,3 +1,4 @@
+import asyncio
 import os
 from datetime import datetime, timezone
 
@@ -15,6 +16,9 @@ def _client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         base_url=config.kubernetes.api_url,
         headers=headers,
+        # Talos API VIP is a raw internal IP signed by the cluster's own CA,
+        # not a publicly trusted one — same situation as Proxmox/AdGuard/UniFi
+        # below, all of which also run with verify_tls off.
         verify=False,
         timeout=15,
     )
@@ -35,6 +39,99 @@ def _age(ts: str | None) -> str:
         return ""
 
 
+async def _fetch_pods(namespace: str = "") -> list[dict]:
+    path = f"/api/v1/namespaces/{namespace}/pods" if namespace else "/api/v1/pods"
+    async with _client() as c:
+        resp = await c.get(path)
+        resp.raise_for_status()
+    return resp.json().get("items", [])
+
+
+async def _fetch_nodes() -> list[dict]:
+    async with _client() as c:
+        resp = await c.get("/api/v1/nodes")
+        resp.raise_for_status()
+    return resp.json().get("items", [])
+
+
+def _classify_pod(item: dict) -> dict:
+    meta = item.get("metadata", {})
+    spec = item.get("spec", {})
+    status = item.get("status", {})
+    cs_list = status.get("containerStatuses", [])
+
+    restarts = sum(cs.get("restartCount", 0) for cs in cs_list)
+    ready_count = sum(1 for cs in cs_list if cs.get("ready", False))
+    total_count = len(cs_list) or len(spec.get("containers", []))
+    phase = status.get("phase", "")
+
+    if phase == "Running" and ready_count == total_count:
+        state = "Running"
+    elif phase in ("Pending", "Succeeded", "Failed"):
+        state = phase
+    else:
+        for cs in cs_list:
+            waiting = cs.get("state", {}).get("waiting", {})
+            if waiting:
+                state = waiting.get("reason", "Unknown")
+                break
+        else:
+            state = f"{phase} ({ready_count}/{total_count})"
+
+    return {
+        "namespace": meta.get("namespace", ""),
+        "name": meta.get("name", ""),
+        "state": state,
+        "ready": f"{ready_count}/{total_count}",
+        "restarts": restarts,
+        "age": _age(meta.get("creationTimestamp")),
+        "node": spec.get("nodeName", ""),
+    }
+
+
+def _node_pod_stats(nodes_items: list[dict], pods_items: list[dict]) -> list[dict]:
+    stats: dict[str, dict] = {}
+    for item in nodes_items:
+        meta = item.get("metadata", {})
+        name = meta.get("name", "")
+        conditions = item.get("status", {}).get("conditions", [])
+        ready_cond = next((cond for cond in conditions if cond["type"] == "Ready"), {})
+        stats[name] = {
+            "name": name,
+            "ready": ready_cond.get("status") == "True",
+            "pods_total": 0,
+            "pods_running": 0,
+            "pods_completed": 0,
+            "pods_not_ready": 0,
+            "problem_pods": [],
+        }
+
+    for item in pods_items:
+        pod = _classify_pod(item)
+        node = pod["node"]
+        if not node:
+            continue
+        entry = stats.setdefault(node, {
+            "name": node,
+            "ready": None,
+            "pods_total": 0,
+            "pods_running": 0,
+            "pods_completed": 0,
+            "pods_not_ready": 0,
+            "problem_pods": [],
+        })
+        entry["pods_total"] += 1
+        if pod["state"] == "Running":
+            entry["pods_running"] += 1
+        elif pod["state"] == "Succeeded":
+            entry["pods_completed"] += 1
+        else:
+            entry["pods_not_ready"] += 1
+            entry["problem_pods"].append(f"{pod['namespace']}/{pod['name']} ({pod['state']})")
+
+    return sorted(stats.values(), key=lambda n: n["name"])
+
+
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
@@ -44,47 +141,20 @@ def register(mcp: FastMCP) -> None:
         Args:
             namespace: Filter to a single namespace (e.g. "media", "authelia"). Empty = all.
         """
-        path = f"/api/v1/namespaces/{namespace}/pods" if namespace else "/api/v1/pods"
-        async with _client() as c:
-            resp = await c.get(path)
-            resp.raise_for_status()
-
-        pods = []
-        for item in resp.json().get("items", []):
-            meta = item.get("metadata", {})
-            spec = item.get("spec", {})
-            status = item.get("status", {})
-            cs_list = status.get("containerStatuses", [])
-
-            restarts = sum(cs.get("restartCount", 0) for cs in cs_list)
-            ready_count = sum(1 for cs in cs_list if cs.get("ready", False))
-            total_count = len(cs_list) or len(spec.get("containers", []))
-            phase = status.get("phase", "")
-
-            if phase == "Running" and ready_count == total_count:
-                state = "Running"
-            elif phase in ("Pending", "Succeeded", "Failed"):
-                state = phase
-            else:
-                for cs in cs_list:
-                    waiting = cs.get("state", {}).get("waiting", {})
-                    if waiting:
-                        state = waiting.get("reason", "Unknown")
-                        break
-                else:
-                    state = f"{phase} ({ready_count}/{total_count})"
-
-            pods.append({
-                "namespace": meta.get("namespace", ""),
-                "name": meta.get("name", ""),
-                "state": state,
-                "ready": f"{ready_count}/{total_count}",
-                "restarts": restarts,
-                "age": _age(meta.get("creationTimestamp")),
-                "node": spec.get("nodeName", ""),
-            })
-
+        items = await _fetch_pods(namespace)
+        pods = [_classify_pod(item) for item in items]
         return sorted(pods, key=lambda p: (p["namespace"], p["name"]))
+
+    @mcp.tool()
+    async def k8s_node_pod_stats() -> list[dict]:
+        """Per-node pod distribution and health: pod counts (total/running/completed/not-ready)
+        and readiness per node, plus the specific pods causing trouble on each node. Completed
+        Job/CronJob pods count separately and are not treated as problems. Use this to see how
+        many pods are running on which nodes and spot scheduling imbalance or a node
+        accumulating unhealthy pods.
+        """
+        nodes_items, pods_items = await asyncio.gather(_fetch_nodes(), _fetch_pods())
+        return _node_pod_stats(nodes_items, pods_items)
 
     @mcp.tool()
     async def k8s_events(
@@ -134,12 +204,10 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def k8s_nodes() -> list[dict]:
         """List Kubernetes nodes: readiness, capacity, allocatable resources, and taints."""
-        async with _client() as c:
-            resp = await c.get("/api/v1/nodes")
-            resp.raise_for_status()
+        items = await _fetch_nodes()
 
         nodes = []
-        for item in resp.json().get("items", []):
+        for item in items:
             meta = item.get("metadata", {})
             status = item.get("status", {})
             spec = item.get("spec", {})
