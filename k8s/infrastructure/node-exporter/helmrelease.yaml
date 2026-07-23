@@ -1,0 +1,26 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: node-exporter
+  namespace: node-exporter
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: prometheus-node-exporter
+      version: 4.56.1
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  values:
+    # hostNetwork (chart default) binds directly to each node's own IP on
+    # :9100 — same convention as the LXC node-exporters, so the external
+    # Prometheus scrapes each Talos node IP directly (no MetalLB LB needed).
+    # Chart defaults already include hostPID and a control-plane toleration.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 24Mi
+      limits:
+        memory: 64Mi

@@ -178,6 +178,35 @@ scrape_configs:
         labels:
           instance: 'talos'
 
+  # node-exporter DaemonSet (k8s/infrastructure/node-exporter), hostNetwork
+  # so each Talos node exposes :9100 on its own IP directly — same pattern
+  # as the LXC 'node' job. instance is relabeled to the Talos node name so
+  # it joins with kube-state-metrics' node= label (e.g. kube_node_info).
+  - job_name: 'node-k8s'
+    static_configs:
+      - targets:
+          - '192.168.1.119:9100'  # talos-alpha-control
+          - '192.168.1.110:9100'  # talos-a2c-1b8 (alpha, worker)
+          - '192.168.1.112:9100'  # talos-beta-rpi5
+          - '192.168.1.118:9100'  # talos-gamma-rpi5
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: '192\.168\.1\.119:\d+'
+        target_label: instance
+        replacement: 'talos-alpha-control'
+      - source_labels: [__address__]
+        regex: '192\.168\.1\.110:\d+'
+        target_label: instance
+        replacement: 'talos-a2c-1b8'
+      - source_labels: [__address__]
+        regex: '192\.168\.1\.112:\d+'
+        target_label: instance
+        replacement: 'talos-beta-rpi5'
+      - source_labels: [__address__]
+        regex: '192\.168\.1\.118:\d+'
+        target_label: instance
+        replacement: 'talos-gamma-rpi5'
+
   - job_name: 'speedtest'
     scrape_interval: 1h
     scrape_timeout: 90s
