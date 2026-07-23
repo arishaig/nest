@@ -16,7 +16,10 @@ def _client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         base_url=config.kubernetes.api_url,
         headers=headers,
-        verify=True,
+        # Talos API VIP is a raw internal IP signed by the cluster's own CA,
+        # not a publicly trusted one — same situation as Proxmox/AdGuard/UniFi
+        # below, all of which also run with verify_tls off.
+        verify=False,
         timeout=15,
     )
 
