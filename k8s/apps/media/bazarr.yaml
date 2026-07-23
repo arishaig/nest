@@ -14,6 +14,19 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
+    # Prefer alpha (nest.arishaig.site/workloads=general): alpha has the most
+    # headroom of the workers. Soft so it can still reschedule elsewhere if
+    # alpha is unavailable.
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
     controllers:
       bazarr:
         strategy: Recreate
