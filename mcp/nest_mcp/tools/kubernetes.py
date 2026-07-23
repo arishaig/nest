@@ -16,7 +16,7 @@ def _client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         base_url=config.kubernetes.api_url,
         headers=headers,
-        verify=False,
+        verify=True,
         timeout=15,
     )
 
