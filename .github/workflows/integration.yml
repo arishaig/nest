@@ -31,6 +31,9 @@ on:
       - '.github/workflows/integration.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   talos-node-spinup:
     runs-on: ubuntu-latest

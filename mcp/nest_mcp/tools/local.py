@@ -48,7 +48,6 @@ def register(mcp: FastMCP) -> None:
                 text=True,
                 timeout=15,
             )
-            import json
             runs = json.loads(url_result.stdout) if url_result.returncode == 0 else []
             run_url = runs[0]["url"] if runs else "https://github.com"
             return {"ok": True, "message": "Lint workflow triggered", "url": run_url}

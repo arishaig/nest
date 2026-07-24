@@ -128,6 +128,7 @@ def _parse_docker_ps(output: str) -> dict:
         try:
             containers.append(json.loads(line))
         except json.JSONDecodeError:
+            # skip a malformed docker ps line rather than failing the whole summary
             pass
     stopped = [c["name"] for c in containers if not c.get("status", "").startswith("Up")]
     return {
