@@ -174,3 +174,38 @@ async def test_proxmox_boot_diagnostics_ssh_error(monkeypatch):
     monkeypatch.setattr(infra, "ssh_run", fake_ssh_run)
     out = await load_tools(infra)["proxmox_boot_diagnostics"]()
     assert "error" in out
+
+
+async def test_proxmox_disk_topology(monkeypatch):
+    output = "\n".join([
+        "===ZPOOL===",
+        "  pool: Tank",
+        " state: ONLINE",
+        "  scan: scrub repaired 0B in 04:12:00 with 0 errors",
+        "config:",
+        "        NAME        STATE     READ WRITE CKSUM",
+        "        Tank        ONLINE       0     0     0",
+        "          sdc       ONLINE       0     0     0",
+        "          sdf       ONLINE       0     0     0",
+        "===LSBLK===",
+        "NAME SERIAL       WWN                MODEL              SIZE",
+        "sdc  ZA1234AB     0x5000c50092ed4199 ST8000AS0002-1NA17Z 7.3T",
+        "sde  ZA5678CD     0x5000c500a1b44bdb ST8000AS0002-1NA17Z 7.3T",
+        "===BYPATH===",
+        "pci-0000:00:17.0-ata-3 -> ../../sdc",
+        "pci-0000:00:17.0-ata-5 -> ../../sde",
+    ])
+    patch_ssh(monkeypatch, infra, output)
+    out = await load_tools(infra)["proxmox_disk_topology"]()
+    assert "Tank" in out["zpool_status"] and "sdc" in out["zpool_status"]
+    assert "sde" not in out["zpool_status"]  # not a Tank member in this fixture
+    assert "ZA5678CD" in out["disk_serials"]
+    assert "ata-5" in out["disk_by_path"]
+
+
+async def test_proxmox_disk_topology_ssh_error(monkeypatch):
+    async def fake_ssh_run(*args, **kwargs):
+        raise RuntimeError("connection refused")
+    monkeypatch.setattr(infra, "ssh_run", fake_ssh_run)
+    out = await load_tools(infra)["proxmox_disk_topology"]()
+    assert "error" in out

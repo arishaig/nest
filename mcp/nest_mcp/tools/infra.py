@@ -134,3 +134,40 @@ def register(mcp: FastMCP) -> None:
             "oom_events": text.get("OOM", "") or "(none)",
             "system_errors": text.get("SYS_ERR", "") or "(none)",
         }
+
+    @mcp.tool()
+    async def proxmox_disk_topology() -> dict:
+        """Which physical disks back which ZFS pool on PVE, with serials for
+        identifying drive bays.
+
+        Combines `zpool status -v` (pool membership + per-device READ/WRITE/CKSUM
+        error counts) with `lsblk` serials/WWNs and `/dev/disk/by-path` (physical
+        SATA port). Use this before pulling a drive — don't assume pool membership
+        from device name alone; sdX letters can be reassigned across reboots.
+        """
+        cmd = (
+            "echo '===ZPOOL==='; zpool status -v 2>&1; "
+            "echo '===LSBLK==='; lsblk -d -o NAME,SERIAL,WWN,MODEL,SIZE 2>&1; "
+            "echo '===BYPATH==='; ls -la /dev/disk/by-path/ 2>&1 | grep -E 'sd[a-z]$' | sort; "
+            "true"
+        )
+        try:
+            raw = await _pve(cmd, timeout=20)
+        except Exception as e:
+            return {"error": str(e)}
+
+        sections: dict[str, list[str]] = {}
+        current: str | None = None
+        for line in raw.splitlines():
+            if line.startswith("===") and line.endswith("==="):
+                current = line.strip("=")
+                sections[current] = []
+            elif current:
+                sections[current].append(line)
+        text = {k: "\n".join(v).strip() for k, v in sections.items()}
+
+        return {
+            "zpool_status": text.get("ZPOOL", "") or "(none)",
+            "disk_serials": text.get("LSBLK", "") or "(none)",
+            "disk_by_path": text.get("BYPATH", "") or "(none)",
+        }
