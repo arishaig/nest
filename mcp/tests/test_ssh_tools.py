@@ -124,3 +124,53 @@ async def test_nfs_status(monkeypatch):
     out = await load_tools(infra)["nfs_status"]()
     assert out["active_mounts"] == ["192.168.1.110 (NFSv4.1)"]
     assert "Server" in out["nfsstat_server"]
+
+
+async def test_proxmox_boot_diagnostics_with_history(monkeypatch):
+    output = "\n".join([
+        "===PERSISTENT===",
+        "yes",
+        "===BOOTS===",
+        "0 abc123 Wed 2026-07-22 boot",
+        "-1 def456 Thu 2026-07-23 boot",
+        "===KERNEL_WARN===",
+        "Jul 23 09:00:00 proxmox kernel: mce: [Hardware Error]: something bad",
+        "===OOM===",
+        "Jul 23 09:00:01 proxmox kernel: Out of memory: Killed process 1234 (qemu-system-x86)",
+        "===SYS_ERR===",
+        "Jul 23 09:00:02 proxmox pvedaemon[1]: worker exited",
+    ])
+    patch_ssh(monkeypatch, infra, output)
+    out = await load_tools(infra)["proxmox_boot_diagnostics"]()
+    assert out["persistent_journal_enabled"] is True
+    assert out["previous_boot_log_available"] is True
+    assert "Hardware Error" in out["kernel_warnings"]
+    assert "Killed process" in out["oom_events"]
+    assert "pvedaemon" in out["system_errors"]
+
+
+async def test_proxmox_boot_diagnostics_no_persistent_journal(monkeypatch):
+    output = "\n".join([
+        "===PERSISTENT===",
+        "no",
+        "===BOOTS===",
+        "0 abc123 Wed 2026-07-22 boot",
+        "===KERNEL_WARN===",
+        "Failed to determine boot id from '-1' relative to current",
+        "===OOM===",
+        "(none found)",
+        "===SYS_ERR===",
+        "Failed to determine boot id from '-1' relative to current",
+    ])
+    patch_ssh(monkeypatch, infra, output)
+    out = await load_tools(infra)["proxmox_boot_diagnostics"]()
+    assert out["persistent_journal_enabled"] is False
+    assert out["previous_boot_log_available"] is False
+
+
+async def test_proxmox_boot_diagnostics_ssh_error(monkeypatch):
+    async def fake_ssh_run(*args, **kwargs):
+        raise RuntimeError("connection refused")
+    monkeypatch.setattr(infra, "ssh_run", fake_ssh_run)
+    out = await load_tools(infra)["proxmox_boot_diagnostics"]()
+    assert "error" in out
