@@ -252,9 +252,9 @@ def generate_flow(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
         client      >> Edge(label="HTTPS") >> vps_traefik
         vps_traefik >> Edge(label="TCP passthrough") >> vps_wg
         vps_wg      >> Edge(label="WireGuard tunnel", style="dashed") >> nest_wg
-        nest_wg     >> nest_traefik
+        _ = nest_wg >> nest_traefik
 
-        nest_traefik >> authelia
+        _ = nest_traefik >> authelia
         authelia     >> Edge(label="authorized") >> svc_protected
         nest_traefik >> Edge(label="local-only") >> svc_local
         nest_traefik >> Edge(label="no auth") >> svc_open

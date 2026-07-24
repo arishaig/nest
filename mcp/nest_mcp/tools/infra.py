@@ -31,6 +31,7 @@ def register(mcp: FastMCP) -> None:
                 try:
                     vals[parts[0]] = int(parts[2])
                 except ValueError:
+                    # non-numeric arcstat field (e.g. a header line) — skip it
                     pass
 
         hits = vals.get("hits", 0)
