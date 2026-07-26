@@ -19,7 +19,7 @@ jobs:
   check:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
 
       - name: Check RPi5 NVMe upstream status
         env:
