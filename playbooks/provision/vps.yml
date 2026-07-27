@@ -72,6 +72,16 @@
         enabled: true
         state: started
 
+    # --- ufw ---
+    # ufw ships enabled on Vultr's Debian image and silently coexists with
+    # nftables (separate iptables-nft tables), default-denying everything but
+    # 22/tcp. It blocked the WireGuard tunnel for 8+ hours on 2026-07-27 even
+    # after nftables/wg-quick were fixed. nftables below is the sole intended
+    # firewall for this host.
+    - name: Disable ufw
+      community.general.ufw:
+        state: disabled
+
     # --- nftables firewall ---
     - name: Deploy nftables ruleset
       ansible.builtin.copy:
@@ -88,7 +98,7 @@
               udp dport 853 accept
               icmp type echo-request accept
               # node_exporter, Traefik metrics, AdGuard + Unbound exporters — WireGuard peers only
-              iif "wg0" tcp dport { 8080, 9100, 9167, 9618 } accept
+              iifname "wg0" tcp dport { 8080, 9100, 9167, 9618 } accept
             }
             chain forward {
               type filter hook forward priority 0; policy drop;
@@ -115,11 +125,30 @@
         mode: "0600"
       notify: Restart WireGuard
 
+    - name: Create wg-quick@wg0 override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/wg-quick@wg0.service.d
+        state: directory
+        mode: "0755"
+
+    - name: Deploy wg-quick@wg0 restart-on-failure override
+      ansible.builtin.copy:
+        content: |
+          [Service]
+          Restart=on-failure
+          RestartSec=5s
+        dest: /etc/systemd/system/wg-quick@wg0.service.d/override.conf
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart WireGuard
+
     - name: Enable and start WireGuard
       ansible.builtin.systemd:
         name: wg-quick@wg0
         enabled: true
         state: started
+        daemon_reload: true
 
     # --- Traefik binary ---
     - name: Download Traefik binary
