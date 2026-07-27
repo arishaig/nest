@@ -78,21 +78,3 @@ resource "adguard_list_filter" "hagezi_pro_tertiary" {
 
   depends_on = [vultr_instance.vps_proxy]
 }
-
-resource "adguard_list_filter" "hagezi_gambling_tertiary" {
-  provider = adguard.tertiary
-  name     = "HaGeZi's Gambling Blocklist"
-  url      = "https://adguardteam.github.io/HostlistsRegistry/assets/filter_47.txt"
-  enabled  = true
-
-  depends_on = [vultr_instance.vps_proxy]
-}
-
-resource "adguard_list_filter" "hagezi_threat_intel_tertiary" {
-  provider = adguard.tertiary
-  name     = "HaGeZi's Threat Intelligence Feeds"
-  url      = "https://adguardteam.github.io/HostlistsRegistry/assets/filter_44.txt"
-  enabled  = true
-
-  depends_on = [vultr_instance.vps_proxy]
-}
