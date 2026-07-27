@@ -392,7 +392,15 @@ jobs:
             RUNNING=$("$TALOSCTL" --talosconfig "$TC" version --nodes "$NODE" 2>/dev/null | awk '/Tag:/{print $2}' | tail -1)
             if [ "$RUNNING" != "$TARGET" ]; then
               echo "Upgrading $NODE: $RUNNING → $TARGET"
-              "$TALOSCTL" --talosconfig "$TC" upgrade --nodes "$NODE" --image "$IMAGE" --wait
+              # --drain=false: drain needs kubeconfig, and Talos only serves
+              # GetKubeconfig on control-plane nodes — .110 became a
+              # worker-only node in the 2026-07-22 control-plane migration
+              # (see vm-talos.tf/vm-talos-alpha-control.tf), so --wait's
+              # default drain always fails with "kubeconfig is only
+              # available on control plane nodes" (2026-07-27 deploy
+              # failure). It's also the sole workload node, so evicted pods
+              # have nowhere to reschedule anyway — drain buys nothing here.
+              "$TALOSCTL" --talosconfig "$TC" upgrade --nodes "$NODE" --image "$IMAGE" --wait --drain=false
             else
               echo "$NODE already on $TARGET, skipping"
             fi
