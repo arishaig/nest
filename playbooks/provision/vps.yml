@@ -125,11 +125,30 @@
         mode: "0600"
       notify: Restart WireGuard
 
+    - name: Create wg-quick@wg0 override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/wg-quick@wg0.service.d
+        state: directory
+        mode: "0755"
+
+    - name: Deploy wg-quick@wg0 restart-on-failure override
+      ansible.builtin.copy:
+        content: |
+          [Service]
+          Restart=on-failure
+          RestartSec=5s
+        dest: /etc/systemd/system/wg-quick@wg0.service.d/override.conf
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart WireGuard
+
     - name: Enable and start WireGuard
       ansible.builtin.systemd:
         name: wg-quick@wg0
         enabled: true
         state: started
+        daemon_reload: true
 
     # --- Traefik binary ---
     - name: Download Traefik binary
