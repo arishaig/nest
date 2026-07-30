@@ -20,14 +20,15 @@ def register(mcp: FastMCP) -> None:
         """Query logs from Loki across all homelab hosts.
 
         Covers every LXC (docker, monitoring, scrutiny, seedbox, musicbrainz,
-        fileserver, mcp, backup) and the VPS. Unlike docker_logs, this works
-        for any host and supports historical queries up to 30 days back.
+        fileserver, mcp, backup), the AdGuard Pis (adguard, dns-secondary),
+        and the VPS. Unlike docker_logs, this works for any host and supports
+        historical queries up to 30 days back.
 
         Args:
             container: Filter by Docker container name (e.g. "jellyfin", "traefik").
             host:      Filter by host (e.g. "docker", "seedbox", "scrutiny",
                        "monitoring", "musicbrainz", "fileserver", "mcp",
-                       "backup", "vps-proxy").
+                       "backup", "adguard", "dns-secondary", "vps-proxy").
             unit:      Filter by systemd unit for journal logs (e.g. "sshd.service").
             query:     Raw LogQL query — overrides container/host/unit filters.
             lines:     Maximum log lines to return (default 50, max 500).
