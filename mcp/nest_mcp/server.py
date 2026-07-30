@@ -25,7 +25,8 @@ mcp = FastMCP(
         "ZFS ARC and NFS server stats, "
         "monitoring stack (Prometheus/Loki/Grafana), "
         "Home Assistant devices and areas, UniFi network and clients, "
-        "AdGuard DNS, Prometheus alerts, Jellyfin, the *arr media stack, "
+        "AdGuard DNS (stats, rewrites, plus host-level fail2ban/service status "
+        "on the AdGuard Pis), Prometheus alerts, Jellyfin, the *arr media stack, "
         "seedbox (qBittorrent torrents, tracker status, VPN/gluetun exit IP), "
         "and the VPS proxy (Docker, WireGuard, fail2ban). "
         "Start sessions with lab_health_summary for a full snapshot."
@@ -35,10 +36,11 @@ mcp = FastMCP(
     lifespan=lifespan,
 )
 
-from nest_mcp.tools import proxmox, adguard, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, kubernetes, infra  # noqa: E402
+from nest_mcp.tools import proxmox, adguard, adguard_host, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, kubernetes, infra  # noqa: E402
 
 proxmox.register(mcp)
 adguard.register(mcp)
+adguard_host.register(mcp)
 homeassistant.register(mcp)
 arr.register(mcp)
 prometheus.register(mcp)

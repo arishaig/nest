@@ -130,6 +130,17 @@ class FileserverSettings(BaseSettings):
     media_root: str = "/Tank/media_root"
 
 
+class AdguardHostSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_ADGUARD_HOST_")
+    # SSH access for host-level checks (fail2ban, systemd unit status) — separate
+    # from AdguardSettings, which talks to the AdGuard Home HTTP API.
+    host: str = "192.168.7.7"
+    user: str = "adguard"
+    host_secondary: str = "192.168.7.8"
+    user_secondary: str = "root"
+    ssh_key: str = "~/.ssh/ansible-on-nest"
+
+
 class KubernetesSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_K8S_")
     # API VIP (6443 only — not a scrape target). Token from k8s_mcp_sa_token vault var.
@@ -156,3 +167,4 @@ pbs = PbsSettings()
 seedbox = SeedboxSettings()
 fileserver = FileserverSettings()
 kubernetes = KubernetesSettings()
+adguard_host = AdguardHostSettings()
