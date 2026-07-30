@@ -54,6 +54,31 @@ groups:
       # Per-stream alert: catches Traefik going silent in k8s.
       # 30m window — blackbox probes hit Traefik every ~60s so genuine silence
       # within 30m means the Alloy DaemonSet or Traefik pod has broken.
+      # Catches journald wedging silently — seen 2026-07-30 on the primary
+      # AdGuard Pi: journald stopped accepting entries with no error logged,
+      # which blocked sshd's own log writes (new SSH connections timed out)
+      # and broke unbound_exporter's control-socket health check, while
+      # AdGuardHome/Unbound/dockerd kept running and DNS kept resolving the
+      # whole time. Only a full reboot cleared it. dns-watchdog ticks every
+      # 15-30s on both Pis, so a 15m absence is a reliable heartbeat loss.
+      - alert: LogIngestionGap
+        expr: absent_over_time({host="adguard"}[15m])
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No logs from adguard (primary DNS) for 15 minutes"
+          description: "Alloy on the primary AdGuard Pi has stopped shipping logs. May indicate journald has wedged, silently breaking SSH and exporter health while DNS keeps resolving."
+
+      - alert: LogIngestionGap
+        expr: absent_over_time({host="dns-secondary"}[15m])
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No logs from dns-secondary for 15 minutes"
+          description: "Alloy on the secondary AdGuard Pi has stopped shipping logs."
+
       - alert: TraefikAccessLogGap
         expr: absent_over_time({job="traefik-access", host="talos"}[30m])
         for: 5m
