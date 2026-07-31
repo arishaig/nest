@@ -11,7 +11,12 @@ Migration from Docker Compose on LXCs to Flux-managed Talos k8s.
 Goal: git as the live source of truth with a continuous reconciliation loop (Flux), not push-on-demand Ansible.
 
 Cluster: single-node Talos VM (VMID 110, `192.168.1.110`), Flux watching `k8s/` in this repo.  
-Storage: `nfs-nvme` StorageClass (nfs-subdir-external-provisioner → `rpool/data/k8s-configs` on PVE) for app configs; `media-nfs` PVC (NFS to fileserver LXC `192.168.1.17`) for `/Tank/media_root`.
+Storage: `nfs-nvme` StorageClass (nfs-subdir-external-provisioner → `rpool/data/k8s-configs` on PVE) for app configs; `media-nfs` PVC for `/Tank/media_root`.
+
+> **Correction (2026-07-30):** the `media-nfs` PVC mounts NFS from **PVE itself**
+> (`192.168.1.16`, exported by `templates/pve/exports.j2`), not from the fileserver LXC as
+> originally written here. The fileserver LXC gets `/Tank/media_root` as a Proxmox bind
+> mount and re-serves it over Samba; it is not in the cluster's storage path.
 
 ---
 

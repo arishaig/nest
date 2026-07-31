@@ -86,12 +86,21 @@ Verified against `proxmox_list_vms`, `k8s_pods` and `proxmox_disk_topology`:
 | VM 112 `talos-alpha-control` | Sole control plane, sole etcd member — cluster API gone |
 | VM 110 `talos-alpha` (57 pods) | Every heavy workload gone |
 | `rpool/data/k8s-configs` | 23 of 25 PVCs unreachable |
-| `Tank/media_root` (17.8 TB) | `media-nfs` PV unreachable |
+| `Tank/media_root` (17.8 TB) | `media-nfs` PV unreachable; Samba shares too |
 | VM 500 `backup` (PBS) | Backups gone — see B2 |
 | VM 107 `homeassistant` | Home automation gone |
 
 Only `talos-beta-rpi5` and `talos-gamma-rpi5` are physically independent, and both are
 useless in isolation: no API server, no storage, no ingress.
+
+Note that **PVE itself is the NFS server for both datasets**, not the fileserver LXC.
+`playbooks/provision/templates/pve/exports.j2` exports `/Tank/media_root` and
+`/rpool/data/k8s-configs` directly from the host, which is why
+`k8s/apps/media/media-nfs-pv.yaml` points at `192.168.1.16`. The fileserver LXC (102)
+receives `/Tank/media_root` as a Proxmox bind mount
+(`terraform/lxc-fileserver.tf:58-59`) and re-serves it over **Samba** — it is not in the
+cluster's storage path at all. `k8s-migration.md` previously described this incorrectly
+and is corrected in this change.
 
 This is a **regression** against the earlier three-node control-plane topology. The
 2026-07-22 consolidation onto a dedicated CP VM solved a real problem (etcd instability
@@ -183,9 +192,11 @@ value-per-byte in the lab. `Tank/media_root` is a separate decision (see B4).
 
 ### B2 — The PBS datastore is a zvol on the pool it backs up · **Critical** · Spine B
 
-`proxmox_disk_topology` shows `rpool` as a two-way NVMe mirror (2× TEAM TM8FP6001T) and a
-`zd64` zvol of 500 GB, matching the `pbs-local` datastore at 483.7 GB. PBS (VM 500) has
-**no passthrough disk**.
+`terraform/vm-pbs.tf:31-34` defines VM 500's only disk as
+`datastore_id = "local-zfs"`, `interface = "scsi0"`, `size = 500` — a 500 GB zvol on
+`rpool`, matching the `pbs-local` datastore at 483.7 GB and the `zd64` zvol visible in
+`proxmox_disk_topology`. PBS has **no passthrough disk**; this is confirmed from the VM
+definition, not inferred from size.
 
 So the backups of every guest sit on the same pool as the host being backed up. PBS
 protects against guest-level mistakes — a bad upgrade, a broken container, an accidental
