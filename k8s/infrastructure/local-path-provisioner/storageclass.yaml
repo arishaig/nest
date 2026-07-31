@@ -3,7 +3,14 @@ kind: StorageClass
 metadata:
   name: local-path
   annotations:
-    storageclass.kubernetes.io/is-default-class: "true"
+    # Explicitly NOT the default (architecture review F4). This class has
+    # exactly one consumer — authelia/redis-data, which requests it by name —
+    # while 23 of 25 PVCs ask for nfs-nvme. Leaving local-path as the default
+    # meant any PVC that omitted storageClassName landed silently on node-local
+    # disk with reclaimPolicy Retain, surviving neither a node rebuild nor a
+    # reschedule, and staying invisible until the data was needed.
+    # Kept as "false" rather than removed so the choice is visible here.
+    storageclass.kubernetes.io/is-default-class: "false"
 provisioner: rancher.io/local-path
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Retain
