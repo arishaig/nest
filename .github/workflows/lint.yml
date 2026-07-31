@@ -275,17 +275,23 @@ jobs:
           fi
           cp "$TF_STATE_DIR/terraform.tfstate" terraform/terraform.tfstate
 
+      # Local port 13001, not deploy-tofu's 13000: both jobs run on the same
+      # shared self-hosted runner pool, and a plan overlapping an apply
+      # (or two plans overlapping) collided on the port — deploy-tofu failed
+      # with "Address already in use" the first time this job ran for real
+      # (2026-07-31). tofu.tfvars' adguard_tertiary_port default stays 13000
+      # for deploy-tofu; this job overrides it below instead.
       - name: Open VPS AdGuard tunnel
         if: steps.filter.outputs.tofu == 'true'
         run: |
-          ssh -f -N -L 13000:localhost:3000 \
+          ssh -f -N -L 13001:localhost:3000 \
             -i "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             -o StrictHostKeyChecking=no \
             -o ServerAliveInterval=10 \
             -o ServerAliveCountMax=3 \
             -o ExitOnForwardFailure=yes \
             root@66.42.79.175
-          for _ in $(seq 1 10); do nc -z 127.0.0.1 13000 2>/dev/null && break; sleep 1; done
+          for _ in $(seq 1 10); do nc -z 127.0.0.1 13001 2>/dev/null && break; sleep 1; done
 
       - name: OpenTofu init
         if: steps.filter.outputs.tofu == 'true'
@@ -295,7 +301,7 @@ jobs:
         if: steps.filter.outputs.tofu == 'true'
         run: |
           set -o pipefail
-          tofu -chdir=terraform plan -var-file=secrets.tfvars -input=false -no-color \
+          tofu -chdir=terraform plan -var-file=secrets.tfvars -var adguard_tertiary_port=13001 -input=false -no-color \
             2>&1 | tee "$RUNNER_TEMP/tofu-plan.log"
 
       - name: Post plan to job summary
@@ -310,4 +316,4 @@ jobs:
 
       - name: Close AdGuard tunnel
         if: always() && steps.filter.outputs.tofu == 'true'
-        run: pkill -f "ssh -f -N -L 13000" 2>/dev/null || true
+        run: pkill -f "ssh -f -N -L 13001" 2>/dev/null || true
