@@ -9,7 +9,6 @@ output "lxc_ips" {
     monitoring    = "192.168.1.44"
     dns_secondary = "192.168.7.8"
     ci            = "192.168.1.18"
-    mcp           = "192.168.1.19"
   }
 }
 

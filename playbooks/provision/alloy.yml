@@ -6,7 +6,7 @@
 # Journal-only:  ship journald only (no Docker on these hosts).
 
 - name: Install Alloy log shipper
-  hosts: monitoring:scrutiny:seedbox:musicbrainz:fileserver:mcp:pbs:pve:ci:adguard:dns-secondary
+  hosts: monitoring:scrutiny:seedbox:musicbrainz:fileserver:pbs:pve:ci:adguard:dns-secondary
   become: true
   gather_facts: true
 
