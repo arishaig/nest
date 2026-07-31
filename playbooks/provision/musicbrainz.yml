@@ -2,6 +2,15 @@
 # Provision LXC 101: MusicBrainz mirror
 # common.yml must run first (handled by site.yml and the Terraform provisioner).
 # Memory limits and reindex cron added 2026-06-25 (#248).
+#
+# musicbrainz_docker_version is pinned, not "master" (2026-07-31 incident):
+# this playbook used to track master with force:true, which on 2026-06-25
+# dragged the checkout across upstream's breaking pg16->pg18 + MB schema
+# 30->31 migration and force-recreated the stack against unmigrated data —
+# a silent 5-week outage (10,000+ container restarts) with no alerting to
+# catch it. Bumping this var to a newer tag does NOT perform the upstream
+# migration steps; check https://github.com/metabrainz/musicbrainz-docker/releases
+# for breaking changes and follow their upgrade instructions by hand first.
 
 - name: MusicBrainz provisioning
   hosts: musicbrainz
@@ -11,6 +20,7 @@
   vars:
     musicbrainz_user: svc_musicbrainz
     musicbrainz_dir: /home/svc_musicbrainz/musicbrainz-docker
+    musicbrainz_docker_version: v-2026-05-13.0-mbdb31-pg18
 
   tasks:
     # --- Docker CE installation ---
@@ -101,7 +111,7 @@
       ansible.builtin.git:
         repo: https://github.com/metabrainz/musicbrainz-docker.git
         dest: "{{ musicbrainz_dir }}"
-        version: master
+        version: "{{ musicbrainz_docker_version }}"
         force: true
       become: true
       become_user: "{{ musicbrainz_user }}"
