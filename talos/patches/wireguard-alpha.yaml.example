@@ -6,7 +6,14 @@
 # (2026-07-21, control-plane migration Phase 4) silently wiped it and took
 # down all external ingress until this gap was found and fixed.
 #
-# Reapply after any full reset/rejoin of alpha:
+# As of architecture-review.md C1, deploy.yml's deploy-tofu job reconciles
+# this automatically: its "Reconcile WireGuard patch on alpha" step checks
+# whether wg0 exists on alpha and, if not, renders this file with
+# talos_wg_private_key from vault and applies it via patch machineconfig —
+# no manual step required after a reset that runs through the normal
+# terraform-triggered deploy pipeline.
+#
+# To do it by hand (e.g. investigating outside that pipeline):
 #   1. Copy this file, substitute <TALOS_WG_PRIVATE_KEY> with the real value
 #      (ansible-vault view inventory/group_vars/all/vault.yml, key
 #      talos_wg_private_key) — do this in a scratch file, never in git.
