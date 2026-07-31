@@ -1,10 +1,289 @@
 ---
-# Provision PBS (VM 500): backup-freshness monitoring for Prometheus.
+# Provision PBS (VM 500): pool-independent backup coverage, then
+# backup-freshness monitoring for Prometheus.
 #
-# PBS's node_exporter is already scraped by Prometheus (the `node` job). This
-# play enables node_exporter's textfile collector and installs a script that
-# records each backup group's newest-snapshot timestamp, so the PBSBackupStale
-# alert in prometheus/rules/nest.yml fires when a backup stops landing.
+# Closes findings B1 and B2 of docs/architecture-review.md:
+#
+#   B1 — the k8s PVCs live at rpool/data/k8s-configs on the PVE *host*, not
+#        inside any guest, so the guest-only PBS jobs never covered them. They
+#        were protected by nothing but ZFS `Retain` on a single pool.
+#   B2 — pbs-local is a 500 GB zvol on local-zfs (= rpool), so every guest
+#        backup sat on the same pool as the host being backed up. rpool loss
+#        took the originals and the backups together.
+#
+# The fix is two-sided:
+#   * a second datastore (tank-archive) on a 1 TB disk carved from Tank, with a
+#     local sync job mirroring pbs-local into it. Tank is a separate raidz2
+#     vdev, so rpool loss no longer costs any backup history.
+#   * a host-type backup of rpool/data/k8s-configs pushed from PVE by
+#     proxmox-backup-client, which then rides the same sync into Tank.
+#
+# Note this protects against pool loss, not against loss of the machine — see
+# the RTO note in docs/design.md. Tank/media_root stays deliberately
+# unprotected as re-acquirable bulk data (finding B4).
+#
+# No monitoring changes are needed: pbs-backup-freshness.sh already walks the
+# host/ group directory alongside ct/ and vm/, and PBSBackupStale has no
+# guest_type filter, so the new k8s-configs group alerts for free.
+
+- name: PBS pool-independent backup coverage
+  hosts: pbs
+  become: true
+  gather_facts: false
+
+  vars:
+    pbs_primary_datastore: pbs-local
+    pbs_archive_datastore: tank-archive
+    # scsi1 on VM 500, backed by a zvol on Tank. Attached out of band with
+    # `qm set 500 --scsi1 Tank:1000,iothread=1` because vm-pbs.tf carries
+    # lifecycle.ignore_changes = [disk] — same reason LXC disks use `pct set`.
+    pbs_archive_disk: sdb
+    pbs_hostbackup_token_name: pve-k8sconfigs
+    pbs_hostbackup_token_id: "root@pam!pve-k8sconfigs"
+    pbs_hostbackup_env: /etc/proxmox-backup-client/k8s-configs.env
+    pbs_k8s_configs_path: /rpool/data/k8s-configs
+
+  tasks:
+    # ── The Tank-backed archive datastore ──────────────────────────────────
+    - name: List existing datastores
+      ansible.builtin.command: proxmox-backup-manager datastore list --output-format json
+      register: pbs_datastore_list
+      changed_when: false
+
+    - name: Create the Tank archive datastore
+      # `disk fs create` formats the disk, mounts it under /mnt/datastore/ and
+      # registers the datastore in one step. It refuses to touch a disk that
+      # already carries a filesystem, so the datastore-name guard above is what
+      # makes this safe to re-run.
+      ansible.builtin.command: >
+        proxmox-backup-manager disk fs create {{ pbs_archive_datastore }}
+        --disk {{ pbs_archive_disk }}
+        --filesystem ext4
+        --add-datastore true
+      when: pbs_archive_datastore not in (pbs_datastore_list.stdout | from_json | map(attribute='name') | list)
+      changed_when: true
+
+    # ── Mirror pbs-local into it ───────────────────────────────────────────
+    - name: List existing sync jobs
+      ansible.builtin.command: proxmox-backup-manager sync-job list --output-format json
+      register: pbs_sync_job_list
+      changed_when: false
+
+    - name: Create the local sync job into the Tank archive
+      # Omitting --remote makes this a local datastore-to-datastore sync.
+      # remove-vanished stays false on purpose: pruning pbs-local (which is
+      # small and lives on rpool) must not prune the archive, so Tank keeps
+      # deeper history than the primary.
+      ansible.builtin.command: >
+        proxmox-backup-manager sync-job create tank-mirror
+        --store {{ pbs_archive_datastore }}
+        --remote-store {{ pbs_primary_datastore }}
+        --schedule 05:00
+        --remove-vanished false
+        --comment "Mirror pbs-local onto Tank (architecture review B2)"
+      when: "'tank-mirror' not in (pbs_sync_job_list.stdout | from_json | map(attribute='id') | list)"
+      changed_when: true
+
+    # ── Retention and integrity on the archive ─────────────────────────────
+    - name: List existing prune jobs
+      ansible.builtin.command: proxmox-backup-manager prune-job list --output-format json
+      register: pbs_prune_job_list
+      changed_when: false
+
+    - name: Create the prune job for the Tank archive
+      ansible.builtin.command: >
+        proxmox-backup-manager prune-job create tank-archive-prune
+        --store {{ pbs_archive_datastore }}
+        --schedule 06:00
+        --keep-daily 14
+        --keep-weekly 8
+        --keep-monthly 12
+        --comment "Retention for the Tank archive"
+      when: "'tank-archive-prune' not in (pbs_prune_job_list.stdout | from_json | map(attribute='id') | list)"
+      changed_when: true
+
+    - name: List existing verify jobs
+      ansible.builtin.command: proxmox-backup-manager verify-job list --output-format json
+      register: pbs_verify_job_list
+      changed_when: false
+
+    - name: Create the verify job for the Tank archive
+      # Finding B4: nothing previously checked that backups were *restorable*,
+      # only that they were recent. A verify job re-reads chunks and checksums
+      # them, which is the cheap half of that gap; the other half is an actual
+      # timed restore, which stays a manual runbook step.
+      ansible.builtin.command: >
+        proxmox-backup-manager verify-job create tank-archive-verify
+        --store {{ pbs_archive_datastore }}
+        --schedule "sun 07:00"
+        --ignore-verified true
+        --comment "Weekly integrity check of the Tank archive"
+      when: "'tank-archive-verify' not in (pbs_verify_job_list.stdout | from_json | map(attribute='id') | list)"
+      changed_when: true
+
+    # ── Credentials for PVE's host backup ──────────────────────────────────
+    # The token secret is shown exactly once, at creation. Rather than round-
+    # tripping it through vault by hand, it is generated here and installed
+    # straight onto PVE in the same run, so the secret exists only on those two
+    # machines. It is a regenerable credential, not data: if PVE ever loses the
+    # file, the next run deletes the token and mints a new one.
+    # Both sides are checked unconditionally, then reconciled together. An
+    # earlier version keyed everything off "does the env file exist on PVE",
+    # which had two silent-failure modes: if the token were deleted on PBS the
+    # file would still exist, so nothing regenerated and the nightly backup
+    # failed with an auth error forever; and if the first backup run failed,
+    # the file had already been written, so the retry was skipped too. Both end
+    # in a configured-but-never-working backup.
+    - name: Check whether PVE already holds host-backup credentials
+      ansible.builtin.stat:
+        path: "{{ pbs_hostbackup_env }}"
+      delegate_to: pve
+      register: pve_hostbackup_creds
+
+    - name: List existing API tokens
+      ansible.builtin.command: proxmox-backup-manager user list-tokens root@pam --output-format json
+      register: pbs_token_list
+      changed_when: false
+
+    - name: Decide whether credentials need reissuing
+      # Reissue if either side is missing. The token secret is retrievable only
+      # at creation, so a token that exists without a matching file on PVE is
+      # unusable and must be replaced rather than reused.
+      ansible.builtin.set_fact:
+        pbs_reissue_token: >-
+          {{ (not pve_hostbackup_creds.stat.exists)
+             or (pbs_hostbackup_token_id not in (pbs_token_list.stdout | from_json | map(attribute='tokenid') | list)) }}
+
+    - name: Remove the stale host-backup token
+      ansible.builtin.command: >
+        proxmox-backup-manager user delete-token root@pam {{ pbs_hostbackup_token_name }}
+      when:
+        - pbs_reissue_token | bool
+        - pbs_hostbackup_token_id in (pbs_token_list.stdout | from_json | map(attribute='tokenid') | list)
+      changed_when: true
+
+    - name: Generate the host-backup token
+      ansible.builtin.command: >
+        proxmox-backup-manager user generate-token root@pam {{ pbs_hostbackup_token_name }}
+        --output-format json
+      register: pbs_new_token
+      when: pbs_reissue_token | bool
+      changed_when: true
+      no_log: true
+
+    - name: Grant the token backup rights on the primary datastore
+      # Tokens are privilege-separated from their user by default, so root@pam
+      # owning the token grants it nothing on its own. Applied on every run, not
+      # only at reissue: the ACL can be lost independently of the token.
+      ansible.builtin.command: >
+        proxmox-backup-manager acl update /datastore/{{ pbs_primary_datastore }}
+        DatastoreBackup --auth-id "{{ pbs_hostbackup_token_id }}"
+      changed_when: true
+
+    - name: Read the PBS certificate fingerprint
+      ansible.builtin.shell: >
+        set -o pipefail &&
+        proxmox-backup-manager cert info | grep -oP 'Fingerprint \(sha256\): \K.*'
+      args:
+        executable: /bin/bash
+      register: pbs_fingerprint
+      changed_when: false
+
+    # ── The PVE side: client, credentials, timer ───────────────────────────
+    - name: Install proxmox-backup-client on PVE
+      ansible.builtin.apt:
+        name: proxmox-backup-client
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+      delegate_to: pve
+
+    - name: Create the client credential directory on PVE
+      ansible.builtin.file:
+        path: "{{ pbs_hostbackup_env | dirname }}"
+        state: directory
+        mode: "0700"
+      delegate_to: pve
+
+    - name: Install the host-backup credentials on PVE
+      ansible.builtin.copy:
+        content: |
+          PBS_REPOSITORY='{{ pbs_hostbackup_token_id }}@{{ hostvars['backup'].ansible_host }}:{{ pbs_primary_datastore }}'
+          PBS_PASSWORD='{{ (pbs_new_token.stdout | from_json).value }}'
+          PBS_FINGERPRINT='{{ pbs_fingerprint.stdout | trim }}'
+        dest: "{{ pbs_hostbackup_env }}"
+        mode: "0600"
+      delegate_to: pve
+      when: pbs_reissue_token | bool
+      no_log: true
+
+    - name: Install the k8s-configs backup service on PVE
+      # Backups are unencrypted on purpose: an encryption key would be another
+      # piece of un-reconcilable state outside git (finding C1's failure mode),
+      # and the datastore never leaves the LAN.
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=PBS host backup of {{ pbs_k8s_configs_path }}
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          EnvironmentFile={{ pbs_hostbackup_env }}
+          ExecStart=/usr/bin/proxmox-backup-client backup \
+            k8s-configs.pxar:{{ pbs_k8s_configs_path }} \
+            --backup-type host --backup-id k8s-configs
+        dest: /etc/systemd/system/pbs-k8s-configs-backup.service
+        mode: "0644"
+      delegate_to: pve
+
+    - name: Schedule the k8s-configs backup on PVE
+      # 03:00 leaves the run comfortably finished before the 05:00 sync into
+      # Tank picks it up.
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Daily PBS host backup of {{ pbs_k8s_configs_path }}
+
+          [Timer]
+          OnCalendar=03:00
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+        dest: /etc/systemd/system/pbs-k8s-configs-backup.timer
+        mode: "0644"
+      delegate_to: pve
+
+    - name: Enable the k8s-configs backup timer on PVE
+      ansible.builtin.systemd:
+        name: pbs-k8s-configs-backup.timer
+        state: started
+        enabled: true
+        daemon_reload: true
+      delegate_to: pve
+
+    # Keyed off whether a snapshot actually exists, not off whether we just
+    # wrote the credentials. If the first run fails — bad token, ACL missing,
+    # PBS unreachable — the credential file is already on disk, so a guard
+    # based on that would skip the retry forever and leave a backup that has
+    # never once succeeded. That state is invisible to PBSBackupStale, whose
+    # expression is `time() - <metric>`: with no snapshot there is no series,
+    # and the alert cannot fire on an absent one.
+    - name: Check whether a k8s-configs snapshot exists yet
+      ansible.builtin.stat:
+        path: "/mnt/backup/host/k8s-configs"
+      register: pbs_hostbackup_group
+
+    - name: Take the first k8s-configs backup now
+      # Fails the play loudly if it does not work — a silent failure here is the
+      # difference between "backed up" and "believes it is backed up".
+      ansible.builtin.systemd:
+        name: pbs-k8s-configs-backup.service
+        state: started
+      delegate_to: pve
+      when: not pbs_hostbackup_group.stat.exists
 
 - name: PBS backup-freshness monitoring
   hosts: pbs

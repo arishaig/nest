@@ -35,6 +35,7 @@ jobs:
       monitoring: ${{ steps.filter.outputs.monitoring }}
       vps: ${{ steps.filter.outputs.vps }}
       pve: ${{ steps.filter.outputs.pve }}
+      pbs: ${{ steps.filter.outputs.pbs }}
       k8s: ${{ steps.filter.outputs.k8s }}
       tofu: ${{ steps.filter.outputs.tofu }}
       mcp: ${{ steps.filter.outputs.mcp }}
@@ -74,6 +75,9 @@ jobs:
             pve:
               - 'playbooks/provision/pve.yml'
               - 'playbooks/provision/templates/pve/**'
+            pbs:
+              - 'playbooks/provision/pbs.yml'
+              - 'playbooks/provision/files/pbs/**'
             k8s:
               - 'playbooks/provision/k8s.yml'
               - 'playbooks/provision/templates/k8s/**'
@@ -297,6 +301,40 @@ jobs:
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit pve
+
+  deploy-pbs:
+    # pbs.yml was in site.yml but had no path filter and no deploy job, so it
+    # only ever converged during a manual full site.yml run — the one playbook
+    # outside the pipeline. Adding it here is what lets the B1/B2 backup
+    # wiring ship under the pure-GitOps rule.
+    needs: changes
+    if: needs.changes.outputs.pbs == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Write SSH key
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.ssh"
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
+          chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
+
+      - name: Write vault password
+        run: |
+          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
+          chmod 600 "$RUNNER_TEMP/vault-pass"
+
+      - name: Run pbs playbook
+        # No --limit: the play runs against pbs but delegates the client,
+        # credential and timer tasks to pve, so both hosts must stay in scope.
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          ansible-playbook \
+            -i inventory/hosts.yml \
+            playbooks/provision/pbs.yml \
+            --vault-password-file "$RUNNER_TEMP/vault-pass" \
+            --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
+            --ssh-extra-args "-o StrictHostKeyChecking=no"
 
   deploy-tofu:
     needs: changes
