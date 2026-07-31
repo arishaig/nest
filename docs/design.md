@@ -67,9 +67,10 @@ via the `nest.arishaig.site/workloads=general` node label; `amd64`-only workload
 (jellyfin, tunarr) carry an explicit arch nodeSelector.
 
 > Note that all four of these guests, the NFS storage backing the cluster's PVCs, and PBS
-> itself run on the single Proxmox host — see
-> [architecture-review.md](architecture-review.md) for the blast-radius and backup
-> implications.
+> itself run on the single Proxmox host. **This is an accepted single failure domain**, not
+> an oversight: see [disaster-recovery.md](disaster-recovery.md) for the decision, the
+> stated RTO, the cold bootstrap order, and what is deliberately left unprotected.
+> [architecture-review.md](architecture-review.md) records the analysis behind it.
 
 Cluster-level IPs (not VMs): `192.168.1.115` Talos API VIP (port 6443 only — kube-proxy
 in nftables mode does not serve NodePorts on it), `192.168.1.116` MetalLB metrics LB
