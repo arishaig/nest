@@ -39,12 +39,11 @@ spec:
     service:
       app:
         controller: watcharr
-        type: NodePort
+        type: ClusterIP
         ports:
           http:
             port: 3080
             targetPort: 3080
-            nodePort: 30803
     persistence:
       data:
         existingClaim: watcharr-data

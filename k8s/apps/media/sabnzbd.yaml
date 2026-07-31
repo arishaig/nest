@@ -82,12 +82,11 @@ spec:
     service:
       app:
         controller: sabnzbd
-        type: NodePort
+        type: ClusterIP
         ports:
           http:
             port: 8080
             targetPort: 8080
-            nodePort: 30800
     persistence:
       config:
         existingClaim: sabnzbd-config
