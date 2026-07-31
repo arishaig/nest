@@ -23,6 +23,12 @@ spec:
               value: "redis://redis.authelia.svc.cluster.local:6379"
           ports:
             - containerPort: 9121
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
           livenessProbe:
             tcpSocket:
               port: 9121

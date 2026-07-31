@@ -24,6 +24,12 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
           livenessProbe:
             exec:
               command: [valkey-cli, ping]
