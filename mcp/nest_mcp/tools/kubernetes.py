@@ -1,11 +1,16 @@
 import asyncio
 import os
+import re
 from datetime import datetime, timezone
 
 import httpx
 from mcp.server.fastmcp import FastMCP
 
 from nest_mcp import config
+
+# Kubernetes DNS-1123 label/subdomain rules — lowercase alphanumerics and
+# hyphens/dots, max 253 chars. Enforced before interpolating into URL paths.
+_K8S_NAME_RE = re.compile(r"^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$")
 
 
 def _client() -> httpx.AsyncClient:
@@ -200,6 +205,44 @@ def register(mcp: FastMCP) -> None:
             }
             for item in items
         ]
+
+    @mcp.tool()
+    async def k8s_pod_logs(
+        namespace: str,
+        pod: str,
+        container: str = "",
+        previous: bool = False,
+        tail_lines: int = 200,
+    ) -> str:
+        """Fetch raw container logs for a pod via the Kubernetes API.
+
+        Unlike Loki (which only ships logs a container managed to flush before
+        dying), this reads straight from the kubelet, so `previous=True` can
+        surface a crashed container's last output — the standard next step
+        after k8s_events shows a pod BackOff/CrashLoopBackOff.
+
+        Args:
+            namespace: Pod's namespace.
+            pod: Pod name.
+            container: Container name. Required if the pod has more than one container.
+            previous: Fetch logs from the immediately prior (crashed/restarted) instance.
+            tail_lines: Max lines to return, most recent first (default 200).
+        """
+        for label, value in (("namespace", namespace), ("pod", pod), ("container", container)):
+            if value and not _K8S_NAME_RE.match(value):
+                return f"Invalid {label} — must be a valid Kubernetes name (lowercase alphanumerics, '-', '.')."
+
+        params: dict = {"tailLines": tail_lines}
+        if container:
+            params["container"] = container
+        if previous:
+            params["previous"] = "true"
+
+        async with _client() as c:
+            resp = await c.get(f"/api/v1/namespaces/{namespace}/pods/{pod}/log", params=params)
+            resp.raise_for_status()
+
+        return resp.text
 
     @mcp.tool()
     async def k8s_nodes() -> list[dict]:

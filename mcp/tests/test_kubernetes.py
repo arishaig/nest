@@ -107,6 +107,54 @@ def test_node_pod_stats_pod_on_unknown_node():
                      "pods_completed": 0, "pods_not_ready": 0, "problem_pods": []}]
 
 
+async def test_pod_logs(monkeypatch):
+    captured = {}
+
+    def handler(req):
+        captured["path"] = req.url.path
+        captured["params"] = dict(req.url.params)
+        return httpx.Response(200, text="crash: connection refused\n")
+
+    monkeypatch.setattr(kubernetes, "_client",
+                        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler),
+                                                  base_url="https://k8s"))
+
+    out = await load_tools(kubernetes)["k8s_pod_logs"](
+        namespace="kube-system", pod="kube-scheduler-talos-alpha-control",
+        container="kube-scheduler", previous=True, tail_lines=50,
+    )
+    assert out == "crash: connection refused\n"
+    assert captured["path"] == "/api/v1/namespaces/kube-system/pods/kube-scheduler-talos-alpha-control/log"
+    assert captured["params"] == {"tailLines": "50", "container": "kube-scheduler", "previous": "true"}
+
+
+async def test_pod_logs_rejects_invalid_names(monkeypatch):
+    def handler(req):
+        raise AssertionError("should not reach the API")
+
+    monkeypatch.setattr(kubernetes, "_client",
+                        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler),
+                                                  base_url="https://k8s"))
+
+    out = await load_tools(kubernetes)["k8s_pod_logs"](namespace="kube-system", pod="../../secrets")
+    assert "Invalid pod" in out
+
+
+async def test_pod_logs_defaults_no_container_no_previous(monkeypatch):
+    captured = {}
+
+    def handler(req):
+        captured["params"] = dict(req.url.params)
+        return httpx.Response(200, text="ok\n")
+
+    monkeypatch.setattr(kubernetes, "_client",
+                        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler),
+                                                  base_url="https://k8s"))
+
+    await load_tools(kubernetes)["k8s_pod_logs"](namespace="media", pod="radarr")
+    assert captured["params"] == {"tailLines": "200"}
+
+
 def test_age_formatting():
     from datetime import datetime, timezone, timedelta
     now = datetime.now(timezone.utc)
