@@ -426,19 +426,28 @@ jobs:
           chmod +x "$RUNNER_TEMP/talosctl"
           TALOSCTL="$RUNNER_TEMP/talosctl"
 
-          for NODE in 192.168.1.110; do
+          # Workers first, control plane last (G2 in docs/architecture-review.md):
+          # this loop previously only listed .110 (alpha) — a leftover from
+          # the single-node period — so alpha-control/.119 (the sole etcd
+          # member), beta-rpi5/.112 and gamma-rpi5/.118 drifted silently.
+          # alpha-control goes last so a bad image/schematic surfaces on a
+          # worker first, before touching the only control-plane node.
+          for NODE in 192.168.1.110 192.168.1.112 192.168.1.118 192.168.1.119; do
             RUNNING=$("$TALOSCTL" --talosconfig "$TC" version --nodes "$NODE" 2>/dev/null | awk '/Tag:/{print $2}' | tail -1)
             if [ "$RUNNING" != "$TARGET" ]; then
               echo "Upgrading $NODE: $RUNNING → $TARGET"
               # --drain=false: drain needs kubeconfig, and Talos only serves
-              # GetKubeconfig on control-plane nodes — .110 became a
-              # worker-only node in the 2026-07-22 control-plane migration
-              # (see vm-talos.tf/vm-talos-alpha-control.tf), so --wait's
-              # default drain always fails with "kubeconfig is only
-              # available on control plane nodes" (2026-07-27 deploy
-              # failure). It's also the sole workload node, so evicted pods
-              # have nowhere to reschedule anyway — drain buys nothing here.
+              # GetKubeconfig on control-plane nodes. This was unconditionally
+              # true when .110 was the only node upgraded here and was itself
+              # worker-only (2026-07-27 deploy failure) — that constraint no
+              # longer holds now that alpha-control exists, but revisiting
+              # drain behavior is out of scope for this change; --wait alone
+              # still blocks until each node is back before the next starts.
               "$TALOSCTL" --talosconfig "$TC" upgrade --nodes "$NODE" --image "$IMAGE" --wait --drain=false
+              # Settle window: give the node time to rejoin and its pods time
+              # to reschedule/restart before the next node (especially the
+              # control plane) goes down too.
+              sleep 60
             else
               echo "$NODE already on $TARGET, skipping"
             fi
