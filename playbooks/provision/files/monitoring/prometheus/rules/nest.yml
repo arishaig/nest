@@ -438,6 +438,35 @@ groups:
           summary: "External endpoint {{ $labels.instance }} is unreachable"
           description: "{{ $labels.instance }} has failed most probes over the last 15 minutes. DNS, Cloudflare, VPS proxy, or the service itself may be down."
 
+      # blackbox_exporter's http prober always exposes probe_ssl_earliest_cert_expiry
+      # for https targets, regardless of module config — no new scrape needed.
+      # TLS passes through the VPS untouched (see
+      # playbooks/provision/files/vps/traefik/dynamic/tcp-passthrough.yml) to
+      # k8s Traefik, the sole terminator, which serves one wildcard
+      # *.arishaig.site cert off one TLSStore for every route here — so every
+      # target genuinely shares one expiry. Aggregated with min() rather than
+      # per-instance (unlike ExternalEndpointDown) so a renewal failure pages
+      # once instead of ~24 times; group_by: ['alertname', 'instance'] in
+      # alertmanager.yml.j2 would not otherwise collapse per-instance alerts,
+      # and this is exactly the notification-storm pattern PR #290 fixed.
+      - alert: CertificateExpiringSoon
+        expr: min(probe_ssl_earliest_cert_expiry{job="blackbox"} - time()) / 86400 < 14
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The *.arishaig.site TLS cert expires in under 14 days"
+          description: "The shared wildcard cert expires in {{ $value | humanize }} days. cert-manager/ACME renewal should have already fired well before this — check the Certificate resource and cert-manager logs (`kubectl -n traefik describe certificate`)."
+
+      - alert: CertificateExpiringCritical
+        expr: min(probe_ssl_earliest_cert_expiry{job="blackbox"} - time()) / 86400 < 3
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The *.arishaig.site TLS cert expires in under 3 days"
+          description: "The shared wildcard cert expires in {{ $value | humanize }} days. Renewal has failed — every route on *.arishaig.site is about to start failing TLS handshakes."
+
   - name: network
     rules:
       - alert: UnpollerNoData
