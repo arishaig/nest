@@ -474,16 +474,22 @@ jobs:
             echo "wg0 already present on alpha, skipping"
           else
             echo "wg0 missing on alpha — reapplying the WireGuard patch"
+            trap 'rm -f "$RUNNER_TEMP/wireguard-alpha.yaml"' EXIT
             source /opt/ansible-runner/venv/bin/activate
             WG_KEY=$(ansible-vault view inventory/group_vars/all/vault.yml \
               --vault-password-file "$RUNNER_TEMP/vault-pass" \
               | grep '^talos_wg_private_key:' \
               | sed -E 's/^talos_wg_private_key: *"?([^"]*)"?$/\1/')
+            echo "::add-mask::$WG_KEY"
             sed "s#<TALOS_WG_PRIVATE_KEY>#$WG_KEY#" \
               talos/patches/wireguard-alpha.yaml.example > "$RUNNER_TEMP/wireguard-alpha.yaml"
+            # --mode=no-reboot: the header comment on this patch asserts no
+            # reboot is required for a wg0 interface change. Pinning it makes
+            # that assertion fail loudly if wrong, instead of talosctl's
+            # default `auto` silently rebooting the 57-pod workload node
+            # from an unattended CI job.
             "$TALOSCTL" --talosconfig "$TC" --nodes 192.168.1.110 \
-              patch machineconfig --patch @"$RUNNER_TEMP/wireguard-alpha.yaml"
-            rm -f "$RUNNER_TEMP/wireguard-alpha.yaml"
+              patch machineconfig --mode=no-reboot --patch @"$RUNNER_TEMP/wireguard-alpha.yaml"
           fi
 
       - name: Save OpenTofu state

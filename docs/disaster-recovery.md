@@ -153,10 +153,14 @@ all**, so this tunnel is the *only* path into the lab from the internet — a
 ingress (finding C1).
 
 `deploy.yml`'s `deploy-tofu` job now checks for `wg0` on alpha after every
-Talos upgrade pass and reapplies the patch if it's missing, so this no
-longer needs a manual step on the normal path — but the check only runs
-inside `deploy-tofu`, which needs alpha already joined and reachable by
-`talosctl`. On a true cold bootstrap, that means after step 4, not before.
+Talos upgrade pass and reapplies the patch if it's missing — but
+`deploy-tofu` only runs when a push to `main` touches `terraform/**`. If
+alpha loses `wg0` and nothing terraform-related merges afterward, the
+tunnel stays down until something does; this is not a background
+reconciliation loop. On a true cold bootstrap that's moot (step 2's
+`tofu apply` triggers it), but after an isolated `talosctl reset` outside
+that flow, check `talosctl get link wg0 --nodes 192.168.1.110` yourself or
+push any `terraform/**` change to force the check.
 
 ### 6. Push the k8s Secrets — Flux cannot proceed without them
 
