@@ -63,7 +63,17 @@ def _pbs_handler(request):
         return httpx.Response(200, json={"data": {"ticket": "T"}})
     if p.endswith("/tasks"):
         return httpx.Response(200, json={"data": []})
-    return httpx.Response(200, json={"data": [{"store": "ds", "used": 1024**3, "avail": 1024**3}]})
+    # Mirror the real PBS API rather than answering usage for any path. The
+    # previous catch-all returned used/avail regardless of endpoint, which is
+    # why the summary querying /admin/datastore (config only, no usage) passed
+    # its tests while reporting 0.0 GB in production.
+    if p.endswith("/status/datastore-usage"):
+        return httpx.Response(200, json={"data": [
+            {"store": "ds", "total": 2 * 1024**3, "used": 1024**3, "avail": 1024**3},
+        ]})
+    if p.endswith("/admin/datastore"):
+        return httpx.Response(200, json={"data": [{"store": "ds", "comment": ""}]})
+    return httpx.Response(200, json={"data": []})
 
 
 class _FakeSession:
@@ -130,6 +140,13 @@ async def test_lab_health_summary_aggregates(monkeypatch):
     assert out["dns"]["primary"]["queries_today"] == 100
     assert out["homeassistant"]["total_entities"] == 1
     assert out["k8s_nodes"][0]["name"] == "alpha" and out["k8s_nodes"][0]["pods_total"] == 1
+    # Regression: the datastore usage must be real numbers, not zeros. Querying
+    # /admin/datastore returned config with no usage fields, so every datastore
+    # reported 0.0 GB used and 0.0 GB available in production while the old
+    # catch-all mock made the test pass.
+    ds = out["backups"]["datastores"][0]
+    assert ds["name"] == "ds"
+    assert ds["used_gb"] == 1.0 and ds["avail_gb"] == 1.0
 
 
 async def test_proxmox_section_directly(monkeypatch):

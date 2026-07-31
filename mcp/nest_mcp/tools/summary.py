@@ -57,6 +57,11 @@ async def _proxmox() -> dict:
 
 
 async def _pbs() -> dict:
+    # verify=False: PBS serves a self-signed certificate on the LAN. Same
+    # established pattern as pbs.py and kubernetes.py. CodeQL flags this as
+    # py/request-without-cert-validation (alert 284, dismissed "won't fix");
+    # the proper fix is pinning the PBS CA rather than disabling verification,
+    # which is tracked separately.
     async with httpx.AsyncClient(verify=False, timeout=10) as client:
         ticket_resp = await client.post(
             f"{config.pbs.url}/api2/json/access/ticket",
@@ -72,7 +77,13 @@ async def _pbs() -> dict:
                 headers=headers,
                 params={"limit": 5, "typefilter": "backup"},
             ),
-            client.get(f"{config.pbs.url}/api2/json/admin/datastore", headers=headers),
+            # /status/datastore-usage, not /admin/datastore: the latter returns
+            # DataStoreListItem (store/comment/maintenance) — configuration
+            # only, with no usage fields at all — so used_gb and avail_gb both
+            # silently reported 0.0 for every datastore. lab_health_summary is
+            # the first call of most sessions, so it was claiming the backup
+            # store was empty.
+            client.get(f"{config.pbs.url}/api2/json/status/datastore-usage", headers=headers),
         )
         tasks_resp.raise_for_status()
         ds_resp.raise_for_status()
