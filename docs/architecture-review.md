@@ -40,6 +40,51 @@ accounts for most of the Medium findings.
 | Can the lab be rebuilt from git + vault? | **No.** WireGuard ingress, all k8s Secrets, and OpenTofu state live outside git. |
 | What survives losing PVE? | **Two Raspberry Pis with no API server, no storage, and no backups.** |
 
+### Remediation status
+
+> Added 2026-07-30 during remediation. The findings below are preserved as
+> written, because a dated review that gets edited to match later knowledge
+> stops being evidence of anything. This block records what changed.
+
+**Two findings did not survive verification and should not be "fixed":**
+
+| # | Status | Evidence |
+|---|---|---|
+| D2 | **Retracted** | The finding assumed two kube-state-metrics replicas, one able to sit `Failed` while the other served scrapes. Live: `kube_deployment_spec_replicas` is **1** and available is **1**. At a single replica there is no half-dead state — `up` goes to 0 and `KubeStateMetricsDown` fires correctly. The `Failed` KSM pod was an evicted orphan, covered by D1's fix. `KubeDeploymentReplicasMismatch` already covers shortfall for every deployment if KSM is ever scaled up. |
+| D4 | **Retracted** | The check already used `/ready` — the change the finding recommended. It currently reports `"loki": "ok"` and `/ready` returns 200. The observed 503 was transient (Loki returns 503 while its ingester starts). |
+
+**Corrections to findings that do stand:**
+
+- **D1** is real but was *not* the "one-word fix" described. Verified
+  `max_over_time` and `min_over_time` of the `Failed` count are both 4 over 7
+  days before making the change.
+- **A2** overstated live memory pressure. The 18 kubelet evictions were a single
+  past event — `min_over_time` over 7d is also 18, and no node currently reports
+  `MemoryPressure`. The *mechanism* is real: memory requests on alpha total
+  41.6% of allocatable against ~90% actual usage, so the scheduler overpacks it.
+- **F1** was worse than recorded. Both the Renovate manager and the CI overlay
+  gate matched `controlplane-*-rpi5.yaml` — files no node uses — so the version
+  gate validated dead config and stayed green while the live worker patches
+  froze a full release behind.
+- **F4** was half-done: `redis-pvc.yaml` already requested `local-path`
+  explicitly, so only the default annotation needed moving.
+- **B4**'s open question is answered: `Tank/media_root` is deliberately
+  unprotected. See [`disaster-recovery.md`](disaster-recovery.md).
+
+**Findings the review missed**, surfaced while verifying it:
+
+- 18 pods carried `reason="TerminationByKubelet"` with no alerting at all.
+- `pbs.yml` had no path filter and no deploy job — the only playbook outside the
+  deploy pipeline, so no PBS change could ship under the GitOps rule.
+- `lab_health_summary` reported every PBS datastore as 0.0 GB, having queried
+  `/admin/datastore` (config, no usage fields) instead of
+  `/status/datastore-usage`.
+- `rpi5-talos.md` cited the bare `rpi_5` schematic while the patches pin the one
+  bundling `nfs-utils` — following its upgrade command would have stripped NFS
+  support from a Pi.
+- `PBSBackupStale` cannot detect a backup that has *never* run, since
+  `time() - <absent series>` yields nothing.
+
 ### Findings by severity
 
 | # | Finding | Spine | Severity |
