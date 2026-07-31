@@ -47,17 +47,29 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 | VMID | Name | IP | Purpose |
 |---|---|---|---|
 | 107 | homeassistant | 192.168.4.50 (VLAN 4) | Home Assistant OS |
-| 110 | talos | 192.168.1.110 | Talos Linux — k8s control plane "alpha" (4 vCPU, 24 GB RAM) |
-| 113 | talos-beta-vm | 192.168.1.111 | Talos control plane "beta" (2 vCPU, 4 GB) — temporary test VM until RPi5s arrive |
-| 115 | talos-delta-vm | 192.168.1.114 | Talos control plane "delta" (4 vCPU, 8 GB) — temporary test VM until RPi5s arrive |
+| 110 | talos-alpha | 192.168.1.110 | Talos Linux — k8s **worker** "alpha" (8 vCPU, 40 GB RAM) |
+| 112 | talos-alpha-control | 192.168.1.119 | Talos Linux — **sole k8s control plane** (2 vCPU, 4 GB); cluster API VIP 192.168.1.115 |
 | 500 | backup | 192.168.1.113 | Proxmox Backup Server |
 
-All three control-plane nodes are schedulable (beta/delta were flipped to rehearse the
-multi-node topology ahead of the RPi5 swap). Heavy media workloads are pinned to alpha
-(~24 GB) via the `nest.arishaig.site/workloads=general` node label / nodeSelector, so the
-small beta/delta nodes only carry control-plane and light pods. The earlier "gamma" test VM
-(was VM 114 / .112) was removed during a node-swap rehearsal that validated the
-add-then-remove etcd flow for the Pi migration; .112 is now free.
+### Raspberry Pi 5 k8s nodes (physical)
+
+| Node | IP | Role |
+|---|---|---|
+| talos-beta-rpi5 | 192.168.1.112 | Talos worker (arm64) |
+| talos-gamma-rpi5 | 192.168.1.118 | Talos worker (arm64) |
+
+The cluster is four nodes: one dedicated control plane (VM 112) and three workers —
+alpha (VM 110, amd64) plus the two RPi5s (arm64). The control plane is **not**
+schedulable; the multi-node control plane described in
+[k8s-migration.md](k8s-migration.md) was consolidated onto VM 112 on 2026-07-22, and the
+beta/delta test VMs (113/115) were removed. Heavy media workloads prefer or pin to alpha
+via the `nest.arishaig.site/workloads=general` node label; `amd64`-only workloads
+(jellyfin, tunarr) carry an explicit arch nodeSelector.
+
+> Note that all four of these guests, the NFS storage backing the cluster's PVCs, and PBS
+> itself run on the single Proxmox host — see
+> [architecture-review.md](architecture-review.md) for the blast-radius and backup
+> implications.
 
 Cluster-level IPs (not VMs): `192.168.1.115` Talos API VIP (port 6443 only — kube-proxy
 in nftables mode does not serve NodePorts on it), `192.168.1.116` MetalLB metrics LB
