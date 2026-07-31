@@ -57,6 +57,11 @@ async def _proxmox() -> dict:
 
 
 async def _pbs() -> dict:
+    # verify=False: PBS serves a self-signed certificate on the LAN. Same
+    # established pattern as pbs.py and kubernetes.py. CodeQL flags this as
+    # py/request-without-cert-validation (alert 284, dismissed "won't fix");
+    # the proper fix is pinning the PBS CA rather than disabling verification,
+    # which is tracked separately.
     async with httpx.AsyncClient(verify=False, timeout=10) as client:
         ticket_resp = await client.post(
             f"{config.pbs.url}/api2/json/access/ticket",
