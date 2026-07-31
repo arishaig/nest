@@ -1,3 +1,13 @@
+# Placement (A3 in architecture-review.md): sabnzbd/anagnorisis/subgen/
+# tdarr-node are hard-pinned to alpha for memory; jellyfin/tunarr/watchback
+# carry amd64 nodeSelectors they genuinely need; the *arr stack + postgres +
+# mealie + postgres-exporter carry a soft nest.arishaig.site/workloads=general
+# preference toward alpha. Everything else here (copyparty, flaresolverr,
+# homepage, lidarr-ui, medialyze, metube, recyclarr, watcharr, recommendarr,
+# storyteller) is intentionally left unconstrained rather than guessed at —
+# none are known to need arm64 exclusion, but placing them onto the RPi5s
+# (nest.arishaig.site/workloads=rpi5, currently unused by any preference)
+# is unverified and left for a dedicated pass, not this fix.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
