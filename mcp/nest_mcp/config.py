@@ -75,15 +75,17 @@ class ArrSettings(BaseSettings):
 
 class JellyfinSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_JELLYFIN_")
-    # Jellyfin k8s NodePort (k8s/apps/media/jellyfin-pgsql-service.yaml)
-    url: str = "http://192.168.1.110:30814"
+    # nest-mcp runs in-cluster; reach jellyfin via its ClusterIP Service
+    # rather than the NodePort removed in architecture-review.md E1.
+    url: str = "http://jellyfin.media.svc.cluster.local:8096"
     key: str = ""
 
 
 class JellyseerrSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_JELLYSEERR_")
-    # Seerr k8s NodePort (k8s/apps/media/seerr-service.yaml)
-    url: str = "http://192.168.1.110:30801"
+    # nest-mcp runs in-cluster; reach seerr via its ClusterIP Service
+    # rather than the NodePort removed in architecture-review.md E1.
+    url: str = "http://seerr.media.svc.cluster.local:5055"
     key: str = ""
 
 
@@ -104,8 +106,9 @@ class DockerHostSettings(BaseSettings):
 
 class MealieSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_MEALIE_")
-    # Mealie k8s NodePort (k8s/apps/media/mealie-service.yaml)
-    url: str = "http://192.168.1.110:30813"
+    # nest-mcp runs in-cluster; reach mealie via its ClusterIP Service
+    # rather than the NodePort removed in architecture-review.md E1.
+    url: str = "http://mealie.media.svc.cluster.local:9000"
     key: str = ""
 
 
