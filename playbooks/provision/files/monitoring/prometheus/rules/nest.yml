@@ -295,17 +295,59 @@ groups:
       # Symptom-level coverage that crash-loop counting can't provide: a pod
       # that never starts increments no restart counter. flannel-watchdog sat
       # Pending for 10 days (July 2026) with zero alerts.
+      #
+      # `Failed` was added 2026-07-30 (architecture review D1). Four pods sat
+      # Failed for up to nine days while every rule correctly declined to fire:
+      # crash-looping keys on a restart counter that stays static once a pod is
+      # stopped, and ReplicasMismatch saw no shortfall because each Deployment
+      # had a healthy replica elsewhere — the Failed pods were surplus. Nothing
+      # queried phase="Failed" at all.
       - alert: KubePodNotReady
         expr: |
           sum by (namespace, pod, instance) (
-            kube_pod_status_phase{job="kube-state-metrics", phase=~"Pending|Unknown"}
+            kube_pod_status_phase{job="kube-state-metrics", phase=~"Pending|Unknown|Failed"}
           ) > 0
         for: 30m
         labels:
           severity: warning
         annotations:
           summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is not running"
-          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in Pending or Unknown state for more than 30 minutes."
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in Pending, Unknown or Failed state for more than 30 minutes."
+
+      # Kubelet node-pressure evictions. Eighteen pods — including traefik x2,
+      # authelia's redis, jellyfin and four *arr apps — were evicted during the
+      # 2026-07-21/22 rebuild and nothing alerted; they were only found by
+      # querying kube_pod_status_reason directly during the architecture review.
+      #
+      # Alerts on the *delta* rather than the raw count, because evicted pod
+      # objects persist until garbage-collected: a `> 0` rule would latch on
+      # forever after a single event, which is the failure mode
+      # KubePodCrashLooping was already retuned to escape. `or vector(0)` on
+      # both sides so the rule still fires when the series is absent an hour ago
+      # (i.e. the first eviction after a clean-up).
+      - alert: KubePodEvicted
+        expr: |
+          (count(kube_pod_status_reason{job="kube-state-metrics", reason="TerminationByKubelet"} == 1) or vector(0))
+            - (count(kube_pod_status_reason{job="kube-state-metrics", reason="TerminationByKubelet"} offset 1h == 1) or vector(0))
+            > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kubelet is evicting pods under node pressure"
+          description: "{{ $value | printf \"%.0f\" }} more pod(s) have been evicted by kubelet in the last hour. Check node memory/disk pressure — evictions target BestEffort pods first, which on this cluster means traefik, authelia and the storage provisioners."
+
+      # The leading indicator for the above. Silent today (no node reports
+      # pressure), so it costs nothing until it matters.
+      - alert: KubeNodeUnderPressure
+        expr: |
+          kube_node_status_condition{job="kube-state-metrics", condition=~"MemoryPressure|DiskPressure|PIDPressure", status="true"} == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node {{ $labels.node }} reports {{ $labels.condition }}"
+          description: "Node {{ $labels.node }} has reported {{ $labels.condition }} for more than 10 minutes. Kubelet will start evicting pods if this persists."
 
       # 30m tolerates slow rollouts (large image pulls) while catching
       # deployments that quietly lose all replicas.
@@ -339,6 +381,17 @@ groups:
         annotations:
           summary: "kube-state-metrics is down"
           description: "kube-state-metrics has failed most scrapes over the last 30 minutes. Pod crash-loop alerting is blind until it recovers."
+
+      # No separate KSM replica-availability rule is needed, contrary to
+      # architecture review finding D2. That finding assumed two KSM replicas
+      # behind the shared MetalLB IP, one of which could sit Failed while the
+      # other answered every scrape. Verified 2026-07-30: spec_replicas is 1,
+      # available is 1. At a single replica there is no half-dead state — if it
+      # dies, `up` goes to 0 and KubeStateMetricsDown fires correctly. The
+      # Failed KSM pod that prompted D2 was an evicted orphan from an earlier
+      # rollout, not a second replica, and is covered by KubePodNotReady above.
+      # Should KSM ever be scaled up, KubeDeploymentReplicasMismatch already
+      # covers replica shortfall for every deployment, KSM included.
 
   - name: endpoints
     rules:
