@@ -17,6 +17,20 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
+    # Prefer alpha (nest.arishaig.site/workloads=general): its postgres
+    # backend already prefers alpha (A3 in architecture-review.md — app and
+    # database landing on different nodes was the inconsistency). Soft so it
+    # can still reschedule if alpha is unavailable.
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
     controllers:
       mealie:
         strategy: Recreate
