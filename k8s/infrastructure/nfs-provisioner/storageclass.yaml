@@ -2,6 +2,13 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nfs-nvme
+  annotations:
+    # The default as of 2026-07-30 (architecture review F4): 23 of 25 PVCs
+    # request this class explicitly, so aligning the default with the
+    # overwhelmingly common case makes the unusual choice (local-path) the one
+    # that has to be spelled out. Existing PVCs are unaffected — storageClassName
+    # is immutable once bound, so this only changes where future PVCs land.
+    storageclass.kubernetes.io/is-default-class: "true"
 provisioner: k8s-sigs.io/nfs-nvme
 parameters:
   # subdirectory format: ${namespace}-${pvcName}-${pvName}
