@@ -127,6 +127,13 @@
     # straight onto PVE in the same run, so the secret exists only on those two
     # machines. It is a regenerable credential, not data: if PVE ever loses the
     # file, the next run deletes the token and mints a new one.
+    # Both sides are checked unconditionally, then reconciled together. An
+    # earlier version keyed everything off "does the env file exist on PVE",
+    # which had two silent-failure modes: if the token were deleted on PBS the
+    # file would still exist, so nothing regenerated and the nightly backup
+    # failed with an auth error forever; and if the first backup run failed,
+    # the file had already been written, so the retry was skipped too. Both end
+    # in a configured-but-never-working backup.
     - name: Check whether PVE already holds host-backup credentials
       ansible.builtin.stat:
         path: "{{ pbs_hostbackup_env }}"
@@ -137,13 +144,21 @@
       ansible.builtin.command: proxmox-backup-manager user list-tokens root@pam --output-format json
       register: pbs_token_list
       changed_when: false
-      when: not pve_hostbackup_creds.stat.exists
+
+    - name: Decide whether credentials need reissuing
+      # Reissue if either side is missing. The token secret is retrievable only
+      # at creation, so a token that exists without a matching file on PVE is
+      # unusable and must be replaced rather than reused.
+      ansible.builtin.set_fact:
+        pbs_reissue_token: >-
+          {{ (not pve_hostbackup_creds.stat.exists)
+             or (pbs_hostbackup_token_id not in (pbs_token_list.stdout | from_json | map(attribute='tokenid') | list)) }}
 
     - name: Remove the stale host-backup token
       ansible.builtin.command: >
         proxmox-backup-manager user delete-token root@pam {{ pbs_hostbackup_token_name }}
       when:
-        - not pve_hostbackup_creds.stat.exists
+        - pbs_reissue_token | bool
         - pbs_hostbackup_token_id in (pbs_token_list.stdout | from_json | map(attribute='tokenid') | list)
       changed_when: true
 
@@ -152,17 +167,17 @@
         proxmox-backup-manager user generate-token root@pam {{ pbs_hostbackup_token_name }}
         --output-format json
       register: pbs_new_token
-      when: not pve_hostbackup_creds.stat.exists
+      when: pbs_reissue_token | bool
       changed_when: true
       no_log: true
 
     - name: Grant the token backup rights on the primary datastore
       # Tokens are privilege-separated from their user by default, so root@pam
-      # owning the token grants it nothing on its own.
+      # owning the token grants it nothing on its own. Applied on every run, not
+      # only at reissue: the ACL can be lost independently of the token.
       ansible.builtin.command: >
         proxmox-backup-manager acl update /datastore/{{ pbs_primary_datastore }}
         DatastoreBackup --auth-id "{{ pbs_hostbackup_token_id }}"
-      when: not pve_hostbackup_creds.stat.exists
       changed_when: true
 
     - name: Read the PBS certificate fingerprint
@@ -199,7 +214,7 @@
         dest: "{{ pbs_hostbackup_env }}"
         mode: "0600"
       delegate_to: pve
-      when: not pve_hostbackup_creds.stat.exists
+      when: pbs_reissue_token | bool
       no_log: true
 
     - name: Install the k8s-configs backup service on PVE
@@ -249,14 +264,26 @@
         daemon_reload: true
       delegate_to: pve
 
+    # Keyed off whether a snapshot actually exists, not off whether we just
+    # wrote the credentials. If the first run fails — bad token, ACL missing,
+    # PBS unreachable — the credential file is already on disk, so a guard
+    # based on that would skip the retry forever and leave a backup that has
+    # never once succeeded. That state is invisible to PBSBackupStale, whose
+    # expression is `time() - <metric>`: with no snapshot there is no series,
+    # and the alert cannot fire on an absent one.
+    - name: Check whether a k8s-configs snapshot exists yet
+      ansible.builtin.stat:
+        path: "/mnt/backup/host/k8s-configs"
+      register: pbs_hostbackup_group
+
     - name: Take the first k8s-configs backup now
-      # Without this the first snapshot waits until 03:00, and PBSBackupStale
-      # would have nothing to measure until then.
+      # Fails the play loudly if it does not work — a silent failure here is the
+      # difference between "backed up" and "believes it is backed up".
       ansible.builtin.systemd:
         name: pbs-k8s-configs-backup.service
         state: started
       delegate_to: pve
-      when: not pve_hostbackup_creds.stat.exists
+      when: not pbs_hostbackup_group.stat.exists
 
 - name: PBS backup-freshness monitoring
   hosts: pbs
