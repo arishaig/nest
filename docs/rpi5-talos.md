@@ -24,12 +24,18 @@ issues below matter.
 
 | Node | Hostname | IP | Replaces | Patch |
 |---|---|---|---|---|
-| Pi 1 | `talos-beta-rpi5` | 192.168.1.112 | talos-beta-vm (VM 113, .111) | `talos/patches/controlplane-beta-rpi5.yaml` |
-| Pi 2 | `talos-gamma-rpi5` | 192.168.1.118 | talos-delta-vm (VM 115, .114) | `talos/patches/controlplane-gamma-rpi5.yaml` |
+| Pi 1 | `talos-beta-rpi5` | 192.168.1.112 | talos-beta-vm (VM 113, .111) | `talos/patches/worker-beta-rpi5.yaml` |
+| Pi 2 | `talos-gamma-rpi5` | 192.168.1.118 | talos-delta-vm (VM 115, .114) | `talos/patches/worker-gamma-rpi5.yaml` |
 
-Both are control-plane only (`allowSchedulingOnControlPlanes: false`);
-workloads stay on alpha. **Reserve .112 and .118 in UniFi** before joining so
-DHCP never hands them out (the nodes configure them statically).
+Both are **workers**. They were originally planned as control-plane nodes, but
+the 2026-07-22 consolidation moved the entire control plane onto the dedicated
+`talos-alpha-control` VM, leaving `talos-alpha-control` as the sole etcd member.
+The `controlplane-*-rpi5.yaml` patches were deleted on 2026-07-30; see
+[architecture-review.md](architecture-review.md) finding F1 for why keeping
+both sets was actively harmful rather than merely untidy.
+
+**Reserve .112 and .118 in UniFi** before joining so DHCP never hands them out
+(the nodes configure them statically).
 
 ## Image
 

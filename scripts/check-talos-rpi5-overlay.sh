@@ -39,8 +39,24 @@ fi
 echo "[ok] Image Factory serves rpi_5 overlay for ${TALOS_VERSION}"
 
 # ── 2. Pi machine-config installer tags match talos_version ─────────────────
+# Matches worker-*: the Pis became workers in the 2026-07-22 control-plane
+# consolidation. This glob previously read controlplane-*-rpi5.yaml and kept
+# passing against files no node used, while the live worker patches silently
+# drifted to v1.13.6 against a pinned v1.13.7. The empty-glob guard below makes
+# a future rename fail loudly instead of repeating that.
+# Keep in lockstep with the managerFilePatterns in renovate.json.
+shopt -s nullglob
+patches=("${REPO_ROOT}"/talos/patches/worker-*-rpi5.yaml)
+shopt -u nullglob
+
+if [[ ${#patches[@]} -eq 0 ]]; then
+  echo "FAIL: no talos/patches/worker-*-rpi5.yaml found — the RPi5 installer-tag" >&2
+  echo "      check is validating nothing. Did the patches get renamed?" >&2
+  exit 1
+fi
+
 rc=0
-for patch in "${REPO_ROOT}"/talos/patches/controlplane-*-rpi5.yaml; do
+for patch in "${patches[@]}"; do
   tag=$(grep -oP 'factory\.talos\.dev/installer/[a-f0-9]+:\K\S+' "${patch}")
   if [[ "${tag}" == "${TALOS_VERSION}" ]]; then
     echo "[ok] ${patch#"${REPO_ROOT}"/}: installer tag ${tag}"
