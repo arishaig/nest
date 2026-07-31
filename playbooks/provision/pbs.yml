@@ -163,38 +163,21 @@
       changed_when: true
 
     - name: Generate the host-backup token
+      # `user generate-token` does NOT accept --output-format (2026-07-31
+      # deploy-pbs failure: "schema does not allow additional properties") —
+      # unlike every other command in this file, it has no such parameter in
+      # its schema, so the only way to get parseable output is to call the
+      # underlying API endpoint directly. `api create` on the same path DOES
+      # accept --output-format json, and returns the same {"value": ...}
+      # shape the credentials-install task below already expects.
       ansible.builtin.command: >
-        proxmox-backup-manager user generate-token root@pam {{ pbs_hostbackup_token_name }}
+        proxmox-backup-debug api create
+        /access/users/root@pam/token/{{ pbs_hostbackup_token_name }}
         --output-format json
       register: pbs_new_token
       when: pbs_reissue_token | bool
       changed_when: true
       no_log: true
-      ignore_errors: true
-
-    # TEMPORARY DIAGNOSTIC — remove once the 2026-07-31 deploy-pbs failure is
-    # root-caused. no_log on the task above hides its result from the log, but
-    # NOT from later tasks referencing the same registered variable — this is
-    # a deliberate, safe way to surface the real error without ever running
-    # the mutating command by hand over SSH. Only reached on failure, before
-    # any token secret exists on success, so nothing sensitive is at risk of
-    # printing here.
-    - name: DIAGNOSTIC — show the real generate-token error
-      ansible.builtin.debug:
-        msg:
-          rc: "{{ pbs_new_token.rc }}"
-          stdout: "{{ pbs_new_token.stdout }}"
-          stderr: "{{ pbs_new_token.stderr }}"
-      when:
-        - pbs_reissue_token | bool
-        - pbs_new_token is failed
-
-    - name: DIAGNOSTIC — stop the play if the real task failed
-      ansible.builtin.fail:
-        msg: "Generate the host-backup token failed — see the debug output above."
-      when:
-        - pbs_reissue_token | bool
-        - pbs_new_token is failed
 
     - name: Grant the token backup rights on the primary datastore
       # Tokens are privilege-separated from their user by default, so root@pam
