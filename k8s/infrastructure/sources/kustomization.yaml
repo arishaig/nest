@@ -2,10 +2,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   # Helm chart sources. Lives under infrastructure (conceptually a cluster
-  # primitive). App HelmReleases resolve against it by eventual consistency —
-  # they retry until the source exists. A hard apps->infrastructure dependsOn
-  # is deferred to the infra-charts phase, where ordering is load-bearing, to
-  # keep this pilot's blast radius to a single app.
+  # primitive). The apps Kustomization now carries a dependsOn on
+  # infrastructure (k8s/flux-system/apps.yaml, F3 in architecture-review.md),
+  # so these sources are guaranteed to exist before any app HelmRelease
+  # reconciles.
   - app-template.yaml
   - prometheus-community.yaml
   - actions-runner-controller.yaml
