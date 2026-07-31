@@ -217,3 +217,90 @@ jobs:
           cd terraform
           tofu init -backend=false -input=false
           tofu validate
+
+  # G1: infrastructure changes were previously first *executed* by deploy-tofu
+  # on merge, against unlocked state, with no human seeing the diff first —
+  # `validate` above only checks syntax, not what a change actually does (see
+  # the duplicated-AdGuard-rewrites/orphaned-VM incident recorded in
+  # deploy.yml). This posts a real plan on the PR itself.
+  #
+  # Needs the self-hosted runner (state file + AdGuard tunnel), unlike the
+  # arc-lint jobs above, so it's a separate job gated on terraform/** to avoid
+  # putting every PR through Proxmox/Vultr/AdGuard API reachability. It only
+  # reads state (copies in, never writes back — deploy-tofu on main is the
+  # only writer) but state is unlocked (C3), so this plan can still race a
+  # concurrent apply; treat it as informational, not a required check.
+  tofu-plan:
+    runs-on: self-hosted
+    env:
+      TF_PLUGIN_CACHE_DIR: /opt/terraform-plugin-cache
+      TF_STATE_DIR: /opt/terraform-state/nest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        id: filter
+        with:
+          filters: |
+            tofu:
+              - 'terraform/**'
+
+      - name: Write SSH key
+        if: steps.filter.outputs.tofu == 'true'
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.ssh"
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
+          chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
+
+      - name: Write secrets.tfvars
+        if: steps.filter.outputs.tofu == 'true'
+        env:
+          TF_SECRETS: ${{ secrets.TF_SECRETS_TFVARS }}
+        run: |
+          printf '%s' "$TF_SECRETS" > terraform/secrets.tfvars
+          chmod 600 terraform/secrets.tfvars
+
+      - name: Restore OpenTofu state
+        if: steps.filter.outputs.tofu == 'true'
+        run: |
+          if [ ! -f "$TF_STATE_DIR/terraform.tfstate" ]; then
+            echo "::error::No OpenTofu state at $TF_STATE_DIR — refusing a stateless plan."
+            exit 1
+          fi
+          cp "$TF_STATE_DIR/terraform.tfstate" terraform/terraform.tfstate
+
+      - name: Open VPS AdGuard tunnel
+        if: steps.filter.outputs.tofu == 'true'
+        run: |
+          ssh -f -N -L 13000:localhost:3000 \
+            -i "$RUNNER_TEMP/.ssh/ansible-on-nest" \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=10 \
+            -o ServerAliveCountMax=3 \
+            -o ExitOnForwardFailure=yes \
+            root@66.42.79.175
+          for _ in $(seq 1 10); do nc -z 127.0.0.1 13000 2>/dev/null && break; sleep 1; done
+
+      - name: OpenTofu init
+        if: steps.filter.outputs.tofu == 'true'
+        run: tofu -chdir=terraform init -input=false
+
+      - name: OpenTofu plan
+        if: steps.filter.outputs.tofu == 'true'
+        run: |
+          set -o pipefail
+          tofu -chdir=terraform plan -var-file=secrets.tfvars -input=false -no-color \
+            2>&1 | tee "$RUNNER_TEMP/tofu-plan.log"
+
+      - name: Post plan to job summary
+        if: always() && steps.filter.outputs.tofu == 'true'
+        run: |
+          {
+            echo '### OpenTofu plan'
+            echo '```'
+            cat "$RUNNER_TEMP/tofu-plan.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Close AdGuard tunnel
+        if: always() && steps.filter.outputs.tofu == 'true'
+        run: pkill -f "ssh -f -N -L 13000" 2>/dev/null || true
