@@ -2,7 +2,14 @@
 
 Runbook for replacing the temporary x86 control-plane test VMs (beta VM 113,
 delta VM 115) with two Raspberry Pi 5 (8GB) nodes booting Talos from the SD
-card, with NVMe used as a data disk.
+card.
+
+> **Current state (verified 2026-07-30):** neither Pi has an NVMe drive fitted.
+> `talosctl get disks` on .112 and .118 shows only `mmcblk0` (31 GB SD) and the
+> squashfs loop devices. The NVMe material below is retained as **rationale**,
+> not as a description of the running hardware — it records why NVMe boot was
+> abandoned and why `PCIE_PROBE=0` is still required even with no drive
+> installed. Ignore the "insert the NVMe drive" steps unless one is being added.
 
 **NVMe boot does not work on Pi5 as of 2026-07-17.** u-boot's NVMe driver
 hangs silently at the boot logo — confirmed on both an Intel Optane H10 and a
@@ -24,30 +31,51 @@ issues below matter.
 
 | Node | Hostname | IP | Replaces | Patch |
 |---|---|---|---|---|
-| Pi 1 | `talos-beta-rpi5` | 192.168.1.112 | talos-beta-vm (VM 113, .111) | `talos/patches/controlplane-beta-rpi5.yaml` |
-| Pi 2 | `talos-gamma-rpi5` | 192.168.1.118 | talos-delta-vm (VM 115, .114) | `talos/patches/controlplane-gamma-rpi5.yaml` |
+| Pi 1 | `talos-beta-rpi5` | 192.168.1.112 | talos-beta-vm (VM 113, .111) | `talos/patches/worker-beta-rpi5.yaml` |
+| Pi 2 | `talos-gamma-rpi5` | 192.168.1.118 | talos-delta-vm (VM 115, .114) | `talos/patches/worker-gamma-rpi5.yaml` |
 
-Both are control-plane only (`allowSchedulingOnControlPlanes: false`);
-workloads stay on alpha. **Reserve .112 and .118 in UniFi** before joining so
-DHCP never hands them out (the nodes configure them statically).
+Both are **workers**. They were originally planned as control-plane nodes, but
+the 2026-07-22 consolidation moved the entire control plane onto the dedicated
+`talos-alpha-control` VM, leaving `talos-alpha-control` as the sole etcd member.
+The `controlplane-*-rpi5.yaml` patches were deleted on 2026-07-30; see
+[architecture-review.md](architecture-review.md) finding F1 for why keeping
+both sets was actively harmful rather than merely untidy.
+
+**Reserve .112 and .118 in UniFi** before joining so DHCP never hands them out
+(the nodes configure them statically).
 
 ## Image
 
-Image Factory schematic with the `rpi_5` overlay (no extensions — the
-qemu-guest-agent extension is for the x86 VMs only):
+Image Factory schematic with the `rpi_5` overlay plus the `nfs-utils` system
+extension, which the Pis need in order to mount NFS PVCs. (The StorageClass is
+called `nfs-nvme` after the NVMe pool on the *PVE host* that backs the export —
+it implies nothing about local disks on the Pis. The qemu-guest-agent extension
+is for the x86 VMs only.)
 
 ```text
-a636242df247ad4aad2e36d1026d8d4727b716a3061749bd7b19651e548f65e4
+b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f
 ```
 
 ```yaml
 overlay:
   image: siderolabs/sbc-raspberrypi
   name: rpi_5
+customization:
+  systemExtensions:
+    officialExtensions:
+      - siderolabs/nfs-utils
 ```
 
-Disk image (flash this): `https://factory.talos.dev/image/a636242df247ad4aad2e36d1026d8d4727b716a3061749bd7b19651e548f65e4/<talos_version>/metal-arm64.raw.xz`
-Installer (upgrades, pinned in the patches): `factory.talos.dev/installer/a636242df247ad4aad2e36d1026d8d4727b716a3061749bd7b19651e548f65e4:<talos_version>`
+> **Corrected 2026-07-30.** This page previously gave
+> `a636242df247ad4aad2e36d1026d8d4727b716a3061749bd7b19651e548f65e4`, which is
+> the bare `rpi_5` schematic with **no extensions**. That was the schematic used
+> for the original SD flash, but the machine-config patches pin the
+> `nfs-utils` one above. Following the old upgrade command would have silently
+> stripped `nfs-utils` from a Pi and broken every NFS PVC mount on that node.
+> Always cross-check against the `image:` line in `talos/patches/worker-*-rpi5.yaml`.
+
+Disk image (flash this): `https://factory.talos.dev/image/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f/<talos_version>/metal-arm64.raw.xz`
+Installer (upgrades, pinned in the patches): `factory.talos.dev/installer/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f:<talos_version>`
 
 Use the version pinned as `talos_version` in `terraform/terraform.tfvars` so
 the whole cluster stays on one release.
@@ -69,7 +97,10 @@ the whole cluster stays on one release.
    separate, mainlined driver path unrelated to the bootloader's probe.
    Verify with `sudo rpi-eeprom-config` (no `--edit`) before moving on — don't
    assume a prior prep pass actually stuck.
-4. Shut down, insert the NVMe drive (used later as a data disk only).
+4. Shut down. (Historically this is where an NVMe drive was fitted as a data
+   disk. Neither Pi has one today — skip unless you are adding one. Keep
+   `PCIE_PROBE=0` regardless: the boot hang above occurred with *and* without a
+   drive present.)
 
 ## Flash and join (per Pi, one at a time)
 
@@ -78,16 +109,16 @@ the whole cluster stays on one release.
 
    ```bash
    VER=$(grep -oP 'talos_version\s*=\s*"\K[^"]+' terraform/terraform.tfvars)
-   curl -LO "https://factory.talos.dev/image/a636242df247ad4aad2e36d1026d8d4727b716a3061749bd7b19651e548f65e4/${VER}/metal-arm64.raw.xz"
+   curl -LO "https://factory.talos.dev/image/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f/${VER}/metal-arm64.raw.xz"
    xz -d metal-arm64.raw.xz
    sudo dd if=metal-arm64.raw of=/dev/sdX conv=fsync bs=4M status=progress
    ```
 
-2. Insert the SD card (with the NVMe also installed), connect ethernet, power
-   on. It boots into Talos maintenance mode on a DHCP address — find it in
-   UniFi. Before joining, you can confirm the NVMe is visible as a data disk
-   with `talosctl -n <dhcp-ip> -e <dhcp-ip> get disks --insecure`.
-3. Join (same rehearsed flow as the gamma swap). The `controlplane-*-rpi5.yaml`
+2. Insert the SD card, connect ethernet, power on. It boots into Talos
+   maintenance mode on a DHCP address — find it in UniFi. Confirm what the node
+   sees with `talosctl -n <dhcp-ip> -e <dhcp-ip> get disks --insecure`; expect
+   `mmcblk0` only, plus an `nvme0n1` if a drive has been fitted.
+3. Join (same rehearsed flow as the gamma swap). The `worker-*-rpi5.yaml`
    patches install to `/dev/mmcblk0` (SD), not `/dev/nvme0n1` — installing to
    NVMe would hit the same u-boot boot hang described above.
 
@@ -95,9 +126,16 @@ the whole cluster stays on one release.
    ./scripts/join-talos-node.sh beta-rpi5 <dhcp-ip>    # or gamma-rpi5
    ```
 
-4. Verify before touching the next node: `talosctl --nodes 192.168.1.115 etcd members`
-   and `kubectl get nodes -o wide` (expect `arm64`, Ready). Confirm the
-   `rpi5-net-tuning` DaemonSet (kube-system) has a pod on the new node.
+4. Verify before touching the next node: `kubectl get nodes -o wide` (expect
+   `arm64`, Ready). Confirm the `rpi5-net-tuning` DaemonSet (kube-system) has a
+   pod on the new node.
+
+   <details>
+   <summary><b>Historical: etcd learner promotion</b> — applies only to
+   control-plane joins, which the Pis no longer do</summary>
+
+   Retained because it would apply again if option 2 of architecture review
+   finding A1 (restore etcd quorum) is ever chosen.
 
    **If the new member stays `LEARNER: true` indefinitely** even after its
    raft index matches the leader's (`talosctl -n <leader-ip>,<node-ip> etcd
@@ -118,7 +156,12 @@ the whole cluster stays on one release.
      member promote <learner-member-id>
    ```
 
-## Retire the VMs (after both Pis are healthy)
+   </details>
+
+## Retire the VMs (after both Pis are healthy) — ✅ done
+
+> Completed. VMs 113/115 are gone and both Pis run as workers. Kept for the
+> record; the etcd juggling below is not something to re-run as written.
 
 Alternate joins and removals so etcd member count stays sane
 (3 → 4 → 3 → 4 → 3), exactly like the gamma rehearsal:
@@ -141,10 +184,19 @@ After merge, upgrade one node at a time, Pis with the rpi_5 installer:
 
 ```bash
 talosctl upgrade --nodes 192.168.1.112 \
-  --image factory.talos.dev/installer/a636242df247ad4aad2e36d1026d8d4727b716a3061749bd7b19651e548f65e4:<new-version>
+  --image factory.talos.dev/installer/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f:<new-version>
 ```
 
 (alpha keeps using the x86 schematic from `terraform.tfvars`.)
+
+> **This step is manual and is currently behind.** CI's Talos upgrade loop in
+> `deploy.yml` is hardcoded to `192.168.1.110`, so it upgrades the amd64 worker
+> and nothing else (architecture review finding **G2**). As of 2026-07-30 both
+> Pis *and* `talos-alpha-control` run v1.13.6 against a pinned v1.13.7.
+>
+> Do **not** fix that by adding the Pi IPs to the loop: it builds one image from
+> `talos_schematic_id` (`ed304c51…`, amd64), which would push an x86 installer
+> onto both Pis. Any fix needs a per-node schematic map.
 
 ## Known issues / watch list
 
