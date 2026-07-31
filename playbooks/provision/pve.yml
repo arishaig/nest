@@ -82,6 +82,32 @@
         mode: "0644"
       notify: Reload exports
 
+    # cold-storage and cold-backup are plain directories on rpool/ROOT/pve-1
+    # (confirmed via findmnt — neither is a separate mount or pool), so the
+    # names read as offsite/offline capacity during exactly the incident
+    # where someone would reach for it (architecture-review.md B3). Renaming
+    # is a pvesm remove+add of the storage definition; the underlying path
+    # and its contents are untouched, so nothing is migrated or lost.
+    - name: Rename cold-storage to local-archive-1
+      ansible.builtin.shell: |
+        if pvesm status --storage cold-storage >/dev/null 2>&1; then
+          pvesm remove cold-storage
+          pvesm add dir local-archive-1 --path /mnt/cold-storage --content backup --shared 0 --prune-backups keep-all=1
+          echo changed
+        fi
+      register: rename_cold_storage
+      changed_when: "'changed' in rename_cold_storage.stdout"
+
+    - name: Rename cold-backup to local-archive-2
+      ansible.builtin.shell: |
+        if pvesm status --storage cold-backup >/dev/null 2>&1; then
+          pvesm remove cold-backup
+          pvesm add dir local-archive-2 --path /mnt/cold-backup --content backup --shared 0 --prune-backups keep-all=1
+          echo changed
+        fi
+      register: rename_cold_backup
+      changed_when: "'changed' in rename_cold_backup.stdout"
+
   handlers:
     - name: Update initramfs
       ansible.builtin.command: update-initramfs -u -k all
