@@ -15,7 +15,7 @@ lidarr-ui = "lidarr_ui.main:serve"
 
 [project.optional-dependencies]
 test = [
-    "pytest==8.4.2",
+    "pytest==9.1.1",
 ]
 
 [build-system]
