@@ -31,6 +31,12 @@ spec:
           volumeMounts:
             - name: nfs-root
               mountPath: /persistentvolumes
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
       volumes:
         - name: nfs-root
           nfs:

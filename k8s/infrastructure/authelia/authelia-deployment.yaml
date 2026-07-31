@@ -37,6 +37,12 @@ spec:
               mountPath: /etc/authelia/users_database.yml
               subPath: users_database.yml
               readOnly: true
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
           # timeoutSeconds defaults to 1s — during the 2026-06-11 node memory
           # pressure that meant a kill every few minutes, taking auth (and
           # every forward-auth ingress route) down with it. A slow Authelia
