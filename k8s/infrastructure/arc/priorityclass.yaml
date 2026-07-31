@@ -1,0 +1,16 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: ci-runner-low
+value: -1
+globalDefault: false
+preemptionPolicy: Never
+description: >-
+  Ephemeral GitHub Actions runner pods (arc-lint). Value -1 is lower than
+  every pod that doesn't specify a class (default 0), so contention for
+  scheduler slots resolves in favor of real workloads over a lint job.
+  preemptionPolicy: Never means these pods never evict anything to make room
+  for themselves — under pressure they wait or fail to schedule, which is the
+  correct behavior for disposable, retryable CI work. Added after the
+  2026-07-31 incident where a burst of runner pods contributed to
+  talos-alpha-control losing scheduler/controller-manager health checks.
