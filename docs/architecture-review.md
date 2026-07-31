@@ -85,7 +85,55 @@ accounts for most of the Medium findings.
 - `PBSBackupStale` cannot detect a backup that has *never* run, since
   `time() - <absent series>` yields nothing.
 
-### Findings by severity
+### Remediation status — 2026-07-31 follow-up
+
+> Every finding below is now closed, retracted, deferred with a stated
+> reason, or accepted as a documented decision. As with the block above,
+> nothing here edits the findings themselves.
+
+**Fixed:**
+
+| # | PR | What changed |
+|---|---|---|
+| G1 | #403 | `tofu plan` posted on every terraform-touching PR |
+| G4 | #404 | Runner toolchain version sync enforced in CI |
+| G2 | #405 | Talos upgrade loop now covers all four nodes, control plane last |
+| F2 | #406 | The seven BestEffort cluster primitives got requests/limits |
+| C4 | #407 | LXC 109 (`nest-mcp`) torn down; k8s HelmRelease is sole deployment |
+| E1 | #409 | 15 NodePort services (media namespace) converted to ClusterIP |
+| E3 | #409 | `omni-media-server` torn down per decision, not authenticated |
+| F3 | #410 | `apps` Kustomization now `dependsOn: [infrastructure]` |
+| F6 | #411 | Stale `docker.arishaig.site` DNS rewrite removed (last of 4 layers) |
+| B3 | #412 | `cold-backup`/`cold-storage` renamed to `local-archive-1`/`-2` |
+| G3 | #413 | Smoke test + CI workflow added for `lidarr-ui` |
+| A3 | #414 | prowlarr/mealie/postgres-exporter aligned with sibling placement; rest documented as deliberately unconstrained |
+| C1 | #415 | `deploy-tofu` now reconciles alpha's WireGuard patch from vault automatically when `wg0` is missing |
+| B4 | #417 | Restore actually measured: 68s data + 7s boot for a single LXC (see [`disaster-recovery.md`](disaster-recovery.md)) |
+
+**Already closed by the 2026-07-30 pass, not previously listed above:**
+
+| # | Where |
+|---|---|
+| A1 | [`disaster-recovery.md`](disaster-recovery.md) — PVE accepted as single failure domain |
+| B1 | `playbooks/provision/pbs.yml` — host dataset backup added |
+| B2 | `playbooks/provision/pbs.yml` — `tank-archive` datastore + sync/prune/verify jobs |
+| C5 | [`disaster-recovery.md`](disaster-recovery.md) — full cold-bootstrap order |
+| D1 | `Failed` added to `KubePodNotReady`'s phase regex |
+| D3 | [`disaster-recovery.md`](disaster-recovery.md) — LXC 105 placement recorded as a deliberate, bounded tradeoff |
+| E2 | #401 — alert on `probe_ssl_earliest_cert_expiry` for the wildcard cert |
+| F1 | Dead `controlplane-*-rpi5.yaml` patches deleted; `rpi5-talos.md` updated |
+| F4 | `nfs-nvme` made the default StorageClass |
+
+**Accepted / deferred, with reason:**
+
+| # | Disposition | Reason |
+|---|---|---|
+| A2 | Accepted, folds into A3 | The overpacking mechanism is real (41.6% requested vs ~90% actual on alpha) but has no separate fix beyond the placement work A3 already covers — see the 2026-07-30 correction above. |
+| C2 | Accepted as documented | User decision: the Ansible-push flow stays; `disaster-recovery.md` step 6 makes the ordering explicit. SOPS migration (age key management, re-encrypting every secret, updating every HelmRelease) is real work, out of scope for this pass. |
+| C3 | Partially mitigated, rest deferred | `deploy.yml`'s existing `concurrency: group: deploy-${{ github.ref }}` already serializes CI-to-CI applies — the actual historical incident (duplicated AdGuard rewrites, orphaned VM) was a same-workflow race, already closed. `lint.yml`'s `tofu-plan` only ever reads state, never writes it back, so a plan/apply overlap can't corrupt it either. The one remaining gap — a workstation apply racing a CI apply — needs a real locking backend; migrating state storage safely (verify a zero-diff plan post-migration) is a dedicated task, not a same-night fix. |
+| F5 | Deferred to Helm migration phase 4 | cert-manager and MetalLB both have official charts; this is already the plan of record in the Helm migration doc, not a new decision. |
+
+**Retracted (see 2026-07-30 block above for D2, D4):** none new this pass.
 
 | # | Finding | Spine | Severity |
 |---|---|---|---|
