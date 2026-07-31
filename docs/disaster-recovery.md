@@ -210,14 +210,26 @@ ansible-playbook -i inventory/hosts.yml playbooks/site.yml
 **Stated RTO: one working day** to a functioning lab, media library intact,
 app state restored to within 24 hours.
 
-This is an **estimate, not a measurement**, and it should not stay that way.
-Nothing has ever verified that a PBS backup is restorable — the freshness
+Nothing had ever verified that a PBS backup is restorable — the freshness
 exporter checks only that snapshots are *recent* (finding B4). The weekly
-`tank-archive` verify job now re-reads and checksums chunks, which is the cheap
+`tank-archive` verify job re-reads and checksums chunks, which is the cheap
 half of the problem, but a verify is not a restore.
 
-**Outstanding: restore one LXC to a scratch VMID and time it.** That number is
-the lab's real RTO, and it replaces the estimate above.
+**Measured (2026-07-31): a single-LXC restore is fast.** Restored
+`fileserver`'s (LXC 102, ~1 GB config, 1 GB RAM) most recent PBS snapshot to
+a scratch VMID via `pct restore` — **68 seconds** for `pct restore` itself,
+**7 seconds** to confirm it boots. This is a per-guest data-recovery number,
+not the whole-lab RTO: it says nothing about `rpool/data/k8s-configs`
+(32 GB, restored via the same mechanism but larger) or about the full cold
+bootstrap sequence in this doc, which the one-working-day estimate above
+still covers.
+
+> **Caution for next time:** the restored container carries the same
+> static IP and MAC as the live one. Booting it to confirm startup while
+> the original is still running puts two guests on the same IP/MAC on the
+> LAN — briefly true during this test (under 10s) with no observed
+> effect on the live container, but stop the original first, or leave the
+> restored copy off network, next time this is repeated.
 
 ---
 
