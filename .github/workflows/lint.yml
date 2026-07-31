@@ -103,6 +103,13 @@ jobs:
       - name: Check deploy filter covers all services
         run: scripts/check-deploy-coverage.sh
 
+  runner-toolchain-sync:
+    runs-on: arc-lint
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Check ci/runner/Dockerfile and runner.yml pin the same versions
+        run: scripts/check-runner-toolchain-sync.sh
+
   talos-rpi5-overlay:
     runs-on: arc-lint
     steps:
