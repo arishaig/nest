@@ -1,6 +1,6 @@
 ---
 - name: Apply apt updates
-  hosts: all:!proxmox:!pbs
+  hosts: all:!proxmox:!pbs:!decommissioned
   become: true
   serial: 1
   tasks:
