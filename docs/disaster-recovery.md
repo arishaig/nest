@@ -76,14 +76,16 @@ size for content that can be re-downloaded. The \*arr databases that know *what*
 was acquired live in `k8s-configs` and **are** protected, which is the part that
 would actually be painful to reconstruct.
 
-### The "cold" storage names are misleading
+### The "cold" storage names were misleading — renamed
 
-`local`, `local-zfs`, `cold-backup` and `cold-storage` all report identical free
-space because **all four are directories on rpool** (finding B3). Neither "cold"
-store is cold, offline, or separate. They currently hold 7 GB each.
+`local`, `local-zfs`, and the former `cold-backup` / `cold-storage` all report
+identical free space because **all four are directories on rpool** (finding
+B3) — confirmed via `findmnt`, neither was a separate mount or pool. Renamed
+to `local-archive-2` and `local-archive-1` respectively (same underlying
+path and contents, just an honest storage ID) via `playbooks/provision/pve.yml`.
 
-> **Do not reach for `cold-backup` during an incident expecting off-host data.**
-> Renaming them to something honest (`local-archive`) is outstanding work.
+> **`local-archive-1`/`local-archive-2` are not off-host.** They are on the
+> same `rpool` as everything else on PVE and do not survive host loss.
 
 ---
 
