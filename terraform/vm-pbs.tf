@@ -43,6 +43,19 @@ resource "proxmox_virtual_environment_vm" "backup" {
   #   qm set 500 --scsi1 Tank:1000,iothread=1
   #
   # playbooks/provision/pbs.yml formats it and registers the datastore.
+  #
+  # scsi0 also carries a write throttle (mbps_wr=150, iops_wr=3000), applied
+  # out of band the same way — `disk` is ignore_changes'd, so it wouldn't
+  # survive a `tf apply` edit here regardless:
+  #
+  #   qm set 500 --scsi0 local-zfs:vm-500-disk-0,iothread=1,size=500G,mbps_wr=150,iops_wr=3000
+  #
+  # Added 2026-07-31: backup's bursty writes on local-zfs (shared NVMe mirror
+  # with talos-alpha-control) were stalling etcd fsyncs on alpha-control long
+  # enough to blow leader-election timeouts, crash-looping kube-scheduler and
+  # kube-controller-manager. This caps backup's ceiling so etcd's small
+  # latency-critical writes aren't queued behind it. Re-apply if this disk is
+  # ever recreated.
   disk {
     datastore_id = "local-zfs"
     interface    = "scsi0"
