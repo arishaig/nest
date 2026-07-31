@@ -28,6 +28,21 @@ resource "proxmox_virtual_environment_vm" "backup" {
     dedicated = 16384
   }
 
+  # scsi0 holds the pbs-local datastore. Note it lives on local-zfs (= rpool),
+  # the same pool as the guests it backs up — see architecture review finding
+  # B2. That is mitigated, not fixed, by a second datastore on Tank:
+  #
+  #   scsi1: Tank:vm-500-disk-0, 1000G -> PBS datastore "tank-archive"
+  #
+  # scsi1 is deliberately absent from this resource. lifecycle.ignore_changes
+  # below covers `disk`, so a second disk block here would be silently ignored,
+  # and dropping `disk` from that list would make Terraform try to reconcile
+  # scsi0 as well. It was therefore attached out of band, the same way LXC
+  # disks use `pct set`:
+  #
+  #   qm set 500 --scsi1 Tank:1000,iothread=1
+  #
+  # playbooks/provision/pbs.yml formats it and registers the datastore.
   disk {
     datastore_id = "local-zfs"
     interface    = "scsi0"
