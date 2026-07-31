@@ -10,7 +10,6 @@ locals {
     "backup.local.arishaig.site"     = "192.168.1.113"
     "monitoring.local.arishaig.site" = "192.168.1.44"
     "casa.local.arishaig.site"       = "192.168.4.50"
-    "docker.local.arishaig.site"     = "docker.arishaig.site"
     "adguard.local.arishaig.site"    = "dns.arishaig.site"
     "files.local.arishaig.site"      = "files.arishaig.site"
 
@@ -57,7 +56,6 @@ locals {
     "watchback.arishaig.site"    = "192.168.1.117"
     "medialyze.arishaig.site"    = "192.168.1.117"
     "metube.arishaig.site"       = "192.168.1.117"
-    "docker.arishaig.site"       = "192.168.1.158"
     "mcp.arishaig.site"          = "192.168.1.117"
 
     # UDM VPN
