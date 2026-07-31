@@ -11,15 +11,15 @@
 FROM ghcr.io/actions/actions-runner:latest
 
 # renovate: datasource=github-releases depName=opentofu/opentofu
-ARG OPENTOFU_VERSION=1.12.0
+ARG OPENTOFU_VERSION=1.12.5
 # renovate: datasource=github-releases depName=prometheus/prometheus
-ARG PROMETHEUS_VERSION=3.12.0
+ARG PROMETHEUS_VERSION=3.13.1
 # renovate: datasource=github-releases depName=prometheus/alertmanager
-ARG ALERTMANAGER_VERSION=0.32.2
+ARG ALERTMANAGER_VERSION=0.33.1
 # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/v(?<version>.+)$
 ARG KUSTOMIZE_VERSION=5.8.1
 # renovate: datasource=github-releases depName=yannh/kubeconform
-ARG KUBECONFORM_VERSION=0.7.0
+ARG KUBECONFORM_VERSION=0.8.0
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
 ARG KUBECTL_VERSION=1.32.0
 # shellcheck pinned to 0.10.0: the SC2015 exclude in the shellcheck lint job is
@@ -28,16 +28,16 @@ ARG SHELLCHECK_VERSION=0.10.0
 # helm backs the helm-render lint job (flux-local shells out to `helm template`).
 # Held on the 3.x line: Flux's helm-controller and flux-local are helm-v3-based,
 # and v4 changes CLI behaviour. renovate: datasource=github-releases depName=helm/helm
-ARG HELM_VERSION=3.21.1
+ARG HELM_VERSION=3.21.3
 # talosctl backs the talos-config-validate lint job. Keep in lock-step with
 # talos_version in terraform/terraform.tfvars. renovate: datasource=github-releases depName=siderolabs/talos
-ARG TALOSCTL_VERSION=1.13.4
+ARG TALOSCTL_VERSION=1.13.7
 # flux-local renders the HelmReleases for the helm-render job. Held on 7.x:
 # 8.x requires Python >=3.13 and this base image ships 3.12. renovate: datasource=pypi depName=flux-local
 ARG FLUX_LOCAL_VERSION=7.11.0
 # flux CLI — flux-local 7.x shells out to `flux build ks` to build Flux
 # Kustomizations. Pinned to the version the cluster bootstraps. renovate: datasource=github-releases depName=fluxcd/flux2
-ARG FLUX_VERSION=2.8.8
+ARG FLUX_VERSION=2.9.3
 
 USER root
 
