@@ -105,12 +105,11 @@ spec:
     service:
       app:
         controller: jellyfin
-        type: NodePort
+        type: ClusterIP
         ports:
           http:
             port: 8096
             targetPort: 8096
-            nodePort: 30814
     persistence:
       config:
         existingClaim: jellyfin-pgsql-config

@@ -57,16 +57,14 @@ spec:
     service:
       app:
         controller: tdarr
-        type: NodePort
+        type: ClusterIP
         ports:
           webui:
             port: 8265
             targetPort: 8265
-            nodePort: 30815
           server:
             port: 8266
             targetPort: 8266
-            nodePort: 30816
     persistence:
       data:
         existingClaim: tdarr-data

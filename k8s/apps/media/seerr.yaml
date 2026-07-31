@@ -72,12 +72,11 @@ spec:
     service:
       app:
         controller: seerr
-        type: NodePort
+        type: ClusterIP
         ports:
           http:
             port: 5055
             targetPort: 5055
-            nodePort: 30801
     persistence:
       config:
         existingClaim: seerr-config

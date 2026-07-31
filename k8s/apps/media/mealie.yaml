@@ -90,12 +90,11 @@ spec:
     service:
       app:
         controller: mealie
-        type: NodePort
+        type: ClusterIP
         ports:
           http:
             port: 9000
             targetPort: 9000
-            nodePort: 30813
     persistence:
       data:
         existingClaim: mealie-data

@@ -40,12 +40,11 @@ spec:
     service:
       app:
         controller: copyparty
-        type: NodePort
+        type: ClusterIP
         ports:
           http:
             port: 3923
             targetPort: 3923
-            nodePort: 30806
     persistence:
       config:
         existingClaim: copyparty-config

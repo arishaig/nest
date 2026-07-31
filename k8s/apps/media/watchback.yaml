@@ -16,9 +16,8 @@ spec:
         namespace: flux-system
   values:
     service:
-      type: NodePort
+      type: ClusterIP
       port: 8484
-      nodePort: 30804
     persistence:
       existingClaim: watchback-data
       subPath: data
