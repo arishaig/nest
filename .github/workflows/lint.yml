@@ -9,6 +9,20 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Cancel superseded runs rather than queueing them. A lint result only matters
+# for the newest commit — on a PR, older pushes are moot once a new one lands;
+# on main, a merge's checks are informational once the next merge supersedes
+# it. Without this, stacking several merges within a few minutes fans out a
+# full ~11-job x N-run burst of arc-lint runner pods all at once: on
+# 2026-07-31 four merges within ~3 minutes queued 21 runner pods onto the
+# single schedulable amd64 node, which starved talos-alpha-control (2 vCPU)
+# enough to crash-loop kube-scheduler and kube-controller-manager. Safe to
+# cancel here (unlike deploy.yml's queue-don't-cancel policy) because nothing
+# here is a half-applied mutation — it's read-only checks.
+concurrency:
+  group: lint-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
