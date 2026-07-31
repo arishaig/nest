@@ -1,11 +1,16 @@
 import asyncio
 import os
+import re
 from datetime import datetime, timezone
 
 import httpx
 from mcp.server.fastmcp import FastMCP
 
 from nest_mcp import config
+
+# Kubernetes DNS-1123 label/subdomain rules — lowercase alphanumerics and
+# hyphens/dots, max 253 chars. Enforced before interpolating into URL paths.
+_K8S_NAME_RE = re.compile(r"^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$")
 
 
 def _client() -> httpx.AsyncClient:
@@ -223,6 +228,10 @@ def register(mcp: FastMCP) -> None:
             previous: Fetch logs from the immediately prior (crashed/restarted) instance.
             tail_lines: Max lines to return, most recent first (default 200).
         """
+        for label, value in (("namespace", namespace), ("pod", pod), ("container", container)):
+            if value and not _K8S_NAME_RE.match(value):
+                return f"Invalid {label} — must be a valid Kubernetes name (lowercase alphanumerics, '-', '.')."
+
         params: dict = {"tailLines": tail_lines}
         if container:
             params["container"] = container

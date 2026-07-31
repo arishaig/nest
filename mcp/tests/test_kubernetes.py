@@ -128,6 +128,18 @@ async def test_pod_logs(monkeypatch):
     assert captured["params"] == {"tailLines": "50", "container": "kube-scheduler", "previous": "true"}
 
 
+async def test_pod_logs_rejects_invalid_names(monkeypatch):
+    def handler(req):
+        raise AssertionError("should not reach the API")
+
+    monkeypatch.setattr(kubernetes, "_client",
+                        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler),
+                                                  base_url="https://k8s"))
+
+    out = await load_tools(kubernetes)["k8s_pod_logs"](namespace="kube-system", pod="../../secrets")
+    assert "Invalid pod" in out
+
+
 async def test_pod_logs_defaults_no_container_no_previous(monkeypatch):
     captured = {}
 
