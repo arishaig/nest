@@ -144,16 +144,19 @@ Pis via `worker-beta-rpi5.yaml` / `worker-gamma-rpi5.yaml`. The Pis use the
 amd64 `talos_schematic_id` from `terraform.tfvars` — see
 [`rpi5-talos.md`](rpi5-talos.md).
 
-### 5. Reapply the WireGuard patch on alpha — easy to forget, total if missed
+### 5. WireGuard on alpha reconciles automatically once workers join
 
-`talos/patches/wireguard-alpha.yaml.example` is a **template**; the real
-interface is out-of-band machine config (finding C1). There are **no UniFi port
-forwards at all**, so this tunnel is the *only* path into the lab from the
-internet. A `talosctl reset` on 2026-07-21 wiped it and silently took down all
-external ingress.
+`talos/patches/wireguard-alpha.yaml.example` is a template rendered with
+`talos_wg_private_key` from vault. There are **no UniFi port forwards at
+all**, so this tunnel is the *only* path into the lab from the internet — a
+`talosctl reset` on 2026-07-21 wiped it and silently took down all external
+ingress (finding C1).
 
-Nothing in the pipeline reapplies this. Until C1 is closed, it is a manual step
-and belongs on any reset/rebuild checklist.
+`deploy.yml`'s `deploy-tofu` job now checks for `wg0` on alpha after every
+Talos upgrade pass and reapplies the patch if it's missing, so this no
+longer needs a manual step on the normal path — but the check only runs
+inside `deploy-tofu`, which needs alpha already joined and reachable by
+`talosctl`. On a true cold bootstrap, that means after step 4, not before.
 
 ### 6. Push the k8s Secrets — Flux cannot proceed without them
 
@@ -216,9 +219,9 @@ the lab's real RTO, and it replaces the estimate above.
 
 | Gap | Finding | Consequence |
 |---|---|---|
-| WireGuard config is not in git | C1 | Step 5 is manual; forgetting it means no external ingress and no obvious symptom |
+| WireGuard config is not in git | C1 | Key lives in vault, not git; `deploy-tofu` reconciles it automatically once alpha is reachable, but a true cold bootstrap still needs step 4 done first |
 | Secrets are pushed, not reconciled | C2 | Step 6 must precede Flux, and nothing enforces it |
-| No state locking | C3 | Concurrent workstation and CI applies clobber each other silently |
+| No state locking between CI and a workstation apply | C3 | CI-to-CI applies are already serialized (`deploy.yml` concurrency group) and `tofu-plan` never writes state back; a workstation apply racing CI is the one unmitigated case, and needs a real locking backend to close |
 | `talos/clusterconfig/` backup unverified | C5 | Cluster CA loss means rebuilding the cluster, not restoring it |
 | Nothing survives host loss | A1 (accepted) | Every backup is on-site; a fire or theft is total |
 | `bootstrap-talos.sh` describes the old topology | — | Following it verbatim builds the wrong control plane |

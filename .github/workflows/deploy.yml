@@ -352,6 +352,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
+      - name: Write vault password
+        run: |
+          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
+          chmod 600 "$RUNNER_TEMP/vault-pass"
+
       - name: Write secrets.tfvars
         env:
           TF_SECRETS: ${{ secrets.TF_SECRETS_TFVARS }}
@@ -452,6 +457,34 @@ jobs:
               echo "$NODE already on $TARGET, skipping"
             fi
           done
+
+      - name: Reconcile WireGuard patch on alpha
+        # C1 in architecture-review.md: talos/patches/wireguard-alpha.yaml.example
+        # carries alpha's only external-ingress path and was previously applied
+        # out-of-band by hand — a talosctl reset (2026-07-21) silently wiped it
+        # and took down all external ingress until someone noticed. Only touch
+        # the node if wg0 is actually missing: this patch is a live interface
+        # config, and re-applying it on every deploy (even identically) risks
+        # flapping the tunnel for no reason.
+        run: |
+          TC="$RUNNER_TEMP/.talos/config"
+          TALOSCTL="$RUNNER_TEMP/talosctl"
+
+          if "$TALOSCTL" --talosconfig "$TC" get link wg0 --nodes 192.168.1.110 >/dev/null 2>&1; then
+            echo "wg0 already present on alpha, skipping"
+          else
+            echo "wg0 missing on alpha — reapplying the WireGuard patch"
+            source /opt/ansible-runner/venv/bin/activate
+            WG_KEY=$(ansible-vault view inventory/group_vars/all/vault.yml \
+              --vault-password-file "$RUNNER_TEMP/vault-pass" \
+              | grep '^talos_wg_private_key:' \
+              | sed -E 's/^talos_wg_private_key: *"?([^"]*)"?$/\1/')
+            sed "s#<TALOS_WG_PRIVATE_KEY>#$WG_KEY#" \
+              talos/patches/wireguard-alpha.yaml.example > "$RUNNER_TEMP/wireguard-alpha.yaml"
+            "$TALOSCTL" --talosconfig "$TC" --nodes 192.168.1.110 \
+              patch machineconfig --patch @"$RUNNER_TEMP/wireguard-alpha.yaml"
+            rm -f "$RUNNER_TEMP/wireguard-alpha.yaml"
+          fi
 
       - name: Save OpenTofu state
         # No error suppression here: the runner user must be able to write
