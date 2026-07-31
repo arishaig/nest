@@ -72,7 +72,13 @@ async def _pbs() -> dict:
                 headers=headers,
                 params={"limit": 5, "typefilter": "backup"},
             ),
-            client.get(f"{config.pbs.url}/api2/json/admin/datastore", headers=headers),
+            # /status/datastore-usage, not /admin/datastore: the latter returns
+            # DataStoreListItem (store/comment/maintenance) — configuration
+            # only, with no usage fields at all — so used_gb and avail_gb both
+            # silently reported 0.0 for every datastore. lab_health_summary is
+            # the first call of most sessions, so it was claiming the backup
+            # store was empty.
+            client.get(f"{config.pbs.url}/api2/json/status/datastore-usage", headers=headers),
         )
         tasks_resp.raise_for_status()
         ds_resp.raise_for_status()
