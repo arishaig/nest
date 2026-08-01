@@ -11,7 +11,11 @@ services:
   search:
     environment:
       SOLR_HEAP: 2g
-    mem_limit: 3g
+    # Bumped from 3g during the 2026-08-01 full reindex: Solr's own
+    # container hit 94% of its limit (heavy segment-merge I/O while
+    # ingesting large collections like recording/release) well before the
+    # indexer did. LXC has 8GB+ headroom for this.
+    mem_limit: 4g
 
   musicbrainz:
     mem_limit: 2g
