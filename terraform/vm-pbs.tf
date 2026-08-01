@@ -22,10 +22,16 @@ resource "proxmox_virtual_environment_vm" "backup" {
     type  = "x86-64-v2-AES"
   }
 
-  # 16 GB is generous for PBS at current datastore sizes. The host OOM-killed
-  # this VM at 33 GB RSS (2026-06-11) when total VM allocation exceeded host RAM.
+  # Ballooned: steady-state PBS runs under 1 GB RSS (measured 2026-08-01) —
+  # everything above that was idle ZFS/page cache, not real need. dedicated
+  # stays at 16 GB as a ceiling: the host OOM-killed this VM at 33 GB RSS
+  # (2026-06-11) during what was almost certainly a datastore verify/GC
+  # burst, and both datastores have grown since. floating lets Proxmox
+  # reclaim the idle difference day-to-day while still allowing PBS to grow
+  # back up to the full ceiling during that kind of burst.
   memory {
     dedicated = 16384
+    floating  = 2048
   }
 
   # scsi0 holds the pbs-local datastore. Note it lives on local-zfs (= rpool),
