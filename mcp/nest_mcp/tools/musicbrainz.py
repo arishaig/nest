@@ -16,6 +16,13 @@ _COLLECTIONS = [
 
 _SEARCH_CONTAINER = "musicbrainz-docker-search-1"
 
+# The [s] regex trick avoids pgrep matching its own invoking shell: ssh always
+# runs the remote command via a shell wrapper, and that wrapper's own cmdline
+# contains this pattern's literal text — pgrep -f would otherwise "detect" a
+# reindex running when there is none, permanently poisoning both the status
+# check and the already-running guard in reindex_start.
+_PGREP_PATTERN = "[s]ir reindex"
+
 
 async def _ssh(cmd: str, timeout: int = 15) -> str:
     return await ssh_run(config.musicbrainz.host, cmd, key=config.musicbrainz.ssh_key, timeout=timeout)
@@ -37,7 +44,7 @@ def register(mcp: FastMCP) -> None:
         try:
             raw = await _ssh(
                 "echo '===RUNNING==='; "
-                "pgrep -af 'sir reindex' || true; "
+                f"pgrep -af '{_PGREP_PATTERN}' || true; "
                 f"echo '===LOG==='; tail -n 20 {config.musicbrainz.reindex_log} 2>&1; "
                 "echo '===COUNTS==='; "
                 + "; ".join(
@@ -103,7 +110,7 @@ def register(mcp: FastMCP) -> None:
         for progress. Refuses to start a second run if one is already active.
         """
         try:
-            status_raw = await _ssh("pgrep -af 'sir reindex' || true")
+            status_raw = await _ssh(f"pgrep -af '{_PGREP_PATTERN}' || true")
         except Exception as e:
             return {"error": str(e)}
         if status_raw.strip():
