@@ -144,6 +144,16 @@ class AdguardHostSettings(BaseSettings):
     ssh_key: str = "~/.ssh/ansible-on-nest"
 
 
+class MusicbrainzSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_MUSICBRAINZ_")
+    # LXC 101 — direct SSH, not via pct exec on the PVE host
+    host: str = "192.168.1.197"
+    ssh_key: str = "~/.ssh/ansible-on-nest"
+    compose_dir: str = "/home/svc_musicbrainz/musicbrainz-docker"
+    compose_user: str = "svc_musicbrainz"
+    reindex_log: str = "/home/svc_musicbrainz/reindex.log"
+
+
 class KubernetesSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_K8S_")
     # API VIP (6443 only — not a scrape target). Token from k8s_mcp_sa_token vault var.
@@ -171,3 +181,4 @@ seedbox = SeedboxSettings()
 fileserver = FileserverSettings()
 kubernetes = KubernetesSettings()
 adguard_host = AdguardHostSettings()
+musicbrainz = MusicbrainzSettings()
