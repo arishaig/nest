@@ -152,6 +152,17 @@
         mode: "0644"
       notify: Recreate MusicBrainz stack
 
+    - name: Template local/indexer.ini
+      # Overrides default/indexer.ini's import_threads=8 (see comments in
+      # the template + memory-settings.yml.j2 for the 2026-08-01 OOM
+      # incident this fixes). Mounted via SIR_CONFIG_PATH in .env.
+      ansible.builtin.template:
+        src: templates/musicbrainz/indexer.ini.j2
+        dest: "{{ musicbrainz_dir }}/local/indexer.ini"
+        owner: "{{ musicbrainz_user }}"
+        mode: "0644"
+      notify: Recreate MusicBrainz stack
+
     - name: Schedule weekly search index rebuild
       ansible.builtin.cron:
         name: musicbrainz-reindex
