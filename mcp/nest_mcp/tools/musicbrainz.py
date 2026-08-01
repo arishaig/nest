@@ -14,7 +14,6 @@ _COLLECTIONS = [
     "place", "recording", "release", "release-group", "series", "tag", "url", "work",
 ]
 
-_INDEXER_CONTAINER = "musicbrainz-docker-indexer-1"
 _SEARCH_CONTAINER = "musicbrainz-docker-search-1"
 
 
