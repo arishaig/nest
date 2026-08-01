@@ -1,0 +1,27 @@
+[database]
+dbname = musicbrainz_db
+host = ${MUSICBRAINZ_POSTGRES_SERVER}
+password = ${POSTGRES_PASSWORD}
+port = 5432
+user = ${POSTGRES_USER}
+
+[solr]
+uri = http://${MUSICBRAINZ_SEARCH_SERVER}
+batch_size = 200
+
+[sir]
+# import_threads dropped from upstream's default of 8: at 8 threads the
+# indexer container's memory limit (see memory-settings.yml.j2) was
+# exceeded, OOM-killing the multiprocessing manager mid-run and leaving
+# the Solr index empty for months (2026-08-01 incident).
+import_threads = 4
+index_limit = 200000
+live_index_batch_size = 100
+max_retries = 4
+poll_interval = 5
+process_delay = 15
+query_batch_size = 5000
+wscompat = on
+
+[sentry]
+dsn =

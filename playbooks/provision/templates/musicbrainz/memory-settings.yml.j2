@@ -17,7 +17,12 @@ services:
     mem_limit: 2g
 
   indexer:
-    mem_limit: 1g
+    # 1g was too small for sir's 8 import_threads: the multiprocessing
+    # manager got OOM-killed mid-run, cascading into FileNotFoundError
+    # crashes across every worker and leaving the Solr index empty for
+    # months (2026-08-01 incident). Paired with import_threads reduced
+    # to 4 in local/indexer.ini.
+    mem_limit: 2g
 
   valkey:
     mem_limit: 512m

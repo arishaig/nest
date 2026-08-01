@@ -102,6 +102,32 @@
       when: "'tank-archive-prune' not in (pbs_prune_job_list.stdout | from_json | map(attribute='id') | list)"
       changed_when: true
 
+    # ── Retention on pbs-local ──────────────────────────────────────────────
+    # This existed only as an auto-generated, out-of-band job
+    # ("default-pbs-local-ad9ff066-b2c1-") until 2026-08-01. Removing it and
+    # having Ansible own a properly-named replacement brings it in line with
+    # tank-archive-prune above, which was already git-tracked. Values
+    # (keep-last 3 / keep-daily 3 / keep-weekly 3) are unchanged from the
+    # job being replaced — pbs-local is a fast recovery buffer, not the
+    # long-term archive; tank-archive-prune above holds the deep history.
+    - name: Remove legacy auto-generated pbs-local prune job
+      ansible.builtin.command: >
+        proxmox-backup-manager prune-job remove default-pbs-local-ad9ff066-b2c1-
+      when: "'default-pbs-local-ad9ff066-b2c1-' in (pbs_prune_job_list.stdout | from_json | map(attribute='id') | list)"
+      changed_when: true
+
+    - name: Create the prune job for pbs-local
+      ansible.builtin.command: >
+        proxmox-backup-manager prune-job create pbs-local-prune
+        --store {{ pbs_primary_datastore }}
+        --schedule "sat 18:15"
+        --keep-last 3
+        --keep-daily 3
+        --keep-weekly 3
+        --comment "Local retention for pbs-local (fast recovery buffer; tank-archive holds deep history)"
+      when: "'pbs-local-prune' not in (pbs_prune_job_list.stdout | from_json | map(attribute='id') | list)"
+      changed_when: true
+
     - name: List existing verify jobs
       ansible.builtin.command: proxmox-backup-manager verify-job list --output-format json
       register: pbs_verify_job_list
