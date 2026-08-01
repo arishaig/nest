@@ -26,8 +26,12 @@ resource "proxmox_virtual_environment_vm" "homeassistant" {
     type  = "host"
   }
 
+  # Ballooned: HAOS runs closer to 2-3 GB day-to-day (measured 2026-08-01).
+  # dedicated stays as a generous ceiling; floating lets Proxmox reclaim the
+  # unused difference for the rest of the host instead of pinning it idle.
   memory {
     dedicated = 16384
+    floating  = 3072
   }
 
   efi_disk {
