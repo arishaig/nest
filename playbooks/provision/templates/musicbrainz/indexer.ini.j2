@@ -13,10 +13,12 @@ batch_size = 200
 # import_threads was dropped to 4 during the 2026-08-01 incident: at 8
 # threads under the *original* 1g indexer memory limit, the multiprocessing
 # manager got OOM-killed mid-run, leaving the Solr index empty for months.
-# Restored to upstream's default of 8 now that the indexer's limit is 4g
-# (see memory-settings.yml.j2) — 4x the memory of the config that failed,
-# traded for faster completion of the 2026-08-01 full reindex.
-import_threads = 8
+# Briefly tried restoring to upstream's default of 8 (indexer now has 4g,
+# 4x the memory of the failing config) hoping to speed up the same day's
+# full reindex — measured net negative instead: annotation alone went from
+# ~4min to 16min25s on this contended host, and total elapsed time for the
+# first 9 collections rose 71% (16m49s -> 28m51s) versus 4 threads. Reverted.
+import_threads = 4
 index_limit = 200000
 live_index_batch_size = 100
 max_retries = 4
