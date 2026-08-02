@@ -10,11 +10,13 @@ uri = http://${MUSICBRAINZ_SEARCH_SERVER}
 batch_size = 200
 
 [sir]
-# import_threads dropped from upstream's default of 8: at 8 threads the
-# indexer container's memory limit (see memory-settings.yml.j2) was
-# exceeded, OOM-killing the multiprocessing manager mid-run and leaving
-# the Solr index empty for months (2026-08-01 incident).
-import_threads = 4
+# import_threads was dropped to 4 during the 2026-08-01 incident: at 8
+# threads under the *original* 1g indexer memory limit, the multiprocessing
+# manager got OOM-killed mid-run, leaving the Solr index empty for months.
+# Restored to upstream's default of 8 now that the indexer's limit is 4g
+# (see memory-settings.yml.j2) — 4x the memory of the config that failed,
+# traded for faster completion of the 2026-08-01 full reindex.
+import_threads = 8
 index_limit = 200000
 live_index_batch_size = 100
 max_retries = 4
