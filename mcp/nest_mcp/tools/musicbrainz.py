@@ -50,7 +50,11 @@ def register(mcp: FastMCP) -> None:
                 + "; ".join(
                     f"echo -n '{c}:'; "
                     f"docker exec {_SEARCH_CONTAINER} curl -s "
-                    f"'http://localhost:8983/solr/{c}/select?q=*:*&rows=0' "
+                    # q=*:* reads 0 on this core even with defType=lucene forced — this
+                    # schema/handler doesn't special-case it into MatchAllDocsQuery the
+                    # normal way. id:* is a real field present on every doc and gives an
+                    # accurate count (found 2026-08-02 chasing a false "index is empty" alarm).
+                    f"'http://localhost:8983/solr/{c}/select?q=id:*&rows=0' "
                     "| grep -o 'numFound\":[0-9]*' | cut -d: -f2"
                     for c in _COLLECTIONS
                 )
