@@ -26,7 +26,15 @@ services:
     # crashes across every worker and leaving the Solr index empty for
     # months (2026-08-01 incident). Paired with import_threads reduced
     # to 4 in local/indexer.ini.
-    mem_limit: 2g
+    #
+    # 2g still wasn't enough: during the full reindex, cgroup OOM kills
+    # recurred at collection-entity transitions (annotation, area, artist),
+    # and the second time it happened the surviving multiprocessing workers
+    # didn't recover — they hung forever blocked on queue.get() against the
+    # dead manager instead of erroring out, silently stalling the whole job
+    # with 0% CPU rather than crashing loudly. Bumped straight to 4g rather
+    # than nudging again; LXC has 8GB+ headroom.
+    mem_limit: 4g
 
   valkey:
     mem_limit: 512m
