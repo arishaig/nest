@@ -34,7 +34,6 @@ import proxmox_virtual_environment_user_token.backup 'root@pam!backup'
 
 echo "=== Importing LXC Containers ==="
 import proxmox_virtual_environment_container.docker proxmox/100
-import proxmox_virtual_environment_container.musicbrainz proxmox/101
 import proxmox_virtual_environment_container.fileserver proxmox/102
 import proxmox_virtual_environment_container.scrutiny proxmox/103
 import proxmox_virtual_environment_container.seedbox proxmox/104
@@ -54,7 +53,6 @@ import 'adguard_rewrite.dns["monitoring.local.arishaig.site"]' 'monitoring.local
 import 'adguard_rewrite.dns["casa.local.arishaig.site"]' 'casa.local.arishaig.site||192.168.4.50'
 import 'adguard_rewrite.dns["backlight.arishaig.site"]' 'backlight.arishaig.site||192.168.4.97'
 import 'adguard_rewrite.dns["files.arishaig.site"]' 'files.arishaig.site||192.168.1.17'
-import 'adguard_rewrite.dns["musicbrainz.arishaig.site"]' 'musicbrainz.arishaig.site||192.168.1.197'
 import 'adguard_rewrite.dns["adguard.arishaig.site"]' 'adguard.arishaig.site||192.168.7.7'
 import 'adguard_rewrite.dns["dns.arishaig.site"]' 'dns.arishaig.site||192.168.7.7'
 import 'adguard_rewrite.dns["monitoring.arishaig.site"]' 'monitoring.arishaig.site||192.168.1.158'

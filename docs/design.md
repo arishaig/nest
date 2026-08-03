@@ -32,7 +32,6 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 | VMID | Name | IP | Purpose |
 |---|---|---|---|
 | 100 | docker | 192.168.1.158 (static) | Decommissioned (start_on_boot=false); cadvisor still in compose for ad-hoc use |
-| 101 | musicbrainz | 192.168.1.197 (DHCP) | MusicBrainz server |
 | 102 | fileserver | 192.168.1.17 (static) | Samba NAS |
 | 103 | scrutiny | 192.168.1.46 (DHCP) | SMART disk monitoring |
 | 104 | seedbox | 192.168.1.182 (DHCP) | qBittorrent behind Gluetun VPN |
@@ -137,7 +136,7 @@ Trusts PROXY protocol from `10.10.0.1/32`. Rate-limit middleware applied globall
 Uses the `kubernetesCRD` provider — routes are defined as `IngressRoute` CRDs; no Docker socket.
 
 Routes to k8s services within the cluster or to `ExternalName` services for non-k8s targets
-(Proxmox, PBS, monitoring, scrutiny, torrent, foundry, glances, musicbrainz, backlight, mcp).
+(Proxmox, PBS, monitoring, scrutiny, torrent, foundry, glances, backlight, mcp).
 
 Access logs written as JSON to stdout; shipped to Loki by the k8s Alloy DaemonSet
 with `job="traefik-access"` and parsed `router`/`status` labels.
@@ -194,7 +193,7 @@ mealie, prowlarr, radarr, recommendarr, sabnzbd, sonarr, storyteller, watchback.
 | mcp | — | Validates Bearer JWT itself (OIDC); no Authelia layer needed |
 
 **`.local.arishaig.site` routes** also bypass Authelia — these are direct internal-access
-routes for services that also have an Authelia-protected public route (torrent, scrutiny, musicbrainz, backlight).
+routes for services that also have an Authelia-protected public route (torrent, scrutiny, backlight).
 
 ---
 
@@ -326,7 +325,6 @@ Retention is 30 days. The Loki Ruler evaluates log-based alert rules and sends t
 | monitoring | `docker` (all container stdout), `journal` |
 | seedbox | `docker` (gluetun, qbittorrent, cadvisor), `journal` |
 | scrutiny | `docker`, `journal` |
-| musicbrainz | `docker`, `journal` |
 | dns-secondary | `docker` (adguard-exporter), `journal` |
 | fileserver | `journal` |
 | mcp | `journal` |
@@ -443,7 +441,7 @@ Secrets: `inventory/group_vars/all/vault.yml` (ansible-vault, password in `~/.co
 
 `playbooks/site.yml` runs the full converge:
 1. `provision/common.yml` — node_exporter, BBR sysctl (all LXCs + VPS)
-2. Per-host provision playbooks (adguard, docker-host, vps, fileserver, monitoring, musicbrainz, scrutiny, seedbox, pbs, nftables, mcp, foundry)
+2. Per-host provision playbooks (adguard, docker-host, vps, fileserver, monitoring, scrutiny, seedbox, pbs, nftables, mcp, foundry)
 3. `alloy.yml` — Grafana Alloy on all hosts
 4. `update_apt.yml`, `update_docker.yml`, `update_proxmox.yml`
 

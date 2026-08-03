@@ -5,10 +5,6 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      force_musicbrainz:
-        description: 'Force deploy musicbrainz'
-        type: boolean
-        default: false
       force_lidarr_ui:
         description: 'Force rebuild/deploy lidarr-ui'
         type: boolean
@@ -42,7 +38,6 @@ jobs:
       lidarr_ui: ${{ steps.filter.outputs.lidarr_ui }}
       ci_runner: ${{ steps.filter.outputs.ci_runner }}
       adguard: ${{ steps.filter.outputs.adguard }}
-      musicbrainz: ${{ steps.filter.outputs.musicbrainz }}
       foundry: ${{ steps.filter.outputs.foundry }}
     steps:
       # fetch-depth 2 so paths-filter has a parent commit to diff against on
@@ -92,42 +87,10 @@ jobs:
             adguard:
               - 'playbooks/provision/adguard.yml'
               - 'playbooks/provision/templates/adguard/**'
-            musicbrainz:
-              - 'playbooks/provision/musicbrainz.yml'
-              - 'playbooks/provision/templates/musicbrainz/**'
             foundry:
               - 'playbooks/provision/foundry.yml'
               - 'playbooks/provision/files/foundry/**'
               - 'playbooks/provision/templates/foundry/**'
-
-  deploy-musicbrainz:
-    needs: changes
-    if: needs.changes.outputs.musicbrainz == 'true' || inputs.force_musicbrainz == true
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Write SSH key
-        run: |
-          install -d -m 700 "$RUNNER_TEMP/.ssh"
-          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
-          chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
-
-      - name: Write vault password
-        run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
-
-      - name: Run musicbrainz playbook
-        run: |
-          source /opt/ansible-runner/venv/bin/activate
-          ansible-playbook \
-            -i inventory/hosts.yml \
-            playbooks/provision/musicbrainz.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
-            --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
-            --ssh-extra-args "-o StrictHostKeyChecking=no" \
-            --limit musicbrainz
 
   deploy-adguard:
     needs: changes

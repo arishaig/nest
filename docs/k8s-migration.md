@@ -76,7 +76,7 @@ Fixed manually on 2026-06-08 by copying directly on PVE: `cp /rpool/data/docker-
 |---|---|
 | qBittorrent + Gluetun + qbittorrent-exporter (seedbox LXC 104) | `network_mode: service:gluetun` is hard to replicate in k8s; VPN coupling is simpler as a dedicated LXC |
 | Scrutiny (LXC 103) | Requires raw disk device passthrough; privileged DaemonSet is possible but adds operational risk |
-| MusicBrainz (LXC 101) | 350 GB database; used only by Lidarr; not worth the storage complexity |
+| ~~MusicBrainz (LXC 101)~~ | 350 GB database; not worth the storage complexity. Decommissioned 2026-08 — nothing was actually pointed at it; Lidarr uses the public `api.lidarr.audio` metadata source by default |
 | Home Assistant (VM 107) | HAOS; not a Docker workload |
 | PBS (VM 500) | Backup infrastructure; not appropriate to put inside what it's backing up |
 

@@ -19,7 +19,7 @@ def register(mcp: FastMCP) -> None:
     ) -> dict:
         """Query logs from Loki across all homelab hosts.
 
-        Covers every LXC (docker, monitoring, scrutiny, seedbox, musicbrainz,
+        Covers every LXC (docker, monitoring, scrutiny, seedbox,
         fileserver, mcp, backup), the AdGuard Pis (adguard, dns-secondary),
         and the VPS. Unlike docker_logs, this works for any host and supports
         historical queries up to 30 days back.
@@ -27,7 +27,7 @@ def register(mcp: FastMCP) -> None:
         Args:
             container: Filter by Docker container name (e.g. "jellyfin", "traefik").
             host:      Filter by host (e.g. "docker", "seedbox", "scrutiny",
-                       "monitoring", "musicbrainz", "fileserver", "mcp",
+                       "monitoring", "fileserver", "mcp",
                        "backup", "adguard", "dns-secondary", "vps-proxy").
             unit:      Filter by systemd unit for journal logs (e.g. "sshd.service").
             query:     Raw LogQL query — overrides container/host/unit filters.

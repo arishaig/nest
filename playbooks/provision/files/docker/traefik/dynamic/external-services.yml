@@ -86,13 +86,6 @@ http:
       tls:
         certResolver: cloudflare
 
-    musicbrainz-local:
-      rule: "Host(`musicbrainz.local.arishaig.site`)"
-      entryPoints: [websecure]
-      service: musicbrainz
-      tls:
-        certResolver: cloudflare
-
     # --- k8s-migrated services ---
     jellyfin:
       rule: "Host(`jellyfin.arishaig.site`)"
@@ -269,11 +262,6 @@ http:
       loadBalancer:
         servers:
           - url: "http://192.168.4.97:80"
-
-    musicbrainz:
-      loadBalancer:
-        servers:
-          - url: "http://192.168.1.197:80"
 
     foundry:
       loadBalancer:

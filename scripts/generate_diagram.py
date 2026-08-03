@@ -173,9 +173,6 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
             with Cluster(lxc_label("seedbox", hosts, lxcs), graph_attr=CLUSTER):
                 Server("qBittorrent\n+ Gluetun VPN")
 
-            with Cluster(lxc_label("musicbrainz", hosts, lxcs), graph_attr=CLUSTER):
-                Server("MusicBrainz")
-
             with Cluster(lxc_label("scrutiny", hosts, lxcs), graph_attr=CLUSTER):
                 Server("Scrutiny\n(SMART)")
 

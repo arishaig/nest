@@ -17,16 +17,14 @@ locals {
     "torrent.local.arishaig.site"     = "192.168.1.117"
     "scrutiny.local.arishaig.site"    = "192.168.1.117"
     "backlight.local.arishaig.site"   = "192.168.1.117"
-    "musicbrainz.local.arishaig.site" = "192.168.1.117"
     "storyteller.local.arishaig.site" = "192.168.1.117"
 
     # Direct-IP entries (no Traefik conflict)
-    "backlight.arishaig.site"   = "192.168.4.212"
-    "files.arishaig.site"       = "192.168.1.17"
-    "musicbrainz.arishaig.site" = "192.168.1.197"
-    "adguard.arishaig.site"     = "dns.arishaig.site"
-    "dns.arishaig.site"         = "192.168.7.7"
-    "dns2.arishaig.site"        = "192.168.7.8"
+    "backlight.arishaig.site" = "192.168.4.212"
+    "files.arishaig.site"     = "192.168.1.17"
+    "adguard.arishaig.site"   = "dns.arishaig.site"
+    "dns.arishaig.site"       = "192.168.7.7"
+    "dns2.arishaig.site"      = "192.168.7.8"
 
     # k8s Traefik reverse-proxied services (all -> ingress LB 192.168.1.117)
     "monitoring.arishaig.site"   = "192.168.1.117"

@@ -154,8 +154,6 @@ use the bjw-s `app-template` chart; cluster primitives use their official upstre
 | **Tunarr** | MIT | ✅ FOSS | [chrisbenincasa/tunarr](https://github.com/chrisbenincasa/tunarr) |
 | **Seerr** | MIT | ✅ FOSS | [seerr-team/seerr](https://github.com/seerr-team/seerr) |
 | **FlareSolverr** | MIT | ✅ FOSS | [FlareSolverr/FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) |
-| **MusicBrainz** | GPL-2.0 | ✅ FOSS (MetaBrainz Foundation) | [metabrainz/musicbrainz-server](https://github.com/metabrainz/musicbrainz-server) |
-| **musicbrainz-docker** | MIT | ✅ FOSS | [metabrainz/musicbrainz-docker](https://github.com/metabrainz/musicbrainz-docker) |
 
 > Jellyfin is a community fork of the formerly-open-source Emby. It has no commercial entity behind it.
 >
@@ -215,7 +213,6 @@ All LXCs receive the following via `playbooks/provision/common.yml`:
 | VMID | Host | Additional components |
 |---|---|---|
 | 100 | docker | **Decommissioned** (`start_on_boot=false`) post-k8s migration; compose file kept with cadvisor for ad-hoc scratch use. Retains a WireGuard peer so monitoring can reach VPS metrics |
-| 101 | musicbrainz | Docker CE, musicbrainz-docker stack (MusicBrainz Server, Solr, PostgreSQL 16, Redis) |
 | 102 | fileserver | `samba` `samba-common-bin` (NFS export `/Tank/media_root` to the k8s `media-nfs` StorageClass) |
 | 103 | scrutiny | Docker CE, Scrutiny omnibus (web + collector + InfluxDB), cAdvisor |
 | 104 | seedbox | Docker CE, qBittorrent, Gluetun (ProtonVPN), cAdvisor, qbittorrent-exporter |
@@ -314,9 +311,6 @@ Proxmox VE (192.168.1.16)
 │       └── cloudflare-ddns
 │
 ├── LXC 100: docker — decommissioned (scratch host; WireGuard peer for monitoring reach)
-│
-├── LXC 101: musicbrainz
-│   └── musicbrainz-docker (metabrainz/musicbrainz-server + solr + postgres + redis)
 │
 ├── LXC 102: fileserver
 │   └── Samba/NFS (NAS, /Tank/media_root → k8s media-nfs StorageClass)
