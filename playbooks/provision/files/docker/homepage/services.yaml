@@ -104,11 +104,6 @@
         server: my-docker
         container: copyparty
 
-    - MusicBrainz:
-        href: https://musicbrainz.local.arishaig.site
-        description: Music database
-        icon: musicbrainz.svg
-
     - Bazarr:
         href: https://bazarr.arishaig.site
         description: Subtitles

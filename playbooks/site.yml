@@ -31,8 +31,6 @@
   import_playbook: provision/fileserver.yml
 - name: "Provision: monitoring stack"
   import_playbook: provision/monitoring.yml
-- name: "Provision: MusicBrainz"
-  import_playbook: provision/musicbrainz.yml
 - name: "Provision: Scrutiny"
   import_playbook: provision/scrutiny.yml
 - name: "Provision: seedbox"

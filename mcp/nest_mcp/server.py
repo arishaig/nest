@@ -28,8 +28,7 @@ mcp = FastMCP(
         "AdGuard DNS (stats, rewrites, plus host-level fail2ban/service status "
         "on the AdGuard Pis), Prometheus alerts, Jellyfin, the *arr media stack, "
         "seedbox (qBittorrent torrents, tracker status, VPN/gluetun exit IP), "
-        "the VPS proxy (Docker, WireGuard, fail2ban), "
-        "and the MusicBrainz Solr search index rebuild (status + start). "
+        "the VPS proxy (Docker, WireGuard, fail2ban). "
         "Start sessions with lab_health_summary for a full snapshot."
     ),
     icons=[Icon(src=_ICON, mimeType="image/webp")],
@@ -37,7 +36,7 @@ mcp = FastMCP(
     lifespan=lifespan,
 )
 
-from nest_mcp.tools import proxmox, adguard, adguard_host, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, kubernetes, infra, musicbrainz  # noqa: E402
+from nest_mcp.tools import proxmox, adguard, adguard_host, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, kubernetes, infra  # noqa: E402
 
 proxmox.register(mcp)
 adguard.register(mcp)
@@ -61,4 +60,3 @@ loki.register(mcp)
 media_files.register(mcp)
 kubernetes.register(mcp)
 infra.register(mcp)
-musicbrainz.register(mcp)

@@ -37,12 +37,8 @@ groups:
           summary: "High CPU on {{ $labels.instance }}"
           description: "CPU usage is {{ printf \"%.0f\" $value }}% for 10 minutes."
 
-      # musicbrainz is excluded: its DB imports sit >95% for hours by design
-      # (83% 7-day average with long bursts), which kept this alert firing for
-      # ~18h per fortnight with nothing to act on. Actual OOM kills inside the
-      # LXC still surface via the OOMKill alert on the proxmox host counter.
       - alert: HighMemory
-        expr: (1 - (node_memory_MemAvailable_bytes{instance!="musicbrainz.arishaig.site"} / node_memory_MemTotal_bytes)) * 100 > 95
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
         for: 2h
         labels:
           severity: warning

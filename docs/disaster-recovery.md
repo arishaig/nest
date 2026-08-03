@@ -46,7 +46,7 @@ What follows from that decision:
 | `Tank/media_root` | The `media-nfs` PV and the Samba shares |
 | VM 500 `backup` (PBS) | The backup server itself |
 | VM 107 `homeassistant` | Home automation |
-| LXCs 101–111 | musicbrainz, fileserver, scrutiny, seedbox, monitoring, mcp, runner |
+| LXCs 102–111 | fileserver, scrutiny, seedbox, monitoring, mcp, runner |
 
 `talos-beta-rpi5` and `talos-gamma-rpi5` survive physically but are useless in
 isolation: no API server, no storage, no ingress.

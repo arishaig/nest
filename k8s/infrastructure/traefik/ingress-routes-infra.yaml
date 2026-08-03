@@ -86,17 +86,6 @@ spec:
   ports:
     - port: 80
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: musicbrainz-external
-  namespace: traefik
-spec:
-  type: ExternalName
-  externalName: "192.168.1.197"
-  ports:
-    - port: 80
----
 # IngressRoutes for infra targets
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -229,21 +218,6 @@ spec:
       kind: Rule
       services:
         - name: backlight-external
-          port: 80
-  tls: {}
----
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: musicbrainz-local
-  namespace: traefik
-spec:
-  entryPoints: [websecure]
-  routes:
-    - match: "Host(`musicbrainz.local.arishaig.site`)"
-      kind: Rule
-      services:
-        - name: musicbrainz-external
           port: 80
   tls: {}
 ---

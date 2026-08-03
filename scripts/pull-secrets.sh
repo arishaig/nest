@@ -20,7 +20,6 @@ SSH_OPTS=(-o StrictHostKeyChecking=no -o ConnectTimeout=5 -i "$SSH_KEY")
 DOCKER_HOST="root@192.168.1.158"
 MONITORING_HOST="root@192.168.1.44"
 SEEDBOX_HOST="root@192.168.1.182"
-MUSICBRAINZ_HOST="root@192.168.1.197"
 PBS_HOST="root@192.168.1.113"
 ADGUARD_HOST="adguard@192.168.7.7"
 FILESERVER_HOST="root@192.168.1.17"
@@ -407,18 +406,6 @@ else
 fi
 
 # =====================================================================
-# MusicBrainz LXC — postgres password
-# =====================================================================
-MUSICBRAINZ_PG_PASS=$(existing "musicbrainz_postgres_password")
-if [[ -n "$MUSICBRAINZ_PG_PASS" ]]; then
-    info "MusicBrainz LXC ($MUSICBRAINZ_HOST): postgres password in vault, skipping SSH"
-else
-    info "Pulling secrets from MusicBrainz LXC ($MUSICBRAINZ_HOST)..."
-    MUSICBRAINZ_PG_PASS=$(ssh_cmd "$MUSICBRAINZ_HOST" "cat /home/svc_musicbrainz/musicbrainz-docker/default/postgres.env 2>/dev/null" | grep -E '^POSTGRES_PASSWORD=' | head -1 | cut -d= -f2- | tr -d '"') || true
-    log_result "MusicBrainz postgres password" "$MUSICBRAINZ_PG_PASS"
-fi
-
-# =====================================================================
 # Monitoring LXC — Home Assistant bearer token (from prometheus.yml)
 # =====================================================================
 HA_BEARER_TOKEN=$(existing "homeassistant_bearer_token")
@@ -626,9 +613,6 @@ echo ""
 echo "# --- VPN (seedbox) ---"
 yml protonvpn_private_key "$PROTONVPN_KEY"
 yml gluetun_control_server_key "$GLUETUN_KEY"
-echo ""
-echo "# --- MusicBrainz ---"
-yml musicbrainz_postgres_password "$MUSICBRAINZ_PG_PASS"
 echo ""
 echo "# --- Home Assistant ---"
 yml homeassistant_bearer_token "$HA_BEARER_TOKEN"
