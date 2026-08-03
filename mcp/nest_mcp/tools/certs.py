@@ -2,7 +2,7 @@ import asyncio
 import ssl
 import socket
 from datetime import datetime, timezone
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 # Key external-facing endpoints — all use *.arishaig.site wildcard so one
 # subdomain tells you all expiries, but checking a few catches per-cert splits.
@@ -43,7 +43,7 @@ def _check_cert_sync(host: str, port: int, timeout: float) -> dict:
         return {"host": host, "port": port, "ok": False, "error": str(e)}
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def cert_expiry(

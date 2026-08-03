@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from nest_mcp import config
 
@@ -137,7 +137,7 @@ def _node_pod_stats(nodes_items: list[dict], pods_items: list[dict]) -> list[dic
     return sorted(stats.values(), key=lambda n: n["name"])
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def k8s_pods(namespace: str = "") -> list[dict]:

@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import Icon
 from nest_mcp.tools.unifi import get_session
 
@@ -16,7 +16,7 @@ async def lifespan(server):
 
 _ICON = "https://mcp.arishaig.site/nest_logo.webp"
 
-mcp = FastMCP(
+mcp = MCPServer(
     name="Nest",
     instructions=(
         "Live homelab status and control. "
