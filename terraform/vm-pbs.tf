@@ -60,8 +60,16 @@ resource "proxmox_virtual_environment_vm" "backup" {
   # with talos-alpha-control) were stalling etcd fsyncs on alpha-control long
   # enough to blow leader-election timeouts, crash-looping kube-scheduler and
   # kube-controller-manager. This caps backup's ceiling so etcd's small
-  # latency-critical writes aren't queued behind it. Re-apply if this disk is
-  # ever recreated.
+  # latency-critical writes aren't queued behind it.
+  #
+  # Moved 2026-08-03: the throttle alone wasn't enough — a fleet-wide vzdump
+  # still stalled etcd's WAL fsync ~10s. Migrated scsi0 off local-zfs onto
+  # Tank (online, `qm move-disk 500 scsi0 Tank --delete 1`), joining scsi1
+  # there. Both PBS datastores are now fully off the NVMe mirror that
+  # talos-alpha-control's etcd lives on. The datastore_id below no longer
+  # matches live state (`disk` is ignore_changes'd, so it never will) — real
+  # state is Tank. Re-apply both the throttle and the Tank placement if this
+  # disk is ever recreated.
   disk {
     datastore_id = "local-zfs"
     interface    = "scsi0"
