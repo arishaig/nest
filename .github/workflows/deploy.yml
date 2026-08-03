@@ -354,7 +354,11 @@ jobs:
         run: tofu -chdir=terraform init -input=false
 
       - name: OpenTofu apply
+        # set -o pipefail: without it, this step's exit code is tee's (always
+        # 0), so a failed apply (e.g. 2026-08-03 CT 101 destroy blocked by a
+        # stale PVE lock) still reports CI success.
         run: |
+          set -o pipefail
           tofu -chdir=terraform apply -var-file=secrets.tfvars -auto-approve -input=false \
             2>&1 | tee "$RUNNER_TEMP/tofu-apply.log"
 
