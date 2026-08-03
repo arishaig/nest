@@ -34,34 +34,36 @@ resource "proxmox_virtual_environment_vm" "backup" {
     floating  = 2048
   }
 
-  # scsi0 holds the pbs-local datastore. Note it lives on local-zfs (= rpool),
-  # the same pool as the guests it backs up — see architecture review finding
-  # B2. That is mitigated, not fixed, by a second datastore on Tank:
+  # scsi0 holds the pbs-local datastore.
   #
-  #   scsi1: Tank:vm-500-disk-0, 1000G -> PBS datastore "tank-archive"
+  # It carries a write throttle (mbps_wr=150, iops_wr=3000), applied out of
+  # band — `disk` is ignore_changes'd below, so it wouldn't survive a
+  # `tf apply` edit here regardless:
   #
-  # scsi1 is deliberately absent from this resource. lifecycle.ignore_changes
-  # below covers `disk`, so a second disk block here would be silently ignored,
-  # and dropping `disk` from that list would make Terraform try to reconcile
-  # scsi0 as well. It was therefore attached out of band, the same way LXC
-  # disks use `pct set`:
-  #
-  #   qm set 500 --scsi1 Tank:1000,iothread=1
-  #
-  # playbooks/provision/pbs.yml formats it and registers the datastore.
-  #
-  # scsi0 also carries a write throttle (mbps_wr=150, iops_wr=3000), applied
-  # out of band the same way — `disk` is ignore_changes'd, so it wouldn't
-  # survive a `tf apply` edit here regardless:
-  #
-  #   qm set 500 --scsi0 local-zfs:vm-500-disk-0,iothread=1,size=500G,mbps_wr=150,iops_wr=3000
+  #   qm set 500 --scsi0 Tank:vm-500-disk-1,iothread=1,size=500G,mbps_wr=150,iops_wr=3000
   #
   # Added 2026-07-31: backup's bursty writes on local-zfs (shared NVMe mirror
   # with talos-alpha-control) were stalling etcd fsyncs on alpha-control long
   # enough to blow leader-election timeouts, crash-looping kube-scheduler and
   # kube-controller-manager. This caps backup's ceiling so etcd's small
-  # latency-critical writes aren't queued behind it. Re-apply if this disk is
-  # ever recreated.
+  # latency-critical writes aren't queued behind it.
+  #
+  # Moved 2026-08-03: the throttle alone wasn't enough — a fleet-wide vzdump
+  # still stalled etcd's WAL fsync ~10s. Migrated scsi0 off local-zfs onto
+  # Tank (online, `qm move-disk 500 scsi0 Tank --delete 1`), fully off the
+  # NVMe mirror that talos-alpha-control's etcd lives on. The datastore_id
+  # below no longer matches live state (`disk` is ignore_changes'd, so it
+  # never will) — real state is Tank. Re-apply both the throttle and the
+  # Tank placement if this disk is ever recreated.
+  #
+  # There used to be a scsi1 here too (Tank:vm-500-disk-0, 1000G, PBS
+  # datastore "tank-archive" — a local sync-mirror of pbs-local for
+  # architecture review finding B2; see git history of playbooks/provision/
+  # pbs.yml). Decommissioned the same day scsi0 moved: with both disks on
+  # Tank, the mirror no longer protected against pool loss, defeating its
+  # purpose. Removed rather than relocated back to local-zfs — accepted as a
+  # deliberate single-copy tradeoff; second-copy/offsite redundancy is
+  # handled manually (flash drive) instead.
   disk {
     datastore_id = "local-zfs"
     interface    = "scsi0"

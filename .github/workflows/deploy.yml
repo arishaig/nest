@@ -357,9 +357,22 @@ jobs:
         # set -o pipefail: without it, this step's exit code is tee's (always
         # 0), so a failed apply (e.g. 2026-08-03 CT 101 destroy blocked by a
         # stale PVE lock) still reports CI success.
+        #
+        # -exclude=vultr_instance.vps_proxy (2026-08-03): every plan/apply
+        # refresh of this resource now fails with
+        # `error getting backup schedule: {"error":"Invalid instance-id.","status":404}`,
+        # an upstream vultr provider bug (unconditional, fatal read of a
+        # sub-resource — see vultr/terraform-provider-vultr#753, filed for a
+        # different endpoint but the same unconditional-fatal-404 pattern;
+        # Vultr's API itself appears to have changed, so downgrading the
+        # provider is unlikely to help). Remove this exclude once fixed
+        # upstream or the account issue resolves — until then this resource
+        # (and null_resource.vps_provision, which depends on it) won't be
+        # reconciled by CI.
         run: |
           set -o pipefail
           tofu -chdir=terraform apply -var-file=secrets.tfvars -auto-approve -input=false \
+            -exclude=vultr_instance.vps_proxy \
             2>&1 | tee "$RUNNER_TEMP/tofu-apply.log"
 
       - name: Notify on Vultr API IP allowlist block
