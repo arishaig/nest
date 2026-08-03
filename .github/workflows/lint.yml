@@ -291,9 +291,12 @@ jobs:
 
       - name: OpenTofu plan
         if: steps.filter.outputs.tofu == 'true'
+        # -exclude=vultr_instance.vps_proxy (2026-08-03): see deploy.yml's
+        # OpenTofu apply step for why.
         run: |
           set -o pipefail
           tofu -chdir=terraform plan -var-file=secrets.tfvars -var adguard_tertiary_port=13001 -input=false -no-color \
+            -exclude=vultr_instance.vps_proxy \
             2>&1 | tee "$RUNNER_TEMP/tofu-plan.log"
 
       - name: Post plan to job summary
