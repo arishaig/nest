@@ -1,22 +1,25 @@
 ---
-# Provision PBS (VM 500): pool-independent backup coverage, then
+# Provision PBS (VM 500): host-level backup coverage for k8s PVC data, then
 # backup-freshness monitoring for Prometheus.
 #
-# Closes findings B1 and B2 of docs/architecture-review.md:
+# Closes finding B1 of docs/architecture-review.md:
 #
 #   B1 — the k8s PVCs live at rpool/data/k8s-configs on the PVE *host*, not
 #        inside any guest, so the guest-only PBS jobs never covered them. They
 #        were protected by nothing but ZFS `Retain` on a single pool.
-#   B2 — pbs-local is a 500 GB zvol on local-zfs (= rpool), so every guest
-#        backup sat on the same pool as the host being backed up. rpool loss
-#        took the originals and the backups together.
 #
-# The fix is two-sided:
-#   * a second datastore (tank-archive) on a 1 TB disk carved from Tank, with a
-#     local sync job mirroring pbs-local into it. Tank is a separate raidz2
-#     vdev, so rpool loss no longer costs any backup history.
-#   * a host-type backup of rpool/data/k8s-configs pushed from PVE by
-#     proxmox-backup-client, which then rides the same sync into Tank.
+# The fix: a host-type backup of rpool/data/k8s-configs pushed from PVE by
+# proxmox-backup-client, into pbs-local alongside the guest backups.
+#
+# Finding B2 (pbs-local sharing a pool with the guests it backs up) was
+# previously mitigated by a second datastore (tank-archive) mirroring
+# pbs-local onto Tank, a separate vdev. Decommissioned 2026-08-03: pbs-local
+# itself moved onto Tank instead (see vm-pbs.tf) after an unthrottled fleet
+# backup was found to stall etcd's WAL fsync on talos-alpha-control, which
+# also shares local-zfs. That move put pbs-local and the would-be archive on
+# the same vdev, defeating the point of a separate copy, so the archive was
+# removed rather than relocated — accepted as a deliberate single-copy
+# tradeoff; offsite/second-copy redundancy is handled manually (flash drive).
 #
 # Note this protects against pool loss, not against loss of the machine — see
 # the RTO note in docs/design.md. Tank/media_root stays deliberately
@@ -24,92 +27,32 @@
 #
 # No monitoring changes are needed: pbs-backup-freshness.sh already walks the
 # host/ group directory alongside ct/ and vm/, and PBSBackupStale has no
-# guest_type filter, so the new k8s-configs group alerts for free.
+# guest_type filter, so the k8s-configs group alerts for free.
 
-- name: PBS pool-independent backup coverage
+- name: PBS host-level backup coverage
   hosts: pbs
   become: true
   gather_facts: false
 
   vars:
     pbs_primary_datastore: pbs-local
-    pbs_archive_datastore: tank-archive
-    # scsi1 on VM 500, backed by a zvol on Tank. Attached out of band with
-    # `qm set 500 --scsi1 Tank:1000,iothread=1` because vm-pbs.tf carries
-    # lifecycle.ignore_changes = [disk] — same reason LXC disks use `pct set`.
-    pbs_archive_disk: sdb
     pbs_hostbackup_token_name: pve-k8sconfigs
     pbs_hostbackup_token_id: "root@pam!pve-k8sconfigs"
     pbs_hostbackup_env: /etc/proxmox-backup-client/k8s-configs.env
     pbs_k8s_configs_path: /rpool/data/k8s-configs
 
   tasks:
-    # ── The Tank-backed archive datastore ──────────────────────────────────
-    - name: List existing datastores
-      ansible.builtin.command: proxmox-backup-manager datastore list --output-format json
-      register: pbs_datastore_list
-      changed_when: false
-
-    - name: Create the Tank archive datastore
-      # `disk fs create` formats the disk, mounts it under /mnt/datastore/ and
-      # registers the datastore in one step. It refuses to touch a disk that
-      # already carries a filesystem, so the datastore-name guard above is what
-      # makes this safe to re-run.
-      ansible.builtin.command: >
-        proxmox-backup-manager disk fs create {{ pbs_archive_datastore }}
-        --disk {{ pbs_archive_disk }}
-        --filesystem ext4
-        --add-datastore true
-      when: pbs_archive_datastore not in (pbs_datastore_list.stdout | from_json | map(attribute='name') | list)
-      changed_when: true
-
-    # ── Mirror pbs-local into it ───────────────────────────────────────────
-    - name: List existing sync jobs
-      ansible.builtin.command: proxmox-backup-manager sync-job list --output-format json
-      register: pbs_sync_job_list
-      changed_when: false
-
-    - name: Create the local sync job into the Tank archive
-      # Omitting --remote makes this a local datastore-to-datastore sync.
-      # remove-vanished stays false on purpose: pruning pbs-local (which is
-      # small and lives on rpool) must not prune the archive, so Tank keeps
-      # deeper history than the primary.
-      ansible.builtin.command: >
-        proxmox-backup-manager sync-job create tank-mirror
-        --store {{ pbs_archive_datastore }}
-        --remote-store {{ pbs_primary_datastore }}
-        --schedule 05:00
-        --remove-vanished false
-        --comment "Mirror pbs-local onto Tank (architecture review B2)"
-      when: "'tank-mirror' not in (pbs_sync_job_list.stdout | from_json | map(attribute='id') | list)"
-      changed_when: true
-
-    # ── Retention and integrity on the archive ─────────────────────────────
+    # ── Retention on pbs-local ──────────────────────────────────────────────
     - name: List existing prune jobs
       ansible.builtin.command: proxmox-backup-manager prune-job list --output-format json
       register: pbs_prune_job_list
       changed_when: false
 
-    - name: Create the prune job for the Tank archive
-      ansible.builtin.command: >
-        proxmox-backup-manager prune-job create tank-archive-prune
-        --store {{ pbs_archive_datastore }}
-        --schedule 06:00
-        --keep-daily 14
-        --keep-weekly 8
-        --keep-monthly 12
-        --comment "Retention for the Tank archive"
-      when: "'tank-archive-prune' not in (pbs_prune_job_list.stdout | from_json | map(attribute='id') | list)"
-      changed_when: true
-
-    # ── Retention on pbs-local ──────────────────────────────────────────────
     # This existed only as an auto-generated, out-of-band job
     # ("default-pbs-local-ad9ff066-b2c1-") until 2026-08-01. Removing it and
     # having Ansible own a properly-named replacement brings it in line with
-    # tank-archive-prune above, which was already git-tracked. Values
-    # (keep-last 3 / keep-daily 3 / keep-weekly 3) are unchanged from the
-    # job being replaced — pbs-local is a fast recovery buffer, not the
-    # long-term archive; tank-archive-prune above holds the deep history.
+    # the rest of this file. Values (keep-last 3 / keep-daily 3 / keep-weekly
+    # 3) are unchanged from the job being replaced.
     - name: Remove legacy auto-generated pbs-local prune job
       ansible.builtin.command: >
         proxmox-backup-manager prune-job remove default-pbs-local-ad9ff066-b2c1-
@@ -124,27 +67,8 @@
         --keep-last 3
         --keep-daily 3
         --keep-weekly 3
-        --comment "Local retention for pbs-local (fast recovery buffer; tank-archive holds deep history)"
+        --comment "Local retention for pbs-local (fast recovery buffer)"
       when: "'pbs-local-prune' not in (pbs_prune_job_list.stdout | from_json | map(attribute='id') | list)"
-      changed_when: true
-
-    - name: List existing verify jobs
-      ansible.builtin.command: proxmox-backup-manager verify-job list --output-format json
-      register: pbs_verify_job_list
-      changed_when: false
-
-    - name: Create the verify job for the Tank archive
-      # Finding B4: nothing previously checked that backups were *restorable*,
-      # only that they were recent. A verify job re-reads chunks and checksums
-      # them, which is the cheap half of that gap; the other half is an actual
-      # timed restore, which stays a manual runbook step.
-      ansible.builtin.command: >
-        proxmox-backup-manager verify-job create tank-archive-verify
-        --store {{ pbs_archive_datastore }}
-        --schedule "sun 07:00"
-        --ignore-verified true
-        --comment "Weekly integrity check of the Tank archive"
-      when: "'tank-archive-verify' not in (pbs_verify_job_list.stdout | from_json | map(attribute='id') | list)"
       changed_when: true
 
     # ── Credentials for PVE's host backup ──────────────────────────────────
