@@ -1,6 +1,6 @@
 import asyncio
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from nest_mcp import config
 from nest_mcp.http_client import make_client
 
@@ -26,7 +26,7 @@ async def _fetch_stats(url: str) -> dict:
         }
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def adguard_stats() -> dict:

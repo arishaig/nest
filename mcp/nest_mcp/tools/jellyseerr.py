@@ -1,4 +1,4 @@
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from nest_mcp import config
 from nest_mcp.http_client import make_client
 
@@ -7,7 +7,7 @@ def _headers() -> dict:
     return {"X-Api-Key": config.jellyseerr.key}
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def jellyseerr_requests(status: str = "pending") -> list[dict]:

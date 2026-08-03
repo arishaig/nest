@@ -1,9 +1,9 @@
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from nest_mcp import config
 from nest_mcp.http_client import make_client
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def scrutiny_summary() -> list[dict]:

@@ -1,7 +1,7 @@
 import json
 import re
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from nest_mcp import config
 from nest_mcp.http_client import make_client
@@ -12,7 +12,7 @@ async def _ssh(cmd: str) -> str:
     return await ssh_run(config.docker_host.host, cmd, key=config.docker_host.ssh_key)
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def docker_containers() -> list[dict]:

@@ -2,7 +2,7 @@ import asyncio
 import json
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from nest_mcp import config
 from nest_mcp.http_client import make_client
@@ -406,7 +406,7 @@ def _overall_status(alerts: list, sections: dict) -> str:
     return "ok"
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
     @mcp.tool()
     async def lab_health_summary() -> dict:
         """Single-call homelab health summary covering Proxmox, PBS, disks, k8s (including per-node pod distribution), VPS, UniFi, Home Assistant, DNS, monitoring stack, and Prometheus alerts. Use this to orient at the start of a session."""

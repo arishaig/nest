@@ -1,18 +1,18 @@
 """Shared test helpers for the nest_mcp tool suite.
 
-The tools are async closures registered on a FastMCP instance inside each
-module's ``register(mcp)``. We register them on a throwaway FastMCP, pull the
+The tools are async closures registered on a MCPServer instance inside each
+module's ``register(mcp)``. We register them on a throwaway MCPServer, pull the
 underlying functions back out, and call them directly with the network layer
 stubbed — so the tests exercise the real formatting/transform logic without
 touching the live homelab.
 """
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
 def load_tools(module) -> dict:
-    """Register a tool module on a fresh FastMCP; return {tool_name: fn}."""
-    mcp = FastMCP("test")
+    """Register a tool module on a fresh MCPServer; return {tool_name: fn}."""
+    mcp = MCPServer("test")
     module.register(mcp)
     return {t.name: t.fn for t in mcp._tool_manager.list_tools()}
 

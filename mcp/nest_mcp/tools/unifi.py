@@ -1,5 +1,5 @@
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from nest_mcp import config
 from nest_mcp.http_client import UniFiSession
 
@@ -103,7 +103,7 @@ def _fmt_policy(p: dict, zones: dict[str, str], networks: dict[str, str]) -> dic
     }
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def unifi_port_forwarding() -> list[dict]:

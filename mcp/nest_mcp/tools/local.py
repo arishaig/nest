@@ -3,7 +3,7 @@ import json
 import os
 import subprocess
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
 
@@ -24,7 +24,7 @@ async def _run(cmd: list[str], cwd: str = REPO_ROOT, timeout: int = 120) -> dict
     return {"ok": proc.returncode == 0, "output": output}
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def lint_check() -> dict:

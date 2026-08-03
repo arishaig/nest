@@ -1,6 +1,6 @@
 import asyncio
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from nest_mcp import config
 from nest_mcp.ssh_client import ssh_run
@@ -10,7 +10,7 @@ async def _pve(cmd: str, timeout: int = 15) -> str:
     return await ssh_run(config.fileserver.host, cmd, key=config.fileserver.ssh_key, timeout=timeout)
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def zfs_arc_stats() -> dict:

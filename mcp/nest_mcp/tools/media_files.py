@@ -1,7 +1,7 @@
 import json
 import shlex
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from nest_mcp import config
 from nest_mcp.ssh_client import ssh_run
@@ -42,7 +42,7 @@ def _parse_ncdu(node: list, depth: int, current: int = 0, prefix: str = "") -> l
     return results
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def media_ls(path: str = "", depth: int = 1) -> dict:
