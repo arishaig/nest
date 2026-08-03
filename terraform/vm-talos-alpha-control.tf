@@ -33,10 +33,13 @@ resource "proxmox_virtual_environment_vm" "talos_alpha_control" {
   }
 
   memory {
-    # Sized to match the old proven talos-beta-vm test-node template — host
-    # only has ~13GB free, so no room to over-provision. Watch apiserver/etcd
-    # memory once this node carries all API traffic alone (see plan doc).
-    dedicated = 4096
+    # Bumped from 4096 (2026-08-03): 4GB is thin headroom for a sole
+    # control-plane node (kube-apiserver alone routinely uses 800MB+). Root
+    # cause of the 2026-08-03 crash-loop investigation pointed at etcd
+    # (shared local apiserver LB stalling, not per-process memory pressure),
+    # but this extra headroom is worth keeping regardless. Host had ~16.6GB
+    # free at the time.
+    dedicated = 8192
   }
 
   efi_disk {
