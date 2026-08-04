@@ -13,7 +13,7 @@ FROM ghcr.io/actions/actions-runner:latest
 # renovate: datasource=github-releases depName=opentofu/opentofu
 ARG OPENTOFU_VERSION=1.12.5
 # renovate: datasource=github-releases depName=prometheus/prometheus
-ARG PROMETHEUS_VERSION=3.13.1
+ARG PROMETHEUS_VERSION=3.13.2
 # renovate: datasource=github-releases depName=prometheus/alertmanager
 ARG ALERTMANAGER_VERSION=0.33.1
 # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/v(?<version>.+)$
