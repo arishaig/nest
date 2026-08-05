@@ -14,9 +14,9 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
-    # Pinned to alpha (nest.arishaig.site/workloads=general): the 4Gi memory
-    # limit (whisper models) exceeds beta capacity, so it must never schedule
-    # there once beta/delta are schedulable.
+    # Pinned to alpha (nest.arishaig.site/workloads=general): the 8Gi memory
+    # limit (whisper models) exceeds beta/gamma rpi5 capacity (~3.5Gi
+    # allocatable), so it must never schedule there.
     defaultPodOptions:
       affinity:
         nodeAffinity:
@@ -83,7 +83,7 @@ spec:
                 cpu: 100m
                 memory: 512Mi
               limits:
-                memory: 4Gi
+                memory: 8Gi
     service:
       app:
         controller: subgen
