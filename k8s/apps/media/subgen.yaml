@@ -13,6 +13,15 @@ spec:
         kind: HelmRepository
         name: bjw-s
         namespace: flux-system
+  # All probes are disabled below (no health endpoint), so Helm has nothing
+  # meaningful to wait on for readiness. With strategy: Recreate, a single
+  # OOM/crash during the recreate window used to stall the upgrade for the
+  # full 5m wait, burning through remediation retries before the new pod
+  # spec (e.g. the memory limit) ever got applied.
+  install:
+    disableWait: true
+  upgrade:
+    disableWait: true
   values:
     # Pinned to alpha (nest.arishaig.site/workloads=general): the 8Gi memory
     # limit (whisper models) exceeds beta/gamma rpi5 capacity (~3.5Gi
