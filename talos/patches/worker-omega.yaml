@@ -1,0 +1,85 @@
+# omega — the user's gaming PC, dual-booted between Windows and Talos on a
+# dedicated second disk. NOT Proxmox/Terraform-managed like every other node
+# in this cluster; it's physical hardware the user owns and reboots into
+# Windows at will. Expected to be offline for hours at a time — that's normal
+# for this node, not an incident (see KubeNodeNotReady exclusion in
+# playbooks/provision/files/monitoring/prometheus/rules/nest.yml). Onboarded
+# for its RTX 3080, primarily for GPU-accelerated transcription workloads.
+# See docs/gaming-gpu-talos.md for the full runbook.
+#
+# Scope as of onboarding: this node runs nothing but the NVIDIA GPU Operator
+# (k8s/infrastructure/nvidia-gpu-operator/). Wiring an actual workload
+# (subgen/whisper) to request nvidia.com/gpu and prefer this node is a
+# deliberate follow-up, not done here.
+#
+# Jellyfin must NEVER schedule here — see the hard anti-affinity in
+# k8s/apps/media/jellyfin.yaml. Everything else that opts into this node's
+# label must use NFS-backed storage (nfs-nvme / media-nfs), never
+# local-path — a pod bound to node-local storage would not reschedule when
+# this node goes offline, defeating the entire point.
+machine:
+  nodeLabels:
+    nest.arishaig.site/workloads: omega
+  install:
+    # Targets the dedicated second disk by SERIAL, not a /dev/nvmeXn1 path —
+    # with two NVMe drives in the machine (Windows + this one), enumeration
+    # order is not guaranteed stable across reboots, and a path-based target
+    # is exactly how a future reinstall could hit the Windows disk instead.
+    # TODO: fill in after booting the Ventoy ISO in maintenance mode and
+    # running `talosctl -n <dhcp-ip> -e <dhcp-ip> get disks --insecure`.
+    # If `talosctl validate -m metal` rejects diskSelector (untested in this
+    # repo — every other node uses plain `disk:`), fall back to
+    # `disk: /dev/<confirmed-path>` — the install-time safeguard of
+    # physically unplugging/disabling the Windows drive (see
+    # docs/gaming-gpu-talos.md) already removes the wrong-disk risk that
+    # diskSelector was hedging against.
+    diskSelector:
+      serial: REPLACE_WITH_DISK_SERIAL
+    # Image Factory installer for schematic 6698d6f1... (nvidia-open-gpu-kernel-modules
+    # + nvidia-container-toolkit, both production branch) — verified live
+    # (200 OK) for this cluster's pinned talos_version. A plain
+    # ghcr.io/siderolabs/installer would silently strip both NVIDIA
+    # extensions on the next upgrade, same failure mode documented for the
+    # RPi5 nodes' overlay. Renovate bumps this tag in lockstep with
+    # talos_version in terraform/terraform.tfvars (see renovate.json).
+    image: factory.talos.dev/installer/6698d6f136c5bb37ca8bb8482c9084305084da0a5ead1f4dcae760796f8ab3a2:v1.13.7
+  kernel:
+    modules:
+      - name: nvidia
+      - name: nvidia_uvm
+      - name: nvidia_drm
+      - name: nvidia_modeset
+  network:
+    interfaces:
+      # NIC name on this hardware isn't known in advance — select the only
+      # physical NIC, same reasoning as the RPi5 patches.
+      - deviceSelector:
+          physical: true
+        dhcp: false
+        addresses:
+          - 192.168.1.120/24
+        # No `vip:` entry — vip is how a node campaigns to hold the
+        # control-plane VIP via etcd leader election (control-plane-only).
+        # Workers reach the API via cluster.controlPlane.endpoint + KubePrism,
+        # not vip. Carrying vip on a worker either fails validation or could
+        # wrongly win 192.168.1.115 with no apiserver behind it.
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+    nameservers:
+      - 192.168.7.7
+      - 192.168.7.8
+  kubelet:
+    nodeIP:
+      validSubnets:
+        - 192.168.1.0/24
+  time:
+    servers:
+      - 192.168.7.7
+# Hostname lives in its own config document since Talos 1.13 — setting
+# machine.network.hostname alongside it fails validation.
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+auto: "off"
+hostname: talos-omega

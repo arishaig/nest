@@ -10,3 +10,4 @@ resources:
   - prometheus-community.yaml
   - actions-runner-controller.yaml
   - watchback.yaml
+  - nvidia.yaml

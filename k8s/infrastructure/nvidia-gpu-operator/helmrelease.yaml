@@ -1,0 +1,40 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: gpu-operator
+  namespace: gpu-operator
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: gpu-operator
+      version: v26.3.3
+      sourceRef:
+        kind: HelmRepository
+        name: nvidia
+        namespace: flux-system
+  values:
+    # Driver and toolkit are already installed as Talos system extensions
+    # (siderolabs/nvidia-open-gpu-kernel-modules + nvidia-container-toolkit,
+    # baked into talos-omega's install image — see
+    # talos/patches/worker-omega.yaml). Letting the operator also try to
+    # install its own would conflict with Talos's immutable/extension-managed
+    # driver.
+    driver:
+      enabled: false
+    toolkit:
+      enabled: false
+    hostPaths:
+      driverInstallDir: /usr/local
+
+    # No manual nodeSelector is set for the GPU operand DaemonSets
+    # (device-plugin, dcgm-exporter, gpu-feature-discovery, etc.) — the chart
+    # doesn't expose one. They self-scope: Node Feature Discovery (enabled by
+    # default, runs its lightweight PCI scan on every node — harmless on the
+    # arm64 RPi5 workers, this is its actual job) labels any node with an
+    # NVIDIA PCI device (vendor 10de) present, and the operator's own
+    # ClusterPolicy controller then dynamically injects nodeSelectors onto
+    # the operand DaemonSets based on that label. Since talos-omega is the
+    # only node with an NVIDIA GPU, the heavy operand pods will only ever
+    # land there — verify with `kubectl get pods -n gpu-operator -o wide`
+    # after install.

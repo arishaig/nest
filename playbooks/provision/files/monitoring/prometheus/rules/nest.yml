@@ -389,8 +389,13 @@ groups:
           summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} is under-replicated"
           description: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has had fewer available replicas than desired for more than 30 minutes."
 
+      # talos-omega is the user's gaming PC, dual-booted between Windows and
+      # Talos — it's routinely offline for hours at a time whenever the owner
+      # reboots into Windows to game. That's expected, not an incident, so
+      # it's excluded here the same way docker.arishaig.site is excluded from
+      # HostDown above for being intentionally stopped.
       - alert: KubeNodeNotReady
-        expr: kube_node_status_condition{job="kube-state-metrics", condition="Ready", status="true"} == 0
+        expr: kube_node_status_condition{job="kube-state-metrics", condition="Ready", status="true", node!="talos-omega"} == 0
         for: 10m
         labels:
           severity: critical

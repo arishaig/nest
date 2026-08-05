@@ -255,6 +255,14 @@
     },
     {
       "customType": "regex",
+      "description": "Talos installer tag in the omega (gaming-PC GPU node) machine-config patch — must move in lockstep with talos_version. A generic pattern like worker-.*\\.yaml would also match the RPi5 files above and double-track them; kept as its own entry the same way the RPi5 pattern is separate from the plain talos_version pin in terraform.tfvars.",
+      "managerFilePatterns": ["/talos/patches/worker-omega\\.yaml/"],
+      "matchStrings": ["factory\\.talos\\.dev/installer/[a-f0-9]+:(?<currentValue>v[\\d.]+)"],
+      "depNameTemplate": "siderolabs/talos",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
       "description": "cert-manager version pin in kustomization URL",
       "managerFilePatterns": ["/k8s/infrastructure/cert-manager/kustomization\\.yaml/"],
       "matchStrings": ["cert-manager/releases/download/v(?<currentValue>[^/]+)/cert-manager\\.yaml"],

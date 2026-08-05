@@ -30,6 +30,12 @@ spec:
     # where it sits in permanent ImagePullBackOff. Hit exactly this
     # 2026-07-22 after alpha's Phase 4 drain/rejoin. Same fix already applied
     # to tunarr/watchback for the same reason.
+    #
+    # Hard exclusion from omega (the gaming-PC GPU node, talos/patches/worker-omega.yaml):
+    # amd64 alone isn't enough to keep Jellyfin off it (omega is amd64 too).
+    # Jellyfin is user-facing and must never land on a node that's routinely
+    # offline for hours at a time — unlike the other media workloads, this
+    # one is not reschedule-tolerant by design choice, not an oversight.
     defaultPodOptions:
       affinity:
         nodeAffinity:
@@ -40,6 +46,12 @@ spec:
                   - key: nest.arishaig.site/workloads
                     operator: In
                     values: [general]
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: NotIn
+                    values: [omega]
       nodeSelector:
         kubernetes.io/arch: amd64
     controllers:
