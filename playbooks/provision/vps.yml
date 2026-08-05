@@ -79,9 +79,15 @@
     # after nftables/wg-quick were fixed. nftables below is the sole intended
     # firewall for this host. Removed outright (not just disabled) so a
     # future package upgrade can't silently re-enable it.
+    - name: Check whether ufw is installed
+      ansible.builtin.stat:
+        path: /usr/sbin/ufw
+      register: ufw_binary
+
     - name: Disable ufw before removal
       community.general.ufw:
         state: disabled
+      when: ufw_binary.stat.exists
 
     - name: Remove ufw package
       ansible.builtin.apt:
