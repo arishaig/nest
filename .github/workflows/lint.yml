@@ -27,6 +27,14 @@ permissions:
   contents: read
   packages: read
 
+# GitHub Actions defaults `run:` steps to sh (not bash) for container jobs,
+# even though the nest-ci-runner image has bash on PATH — several jobs below
+# use bash-only syntax (source, < <(...) process substitution). bash is also
+# the default on the self-hosted runner (tofu-plan), so this is a no-op there.
+defaults:
+  run:
+    shell: bash
+
 # Stateless lint/validate jobs below run on GitHub-hosted ubuntu-latest inside
 # the nest-ci-runner image (built by build-ci-runner in deploy.yml) rather
 # than the ARC arc-lint scale set. They need no cluster access, and running
