@@ -1,9 +1,13 @@
-# Custom GitHub Actions runner image for the ARC "arc-lint" scale set.
+# Custom GitHub Actions tooling image for the stateless lint/validate jobs in
+# .github/workflows/lint.yml. Those jobs run on GitHub-hosted ubuntu-latest
+# via the `container:` key (not the ARC arc-lint scale set — pod bursts there
+# once starved talos-alpha-control's only schedulable node, see lint.yml's
+# concurrency comment), so this only needs to be a plain container image, not
+# a functioning runner agent.
 #
-# Bakes the exact tooling the stateless lint/validate jobs in
-# .github/workflows/lint.yml need, at the SAME paths the workflows already use
-# (notably the Ansible venv at /opt/ansible-runner/venv) so the workflow steps
-# run unchanged whether on the LXC self-hosted runner or here.
+# Bakes the exact tooling those jobs need, at the SAME paths the workflows
+# already use (notably the Ansible venv at /opt/ansible-runner/venv) so the
+# workflow steps run unchanged whether on the LXC self-hosted runner or here.
 #
 # Versions mirror playbooks/provision/runner.yml and are Renovate-managed via
 # the `# renovate:` ARG annotations below. Built/pushed by the build-ci-runner

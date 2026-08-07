@@ -25,10 +25,25 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read
+
+# Stateless lint/validate jobs below run on GitHub-hosted ubuntu-latest inside
+# the nest-ci-runner image (built by build-ci-runner in deploy.yml) rather
+# than the ARC arc-lint scale set. They need no cluster access, and running
+# ARC pods for them previously starved talos-alpha-control's single
+# schedulable amd64 node during merge bursts (see the concurrency comment
+# above) and left jobs stuck queued when the scale set misbehaved. The
+# self-hosted tofu-plan job below is unaffected — it needs the LXC-based
+# self-hosted runner's state file and AdGuard tunnel access, not ARC.
 
 jobs:
   ansible-lint:
-    runs-on: arc-lint
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/arishaig/nest-ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Write vault password
@@ -44,7 +59,12 @@ jobs:
           ANSIBLE_VAULT_PASSWORD_FILE="$RUNNER_TEMP/vault-pass" ansible-lint playbooks/
 
   yamllint:
-    runs-on: arc-lint
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/arishaig/nest-ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Run yamllint
@@ -58,7 +78,12 @@ jobs:
           yamllint .
 
   config-validate:
-    runs-on: arc-lint
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/arishaig/nest-ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Validate Docker Compose schemas
@@ -89,21 +114,36 @@ jobs:
           exit $rc
 
   deploy-coverage:
-    runs-on: arc-lint
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/arishaig/nest-ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Check deploy filter covers all services
         run: scripts/check-deploy-coverage.sh
 
   runner-toolchain-sync:
-    runs-on: arc-lint
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/arishaig/nest-ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Check ci/runner/Dockerfile and runner.yml pin the same versions
         run: scripts/check-runner-toolchain-sync.sh
 
   talos-rpi5-overlay:
-    runs-on: arc-lint
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/arishaig/nest-ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Check Image Factory serves rpi_5 for the pinned Talos version
@@ -114,7 +154,12 @@ jobs:
         run: scripts/check-talos-rpi5-overlay.sh
 
   prometheus-validate:
-    runs-on: arc-lint
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/arishaig/nest-ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Validate Prometheus alerting rules
@@ -130,7 +175,12 @@ jobs:
           rm -f "$tmp"
 
   shellcheck:
-    runs-on: arc-lint
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/arishaig/nest-ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Run shellcheck
@@ -141,7 +191,12 @@ jobs:
         run: shellcheck --exclude=SC2015 scripts/*.sh
 
   k8s-validate:
-    runs-on: arc-lint
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/arishaig/nest-ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Build and validate k8s manifests
@@ -168,7 +223,12 @@ jobs:
           exit $fail
 
   helm-render:
-    runs-on: arc-lint
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/arishaig/nest-ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Render HelmReleases and validate the output
@@ -195,7 +255,12 @@ jobs:
         run: scripts/check-helm-pvc-safety.sh "$RUNNER_TEMP/rendered.yaml"
 
   talos-config-validate:
-    runs-on: arc-lint
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/arishaig/nest-ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Render and validate Talos machine configs
@@ -206,7 +271,12 @@ jobs:
         run: scripts/check-talos-config.sh
 
   tofu:
-    runs-on: arc-lint
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/arishaig/nest-ci-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Check OpenTofu formatting
@@ -224,7 +294,7 @@ jobs:
   # deploy.yml). This posts a real plan on the PR itself.
   #
   # Needs the self-hosted runner (state file + AdGuard tunnel), unlike the
-  # arc-lint jobs above, so it's a separate job gated on terraform/** to avoid
+  # container-based jobs above, so it's a separate job gated on terraform/** to avoid
   # putting every PR through Proxmox/Vultr/AdGuard API reachability. It only
   # reads state (copies in, never writes back — deploy-tofu on main is the
   # only writer) but state is unlocked (C3), so this plan can still race a
