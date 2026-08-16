@@ -9,3 +9,4 @@ resources:
   - app-template.yaml
   - prometheus-community.yaml
   - watchback.yaml
+  - nvidia.yaml

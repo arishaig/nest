@@ -100,8 +100,9 @@ jobs:
         # Register the CRDs the rendered CRs reference, from the repo's own
         # pinned manifests (exact version fidelity, no external pulls). Flux and
         # Traefik ship CRD-only manifests with no admission webhooks, so they
-        # register cleanly. cert-manager / MetalLB / ARC CRDs live in upstream
-        # charts not vendored here (and bring webhooks) — their CRs are skipped
+        # register cleanly. cert-manager / MetalLB / ARC / NVIDIA GPU Operator
+        # CRDs live in upstream charts not vendored here (and bring webhooks)
+        # — their CRs are skipped
         # at render time below and remain covered by kubeconform in lint.yml.
         run: |
           kubectl apply --server-side -f k8s/flux-system/flux-system/gotk-components.yaml
@@ -119,7 +120,7 @@ jobs:
         # pod-security.kubernetes.io/enforce.
         run: |
           flux-local build all --enable-helm \
-            --skip-kinds Certificate,ClusterIssuer,IPAddressPool,L2Advertisement,AutoscalingRunnerSet \
+            --skip-kinds Certificate,ClusterIssuer,IPAddressPool,L2Advertisement,AutoscalingRunnerSet,ClusterPolicy \
             --output-file "$RUNNER_TEMP/rendered.yaml" \
             k8s/flux-system
           # Every namespace a resource lives in must exist for a namespaced

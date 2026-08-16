@@ -1,0 +1,5 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml  # kept raw — custom pod-security label
+  - helmrelease.yaml  # nvidia/gpu-operator chart, driver+toolkit disabled (Talos extensions provide them)
