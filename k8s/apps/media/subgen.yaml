@@ -23,10 +23,18 @@ spec:
   upgrade:
     disableWait: true
   values:
-    # Pinned to alpha (nest.arishaig.site/workloads=general): the 8Gi memory
-    # limit (whisper models) exceeds beta/gamma rpi5 capacity (~3.5Gi
-    # allocatable), so it must never schedule there.
+    # Pinned to omega (talos-omega, the gaming PC's RTX 3080) — GPU-accelerated
+    # transcription is the whole reason that node was onboarded. Reschedule-
+    # tolerant by design: whenever the owner reboots into Windows, subgen just
+    # sits pending until omega rejoins (see KubeNodeNotReady exclusion for
+    # omega in the Prometheus rules — expected downtime, not an incident).
     defaultPodOptions:
+      # CDI isn't the cluster default (gpu-operator ClusterPolicy has
+      # cdi.default: false) — confirmed against the working
+      # nvidia-cuda-validator pod, which sets this explicitly. Without it the
+      # pod schedules fine (nvidia.com/gpu is just a resource count) but gets
+      # no actual GPU device — a runtime failure invisible to kustomize/CI.
+      runtimeClassName: nvidia
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -34,7 +42,7 @@ spec:
               - matchExpressions:
                   - key: nest.arishaig.site/workloads
                     operator: In
-                    values: [general]
+                    values: [omega]
     controllers:
       subgen:
         strategy: Recreate
@@ -46,9 +54,12 @@ spec:
         containers:
           app:
             image:
-              # renovate: datasource=docker depName=mccloud/subgen versioning=regex:^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)-cpu$
+              # renovate: datasource=docker depName=mccloud/subgen versioning=regex:^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$
+              # No -cpu suffix: the default/latest-tagged image is the one
+              # with CUDA support built in (mccloud/subgen docs) — the -cpu
+              # variant used before omega existed can't use the GPU at all.
               repository: mccloud/subgen
-              tag: 2026.07.3-cpu
+              tag: 2026.07.3
             env:
               WEBHOOK_PORT: "9000"
               WHISPER_MODEL: medium
@@ -63,7 +74,7 @@ spec:
               CONCURRENT_TRANSCRIPTIONS: "2"
               WORD_LEVEL_HIGHLIGHT: "False"
               DEBUG: "True"
-              TRANSCRIBE_DEVICE: cpu
+              TRANSCRIBE_DEVICE: cuda
               SHOW_IN_SUBNAME_SUBGEN: "True"
               SHOW_IN_SUBNAME_MODEL: "True"
               MODEL_PATH: ./models
@@ -87,12 +98,18 @@ spec:
                 enabled: false
               startup:
                 enabled: false
+            # nvidia.com/gpu in both requests and limits: the device plugin
+            # requires them to match (it's an integer, non-overcommittable
+            # resource) — this is also what actually gets subgen scheduled
+            # onto omega and grants it access to the GPU device.
             resources:
               requests:
                 cpu: 100m
                 memory: 512Mi
+                nvidia.com/gpu: "1"
               limits:
                 memory: 8Gi
+                nvidia.com/gpu: "1"
     service:
       app:
         controller: subgen

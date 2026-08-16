@@ -207,10 +207,17 @@ apply, obviously.
   up, unlike whisper/subgen/radarr/sonarr which the user explicitly said are
   fine to reschedule. Hard anti-affinity in `k8s/apps/media/jellyfin.yaml`
   (`nest.arishaig.site/workloads NotIn [omega]`) enforces this.
-- **Scope as onboarded**: this node runs nothing but the GPU Operator.
-  Wiring an actual workload (subgen/whisper) to request `nvidia.com/gpu` and
-  prefer this node — including deciding its fallback behavior for when the
-  node is offline — is a deliberate follow-up, not done as part of onboarding.
+- **subgen wired to the GPU** (`k8s/apps/media/subgen.yaml`): hard-pinned to
+  `omega` (was `general`/alpha), `mccloud/subgen:2026.07.3` (the CUDA-capable
+  default image — the old `-cpu` tag can't use the GPU at all),
+  `TRANSCRIBE_DEVICE: cuda`, `nvidia.com/gpu: "1"` in both requests and
+  limits, and `runtimeClassName: nvidia` — required because the GPU
+  Operator's ClusterPolicy has `cdi.default: false`, confirmed against the
+  working `nvidia-cuda-validator` pod, which sets it explicitly. Without it
+  the pod schedules and gets the GPU resource count but no actual device — a
+  failure invisible to `kustomize build`/CI. Fallback when omega is offline
+  is simply pending — same reschedule-tolerant behavior as every other
+  workload on this node.
 - **Storage**: anything that opts into scheduling on this node must use
   NFS-backed storage (the `nfs-nvme` StorageClass or the shared `media-nfs`
   PV), never `local-path` — a pod bound to node-local storage would not
