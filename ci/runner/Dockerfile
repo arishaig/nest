@@ -41,7 +41,7 @@ ARG TALOSCTL_VERSION=1.13.7
 ARG FLUX_LOCAL_VERSION=7.11.0
 # flux CLI — flux-local 7.x shells out to `flux build ks` to build Flux
 # Kustomizations. Pinned to the version the cluster bootstraps. renovate: datasource=github-releases depName=fluxcd/flux2
-ARG FLUX_VERSION=2.9.3
+ARG FLUX_VERSION=2.9.4
 
 USER root
 
