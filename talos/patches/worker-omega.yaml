@@ -42,7 +42,7 @@ machine:
     # extensions on the next upgrade, same failure mode documented for the
     # RPi5 nodes' overlay. Renovate bumps this tag in lockstep with
     # talos_version in terraform/terraform.tfvars (see renovate.json).
-    image: factory.talos.dev/installer/6698d6f136c5bb37ca8bb8482c9084305084da0a5ead1f4dcae760796f8ab3a2:v1.13.7
+    image: factory.talos.dev/installer/6698d6f136c5bb37ca8bb8482c9084305084da0a5ead1f4dcae760796f8ab3a2:v1.13.8
   kernel:
     modules:
       - name: nvidia
