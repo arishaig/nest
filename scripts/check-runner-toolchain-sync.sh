@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Guards against CI toolchain drift: ci/runner/Dockerfile (arc-lint) and
+# Guards against CI toolchain drift: ci/runner/Dockerfile (lint.yml's container image) and
 # playbooks/provision/runner.yml (the LXC self-hosted runner) install the
 # same CLI tools for the same lint/deploy jobs and must stay on the same
 # versions. Renovate manages each pin independently (separate PRs, separate
