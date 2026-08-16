@@ -69,7 +69,7 @@ services:
     privileged: true
 
   pve-exporter:
-    image: prompve/prometheus-pve-exporter:3.9.0
+    image: prompve/prometheus-pve-exporter:3.10.0
     container_name: pve-exporter
     restart: unless-stopped
     ports:
