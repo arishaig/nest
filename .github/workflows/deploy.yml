@@ -614,10 +614,11 @@ jobs:
             echo "Deployment not yet applied by Flux — skipping rollout restart"
           fi
 
-  # Custom runner image for the ARC arc-lint scale set. Built on a
-  # GitHub-hosted runner (cluster-independent — no bootstrap loop), pushed to
-  # GHCR. ARC pulls :latest per ephemeral pod (imagePullPolicy Always), so no
-  # rollout step is needed — the next lint job picks up the new image.
+  # Custom tooling image for the lint.yml jobs, which run on GitHub-hosted
+  # ubuntu-latest via `container:`. Built on a GitHub-hosted runner
+  # (cluster-independent — no bootstrap loop), pushed to GHCR. Each lint job
+  # pulls :latest fresh, so no rollout step is needed — the next lint run
+  # picks up the new image.
   build-ci-runner:
     needs: changes
     if: needs.changes.outputs.ci_runner == 'true'

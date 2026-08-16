@@ -1,10 +1,11 @@
 name: Integration
 
 # Docker-in-Docker integration test: boots a real Talos cluster in Docker on a
-# GitHub-hosted runner (the arc-lint runners deliberately have no Docker daemon),
-# proves a control plane + worker node actually spin up Ready, then server-side
-# dry-run applies the rendered manifests against the live API to catch CRD-schema
-# and admission errors that kubeconform/flux-local (no API server) cannot.
+# GitHub-hosted runner (the lint.yml jobs' container image deliberately has no
+# Docker daemon), proves a control plane + worker node actually spin up Ready,
+# then server-side dry-run applies the rendered manifests against the live API
+# to catch CRD-schema and admission errors that kubeconform/flux-local (no API
+# server) cannot.
 #
 # Path-filtered: cluster-create + image pull is minutes, too slow for every PR.
 # Scope note: this exercises the Kubernetes/cluster layer only. The Proxmox/VM

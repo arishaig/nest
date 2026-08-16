@@ -15,7 +15,6 @@ resources:
   - rpi5-net-tuning/
   - rpi5-nic-watchdog/
   - flannel-watchdog/
-  - arc/
   - nvidia-gpu-operator/
 
 # Self-heal transient install/upgrade failures for infra HelmReleases (same as
