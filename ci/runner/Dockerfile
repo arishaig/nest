@@ -35,7 +35,7 @@ ARG SHELLCHECK_VERSION=0.10.0
 ARG HELM_VERSION=3.21.3
 # talosctl backs the talos-config-validate lint job. Keep in lock-step with
 # talos_version in terraform/terraform.tfvars. renovate: datasource=github-releases depName=siderolabs/talos
-ARG TALOSCTL_VERSION=1.13.7
+ARG TALOSCTL_VERSION=1.13.8
 # flux-local renders the HelmReleases for the helm-render job. Held on 7.x:
 # 8.x requires Python >=3.13 and this base image ships 3.12. renovate: datasource=pypi depName=flux-local
 ARG FLUX_LOCAL_VERSION=7.11.0
