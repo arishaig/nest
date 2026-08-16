@@ -25,16 +25,16 @@ machine:
     # with two NVMe drives in the machine (Windows + this one), enumeration
     # order is not guaranteed stable across reboots, and a path-based target
     # is exactly how a future reinstall could hit the Windows disk instead.
-    # TODO: fill in after booting the Ventoy ISO in maintenance mode and
-    # running `talosctl -n <dhcp-ip> -e <dhcp-ip> get disks --insecure`.
-    # If `talosctl validate -m metal` rejects diskSelector (untested in this
-    # repo — every other node uses plain `disk:`), fall back to
-    # `disk: /dev/<confirmed-path>` — the install-time safeguard of
-    # physically unplugging/disabling the Windows drive (see
-    # docs/gaming-gpu-talos.md) already removes the wrong-disk risk that
-    # diskSelector was hedging against.
+    # Confirmed via `talosctl get disks --insecure` in maintenance mode: two
+    # identical 500GB Crucial MX500 SSDs are present (sdb/sdc), plus the 1TB
+    # NVMe (Windows). Neither MX500 reports a `serial` field over SATA
+    # (blank in the Disk resource) — matched instead via the `by-id` symlink
+    # (ata-CT500MX500SSD1_1912E1F47EB4) against the disk's Windows-reported
+    # serial for drive E: (confirmed empty via Disk Management), landing on
+    # sdc, wwid naa.500a0751e1f47eb4. `wwid` is a valid diskSelector field
+    # (pkg/machinery/config/types/v1alpha1 InstallDiskSelector).
     diskSelector:
-      serial: REPLACE_WITH_DISK_SERIAL
+      wwid: naa.500a0751e1f47eb4
     # Image Factory installer for schematic 6698d6f1... (nvidia-open-gpu-kernel-modules
     # + nvidia-container-toolkit, both production branch) — verified live
     # (200 OK) for this cluster's pinned talos_version. A plain
