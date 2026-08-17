@@ -207,20 +207,34 @@ apply, obviously.
   up, unlike whisper/subgen/radarr/sonarr which the user explicitly said are
   fine to reschedule. Hard anti-affinity in `k8s/apps/media/jellyfin.yaml`
   (`nest.arishaig.site/workloads NotIn [omega]`) enforces this.
-- **GPU workloads**: subgen (CUDA whisper transcription) and tdarr-node
-  (NVENC/NVDEC hardware transcode) both request `nvidia.com/gpu: 1` and
-  prefer this node — see `k8s/apps/media/subgen.yaml` and
-  `k8s/apps/media/tdarr-node.yaml`. Both are background/queue-driven workers
-  that degrade gracefully when omega is offline (the queue just stops
-  draining), unlike Jellyfin. Their `general`-or-`omega` required nodeAffinity
-  still excludes rpi5. Only one pod can hold the GPU at a time (no
-  time-slicing configured on the ClusterPolicy) and the 3080's 10GB VRAM
-  isn't partitioned even if it were — if both subgen and tdarr-node need the
-  GPU concurrently and contend, that's the next thing to revisit.
-  anagnorisis (ML ratings) also wants GPU eventually but needs its own CUDA
-  image built first (its Dockerfile deliberately ships CPU-only PyTorch
-  today) and is user-facing via its web UI, so it wasn't bundled with these
-  two — same reasoning that keeps Jellyfin off this node.
+- **subgen wired to the GPU** (`k8s/apps/media/subgen.yaml`): hard-pinned to
+  `omega` (was `general`/alpha), `mccloud/subgen:2026.07.3` (the CUDA-capable
+  default image — the old `-cpu` tag can't use the GPU at all),
+  `TRANSCRIBE_DEVICE: cuda`, `nvidia.com/gpu: "1"` in both requests and
+  limits, and `runtimeClassName: nvidia` — required because the GPU
+  Operator's ClusterPolicy has `cdi.default: false`, confirmed against the
+  working `nvidia-cuda-validator` pod, which sets it explicitly. Without it
+  the pod schedules and gets the GPU resource count but no actual device — a
+  failure invisible to `kustomize build`/CI. Fallback when omega is offline
+  is simply pending — same reschedule-tolerant behavior as every other
+  workload on this node.
+- **tdarr-node wired to the GPU** (`k8s/apps/media/tdarr-node.yaml`):
+  same pattern as subgen — hard-pinned to `omega` (was `general`/alpha),
+  `nvidia.com/gpu: "1"` in requests and limits, `runtimeClassName: nvidia`.
+  Also needs `NVIDIA_VISIBLE_DEVICES: all` and
+  `NVIDIA_DRIVER_CAPABILITIES: compute,utility,video` as container env vars
+  — the base image doesn't set these itself, and `video` specifically (not
+  just `compute,utility`) is what exposes NVENC/NVDEC to ffmpeg; omitting it
+  silently falls back to CPU transcode with no error.
+- **Only one GPU consumer at a time by default**: the 3080 isn't MIG-capable
+  and the ClusterPolicy has no time-slicing configured out of the box, so
+  subgen and tdarr-node contending for the single `nvidia.com/gpu` would
+  otherwise leave one permanently Pending. The GPU Operator HelmRelease
+  (`k8s/infrastructure/nvidia-gpu-operator/helmrelease.yaml`) configures
+  2x time-slicing to cover both. This multiplexes SMs, not the 10GB of
+  VRAM — three CUDA workloads sharing it concurrently (e.g. if anagnorisis
+  joins once it has a CUDA image) is the next ceiling to watch, not just the
+  replica count.
 - **Storage**: anything that opts into scheduling on this node must use
   NFS-backed storage (the `nfs-nvme` StorageClass or the shared `media-nfs`
   PV), never `local-path` — a pod bound to node-local storage would not

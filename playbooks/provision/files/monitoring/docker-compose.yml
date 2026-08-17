@@ -17,7 +17,7 @@ services:
       - '--web.enable-remote-write-receiver'
 
   loki:
-    image: grafana/loki:3.7.4
+    image: grafana/loki:3.7.6
     container_name: loki
     restart: unless-stopped
     ports:
@@ -29,7 +29,7 @@ services:
     command: -config.file=/etc/loki/loki.yml
 
   grafana:
-    image: grafana/grafana:13.1.1
+    image: grafana/grafana:13.1.3
     container_name: grafana
     restart: unless-stopped
     ports:
@@ -69,7 +69,7 @@ services:
     privileged: true
 
   pve-exporter:
-    image: prompve/prometheus-pve-exporter:3.9.0
+    image: prompve/prometheus-pve-exporter:3.10.0
     container_name: pve-exporter
     restart: unless-stopped
     ports:

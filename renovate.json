@@ -47,7 +47,7 @@
       "versioning": "regex:^lidarr-plugins-(?<major>\\d+)\\.(?<minor>\\d+)\\.\\d+\\.(?<patch>\\d+)$"
     },
     {
-      "description": "subgen cuda variant (unsuffixed tag) uses YYYY.MM.D date-based tags",
+      "description": "subgen uses YYYY.MM.D date-based tags (no suffix — the CUDA-capable default image, since talos-omega onboarding)",
       "matchPackageNames": ["mccloud/subgen"],
       "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
     },
