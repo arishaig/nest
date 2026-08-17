@@ -61,6 +61,16 @@ spec:
               repository: mccloud/subgen
               tag: 2026.07.3
             env:
+              # Without these, subgen's own entrypoint drops root privileges
+              # to its default PUID:99/PGID:100 regardless of the pod
+              # securityContext's runAsUser: 0 below — harmless while subgen
+              # only spoke HTTP (Bazarr's /asr mode), but folder-watch mode
+              # writes .subgen.*.srt files straight to the NFS-mounted
+              # /data share and hit Permission denied as uid 99. Match every
+              # other service in this namespace (radarr, sonarr, ...), which
+              # all set these explicitly for the same reason.
+              PUID: "0"
+              PGID: "0"
               WEBHOOK_PORT: "9000"
               # large-v3, not large-v3-turbo: turbo doesn't support
               # TRANSCRIBE_OR_TRANSLATE=translate below. Live-checked VRAM
