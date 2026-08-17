@@ -27,6 +27,29 @@ spec:
     hostPaths:
       driverInstallDir: /usr/local
 
+    # omega advertises exactly one nvidia.com/gpu (no MIG on a 3080). Without
+    # time-slicing, subgen and tdarr-node — both requesting
+    # `nvidia.com/gpu: 1` (k8s/apps/media/subgen.yaml,
+    # k8s/apps/media/tdarr-node.yaml) — would leave one of them permanently
+    # Pending since the resource can't be shared. 2 replicas covers those two
+    # concurrent consumers; bump to 3 if/when anagnorisis gets a CUDA image
+    # and joins them (see docs/gaming-gpu-talos.md). This multiplexes SMs,
+    # not the 10GB of VRAM — three CUDA workloads sharing it concurrently is
+    # the next ceiling to watch, not just the replica count.
+    devicePlugin:
+      config:
+        create: true
+        name: time-slicing-config
+        default: time-slicing
+        data:
+          time-slicing: |-
+            version: v1
+            sharing:
+              timeSlicing:
+                resources:
+                - name: nvidia.com/gpu
+                  replicas: 2
+
     # No manual nodeSelector is set for the GPU operand DaemonSets
     # (device-plugin, dcgm-exporter, gpu-feature-discovery, etc.) — the chart
     # doesn't expose one. They self-scope: Node Feature Discovery (enabled by

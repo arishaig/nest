@@ -14,10 +14,19 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
-    # Pinned to alpha (nest.arishaig.site/workloads=general): the 4Gi memory
-    # limit (transcode workers) exceeds beta capacity, so it must never
-    # schedule there once beta/delta are schedulable.
+    # Pinned to omega (talos-omega, the gaming PC's RTX 3080) — NVENC/NVDEC
+    # hardware transcode is the whole reason that node was onboarded. Same
+    # reschedule-tolerant pattern as subgen (k8s/apps/media/subgen.yaml):
+    # whenever the owner reboots into Windows, tdarr-node just sits pending
+    # until omega rejoins.
+    #
+    # CDI isn't the cluster default (gpu-operator ClusterPolicy has
+    # cdi.default: false) — confirmed against the working
+    # nvidia-cuda-validator pod, which sets this explicitly. Without it the
+    # pod schedules fine (nvidia.com/gpu is just a resource count) but gets
+    # no actual GPU device — a runtime failure invisible to kustomize/CI.
     defaultPodOptions:
+      runtimeClassName: nvidia
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -25,7 +34,7 @@ spec:
               - matchExpressions:
                   - key: nest.arishaig.site/workloads
                     operator: In
-                    values: [general]
+                    values: [omega]
     controllers:
       tdarr-node:
         strategy: Recreate
@@ -42,6 +51,14 @@ spec:
               serverIP: tdarr
               serverPort: "8266"
               inContainer: "true"
+              # Required for NVENC/NVDEC in this container even with the GPU
+              # operator's device plugin handling the nvidia.com/gpu limit —
+              # the base image doesn't set these itself. "video" specifically
+              # (not just compute,utility) is what exposes hardware
+              # encode/decode to ffmpeg; omitting it silently falls back to
+              # CPU transcode with no error.
+              NVIDIA_VISIBLE_DEVICES: all
+              NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
             probes:
               liveness:
                 enabled: false
@@ -49,12 +66,18 @@ spec:
                 enabled: false
               startup:
                 enabled: false
+            # nvidia.com/gpu in both requests and limits: the device plugin
+            # requires them to match (it's an integer, non-overcommittable
+            # resource) — this is also what actually gets tdarr-node
+            # scheduled onto omega and grants it access to the GPU device.
             resources:
               requests:
                 cpu: 500m
                 memory: 512Mi
+                nvidia.com/gpu: "1"
               limits:
                 memory: 4Gi
+                nvidia.com/gpu: "1"
     # no service — the node dials out to the tdarr server service (serverIP: tdarr)
     persistence:
       data:

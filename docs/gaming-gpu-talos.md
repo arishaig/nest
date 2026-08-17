@@ -218,6 +218,23 @@ apply, obviously.
   failure invisible to `kustomize build`/CI. Fallback when omega is offline
   is simply pending — same reschedule-tolerant behavior as every other
   workload on this node.
+- **tdarr-node wired to the GPU** (`k8s/apps/media/tdarr-node.yaml`):
+  same pattern as subgen — hard-pinned to `omega` (was `general`/alpha),
+  `nvidia.com/gpu: "1"` in requests and limits, `runtimeClassName: nvidia`.
+  Also needs `NVIDIA_VISIBLE_DEVICES: all` and
+  `NVIDIA_DRIVER_CAPABILITIES: compute,utility,video` as container env vars
+  — the base image doesn't set these itself, and `video` specifically (not
+  just `compute,utility`) is what exposes NVENC/NVDEC to ffmpeg; omitting it
+  silently falls back to CPU transcode with no error.
+- **Only one GPU consumer at a time by default**: the 3080 isn't MIG-capable
+  and the ClusterPolicy has no time-slicing configured out of the box, so
+  subgen and tdarr-node contending for the single `nvidia.com/gpu` would
+  otherwise leave one permanently Pending. The GPU Operator HelmRelease
+  (`k8s/infrastructure/nvidia-gpu-operator/helmrelease.yaml`) configures
+  2x time-slicing to cover both. This multiplexes SMs, not the 10GB of
+  VRAM — three CUDA workloads sharing it concurrently (e.g. if anagnorisis
+  joins once it has a CUDA image) is the next ceiling to watch, not just the
+  replica count.
 - **Storage**: anything that opts into scheduling on this node must use
   NFS-backed storage (the `nfs-nvme` StorageClass or the shared `media-nfs`
   PV), never `local-path` — a pod bound to node-local storage would not

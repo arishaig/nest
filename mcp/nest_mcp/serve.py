@@ -61,13 +61,14 @@ class JWTMiddleware(BaseHTTPMiddleware):
 
 def main():
     from mcp.server.transport_security import TransportSecuritySettings
-    mcp.settings.streamable_http_path = "/"
-    mcp.settings.stateless_http = True
-    mcp.settings.transport_security = TransportSecuritySettings(
-        allowed_hosts=["mcp.arishaig.site"],
-        allowed_origins=["https://claude.ai"],
+    mcp_app = mcp.streamable_http_app(
+        streamable_http_path="/",
+        stateless_http=True,
+        transport_security=TransportSecuritySettings(
+            allowed_hosts=["mcp.arishaig.site"],
+            allowed_origins=["https://claude.ai"],
+        ),
     )
-    mcp_app = mcp.streamable_http_app()
     mcp_app.add_middleware(JWTMiddleware)
 
     @asynccontextmanager
