@@ -62,7 +62,17 @@ spec:
               tag: 2026.07.3
             env:
               WEBHOOK_PORT: "9000"
-              WHISPER_MODEL: medium
+              # large-v3, not large-v3-turbo: turbo doesn't support
+              # TRANSCRIBE_OR_TRANSLATE=translate below. Live-checked VRAM
+              # headroom via `nvidia-smi` on omega before bumping from
+              # medium: two concurrent medium jobs used ~1.9GB of the
+              # 3080's 10GB, so large-v3 (~2x medium's params) at
+              # CONCURRENT_TRANSCRIPTIONS=2 has comfortable room alongside
+              # tdarr-node's NVENC/NVDEC usage. COMPUTE_TYPE pinned to
+              # float16 (rather than the "auto" default) to keep that
+              # budget deterministic.
+              WHISPER_MODEL: large-v3
+              COMPUTE_TYPE: float16
               WHISPER_THREADS: "4"
               NAMESUBLANG: en
               SKIP_ONLY_SUBGEN_SUBTITLES: "True"
