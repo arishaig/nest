@@ -207,10 +207,20 @@ apply, obviously.
   up, unlike whisper/subgen/radarr/sonarr which the user explicitly said are
   fine to reschedule. Hard anti-affinity in `k8s/apps/media/jellyfin.yaml`
   (`nest.arishaig.site/workloads NotIn [omega]`) enforces this.
-- **Scope as onboarded**: this node runs nothing but the GPU Operator.
-  Wiring an actual workload (subgen/whisper) to request `nvidia.com/gpu` and
-  prefer this node — including deciding its fallback behavior for when the
-  node is offline — is a deliberate follow-up, not done as part of onboarding.
+- **GPU workloads**: subgen (CUDA whisper transcription) and tdarr-node
+  (NVENC/NVDEC hardware transcode) both request `nvidia.com/gpu: 1` and
+  prefer this node — see `k8s/apps/media/subgen.yaml` and
+  `k8s/apps/media/tdarr-node.yaml`. Both are background/queue-driven workers
+  that degrade gracefully when omega is offline (the queue just stops
+  draining), unlike Jellyfin. Their `general`-or-`omega` required nodeAffinity
+  still excludes rpi5. Only one pod can hold the GPU at a time (no
+  time-slicing configured on the ClusterPolicy) and the 3080's 10GB VRAM
+  isn't partitioned even if it were — if both subgen and tdarr-node need the
+  GPU concurrently and contend, that's the next thing to revisit.
+  anagnorisis (ML ratings) also wants GPU eventually but needs its own CUDA
+  image built first (its Dockerfile deliberately ships CPU-only PyTorch
+  today) and is user-facing via its web UI, so it wasn't bundled with these
+  two — same reasoning that keeps Jellyfin off this node.
 - **Storage**: anything that opts into scheduling on this node must use
   NFS-backed storage (the `nfs-nvme` StorageClass or the shared `media-nfs`
   PV), never `local-path` — a pod bound to node-local storage would not

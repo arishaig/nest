@@ -47,9 +47,9 @@
       "versioning": "regex:^lidarr-plugins-(?<major>\\d+)\\.(?<minor>\\d+)\\.\\d+\\.(?<patch>\\d+)$"
     },
     {
-      "description": "subgen cpu variant uses YYYY.MM.D-cpu date-based tags",
+      "description": "subgen cuda variant (unsuffixed tag) uses YYYY.MM.D date-based tags",
       "matchPackageNames": ["mccloud/subgen"],
-      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-cpu$"
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
     },
     {
       "description": "tdarr uses non-standard zero-padded patch versions like 2.50.01",

@@ -23,18 +23,29 @@ spec:
   upgrade:
     disableWait: true
   values:
-    # Pinned to alpha (nest.arishaig.site/workloads=general): the 8Gi memory
-    # limit (whisper models) exceeds beta/gamma rpi5 capacity (~3.5Gi
-    # allocatable), so it must never schedule there.
+    # Allowed on alpha (general) or omega (GPU node) — the 8Gi memory limit
+    # (whisper models) exceeds beta/gamma rpi5 capacity (~3.5Gi allocatable),
+    # so it must never schedule there. Prefer omega: it holds the only
+    # nvidia.com/gpu in the cluster, so the GPU limit below already pins this
+    # pod there in practice — the preference just makes that explicit and the
+    # required term still keeps rpi5 excluded if the GPU limit is ever
+    # dropped.
     defaultPodOptions:
       affinity:
         nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [omega]
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
                   - key: nest.arishaig.site/workloads
                     operator: In
-                    values: [general]
+                    values: [general, omega]
     controllers:
       subgen:
         strategy: Recreate
@@ -46,9 +57,14 @@ spec:
         containers:
           app:
             image:
-              # renovate: datasource=docker depName=mccloud/subgen versioning=regex:^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)-cpu$
+              # renovate: datasource=docker depName=mccloud/subgen versioning=regex:^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$
+              # Unsuffixed tag = CUDA build (the "-cpu" and "-amd" (ROCm)
+              # suffixes are the other two variants) — confirmed against
+              # Docker Hub image sizes: unsuffixed ~4.4GB vs -cpu ~580MB vs
+              # -amd ~12.5GB. omega's GPU is an NVIDIA RTX 3080, so CUDA is
+              # the correct variant, not the AMD/ROCm one.
               repository: mccloud/subgen
-              tag: 2026.07.3-cpu
+              tag: 2026.07.3
             env:
               WEBHOOK_PORT: "9000"
               WHISPER_MODEL: medium
@@ -63,7 +79,7 @@ spec:
               CONCURRENT_TRANSCRIPTIONS: "2"
               WORD_LEVEL_HIGHLIGHT: "False"
               DEBUG: "True"
-              TRANSCRIBE_DEVICE: cpu
+              TRANSCRIBE_DEVICE: cuda
               SHOW_IN_SUBNAME_SUBGEN: "True"
               SHOW_IN_SUBNAME_MODEL: "True"
               MODEL_PATH: ./models
@@ -93,6 +109,7 @@ spec:
                 memory: 512Mi
               limits:
                 memory: 8Gi
+                nvidia.com/gpu: 1
     service:
       app:
         controller: subgen

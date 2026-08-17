@@ -14,18 +14,27 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
-    # Pinned to alpha (nest.arishaig.site/workloads=general): the 4Gi memory
-    # limit (transcode workers) exceeds beta capacity, so it must never
-    # schedule there once beta/delta are schedulable.
+    # Allowed on alpha (general) or omega (GPU node) — the 4Gi memory limit
+    # (transcode workers) exceeds rpi5 capacity, so it must never schedule
+    # there. Prefer omega for NVENC/NVDEC hardware transcode; the
+    # nvidia.com/gpu limit below already pins the pod there in practice since
+    # omega is the only node advertising that resource.
     defaultPodOptions:
       affinity:
         nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [omega]
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
                   - key: nest.arishaig.site/workloads
                     operator: In
-                    values: [general]
+                    values: [general, omega]
     controllers:
       tdarr-node:
         strategy: Recreate
@@ -42,6 +51,14 @@ spec:
               serverIP: tdarr
               serverPort: "8266"
               inContainer: "true"
+              # Required for NVENC/NVDEC in this container even with the GPU
+              # operator's device plugin handling the nvidia.com/gpu limit —
+              # the base image doesn't set these itself. "video" specifically
+              # (not just compute,utility) is what exposes hardware
+              # encode/decode to ffmpeg; omitting it silently falls back to
+              # CPU transcode with no error.
+              NVIDIA_VISIBLE_DEVICES: all
+              NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
             probes:
               liveness:
                 enabled: false
@@ -55,6 +72,7 @@ spec:
                 memory: 512Mi
               limits:
                 memory: 4Gi
+                nvidia.com/gpu: 1
     # no service — the node dials out to the tdarr server service (serverIP: tdarr)
     persistence:
       data:
