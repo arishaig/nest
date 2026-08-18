@@ -24,6 +24,16 @@
           - samba-common-bin
         state: present
 
+    - name: Install media inspection tools
+      # ffprobe (from ffmpeg) is used for one-off audio-track surveys/fixes
+      # against /mnt/media_root — not part of the Samba service itself, but
+      # kept here so the fileserver stays the one host with direct access to
+      # the media tree for this kind of maintenance.
+      ansible.builtin.apt:
+        name:
+          - ffmpeg
+        state: present
+
     - name: Create media group
       ansible.builtin.group:
         name: media
