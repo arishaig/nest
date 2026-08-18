@@ -33,6 +33,8 @@
         name:
           - ffmpeg
         state: present
+        update_cache: true
+        cache_valid_time: 3600
 
     - name: Deploy audio-language survey script
       # Backs nest-mcp's media_audio_lang_survey tool (SSH-invoked) and can
