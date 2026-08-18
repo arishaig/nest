@@ -8,6 +8,8 @@ from nest_mcp.ssh_client import ssh_run
 
 _MAX_ENTRIES = 500
 _MAX_DEPTH = 3
+_SURVEY_DEFAULT_TIMEOUT = 120
+_SURVEY_MAX_TIMEOUT = 600
 
 
 def _parse_ncdu(node: list, depth: int, current: int = 0, prefix: str = "") -> list[dict]:
@@ -103,3 +105,49 @@ def register(mcp: MCPServer) -> None:
             "truncated": truncated,
             "entries": entries[:_MAX_ENTRIES],
         }
+
+    @mcp.tool()
+    async def media_audio_lang_survey(path: str = "", timeout: int = _SURVEY_DEFAULT_TIMEOUT) -> dict:
+        """Survey video files for English audio tracks that aren't the default audio stream.
+
+        Read-only. Runs ffprobe (via survey_audio_lang.py, deployed by
+        playbooks/provision/fileserver.yml) on the fileserver LXC and buckets
+        every video file under the scanned path:
+          - ok:          an eng-tagged audio stream is already the default
+          - needs_fix:   an eng-tagged stream exists but isn't default (fixable
+                         losslessly with mkvpropedit, no re-encode)
+          - no_eng_tag:  no audio stream is tagged eng — needs manual inspection
+          - no_audio / error
+
+        Args:
+            path:    Relative path under the media root (e.g. "tv", "tv/Star Trek",
+                     "movies/Dune (2021)"). Defaults to scanning "tv" and "movies"
+                     together — on a large library that can take several minutes;
+                     narrow to a subfolder for a faster, targeted check.
+            timeout: Seconds to allow the scan (default 120, max 600). Raise this
+                     for a broad, unscoped survey rather than re-running on timeout.
+        """
+        if path:
+            parts = path.split("/")
+            if ".." in parts or path.startswith("/") or "\x00" in path:
+                return {"error": "Invalid path — no '..' segments or absolute paths allowed."}
+
+        timeout = min(max(10, timeout), _SURVEY_MAX_TIMEOUT)
+
+        root = config.fileshare.media_root.rstrip("/")
+        targets = [f"{root}/{path}".rstrip("/")] if path else [f"{root}/tv", f"{root}/movies"]
+
+        cmd = "python3 /usr/local/bin/survey_audio_lang.py --json " + " ".join(shlex.quote(t) for t in targets)
+        try:
+            raw = await ssh_run(
+                config.fileshare.host, cmd,
+                key=config.fileshare.ssh_key,
+                timeout=timeout,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as e:
+            return {"error": f"Failed to parse survey output: {e}", "raw_preview": raw[:300]}

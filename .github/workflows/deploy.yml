@@ -39,6 +39,7 @@ jobs:
       ci_runner: ${{ steps.filter.outputs.ci_runner }}
       adguard: ${{ steps.filter.outputs.adguard }}
       foundry: ${{ steps.filter.outputs.foundry }}
+      fileserver: ${{ steps.filter.outputs.fileserver }}
     steps:
       # fetch-depth 2 so paths-filter has a parent commit to diff against on
       # workflow_dispatch runs — with the default shallow (depth 1) checkout
@@ -91,6 +92,8 @@ jobs:
               - 'playbooks/provision/foundry.yml'
               - 'playbooks/provision/files/foundry/**'
               - 'playbooks/provision/templates/foundry/**'
+            fileserver:
+              - 'playbooks/provision/fileserver.yml'
 
   deploy-adguard:
     needs: changes
@@ -149,6 +152,35 @@ jobs:
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit foundry
+
+  deploy-fileserver:
+    needs: changes
+    if: needs.changes.outputs.fileserver == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Write SSH key
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.ssh"
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
+          chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
+
+      - name: Write vault password
+        run: |
+          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
+          chmod 600 "$RUNNER_TEMP/vault-pass"
+
+      - name: Run fileserver playbook
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          ansible-playbook \
+            -i inventory/hosts.yml \
+            playbooks/provision/fileserver.yml \
+            --vault-password-file "$RUNNER_TEMP/vault-pass" \
+            --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
+            --ssh-extra-args "-o StrictHostKeyChecking=no" \
+            --limit fileserver
 
   deploy-docker:
     needs: changes

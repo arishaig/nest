@@ -133,6 +133,16 @@ class FileserverSettings(BaseSettings):
     media_root: str = "/Tank/media_root"
 
 
+class FileShareSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_FILESHARE_")
+    # LXC 102 — the Samba fileserver, distinct from `fileserver` above (which
+    # is actually PVE, the ZFS/NFS source). This is the box with ffprobe and
+    # survey_audio_lang.py installed (playbooks/provision/fileserver.yml).
+    host: str = "192.168.1.17"
+    ssh_key: str = "~/.ssh/ansible-on-nest"
+    media_root: str = "/mnt/media_root/media"
+
+
 class AdguardHostSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_ADGUARD_HOST_")
     # SSH access for host-level checks (fail2ban, systemd unit status) — separate
@@ -171,3 +181,4 @@ seedbox = SeedboxSettings()
 fileserver = FileserverSettings()
 kubernetes = KubernetesSettings()
 adguard_host = AdguardHostSettings()
+fileshare = FileShareSettings()
