@@ -42,3 +42,40 @@ async def test_media_ls_bad_json(monkeypatch):
     patch_ssh(monkeypatch, media_files, "not-json")
     out = await load_tools(media_files)["media_ls"](path="tv")
     assert "error" in out
+
+
+async def test_audio_lang_survey_rejects_traversal(monkeypatch):
+    out = await load_tools(media_files)["media_audio_lang_survey"](path="../etc")
+    assert "error" in out
+
+
+async def test_audio_lang_survey_scans_tv_and_movies_by_default(monkeypatch):
+    seen_cmd = {}
+
+    def fake(host, cmd):
+        seen_cmd["cmd"] = cmd
+        return json.dumps({"total_files": 2, "counts": {"ok": 1, "needs_fix": 1}, "examples": {}})
+
+    patch_ssh(monkeypatch, media_files, fake)
+    out = await load_tools(media_files)["media_audio_lang_survey"]()
+    assert out["counts"]["needs_fix"] == 1
+    assert "media_root/media/tv" in seen_cmd["cmd"] and "media_root/media/movies" in seen_cmd["cmd"]
+
+
+async def test_audio_lang_survey_scopes_to_path(monkeypatch):
+    seen_cmd = {}
+
+    def fake(host, cmd):
+        seen_cmd["cmd"] = cmd
+        return json.dumps({"total_files": 0, "counts": {}, "examples": {}})
+
+    patch_ssh(monkeypatch, media_files, fake)
+    await load_tools(media_files)["media_audio_lang_survey"](path="tv/Star Trek")
+    assert "media_root/media/tv/Star Trek" in seen_cmd["cmd"]
+    assert "movies" not in seen_cmd["cmd"]
+
+
+async def test_audio_lang_survey_bad_json(monkeypatch):
+    patch_ssh(monkeypatch, media_files, "not-json")
+    out = await load_tools(media_files)["media_audio_lang_survey"](path="tv")
+    assert "error" in out

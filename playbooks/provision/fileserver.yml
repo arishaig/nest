@@ -34,6 +34,14 @@
           - ffmpeg
         state: present
 
+    - name: Deploy audio-language survey script
+      # Backs nest-mcp's media_audio_lang_survey tool (SSH-invoked) and can
+      # also be run by hand. Read-only.
+      ansible.builtin.copy:
+        src: files/fileserver/survey_audio_lang.py
+        dest: /usr/local/bin/survey_audio_lang.py
+        mode: "0755"
+
     - name: Create media group
       ansible.builtin.group:
         name: media
