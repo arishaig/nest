@@ -93,7 +93,7 @@ spec:
               COMPUTE_TYPE: float16
               WHISPER_THREADS: "4"
               NAMESUBLANG: en
-              # Folder-watch test: generate subgen subtitles directly on disk
+              # Folder-watch: generate subgen subtitles directly on disk
               # instead of via Bazarr's Whisper provider, so they land
               # alongside (not overwriting) whatever Bazarr already
               # downloaded. SHOW_IN_SUBNAME_SUBGEN/MODEL below already give
@@ -102,13 +102,13 @@ spec:
               # makes subgen ignore Bazarr's plain .en.srt when deciding
               # whether to (re)transcribe — confirmed against subgen.py's
               # skip logic (subtitle_exists_in_language /
-              # has_external_subtitle_in_language). Scoped to one small show
-              # first (The Comeback) to verify the behavior before widening
-              # to the full tv|movies library in a follow-up PR. Requires
-              # disabling Bazarr's Whisper provider in its UI first (not
-              # git-managed) so the two don't fight over
-              # CONCURRENT_TRANSCRIPTIONS.
-              TRANSCRIBE_FOLDERS: "/data/media/tv/The Comeback"
+              # has_external_subtitle_in_language). Verified clean on one
+              # small show (The Comeback) first; now widened to the full
+              # tv/movies library. Pipe-separated per subgen's
+              # TRANSCRIBE_FOLDERS syntax. Requires Bazarr's Whisper provider
+              # staying disabled in its UI (not git-managed) so the two don't
+              # fight over CONCURRENT_TRANSCRIPTIONS.
+              TRANSCRIBE_FOLDERS: "/data/media/tv|/data/media/movies"
               MONITOR: "True"
               SKIP_ONLY_SUBGEN_SUBTITLES: "True"
               SKIP_IF_INTERNAL_SUBTITLES_LANGUAGE: ""
