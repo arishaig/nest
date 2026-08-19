@@ -75,7 +75,11 @@ def run_fix(roots: list[Path], apply: bool, progress=lambda done, total: None):
                 capture_output=True, text=True, timeout=60,
             )
             if proc.returncode != 0:
-                buckets["error"].append({"path": str(f), "detail": proc.stderr.strip()[:200]})
+                # mkvpropedit writes its "Error: ..." lines to stdout, not
+                # stderr — surfaced by a 2026-08-19 run where a batch of
+                # files failed with an empty error message.
+                msg = (proc.stdout.strip() or proc.stderr.strip())[:200]
+                buckets["error"].append({"path": str(f), "detail": msg})
             else:
                 buckets["fixed"].append({"path": str(f), "detail": f"default was {detail}"})
         except Exception as e:
