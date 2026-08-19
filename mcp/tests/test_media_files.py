@@ -75,6 +75,15 @@ async def test_audio_lang_survey_scopes_to_path(monkeypatch):
     assert "movies" not in seen_cmd["cmd"]
 
 
+async def test_audio_lang_survey_reports_timeout_clearly(monkeypatch):
+    def fake(host, cmd):
+        raise TimeoutError
+
+    patch_ssh(monkeypatch, media_files, fake)
+    out = await load_tools(media_files)["media_audio_lang_survey"](path="tv", timeout=30)
+    assert "30s" in out["error"]
+
+
 async def test_audio_lang_survey_bad_json(monkeypatch):
     patch_ssh(monkeypatch, media_files, "not-json")
     out = await load_tools(media_files)["media_audio_lang_survey"](path="tv")

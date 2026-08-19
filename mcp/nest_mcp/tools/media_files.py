@@ -9,7 +9,7 @@ from nest_mcp.ssh_client import ssh_run
 _MAX_ENTRIES = 500
 _MAX_DEPTH = 3
 _SURVEY_DEFAULT_TIMEOUT = 120
-_SURVEY_MAX_TIMEOUT = 600
+_SURVEY_MAX_TIMEOUT = 1800
 
 
 def _parse_ncdu(node: list, depth: int, current: int = 0, prefix: str = "") -> list[dict]:
@@ -124,8 +124,9 @@ def register(mcp: MCPServer) -> None:
                      "movies/Dune (2021)"). Defaults to scanning "tv" and "movies"
                      together — on a large library that can take several minutes;
                      narrow to a subfolder for a faster, targeted check.
-            timeout: Seconds to allow the scan (default 120, max 600). Raise this
-                     for a broad, unscoped survey rather than re-running on timeout.
+            timeout: Seconds to allow the scan (default 120, max 1800). Raise this
+                     for a broad, unscoped survey rather than re-running on timeout —
+                     a full tv+movies library can take many minutes.
         """
         if path:
             parts = path.split("/")
@@ -144,6 +145,8 @@ def register(mcp: MCPServer) -> None:
                 key=config.fileshare.ssh_key,
                 timeout=timeout,
             )
+        except TimeoutError:
+            return {"error": f"Scan exceeded {timeout}s — narrow `path` to a subfolder or raise `timeout`."}
         except Exception as e:
             return {"error": str(e)}
 
