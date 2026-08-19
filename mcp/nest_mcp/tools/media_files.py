@@ -154,3 +154,64 @@ def register(mcp: MCPServer) -> None:
             return json.loads(raw)
         except json.JSONDecodeError as e:
             return {"error": f"Failed to parse survey output: {e}", "raw_preview": raw[:300]}
+
+    @mcp.tool()
+    async def media_audio_lang_fix(path: str = "", apply: bool = False, timeout: int = _SURVEY_DEFAULT_TIMEOUT) -> dict:
+        """Set English as the default audio track wherever it exists but isn't default.
+
+        Lossless: runs mkvpropedit (via fix_audio_lang.py, deployed by
+        playbooks/provision/fileserver.yml) to flip container-level disposition
+        flags only — no re-encode, no re-mux, stream data untouched. Only .mkv
+        files are eligible for the write path; other containers are reported
+        under skipped_unsupported_container.
+
+        Defaults to `apply=False` (dry run) — reports what it *would* change
+        without touching any file. Always dry-run a path first and review the
+        counts/examples before passing apply=True. Buckets:
+          - fixed / would_fix:              default flag changed (or would be)
+          - already_ok:                     English is already default
+          - skipped_unsupported_container:  needs a fix but isn't .mkv
+          - skipped_no_eng:                 no eng-tagged audio stream at all
+          - error:                          ffprobe/mkvpropedit failed on the file
+
+        Args:
+            path:    Relative path under the media root (e.g. "tv", "tv/Star Trek",
+                     "movies/Dune (2021)"). Defaults to scanning "tv" and "movies"
+                     together. Narrow this to review/apply incrementally rather
+                     than fixing the whole library in one call.
+            apply:   False (default) = dry run, changes nothing. True = actually
+                     run mkvpropedit on every needs_fix .mkv found.
+            timeout: Seconds to allow the run (default 120, max 1800). A full
+                     tv+movies pass can take many minutes; narrow `path` or
+                     raise this rather than re-running on timeout.
+        """
+        if path:
+            parts = path.split("/")
+            if ".." in parts or path.startswith("/") or "\x00" in path:
+                return {"error": "Invalid path — no '..' segments or absolute paths allowed."}
+
+        timeout = min(max(10, timeout), _SURVEY_MAX_TIMEOUT)
+
+        root = config.fileshare.media_root.rstrip("/")
+        targets = [f"{root}/{path}".rstrip("/")] if path else [f"{root}/tv", f"{root}/movies"]
+
+        cmd = "python3 /usr/local/bin/fix_audio_lang.py --json "
+        if apply:
+            cmd += "--apply "
+        cmd += " ".join(shlex.quote(t) for t in targets)
+
+        try:
+            raw = await ssh_run(
+                config.fileshare.host, cmd,
+                key=config.fileshare.ssh_key,
+                timeout=timeout,
+            )
+        except TimeoutError:
+            return {"error": f"Run exceeded {timeout}s — narrow `path` to a subfolder or raise `timeout`."}
+        except Exception as e:
+            return {"error": str(e)}
+
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as e:
+            return {"error": f"Failed to parse fix output: {e}", "raw_preview": raw[:300]}
