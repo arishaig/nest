@@ -4,7 +4,7 @@
 Read-only. Walks a media tree, runs ffprobe on each video file, and buckets it into:
   - ok            a stream tagged language=eng is already the default audio stream
   - needs_fix     an eng-tagged stream exists but a different stream is default
-                  (fixable losslessly with mkvpropedit, no re-encode)
+                  (fixable losslessly with mkvpropedit — see fix_audio_lang.py)
   - no_eng_tag    no audio stream is tagged eng at all (needs manual inspection —
                   English audio may exist but be untagged, or may genuinely be missing)
   - no_audio      ffprobe found no audio streams
@@ -19,43 +19,12 @@ Usage:
 """
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 
-VIDEO_EXTS = {".mkv", ".mp4", ".m4v", ".avi"}
+from audio_lang_common import VIDEO_EXTS, classify, ffprobe_streams
+
 _EXAMPLES_PER_BUCKET = 20
-
-
-def ffprobe_streams(path: Path):
-    proc = subprocess.run(
-        [
-            "ffprobe", "-v", "error", "-print_format", "json",
-            "-show_entries", "stream=index,codec_type:stream_tags=language:disposition=default",
-            str(path),
-        ],
-        capture_output=True, text=True, timeout=30,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(proc.stderr.strip()[:200])
-    return json.loads(proc.stdout).get("streams", [])
-
-
-def classify(streams):
-    audio = [s for s in streams if s.get("codec_type") == "audio"]
-    if not audio:
-        return "no_audio", ""
-
-    eng_streams = [s for s in audio if s.get("tags", {}).get("language", "").lower() in ("eng", "en")]
-    if not eng_streams:
-        langs = sorted({s.get("tags", {}).get("language", "und") for s in audio})
-        return "no_eng_tag", ",".join(langs)
-
-    default_stream = next((s for s in audio if s.get("disposition", {}).get("default") == 1), audio[0])
-    default_lang = default_stream.get("tags", {}).get("language", "").lower()
-    if default_lang in ("eng", "en"):
-        return "ok", ""
-    return "needs_fix", default_lang or "und"
 
 
 def run_survey(roots: list[Path], progress=lambda done, total: None):

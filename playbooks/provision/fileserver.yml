@@ -25,23 +25,27 @@
         state: present
 
     - name: Install media inspection tools
-      # ffprobe (from ffmpeg) is used for one-off audio-track surveys/fixes
-      # against /mnt/media_root — not part of the Samba service itself, but
+      # ffprobe (ffmpeg) surveys audio-track language tagging; mkvpropedit
+      # (mkvtoolnix) fixes it losslessly — flips container disposition flags
+      # only, no re-encode/re-mux. Not part of the Samba service itself, but
       # kept here so the fileserver stays the one host with direct access to
       # the media tree for this kind of maintenance.
       ansible.builtin.apt:
         name:
           - ffmpeg
+          - mkvtoolnix
         state: present
         update_cache: true
         cache_valid_time: 3600
 
-    - name: Deploy audio-language survey script
-      # Backs nest-mcp's media_audio_lang_survey tool (SSH-invoked) and can
-      # also be run by hand. Read-only.
+    - name: Deploy audio-language survey/fix scripts
+      # Back nest-mcp's media_audio_lang_survey (read-only) and
+      # media_audio_lang_fix (mkvpropedit, defaults to dry-run) tools, and can
+      # also be run by hand. audio_lang_common.py holds the shared
+      # ffprobe/classification logic both scripts import.
       ansible.builtin.copy:
-        src: files/fileserver/survey_audio_lang.py
-        dest: /usr/local/bin/survey_audio_lang.py
+        src: files/fileserver/
+        dest: /usr/local/bin/
         mode: "0755"
 
     - name: Create media group

@@ -88,3 +88,61 @@ async def test_audio_lang_survey_bad_json(monkeypatch):
     patch_ssh(monkeypatch, media_files, "not-json")
     out = await load_tools(media_files)["media_audio_lang_survey"](path="tv")
     assert "error" in out
+
+
+async def test_audio_lang_fix_rejects_traversal(monkeypatch):
+    out = await load_tools(media_files)["media_audio_lang_fix"](path="../etc")
+    assert "error" in out
+
+
+async def test_audio_lang_fix_defaults_to_dry_run(monkeypatch):
+    seen_cmd = {}
+
+    def fake(host, cmd):
+        seen_cmd["cmd"] = cmd
+        return json.dumps({"total_files": 1, "dry_run": True, "counts": {"would_fix": 1}, "examples": {}})
+
+    patch_ssh(monkeypatch, media_files, fake)
+    out = await load_tools(media_files)["media_audio_lang_fix"](path="tv")
+    assert out["dry_run"] is True
+    assert "--apply" not in seen_cmd["cmd"]
+
+
+async def test_audio_lang_fix_apply_passes_flag(monkeypatch):
+    seen_cmd = {}
+
+    def fake(host, cmd):
+        seen_cmd["cmd"] = cmd
+        return json.dumps({"total_files": 1, "dry_run": False, "counts": {"fixed": 1}, "examples": {}})
+
+    patch_ssh(monkeypatch, media_files, fake)
+    out = await load_tools(media_files)["media_audio_lang_fix"](path="tv", apply=True)
+    assert out["dry_run"] is False
+    assert "--apply" in seen_cmd["cmd"]
+
+
+async def test_audio_lang_fix_scans_tv_and_movies_by_default(monkeypatch):
+    seen_cmd = {}
+
+    def fake(host, cmd):
+        seen_cmd["cmd"] = cmd
+        return json.dumps({"total_files": 0, "counts": {}, "examples": {}})
+
+    patch_ssh(monkeypatch, media_files, fake)
+    await load_tools(media_files)["media_audio_lang_fix"]()
+    assert "media_root/media/tv" in seen_cmd["cmd"] and "media_root/media/movies" in seen_cmd["cmd"]
+
+
+async def test_audio_lang_fix_reports_timeout_clearly(monkeypatch):
+    def fake(host, cmd):
+        raise TimeoutError
+
+    patch_ssh(monkeypatch, media_files, fake)
+    out = await load_tools(media_files)["media_audio_lang_fix"](path="tv", timeout=30)
+    assert "30s" in out["error"]
+
+
+async def test_audio_lang_fix_bad_json(monkeypatch):
+    patch_ssh(monkeypatch, media_files, "not-json")
+    out = await load_tools(media_files)["media_audio_lang_fix"](path="tv")
+    assert "error" in out
