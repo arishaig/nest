@@ -74,6 +74,34 @@
         state: present
         update_cache: false
 
+    - name: Install media inspection tools
+      # ffprobe (ffmpeg, already present) surveys audio-track language
+      # tagging; mkvpropedit (mkvtoolnix) fixes it losslessly — flips
+      # container disposition flags only, no re-encode/re-mux. Runs here
+      # rather than on the (unprivileged) fileserver LXC because these
+      # scripts need to write to files owned by arbitrary host UIDs
+      # (root, from k8s pods writing over NFS with no_root_squash) that
+      # fall outside that LXC's uid-mapped range and show up as
+      # nobody:nogroup there — PVE, as the actual ZFS pool owner, is real
+      # root against every file regardless of who wrote it.
+      ansible.builtin.apt:
+        name:
+          - ffmpeg
+          - mkvtoolnix
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Deploy audio-language survey/fix scripts
+      # Back nest-mcp's media_audio_lang_survey (read-only) and
+      # media_audio_lang_fix (mkvpropedit, defaults to dry-run) tools, and can
+      # also be run by hand. audio_lang_common.py holds the shared
+      # ffprobe/classification logic both scripts import.
+      ansible.builtin.copy:
+        src: files/pve/
+        dest: /usr/local/bin/
+        mode: "0755"
+
     - name: Create k8s config ZFS dataset
       community.general.zfs:
         name: rpool/data/k8s-configs

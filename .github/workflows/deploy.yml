@@ -71,6 +71,7 @@ jobs:
             pve:
               - 'playbooks/provision/pve.yml'
               - 'playbooks/provision/templates/pve/**'
+              - 'playbooks/provision/files/pve/**'
             pbs:
               - 'playbooks/provision/pbs.yml'
               - 'playbooks/provision/files/pbs/**'

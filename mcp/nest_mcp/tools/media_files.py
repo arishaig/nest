@@ -12,6 +12,11 @@ _SURVEY_DEFAULT_TIMEOUT = 120
 _SURVEY_MAX_TIMEOUT = 1800
 
 
+def _media_subtree_root() -> str:
+    """tv/movies live under a `media/` subdir of the exported ZFS dataset."""
+    return f"{config.fileserver.media_root.rstrip('/')}/media"
+
+
 def _parse_ncdu(node: list, depth: int, current: int = 0, prefix: str = "") -> list[dict]:
     """Flatten an ncdu directory array into a list of entries up to `depth` levels.
 
@@ -111,7 +116,7 @@ def register(mcp: MCPServer) -> None:
         """Survey video files for English audio tracks that aren't the default audio stream.
 
         Read-only. Runs ffprobe (via survey_audio_lang.py, deployed by
-        playbooks/provision/fileserver.yml) on the fileserver LXC and buckets
+        playbooks/provision/pve.yml) on PVE — the ZFS pool owner — and buckets
         every video file under the scanned path:
           - ok:          an eng-tagged audio stream is already the default
           - needs_fix:   an eng-tagged stream exists but isn't default (fixable
@@ -135,14 +140,14 @@ def register(mcp: MCPServer) -> None:
 
         timeout = min(max(10, timeout), _SURVEY_MAX_TIMEOUT)
 
-        root = config.fileshare.media_root.rstrip("/")
+        root = _media_subtree_root()
         targets = [f"{root}/{path}".rstrip("/")] if path else [f"{root}/tv", f"{root}/movies"]
 
         cmd = "python3 /usr/local/bin/survey_audio_lang.py --json " + " ".join(shlex.quote(t) for t in targets)
         try:
             raw = await ssh_run(
-                config.fileshare.host, cmd,
-                key=config.fileshare.ssh_key,
+                config.fileserver.host, cmd,
+                key=config.fileserver.ssh_key,
                 timeout=timeout,
             )
         except TimeoutError:
@@ -160,10 +165,14 @@ def register(mcp: MCPServer) -> None:
         """Set English as the default audio track wherever it exists but isn't default.
 
         Lossless: runs mkvpropedit (via fix_audio_lang.py, deployed by
-        playbooks/provision/fileserver.yml) to flip container-level disposition
-        flags only — no re-encode, no re-mux, stream data untouched. Only .mkv
-        files are eligible for the write path; other containers are reported
-        under skipped_unsupported_container.
+        playbooks/provision/pve.yml) on PVE — the ZFS pool owner — to flip
+        container-level disposition flags only. No re-encode, no re-mux,
+        stream data untouched. Runs on PVE rather than the fileserver LXC
+        because that LXC is unprivileged and can't write files owned by
+        UIDs outside its idmap range (e.g. root, from k8s pods writing over
+        NFS) — PVE has real root access to every file regardless of owner.
+        Only .mkv files are eligible for the write path; other containers
+        are reported under skipped_unsupported_container.
 
         Defaults to `apply=False` (dry run) — reports what it *would* change
         without touching any file. Always dry-run a path first and review the
@@ -192,7 +201,7 @@ def register(mcp: MCPServer) -> None:
 
         timeout = min(max(10, timeout), _SURVEY_MAX_TIMEOUT)
 
-        root = config.fileshare.media_root.rstrip("/")
+        root = _media_subtree_root()
         targets = [f"{root}/{path}".rstrip("/")] if path else [f"{root}/tv", f"{root}/movies"]
 
         cmd = "python3 /usr/local/bin/fix_audio_lang.py --json "
@@ -202,8 +211,8 @@ def register(mcp: MCPServer) -> None:
 
         try:
             raw = await ssh_run(
-                config.fileshare.host, cmd,
-                key=config.fileshare.ssh_key,
+                config.fileserver.host, cmd,
+                key=config.fileserver.ssh_key,
                 timeout=timeout,
             )
         except TimeoutError:
