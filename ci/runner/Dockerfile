@@ -32,7 +32,7 @@ ARG SHELLCHECK_VERSION=0.10.0
 # helm backs the helm-render lint job (flux-local shells out to `helm template`).
 # Held on the 3.x line: Flux's helm-controller and flux-local are helm-v3-based,
 # and v4 changes CLI behaviour. renovate: datasource=github-releases depName=helm/helm
-ARG HELM_VERSION=3.21.3
+ARG HELM_VERSION=3.21.4
 # talosctl backs the talos-config-validate lint job. Keep in lock-step with
 # talos_version in terraform/terraform.tfvars. renovate: datasource=github-releases depName=siderolabs/talos
 ARG TALOSCTL_VERSION=1.13.8
