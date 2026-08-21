@@ -46,9 +46,12 @@ spec:
               repository: ghcr.io/arishaig/anagnorisis
               # Immutable sha tag from the docker-build workflow. Bump this to roll
               # out a new build — Flux reconciles the change from git (no kubectl).
-              # CUDA-enabled build (cu121 wheels, anagnorisis/Dockerfile) +
-              # omni_service removed (superseded by this node's direct GPU access).
-              tag: sha-883c0cc
+              # CUDA-enabled build (cu121 wheels, anagnorisis/Dockerfile),
+              # omni_service removed (superseded by this node's direct GPU
+              # access), and merged through upstream volotat/Anagnorisis
+              # v0.4.9 (new unified multimodal embedder + omni descriptor —
+              # see k8s/apps/media/anagnorisis-config-map.yaml).
+              tag: sha-f897142
               pullPolicy: IfNotPresent
             # Use sh wrapper so we can merge stderr→stdout (tracebacks land in
             # Loki); exec replaces sh with Python for clean PID 1 / signals.
@@ -63,6 +66,16 @@ spec:
                     key: FLASK_SECRET_KEY
               RUNNING_IN_DOCKER: "true"
               CONTAINER_NAME: anagnorisis
+              # Needed to download the gated google/gemma-4-E2B-it omni
+              # descriptor model (see config.yaml's omni.model_name) — the
+              # unauthenticated fallback works for the public jina embedder
+              # but 401s on gated repos. Same hugging_face_access_token vault
+              # var subgen already uses (playbooks/provision/k8s.yml).
+              HF_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: anagnorisis-hf-secret
+                    key: HF_TOKEN
             probes:
               liveness:
                 enabled: true

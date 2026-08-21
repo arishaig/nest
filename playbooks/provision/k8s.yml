@@ -40,6 +40,9 @@
         - name: subgen-secrets
           data:
             HF_TOKEN: "{{ hugging_face_access_token }}"
+        - name: anagnorisis-hf-secret
+          data:
+            HF_TOKEN: "{{ hugging_face_access_token }}"
         - name: sonarr-api-key
           data:
             APIKEY: "{{ sonarr_api_key }}"
