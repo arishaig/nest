@@ -86,9 +86,14 @@ spec:
               # model weights, not full separate model copies, so the
               # marginal VRAM cost per worker is modest. Live-checked at
               # large-v3/2 workers: ~4.8GB/10.24GB used, ~5GB free — bumped
-              # to 3 with that headroom. tdarr-node isn't consuming GPU
-              # concurrently as of this change (its GPU wiring hasn't been
-              # picked up by Flux yet); re-check nvidia-smi once it lands.
+              # to 3 with that headroom, but that triggered a SIGSEGV crash
+              # loop under sustained 3-worker load (~every 11min, mid-
+              # transcribe) once the pod ran continuously for hours rather
+              # than the short live-check window — reverted to 2, the
+              # actually-verified-stable value. tdarr-node isn't consuming
+              # GPU concurrently as of this change (its GPU wiring hasn't
+              # been picked up by Flux yet); re-check nvidia-smi once it
+              # lands before considering 3 again.
               WHISPER_MODEL: large-v3
               COMPUTE_TYPE: float16
               WHISPER_THREADS: "4"
@@ -116,7 +121,7 @@ spec:
               DETECT_LANGUAGE_OFFSET: "60"
               SHOULD_WHISPER_DETECT_AUDIO_LANGUAGE: "True"
               TRANSCRIBE_OR_TRANSLATE: translate
-              CONCURRENT_TRANSCRIPTIONS: "3"
+              CONCURRENT_TRANSCRIPTIONS: "2"
               WORD_LEVEL_HIGHLIGHT: "False"
               DEBUG: "True"
               TRANSCRIBE_DEVICE: cuda
