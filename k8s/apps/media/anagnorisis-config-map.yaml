@@ -4,6 +4,16 @@ metadata:
   name: anagnorisis-config
   namespace: media
 data:
+  # New schema as of the volotat/Anagnorisis v0.4.9 upstream merge: media
+  # paths are PyFilesystem osfs:// URIs, modules declare media_types (the
+  # module then derives its own media_formats from media_types/*.yaml —
+  # do not set media_formats directly), and the old per-module
+  # audio_embedder/image_embedder/text_embedder trio is replaced by one
+  # shared multimodal `embedder:` section. Every module key below (music,
+  # images, videos, text) must exist even when disabled — the module
+  # code does `cfg.<module>.media_directory` by direct attribute access,
+  # not a dict .get(), so a missing section is a startup AttributeError,
+  # not a silently-disabled module.
   config.yaml: |
     main:
       host: 0.0.0.0
@@ -12,54 +22,78 @@ data:
       project_config_directory: /project_config
 
     music:
-      media_directory: /mnt/media/music
-      media_formats:
-        - .mp3
-        - .flac
-        - .wav
-        - .ogg
-        - .aac
-        - .m4a
-        - .opus
+      media_directory: osfs:///mnt/media/music/
+      media_types: [audio]
       rating_update_interval_minutes: 30
       rating_update_batch_size: 25
-      description_update_interval_minutes: null  # omni disabled on CPU
-      description_update_batch_size: null
+      embedding_update_interval_minutes: 10
+      embedding_update_batch_size: 1000
+
+    images:
+      # Disabled, as before the merge — no images library configured.
+      media_directory: null
+      media_types: [images]
 
     videos:
       # Single flat root: the videos module only supports one media_directory,
       # so this covers both movies/ and tv/ (siblings of music/ on the NFS share).
-      media_directory: /mnt/media
-      media_formats:
-        - .mp4
-        - .mkv
-        - .avi
-        - .mov
-        - .wmv
-        - .flv
-        - .ogv
-        - .mpeg
-        - .mpg
-        - .webm
+      media_directory: osfs:///mnt/media/
+      media_types: [videos]
       rating_update_interval_minutes: 30
       rating_update_batch_size: 25
-      description_update_interval_minutes: null  # omni disabled on CPU
-      description_update_batch_size: null
+      embedding_update_interval_minutes: 10
+      embedding_update_batch_size: 200  # videos are the slowest to embed — keep the batch small
 
-    audio_embedder:
-      model_name: "laion/clap-htsat-fused"
-      device: cpu
+    text:
+      # Disabled, as before the merge — no text library configured.
+      media_directory: null
+      media_types: [text]
 
-    image_embedder:
-      model_name: "google/siglip-base-patch16-224"
-      device: cpu
-
-    text_embedder:
-      model_name: "jinaai/jina-embeddings-v3"
-      device: cpu
-      chunk_size: 384
-      chunk_overlap: 128
+    # The single model that embeds everything — text, images, audio and video —
+    # replacing the old separate audio_embedder (CLAP) / image_embedder (SigLIP) /
+    # text_embedder (jina-v3). Runs on CUDA automatically when available
+    # (torch.cuda.is_available()), same as every other model in this app.
+    embedder:
+      model_name: "jinaai/jina-embeddings-v5-omni-small"
+      task: retrieval
       embedding_dimension: 1024
+      chunk_size: null
+      chunk_overlap: 512
+      batch_size: 8
+      query_modality: omni
+      video_frames: 16
+      video_frame_max_size: 512
+      idle_timeout_seconds: 120
 
+    # The descriptor: writes natural-language descriptions that metadata
+    # search indexes. google/gemma-4-E2B-it is a gated HF model — requires
+    # the anagnorisis-hf-secret HF_TOKEN (k8s/apps/media/anagnorisis.yaml)
+    # and accepting the license under that HF account.
+    # min_free_vram_to_run is the upstream author's own safety catch for a
+    # GPU shared with other workloads (our case exactly: subgen + tdarr-node
+    # also contend for omega's single 3080) — it just skips and retries on
+    # its next tick rather than erroring when VRAM is tight, so no tuning
+    # needed here for the shared-GPU situation.
     omni:
-      model_name: null  # disabled — GPU required for practical use
+      model_name: "google/gemma-4-E2B-it"
+      load_in_4bit: true
+      cpu_offload_embeddings: false
+      max_new_tokens: 256
+      do_sample: false
+      temperature: 0.2
+      video_sample_max_size: 512
+      image_max_size: 512
+      min_free_vram_to_run: 7168
+      image_prompt: "Describe this image in detail. Include objects, scene, colors, actions, and any text visible."
+      audio_prompt: "Describe the audio in detail. Include instruments, genre, mood, tempo, and any notable features."
+      video_prompt: "Describe the video in detail. Include the scene, actions, objects, and any notable events."
+      text_prompt: "Provide a detailed summary of the following text:"
+
+    evaluator:
+      text_embedding_method: "full_text"
+
+    metadata_search:
+      auto_description_interval_minutes: 20
+      auto_description_batch_size: 100
+      embedding_interval_minutes: 20
+      embedding_batch_size: 1000

@@ -226,15 +226,24 @@ apply, obviously.
   — the base image doesn't set these itself, and `video` specifically (not
   just `compute,utility`) is what exposes NVENC/NVDEC to ffmpeg; omitting it
   silently falls back to CPU transcode with no error.
+- **anagnorisis wired to the GPU** (`k8s/apps/media/anagnorisis.yaml`):
+  hard-pinned to `omega` (was `general`/alpha), CUDA-enabled torch (cu121
+  wheels) baked into the image in `anagnorisis/Dockerfile` — every embedder
+  already gates on `torch.cuda.is_available()`, so no app code changes were
+  needed. `nvidia.com/gpu: "1"` in requests and limits, `runtimeClassName:
+  nvidia`. Unlike subgen/tdarr-node this is the interactive webapp the owner
+  browses/rates things in, not a background batch job — accepting the same
+  reschedule-tolerant downtime (pending whenever omega is offline) was a
+  deliberate trade for GPU-accelerated embeddings, not an oversight.
 - **Only one GPU consumer at a time by default**: the 3080 isn't MIG-capable
   and the ClusterPolicy has no time-slicing configured out of the box, so
-  subgen and tdarr-node contending for the single `nvidia.com/gpu` would
-  otherwise leave one permanently Pending. The GPU Operator HelmRelease
+  subgen, tdarr-node, and anagnorisis contending for the single
+  `nvidia.com/gpu` would otherwise leave some of them permanently Pending.
+  The GPU Operator HelmRelease
   (`k8s/infrastructure/nvidia-gpu-operator/helmrelease.yaml`) configures
-  2x time-slicing to cover both. This multiplexes SMs, not the 10GB of
-  VRAM — three CUDA workloads sharing it concurrently (e.g. if anagnorisis
-  joins once it has a CUDA image) is the next ceiling to watch, not just the
-  replica count.
+  3x time-slicing to cover all three. This multiplexes SMs, not the 10GB of
+  VRAM — three CUDA workloads sharing it concurrently is the ceiling to
+  watch, not just the replica count.
 - **Storage**: anything that opts into scheduling on this node must use
   NFS-backed storage (the `nfs-nvme` StorageClass or the shared `media-nfs`
   PV), never `local-path` — a pod bound to node-local storage would not
