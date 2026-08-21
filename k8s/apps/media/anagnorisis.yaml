@@ -14,10 +14,20 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
-    # Pinned to alpha (nest.arishaig.site/workloads=general): the 6Gi memory
-    # limit exceeds beta capacity, so it must never schedule there once
-    # beta/delta are schedulable. See talos/patches/controlplane.yaml.
+    # Pinned to omega (talos-omega, the gaming PC's RTX 3080), same pattern as
+    # subgen/tdarr-node (k8s/apps/media/subgen.yaml): GPU-accelerated
+    # embeddings need nvidia.com/gpu, and omega is the only node that
+    # advertises it. Reschedule-tolerant by design, not an oversight — when
+    # the owner reboots into Windows, anagnorisis just sits pending until
+    # omega rejoins (see KubeNodeNotReady exclusion for omega in
+    # playbooks/provision/files/monitoring/prometheus/rules/nest.yml). See
+    # docs/gaming-gpu-talos.md.
     defaultPodOptions:
+      # CDI isn't the cluster default (gpu-operator ClusterPolicy has
+      # cdi.default: false) — without this the pod schedules fine
+      # (nvidia.com/gpu is just a resource count) but gets no actual GPU
+      # device, a runtime failure invisible to kustomize/CI.
+      runtimeClassName: nvidia
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -25,7 +35,7 @@ spec:
               - matchExpressions:
                   - key: nest.arishaig.site/workloads
                     operator: In
-                    values: [general]
+                    values: [omega]
     controllers:
       anagnorisis:
         replicas: 1
@@ -36,7 +46,9 @@ spec:
               repository: ghcr.io/arishaig/anagnorisis
               # Immutable sha tag from the docker-build workflow. Bump this to roll
               # out a new build — Flux reconciles the change from git (no kubectl).
-              tag: sha-8f73a88
+              # CUDA-enabled build (cu121 wheels, anagnorisis/Dockerfile) +
+              # omni_service removed (superseded by this node's direct GPU access).
+              tag: sha-883c0cc
               pullPolicy: IfNotPresent
             # Use sh wrapper so we can merge stderr→stdout (tracebacks land in
             # Loki); exec replaces sh with Python for clean PID 1 / signals.
@@ -76,13 +88,19 @@ spec:
                   failureThreshold: 3
               startup:
                 enabled: false
+            # nvidia.com/gpu in both requests and limits: the device plugin
+            # requires them to match (integer, non-overcommittable resource)
+            # — this is also what actually gets anagnorisis scheduled onto
+            # omega and grants it access to the GPU device.
             resources:
               requests:
                 cpu: 100m
                 memory: 2Gi
+                nvidia.com/gpu: "1"
               limits:
                 cpu: "2"
                 memory: 6Gi
+                nvidia.com/gpu: "1"
     service:
       app:
         controller: anagnorisis
