@@ -15,7 +15,7 @@
 FROM ghcr.io/actions/actions-runner:latest
 
 # renovate: datasource=github-releases depName=opentofu/opentofu
-ARG OPENTOFU_VERSION=1.12.5
+ARG OPENTOFU_VERSION=1.12.6
 # renovate: datasource=github-releases depName=prometheus/prometheus
 ARG PROMETHEUS_VERSION=3.14.0
 # renovate: datasource=github-releases depName=prometheus/alertmanager
