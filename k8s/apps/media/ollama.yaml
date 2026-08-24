@@ -1,0 +1,90 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ollama
+  namespace: media
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    # Pinned to omega (talos-omega, the RTX 3080) for GPU inference — same
+    # placement as subgen/anagnorisis. Reschedule-tolerant: when the owner
+    # reboots into Windows, ollama just sits pending until omega rejoins.
+    defaultPodOptions:
+      # See subgen.yaml — without this the pod schedules fine but silently
+      # gets no GPU device (nvidia.com/gpu is just a resource count to k8s).
+      runtimeClassName: nvidia
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [omega]
+    controllers:
+      ollama:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=ollama/ollama
+              repository: ollama/ollama
+              tag: 0.15.4
+            env:
+              OLLAMA_HOST: "0.0.0.0:11434"
+              # omega's 3080 is a shared, time-sliced 10GB card (subgen also
+              # runs here and already hit a VRAM-pressure SIGSEGV loop at 3
+              # concurrent workers — see subgen.yaml). Unload the model
+              # after 5m idle so ollama doesn't permanently hold VRAM that
+              # subgen's transcription bursts need.
+              OLLAMA_KEEP_ALIVE: "5m"
+              OLLAMA_MAX_LOADED_MODELS: "1"
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 11434
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 11434
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 250m
+                memory: 1Gi
+                nvidia.com/gpu: "1"
+              limits:
+                memory: 12Gi
+                nvidia.com/gpu: "1"
+    service:
+      app:
+        controller: ollama
+        ports:
+          http:
+            port: 11434
+            targetPort: 11434
+    persistence:
+      data:
+        existingClaim: ollama-data
+        advancedMounts:
+          ollama:
+            app:
+              - path: /root/.ollama

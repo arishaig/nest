@@ -328,6 +328,27 @@ spec:
           port: 8000
   tls: {}
 ---
+# Unauthenticated API (no login flow to forward-auth against — this is a
+# machine client, CutScript's desktop app), so local-only IP allowlisting
+# instead of authelia, same as tunarr/watcharr.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ollama
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`ollama.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: local-only
+          namespace: traefik
+      services:
+        - name: ollama
+          port: 11434
+  tls: {}
+---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:

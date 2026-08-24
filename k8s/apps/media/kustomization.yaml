@@ -76,6 +76,9 @@ resources:
   # --- jellyfin (postgres backend; primary instance at jellyfin.arishaig.site) ---
   - jellyfin-pgsql-config-pvc.yaml  # kept raw (data safety) — PVC keeps legacy name, bound to live data
   - jellyfin.yaml  # HelmRelease (app-template) — renamed from jellyfin-pgsql (it's the Jellyfin server)
+  # --- ollama (local LLM inference, GPU; backs CutScript's AI features) ---
+  - ollama-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - ollama.yaml  # HelmRelease (app-template)
   - ingress-routes.yaml
 
 # Self-heal transient install/upgrade failures (e.g. helm-controller client
