@@ -134,5 +134,13 @@ spec:
         advancedMounts:
           jellyfin:
             app:
+              # Read-write (was readOnly: true, a deliberate "media server must
+              # not mutate the library" boundary). Opened up on request so the
+              # MediaDash plugin, which runs in-process, can apply its fixes —
+              # trickplay re-encode, .nfo/artwork rewrites, and file
+              # moves/deletes for its Duplicate/Playability/Transcode fixers.
+              # Trade-off: MediaDash can now move and permanently delete real
+              # media files. Keep its Automatic FixModes and any *Disposal:
+              # Permanent modes in check via the plugin UI — a re-detection
+              # loop here churns the library itself, not just cache tiles.
               - path: /data
-                readOnly: true

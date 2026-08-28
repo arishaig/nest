@@ -89,11 +89,24 @@ spec:
               # to 3 with that headroom, but that triggered a SIGSEGV crash
               # loop under sustained 3-worker load (~every 11min, mid-
               # transcribe) once the pod ran continuously for hours rather
-              # than the short live-check window — reverted to 2, the
-              # actually-verified-stable value. tdarr-node isn't consuming
-              # GPU concurrently as of this change (its GPU wiring hasn't
-              # been picked up by Flux yet); re-check nvidia-smi once it
-              # lands before considering 3 again.
+              # than the short live-check window — reverted to 2. tdarr-node
+              # isn't consuming GPU concurrently as of this change (its GPU
+              # wiring hasn't been picked up by Flux yet); re-check nvidia-smi
+              # once it lands before considering 3 again.
+              #
+              # 2026-08-28: 2 workers is ALSO not stable under sustained load.
+              # Observed: 833 restarts in 7 days (~one per 12min); inner
+              # subgen.py dies with SIGSEGV mid-[TRANSCRIBE], the wrapper then
+              # exits 0 so the container's last state is "Completed", not
+              # "Error"/"OOMKilled". Crashes hit assorted files, not one bad
+              # input. Notably the ~12min MTBF is about the same as the
+              # ~11min seen at 3 workers — so crash rate looks roughly
+              # independent of worker count, i.e. concurrency may not be the
+              # driver at all. Dropping to 1 is a hypothesis test, cheap and
+              # reversible: if it removes the crashes, the multi-worker
+              # inference path was the cause; if MTBF stays ~12min, rule
+              # concurrency out and look next at the image tag, the
+              # translate + large-v3 path, or the GPU itself.
               WHISPER_MODEL: large-v3
               COMPUTE_TYPE: float16
               WHISPER_THREADS: "4"
@@ -121,7 +134,7 @@ spec:
               DETECT_LANGUAGE_OFFSET: "60"
               SHOULD_WHISPER_DETECT_AUDIO_LANGUAGE: "True"
               TRANSCRIBE_OR_TRANSLATE: translate
-              CONCURRENT_TRANSCRIPTIONS: "2"
+              CONCURRENT_TRANSCRIPTIONS: "1"
               WORD_LEVEL_HIGHLIGHT: "False"
               DEBUG: "True"
               TRANSCRIBE_DEVICE: cuda

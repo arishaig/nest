@@ -22,9 +22,45 @@ spec:
       annotations:
         metallb.io/loadBalancerIPs: "192.168.1.116"
         metallb.io/allow-shared-ip: "metrics"
+    # 2026-08-28: KSM was restarting ~every 20 min (292 restarts in 4 days),
+    # last-terminated reason "Error" (not OOMKilled) — i.e. the kubelet was
+    # killing it on a failed liveness probe, not the kernel on memory. Its
+    # /metrics scrape had a 22.7s worst case over 24h (p95 still 26ms), and a
+    # slow KSM misses its own liveness probe too, so: slow scrape -> probe
+    # timeout -> kill -> cold cache rebuild -> slow again. Every restart drops
+    # KSM's series from Prometheus, which silently resolves every
+    # KSM-derived alert (KubeDeploymentReplicasMismatch, KubePodCrashLooping,
+    # ...) and then re-fires it — the "alerts clearing themselves all day"
+    # symptom. Two mitigations here:
+    #   1. Bump memory 192Mi -> 512Mi. 192Mi is the stock chart default and
+    #      undersized for this cluster's object count; GC pressure at the old
+    #      ceiling is the most likely reason /metrics and /healthz were slow.
+    #   2. Widen the liveness/readiness probes so a transient slow scrape
+    #      doesn't get the pod killed before the bigger heap has a chance to
+    #      help. Full probe blocks required — the chart replaces them wholesale.
     resources:
       requests:
         cpu: 20m
-        memory: 64Mi
+        memory: 128Mi
       limits:
-        memory: 192Mi
+        memory: 512Mi
+    livenessProbe:
+      httpGet:
+        path: /livez
+        port: 8080
+        scheme: HTTP
+      initialDelaySeconds: 5
+      periodSeconds: 15
+      timeoutSeconds: 10
+      successThreshold: 1
+      failureThreshold: 5
+    readinessProbe:
+      httpGet:
+        path: /readyz
+        port: 8081
+        scheme: HTTP
+      initialDelaySeconds: 5
+      periodSeconds: 15
+      timeoutSeconds: 10
+      successThreshold: 1
+      failureThreshold: 5

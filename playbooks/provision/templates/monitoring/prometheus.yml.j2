@@ -188,6 +188,7 @@ scrape_configs:
           - '192.168.1.110:9100'  # talos-a2c-1b8 (alpha, worker)
           - '192.168.1.112:9100'  # talos-beta-rpi5
           - '192.168.1.118:9100'  # talos-gamma-rpi5
+          - '192.168.1.120:9100'  # talos-omega (gaming PC, RTX 3080)
     relabel_configs:
       - source_labels: [__address__]
         regex: '192\.168\.1\.119:\d+'
@@ -205,6 +206,10 @@ scrape_configs:
         regex: '192\.168\.1\.118:\d+'
         target_label: instance
         replacement: 'talos-gamma-rpi5'
+      - source_labels: [__address__]
+        regex: '192\.168\.1\.120:\d+'
+        target_label: instance
+        replacement: 'talos-omega'
 
   - job_name: 'speedtest'
     scrape_interval: 1h
