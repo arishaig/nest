@@ -28,18 +28,25 @@ resource "proxmox_virtual_environment_vm" "talos_alpha_control" {
   }
 
   cpu {
-    cores = 2
+    # Bumped from 2 (2026-08-28): 2 vCPU is under-provisioned for a sole
+    # control-plane node. During the 2026-08-28 alert storm this VM sat at
+    # load ~3 (1.5x per core); the apiserver went latency-bound and every
+    # Flux controller lost its leader-election lease and crash-looped,
+    # kube-state-metrics failed its liveness probe, and ~11 downstream
+    # KubePodCrashLooping alerts flapped resolve/re-fire all evening. Host
+    # has 12 cores; talos-alpha (worker) uses 8, everything else is light.
+    cores = 4
     type  = "host"
   }
 
   memory {
-    # Bumped from 4096 (2026-08-03): 4GB is thin headroom for a sole
-    # control-plane node (kube-apiserver alone routinely uses 800MB+). Root
-    # cause of the 2026-08-03 crash-loop investigation pointed at etcd
-    # (shared local apiserver LB stalling, not per-process memory pressure),
-    # but this extra headroom is worth keeping regardless. Host had ~16.6GB
-    # free at the time.
-    dedicated = 8192
+    # 8192 bumped from 4096 (2026-08-03): 4GB is thin headroom for a sole
+    # control-plane node (kube-apiserver alone routinely uses 800MB+).
+    # 12288 (2026-08-28): further headroom taken alongside the 2->4 vCPU
+    # bump during the apiserver-latency incident. The proximate cause looked
+    # CPU/etcd-fsync bound rather than RSS-bound, but a control plane this
+    # small has no slack to diagnose under. Host had ~22GB free at the time.
+    dedicated = 12288
   }
 
   efi_disk {
