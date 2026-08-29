@@ -414,6 +414,51 @@ groups:
           summary: "kube-state-metrics is down"
           description: "kube-state-metrics has failed most scrapes over the last 30 minutes. Pod crash-loop alerting is blind until it recovers."
 
+      # --- control plane ------------------------------------------------------
+      # The cluster has a single control-plane node (talos-alpha-control, 4
+      # vCPU / 12GB as of the 2026-08-28 bump). When its kube-apiserver goes
+      # latency-bound, the failure fans out into a dozen unrelated-looking
+      # warnings — every Flux controller drops its leader-election lease and
+      # crash-loops, kube-state-metrics fails its liveness probe (can't LIST)
+      # and takes all KSM-derived alerting blind, the csi-nfs sidecars
+      # crash-loop, and KubePodCrashLooping pages once per affected pod. These
+      # two rules page on the cause instead, at critical, so an apiserver
+      # incident is one legible alert rather than a scroll of symptoms.
+      #
+      # kube-scheduler and kube-controller-manager are static pods that share
+      # the node (and usually the fate) of the apiserver, so their health is a
+      # usable proxy for "the control plane is unwell" — the apiserver itself
+      # is deliberately not a scrape target (see the API VIP note in
+      # prometheus.yml.j2). Both rules key on KSM, so they inherit its
+      # blind spots during a total apiserver outage; they still fire on the
+      # far more common partial/latency case, which is exactly the 2026-08-28
+      # signature.
+      - alert: KubeControlPlaneComponentDown
+        expr: |
+          max by (namespace, pod) (
+            kube_pod_status_ready{job="kube-state-metrics", namespace="kube-system", condition="true", pod=~"kube-scheduler-.*|kube-controller-manager-.*"}
+          ) < 1
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Control-plane component {{ $labels.pod }} is not ready"
+          description: "{{ $labels.pod }} has been not-ready for more than 10 minutes. On a single-control-plane cluster this usually means the apiserver on talos-alpha-control is unhealthy — expect Flux, kube-state-metrics and CSI to be crash-looping downstream."
+
+      # Lower threshold (>2 in 30m) and higher severity than the generic
+      # KubePodCrashLooping (>4, warning): a control-plane component restarting
+      # even twice is a distinct critical signal, and bundling it into the
+      # generic per-pod warning is what buried it on 2026-08-28.
+      - alert: KubeControlPlaneComponentRestarting
+        expr: |
+          increase(kube_pod_container_status_restarts_total{job="kube-state-metrics", namespace="kube-system", pod=~"kube-scheduler-.*|kube-controller-manager-.*|kube-apiserver-.*"}[30m]) > 2
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Control-plane component {{ $labels.pod }} is restarting"
+          description: "{{ $labels.container }} in {{ $labels.pod }} has restarted {{ $value | printf \"%.0f\" }} times in the last 30 minutes. Check apiserver/etcd health on talos-alpha-control (etcd disk-fsync latency is the usual cause on shared Proxmox storage)."
+
       # No separate KSM replica-availability rule is needed, contrary to
       # architecture review finding D2. That finding assumed two KSM replicas
       # behind the shared MetalLB IP, one of which could sit Failed while the
@@ -481,14 +526,23 @@ groups:
 
   - name: media
     rules:
-      - alert: MediaAppDown
+      # This watches the *arr Prometheus exporters behind the shared MetalLB IP
+      # (192.168.1.116), not the apps themselves. The exporter target can go
+      # unscrapeable while the app is fully up — a flapping MetalLB speaker
+      # lease, a slow exporter sidecar, or the LB IP briefly losing its L2
+      # announcement all trip this without the app ever being down. The
+      # user-facing "is the app actually reachable" signal is ExternalEndpointDown
+      # (blackbox probes the public https:// path). Word the annotations for the
+      # scrape path so a green web UI plus this alert doesn't read as a
+      # contradiction.
+      - alert: MediaAppExporterDown
         expr: avg_over_time(up{job=~"sonarr|radarr|lidarr|prowlarr|bazarr"}[30m]) < 0.5
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "{{ $labels.job }} is down"
-          description: "{{ $labels.job }} on {{ $labels.instance }} has failed most scrapes over the last 30 minutes."
+          summary: "{{ $labels.job }} exporter is unreachable"
+          description: "Prometheus has failed most scrapes of the {{ $labels.job }} exporter ({{ $labels.instance }}) over the last 30 minutes. This is the metrics scrape path (via the 192.168.1.116 MetalLB IP), not the app — check ExternalEndpointDown to see whether {{ $labels.job }} itself is actually down."
 
   - name: logging
     rules:
