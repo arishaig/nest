@@ -472,13 +472,23 @@ groups:
 
   - name: flux
     rules:
-      # Before this group the estate had zero Flux reconcile alerting. On
-      # 2026-08-30 the gpu-operator v26.7.0 HelmRelease wedged, the
-      # infrastructure Kustomization went Ready=False, and — because apps
-      # dependsOn infrastructure — nothing in k8s/apps/** deployed for ~2 days
-      # with no signal at all. infrastructure no longer gates on HelmRelease
-      # health (wait: false), so these per-object rules are now the primary
-      # "GitOps has stopped delivering" signal.
+      # Before this group the estate had zero Flux reconcile alerting — how a
+      # wedged gpu-operator HelmRelease froze `apps` for ~2 days unnoticed on
+      # 2026-08-30 (infrastructure no longer gates on HelmRelease health,
+      # wait: false, so these are now the primary "GitOps has stopped
+      # delivering" signal).
+      #
+      # CORRECTION (2026-09-01): the first version of this group used
+      # gotk_reconcile_condition / gotk_suspend_status. Verified directly
+      # against a live port-forward to kustomize-controller's /metrics on this
+      # Flux build (helm-controller v1.6.3): neither metric exists — Flux
+      # dropped the per-object condition gauges. All that's actually exposed
+      # is gotk_reconcile_duration_seconds (a histogram, no status label) and
+      # the standard controller-runtime reconcile counters. Rewritten below to
+      # use only metrics confirmed present with real series. The trade-off:
+      # these can't name the specific stuck Kustomization/HelmRelease (no
+      # per-object status metric exists to query) — `flux get all -A` is the
+      # follow-up step every alert here points at.
 
       # If the Flux metrics scrape itself is down, the two rules below go
       # blind — same rationale as KubeStateMetricsDown.
@@ -489,52 +499,47 @@ groups:
           severity: warning
         annotations:
           summary: "Flux {{ $labels.controller }} metrics are unreachable"
-          description: "Prometheus has failed most scrapes of {{ $labels.controller }} ({{ $labels.instance }}) over the last 30 minutes (via the 192.168.1.116 metrics IP). FluxKustomizationNotReady / FluxHelmReleaseNotReady are blind until it recovers."
+          description: "Prometheus has failed most scrapes of {{ $labels.controller }} ({{ $labels.instance }}) over the last 30 minutes (via the 192.168.1.116 metrics IP). FluxReconcileErrors / FluxTerminalReconcileError are blind until it recovers."
 
-      # A Kustomization stuck Ready=False = changes in that path have stopped
-      # applying. 30m warning clears normal reconcile blips; 2h critical means
-      # a real stall like the gpu-operator incident. Suspended Kustomizations
-      # (e.g. during a break-glass) are excluded.
-      - alert: FluxKustomizationNotReady
-        expr: |
-          max by (name, namespace) (
-            gotk_reconcile_condition{job="flux", kind="Kustomization", type="Ready", status="False"}
-          ) == 1
-          unless on (name, namespace) gotk_suspend_status{job="flux", kind="Kustomization"} == 1
-        for: 30m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Flux Kustomization {{ $labels.name }} has been not-Ready for 30m"
-          description: "Kustomization {{ $labels.namespace }}/{{ $labels.name }} is Ready=False — changes under its path are not being applied. Check `flux get kustomization {{ $labels.name }}` and the object it is stalled on."
-
-      - alert: FluxKustomizationStalled
-        expr: |
-          max by (name, namespace) (
-            gotk_reconcile_condition{job="flux", kind="Kustomization", type="Ready", status="False"}
-          ) == 1
-          unless on (name, namespace) gotk_suspend_status{job="flux", kind="Kustomization"} == 1
-        for: 2h
-        labels:
-          severity: critical
-        annotations:
-          summary: "Flux Kustomization {{ $labels.name }} has been not-Ready for 2h"
-          description: "Kustomization {{ $labels.namespace }}/{{ $labels.name }} has been Ready=False for 2 hours. GitOps delivery for its path is stalled — this is the class of failure that froze `apps` for 2 days in Aug 2026."
-
-      # HelmReleases legitimately sit not-Ready longer during install/upgrade,
-      # so 1h before warning. Suspended releases excluded.
-      - alert: FluxHelmReleaseNotReady
-        expr: |
-          max by (name, namespace) (
-            gotk_reconcile_condition{job="flux", kind="HelmRelease", type="Ready", status="False"}
-          ) == 1
-          unless on (name, namespace) gotk_suspend_status{job="flux", kind="HelmRelease"} == 1
+      # controller_runtime_reconcile_total{result="error"} sustained > 0 means
+      # that controller keeps failing to reconcile *something*. This is what
+      # the infrastructure Kustomization actually did throughout the Aug 2026
+      # incident (continuous health-check failures = continuous reconcile
+      # errors on kustomize-controller). 1h warning / 4h critical — a single
+      # controller emits this for every object it manages, so a brief blip
+      # from one unrelated resource shouldn't page immediately.
+      - alert: FluxReconcileErrors
+        expr: sum by (exported_controller) (rate(controller_runtime_reconcile_total{job="flux", result="error"}[15m])) > 0
         for: 1h
         labels:
           severity: warning
         annotations:
-          summary: "Flux HelmRelease {{ $labels.name }} has been not-Ready for 1h"
-          description: "HelmRelease {{ $labels.namespace }}/{{ $labels.name }} is Ready=False (install/upgrade failed or stalled). Check `flux get helmrelease -n {{ $labels.namespace }} {{ $labels.name }}` and its Helm history."
+          summary: "Flux {{ $labels.exported_controller }} reconciles have been failing for 1h"
+          description: "{{ $labels.exported_controller }} objects have had a nonzero reconcile error rate for the last hour. Run `flux get kustomizations -A` / `flux get helmreleases -A` to find which one — this metric can't name it directly."
+
+      - alert: FluxReconcileErrorsStalled
+        expr: sum by (exported_controller) (rate(controller_runtime_reconcile_total{job="flux", result="error"}[15m])) > 0
+        for: 4h
+        labels:
+          severity: critical
+        annotations:
+          summary: "Flux {{ $labels.exported_controller }} reconciles have been failing for 4h"
+          description: "{{ $labels.exported_controller }} objects have had a nonzero reconcile error rate for 4 hours straight — the class of failure that froze `apps` for 2 days in Aug 2026 (see project_gpu_operator_v267_flux_stall memory). Run `flux get all -A`."
+
+      # controller_runtime_terminal_reconcile_errors_total increments once
+      # when a controller gives up on an object outright (e.g. a HelmRelease
+      # exhausts its remediation retries and goes Stalled) — this is the exact
+      # gpu-operator v26.7.0 failure mode, and unlike FluxReconcileErrors it
+      # fires within minutes instead of an hour, though it also can't name the
+      # object.
+      - alert: FluxTerminalReconcileError
+        expr: increase(controller_runtime_terminal_reconcile_errors_total{job="flux"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "A Flux {{ $labels.exported_controller }} reconcile gave up"
+          description: "{{ $labels.exported_controller }} marked an object's reconcile as terminally failed in the last 15 minutes (remediation retries exhausted, or similar). Run `flux get all -A` for a Stalled or Failed status."
 
   - name: endpoints
     rules:
