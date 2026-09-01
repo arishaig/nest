@@ -10,5 +10,27 @@ spec:
     name: flux-system
   path: ./k8s/infrastructure
   prune: true
-  wait: true
+  # wait: false (was true). With wait: true, this Kustomization only reports
+  # Ready once EVERY reconciled object is healthy — including every infra
+  # HelmRelease. `apps` dependsOn: infrastructure, so a single wedged infra
+  # HelmRelease made `apps` stop reconciling entirely. That is exactly what
+  # happened 2026-08-30: the gpu-operator v26.7.0 upgrade failed, this
+  # Kustomization went Ready=False on the health check, and ~2 days of
+  # k8s/apps/** changes never deployed (see the project memory / PR #532).
+  #
+  # With wait: false, Ready means "all manifests applied to the API server",
+  # not "everything is healthy" — so a broken addon no longer freezes the
+  # estate. Trade-off, and it is NOT bootstrap-only: any time an infra
+  # HelmRelease is mid-upgrade (a routine Renovate bump of traefik,
+  # cert-manager or MetalLB), `apps` can reconcile against a rolling
+  # controller — IngressRoutes applied while Traefik restarts, LoadBalancer
+  # Services not getting an IP on first apply, etc. Those self-heal on the
+  # next 10m interval, but the window can briefly trip FluxKustomizationNotReady
+  # (30m) / FluxHelmReleaseNotReady (1h). Accepted deliberately: a few minutes
+  # of transient app-apply retries during infra upgrades is far cheaper than
+  # the 2-day total freeze wait: true caused on 2026-08-30. Health as a signal
+  # is not lost — it moves to per-object alerting (FluxKustomizationNotReady /
+  # FluxHelmReleaseNotReady in playbooks/.../prometheus/rules/nest.yml), which
+  # nothing had before.
+  wait: false
   timeout: 5m
