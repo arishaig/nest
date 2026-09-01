@@ -1,0 +1,23 @@
+# Exposes kustomize-controller's Prometheus metrics (:8080 http-prom) to the
+# monitoring LXC over the shared MetalLB metrics IP (192.168.1.116), same
+# pattern as kube-state-metrics / dcgm-exporter. Single replica, so no LB
+# fan-out concern. Provides gotk_reconcile_condition{kind="Kustomization",...}
+# — the series behind FluxKustomizationNotReady. External port 8082 (8080 and
+# 9400 on .116 are already taken by KSM and dcgm).
+apiVersion: v1
+kind: Service
+metadata:
+  name: kustomize-controller-metrics
+  namespace: flux-system
+  annotations:
+    metallb.io/loadBalancerIPs: "192.168.1.116"
+    metallb.io/allow-shared-ip: "metrics"
+spec:
+  type: LoadBalancer
+  selector:
+    app: kustomize-controller
+  ports:
+    - name: http-prom
+      port: 8082
+      targetPort: http-prom
+      nodePort: 30882

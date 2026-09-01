@@ -470,6 +470,72 @@ groups:
       # Should KSM ever be scaled up, KubeDeploymentReplicasMismatch already
       # covers replica shortfall for every deployment, KSM included.
 
+  - name: flux
+    rules:
+      # Before this group the estate had zero Flux reconcile alerting. On
+      # 2026-08-30 the gpu-operator v26.7.0 HelmRelease wedged, the
+      # infrastructure Kustomization went Ready=False, and — because apps
+      # dependsOn infrastructure — nothing in k8s/apps/** deployed for ~2 days
+      # with no signal at all. infrastructure no longer gates on HelmRelease
+      # health (wait: false), so these per-object rules are now the primary
+      # "GitOps has stopped delivering" signal.
+
+      # If the Flux metrics scrape itself is down, the two rules below go
+      # blind — same rationale as KubeStateMetricsDown.
+      - alert: FluxControllerDown
+        expr: avg_over_time(up{job="flux"}[30m]) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Flux {{ $labels.controller }} metrics are unreachable"
+          description: "Prometheus has failed most scrapes of {{ $labels.controller }} ({{ $labels.instance }}) over the last 30 minutes (via the 192.168.1.116 metrics IP). FluxKustomizationNotReady / FluxHelmReleaseNotReady are blind until it recovers."
+
+      # A Kustomization stuck Ready=False = changes in that path have stopped
+      # applying. 30m warning clears normal reconcile blips; 2h critical means
+      # a real stall like the gpu-operator incident. Suspended Kustomizations
+      # (e.g. during a break-glass) are excluded.
+      - alert: FluxKustomizationNotReady
+        expr: |
+          max by (name, namespace) (
+            gotk_reconcile_condition{job="flux", kind="Kustomization", type="Ready", status="False"}
+          ) == 1
+          unless on (name, namespace) gotk_suspend_status{job="flux", kind="Kustomization"} == 1
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Flux Kustomization {{ $labels.name }} has been not-Ready for 30m"
+          description: "Kustomization {{ $labels.namespace }}/{{ $labels.name }} is Ready=False — changes under its path are not being applied. Check `flux get kustomization {{ $labels.name }}` and the object it is stalled on."
+
+      - alert: FluxKustomizationStalled
+        expr: |
+          max by (name, namespace) (
+            gotk_reconcile_condition{job="flux", kind="Kustomization", type="Ready", status="False"}
+          ) == 1
+          unless on (name, namespace) gotk_suspend_status{job="flux", kind="Kustomization"} == 1
+        for: 2h
+        labels:
+          severity: critical
+        annotations:
+          summary: "Flux Kustomization {{ $labels.name }} has been not-Ready for 2h"
+          description: "Kustomization {{ $labels.namespace }}/{{ $labels.name }} has been Ready=False for 2 hours. GitOps delivery for its path is stalled — this is the class of failure that froze `apps` for 2 days in Aug 2026."
+
+      # HelmReleases legitimately sit not-Ready longer during install/upgrade,
+      # so 1h before warning. Suspended releases excluded.
+      - alert: FluxHelmReleaseNotReady
+        expr: |
+          max by (name, namespace) (
+            gotk_reconcile_condition{job="flux", kind="HelmRelease", type="Ready", status="False"}
+          ) == 1
+          unless on (name, namespace) gotk_suspend_status{job="flux", kind="HelmRelease"} == 1
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Flux HelmRelease {{ $labels.name }} has been not-Ready for 1h"
+          description: "HelmRelease {{ $labels.namespace }}/{{ $labels.name }} is Ready=False (install/upgrade failed or stalled). Check `flux get helmrelease -n {{ $labels.namespace }} {{ $labels.name }}` and its Helm history."
+
   - name: endpoints
     rules:
       # This is the true user-facing symptom alert (probes the public path),

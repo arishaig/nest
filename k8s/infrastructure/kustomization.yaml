@@ -16,6 +16,7 @@ resources:
   - rpi5-nic-watchdog/
   - flannel-watchdog/
   - nvidia-gpu-operator/
+  - flux-metrics/
 
 # Self-heal transient install/upgrade failures for infra HelmReleases (same as
 # the media kustomization). Applies to every HelmRelease in this tree.
