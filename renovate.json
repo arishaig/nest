@@ -80,6 +80,12 @@
       "description": "flux-local (CI helm-render tool) stays on 7.x — 8.x requires Python >=3.13 and the runner images ship 3.12",
       "matchPackageNames": ["flux-local"],
       "allowedVersions": "<8.0.0"
+    },
+    {
+      "description": "gpu-operator: pinned to v26.3.3. The v26.7.0 bump (#520) wedged Flux — its pre-upgrade CRD hook Job never gets its hook ServiceAccount, the Helm upgrade fails, Flux can't roll back, and the failed HelmRelease stalls the whole infrastructure Kustomization (and apps behind it). Unpin once the v26.7+ CRD-hook upgrade path is verified working.",
+      "matchDatasources": ["helm"],
+      "matchPackageNames": ["gpu-operator"],
+      "allowedVersions": "<=v26.3.3"
     }
   ],
 

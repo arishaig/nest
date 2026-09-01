@@ -8,7 +8,16 @@ spec:
   chart:
     spec:
       chart: gpu-operator
-      version: v26.7.0
+      # Pinned back to v26.3.3 (from the Renovate v26.7.0 bump in #520).
+      # v26.7.0's Helm pre-upgrade hook `Job/gpu-operator-upgrade-crd` wedges:
+      # its hook ServiceAccount (gpu-operator-upgrade-crd-hook-sa) is never
+      # created, so the Job retries pod creation forever, the Helm upgrade
+      # goes Failed, Flux can't auto-rollback ("missing target release"), and
+      # the infrastructure Kustomization's health check on this HelmRelease
+      # fails — which blocked the apps Kustomization (dependsOn:
+      # infrastructure) for ~2 days. Renovate is pinned <=v26.3.3 in
+      # renovate.json until the v26.7+ CRD-hook upgrade path is sorted.
+      version: v26.3.3
       sourceRef:
         kind: HelmRepository
         name: nvidia
