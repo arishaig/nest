@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - namespace.yaml  # kept raw — custom pod-security label
   - helmrelease.yaml  # nvidia/gpu-operator chart, driver+toolkit disabled (Talos extensions provide them)
+  - dcgm-exporter-service.yaml  # LoadBalancer on the .116 metrics IP so the LXC Prometheus can scrape DCGM
