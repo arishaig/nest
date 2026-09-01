@@ -177,6 +177,17 @@ scrape_configs:
         labels:
           instance: 'talos'
 
+  # NVIDIA DCGM exporter (gpu-operator DaemonSet on talos-omega) via the
+  # dcgm-exporter-metrics LoadBalancer on the shared .116 metrics IP
+  # (k8s/infrastructure/nvidia-gpu-operator/dcgm-exporter-service.yaml).
+  # Only omega has a GPU, so this is a single pod. Gives VRAM / temp / Xid
+  # visibility for the 3080 that subgen, tdarr-node and anagnorisis share.
+  - job_name: 'dcgm'
+    static_configs:
+      - targets: ['192.168.1.116:9400']
+        labels:
+          instance: 'talos-omega'
+
   # node-exporter DaemonSet (k8s/infrastructure/node-exporter), hostNetwork
   # so each Talos node exposes :9100 on its own IP directly — same pattern
   # as the LXC 'node' job. instance is relabeled to the Talos node name so

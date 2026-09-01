@@ -1,0 +1,37 @@
+# Standalone LoadBalancer Service so Prometheus on the monitoring LXC can
+# scrape DCGM GPU metrics over the shared MetalLB metrics IP (192.168.1.116),
+# the same pattern as redis-exporter / authelia-metrics / kube-state-metrics.
+# The gpu-operator chart (v26.7.0) only ships a ClusterIP Service for
+# dcgm-exporter and doesn't expose LB type + MetalLB annotations through its
+# values, so this selects the chart-managed DaemonSet pods directly.
+#
+# Selector: the NVIDIA dcgm-exporter subchart labels its pods
+# `app: nvidia-dcgm-exporter` and exposes container port 9400. Only
+# talos-omega runs the pod (it's the sole node with an NVIDIA GPU), so there
+# is exactly one backing endpoint. After `flux reconcile`, verify with
+# `kubectl -n gpu-operator get endpoints dcgm-exporter-metrics` — a missing
+# endpoint means the operator's pod labels have drifted from this selector.
+#
+# Prometheus scrape job `dcgm` targets 192.168.1.116:9400 (see
+# playbooks/provision/templates/monitoring/prometheus.yml.j2). This closes
+# the "or the GPU itself" branch of the subgen SIGSEGV investigation — with
+# this in place, DCGM_FI_DEV_FB_USED / _GPU_TEMP / _XID_ERRORS are queryable
+# and the subgen crashes can be correlated against VRAM pressure, thermals,
+# and Xid faults (tdarr-node and anagnorisis share the 3080 via time-slicing).
+apiVersion: v1
+kind: Service
+metadata:
+  name: dcgm-exporter-metrics
+  namespace: gpu-operator
+  annotations:
+    metallb.io/loadBalancerIPs: "192.168.1.116"
+    metallb.io/allow-shared-ip: "metrics"
+spec:
+  type: LoadBalancer
+  selector:
+    app: nvidia-dcgm-exporter
+  ports:
+    - name: gpu-metrics
+      port: 9400
+      targetPort: 9400
+      nodePort: 30400

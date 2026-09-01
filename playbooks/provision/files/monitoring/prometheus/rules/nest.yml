@@ -544,6 +544,25 @@ groups:
           summary: "{{ $labels.job }} exporter is unreachable"
           description: "Prometheus has failed most scrapes of the {{ $labels.job }} exporter ({{ $labels.instance }}) over the last 30 minutes. This is the metrics scrape path (via the 192.168.1.116 MetalLB IP), not the app — check ExternalEndpointDown to see whether {{ $labels.job }} itself is actually down."
 
+      # subgen (GPU Whisper on talos-omega) crash-loops on a native SIGSEGV
+      # in CTranslate2 during [TRANSCRIBE] jobs. Its shell wrapper exits 0
+      # after the segfault, so the pod's last state is "Completed" — no
+      # CrashLoopBackOff, no restart backoff — and the crash cadence
+      # (~1 per 12-16min) sits just under KubePodCrashLooping's >4-in-30m
+      # threshold, so 3+ days of restarts went completely unalerted. Longer
+      # window, lower rate: >6 restarts in 3h is a sustained loop, while a
+      # deploy or an omega reboot-into-Windows (expected — see the
+      # KubeNodeNotReady omega exclusion) is a single restart. Warning, not
+      # critical: subgen is degraded-but-progressing, not an outage.
+      - alert: SubgenChronicRestart
+        expr: increase(kube_pod_container_status_restarts_total{job="kube-state-metrics", namespace="media", pod=~"subgen-.*"}[3h]) > 6
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "subgen is chronically restarting on talos-omega"
+          description: "subgen has restarted {{ $value | printf \"%.0f\" }} times in the last 3 hours — below KubePodCrashLooping's threshold but a sustained loop. Almost certainly the CTranslate2 SIGSEGV during [TRANSCRIBE]; check GPU metrics (job dcgm) for VRAM/thermal/Xid correlation and the subgen.yaml COMPUTE_TYPE / WHISPER_MODEL notes."
+
   - name: logging
     rules:
       # Replaces the old self-referential LokiIngestionBackpressure ruler alert.

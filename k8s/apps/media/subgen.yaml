@@ -76,8 +76,9 @@ spec:
               # TRANSCRIBE_OR_TRANSLATE=translate below. Live-checked VRAM
               # headroom via `nvidia-smi` on omega before bumping from
               # medium: two concurrent medium jobs used ~1.9GB of the
-              # 3080's 10GB. COMPUTE_TYPE pinned to float16 (rather than
-              # the "auto" default) to keep that budget deterministic.
+              # 3080's 10GB. COMPUTE_TYPE pinned explicitly (rather than the
+              # "auto" default) to keep that budget deterministic — see the
+              # 2026-09-01 note below for the float16 -> int8_float16 change.
               #
               # CONCURRENT_TRANSCRIPTIONS maps to CTranslate2's num_workers
               # on a single shared model instance (confirmed against
@@ -107,8 +108,26 @@ spec:
               # inference path was the cause; if MTBF stays ~12min, rule
               # concurrency out and look next at the image tag, the
               # translate + large-v3 path, or the GPU itself.
+              #
+              # 2026-09-01: the 1-worker test is in — concurrency is ruled out.
+              # 267 restarts in 3 days at 1 worker (~1 per 16min) vs ~1 per
+              # 12min at 2 and ~1 per 11min at 3: the SIGSEGV MTBF is
+              # essentially flat across worker counts. Crash is still always
+              # in a [TRANSCRIBE] job, never in DETECT_LANGUAGE, with no
+              # Python traceback and no CUDA error logged — a native segfault
+              # inside CTranslate2/faster-whisper. 2026.07.3 is the newest
+              # stable mccloud/subgen tag (no image bump available), so the
+              # next cheap, reversible knob is COMPUTE_TYPE: float16 ->
+              # int8_float16. float16 CUDA inference in CTranslate2 has a
+              # known family of sporadic segfaults on consumer cards;
+              # int8_float16 keeps VRAM bounded and is typically faster on the
+              # 3080. If MTBF stays ~15min, revert this and try
+              # WHISPER_MODEL: large-v3 -> large-v2 (still supports translate;
+              # large-v3 is the less numerically stable of the two). GPU-side
+              # visibility for the "or the GPU itself" branch is added in the
+              # same PR (dcgm-exporter scrape + SubgenChronicRestart alert).
               WHISPER_MODEL: large-v3
-              COMPUTE_TYPE: float16
+              COMPUTE_TYPE: int8_float16
               WHISPER_THREADS: "4"
               NAMESUBLANG: en
               # Folder-watch: generate subgen subtitles directly on disk
