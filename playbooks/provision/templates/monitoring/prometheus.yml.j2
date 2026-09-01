@@ -188,6 +188,23 @@ scrape_configs:
         labels:
           instance: 'talos-omega'
 
+  # Flux kustomize-controller (:8082) and helm-controller (:8083) metrics via
+  # LoadBalancers on the shared .116 metrics IP
+  # (k8s/infrastructure/flux-metrics/). gotk_reconcile_condition drives the
+  # FluxKustomizationNotReady / FluxHelmReleaseNotReady rules — the estate had
+  # no Flux reconcile alerting before, which is how a wedged HelmRelease froze
+  # `apps` for ~2 days unnoticed.
+  - job_name: 'flux'
+    static_configs:
+      - targets: ['192.168.1.116:8082']
+        labels:
+          instance: 'talos'
+          controller: 'kustomize-controller'
+      - targets: ['192.168.1.116:8083']
+        labels:
+          instance: 'talos'
+          controller: 'helm-controller'
+
   # node-exporter DaemonSet (k8s/infrastructure/node-exporter), hostNetwork
   # so each Talos node exposes :9100 on its own IP directly — same pattern
   # as the LXC 'node' job. instance is relabeled to the Talos node name so
