@@ -19,6 +19,12 @@ services:
       - SERVER_COUNTRIES=${SERVER_COUNTRIES}
       - VPN_PORT_FORWARDING=${VPN_PORT_FORWARDING}
       - VPN_PORT_FORWARDING_PROVIDER=protonvpn
+      # Only ever pick Proton servers that actually support NAT-PMP port
+      # forwarding. Without this, gluetun can land on a non-P2P Swiss server
+      # whose gateway refuses NAT-PMP on 10.2.0.1:5351 ("recvfrom: connection
+      # refused"), which makes gluetun tear down and re-add the qBittorrent
+      # forwarded port every few minutes - the "gluetun flapping" symptom.
+      - PORT_FORWARD_ONLY=on
       - |
         VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh -c '
         echo "Port forwarding enabled on port: {{PORTS}}";
