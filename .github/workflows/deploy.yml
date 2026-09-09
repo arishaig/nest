@@ -450,25 +450,50 @@ jobs:
           # member), beta-rpi5/.112 and gamma-rpi5/.118 drifted silently.
           # alpha-control goes last so a bad image/schematic surfaces on a
           # worker first, before touching the only control-plane node.
+          # omega/.120 is deliberately NOT here — it's the user's gaming PC,
+          # not Proxmox/Terraform-managed and routinely offline in Windows;
+          # gating every talos_version deploy on it being up in Talos would
+          # wedge CI. Its installer tag still moves in lockstep (Renovate
+          # bumps talos/patches/worker-omega.yaml); upgrade it by hand per
+          # docs/gaming-gpu-talos.md next time it's on Talos.
+          #
+          # Per-node budget for the node to reboot and re-report the target
+          # version. `talosctl upgrade --wait` has no --timeout knob and hung
+          # for its full 30-min default against a node that had already come
+          # back healthy (2026-09-08 v1.14.0 deploy), reddening the job while
+          # the upgrade had in fact succeeded. Issue the upgrade without --wait
+          # and poll `version` ourselves with a bounded deadline instead.
+          UPGRADE_TIMEOUT=900
           for NODE in 192.168.1.110 192.168.1.112 192.168.1.118 192.168.1.119; do
             RUNNING=$("$TALOSCTL" --talosconfig "$TC" version --nodes "$NODE" 2>/dev/null | awk '/Tag:/{print $2}' | tail -1)
-            if [ "$RUNNING" != "$TARGET" ]; then
-              echo "Upgrading $NODE: $RUNNING → $TARGET"
-              # --drain=false: drain needs kubeconfig, and Talos only serves
-              # GetKubeconfig on control-plane nodes. This was unconditionally
-              # true when .110 was the only node upgraded here and was itself
-              # worker-only (2026-07-27 deploy failure) — that constraint no
-              # longer holds now that alpha-control exists, but revisiting
-              # drain behavior is out of scope for this change; --wait alone
-              # still blocks until each node is back before the next starts.
-              "$TALOSCTL" --talosconfig "$TC" upgrade --nodes "$NODE" --image "$IMAGE" --wait --drain=false
-              # Settle window: give the node time to rejoin and its pods time
-              # to reschedule/restart before the next node (especially the
-              # control plane) goes down too.
-              sleep 60
-            else
+            if [ "$RUNNING" = "$TARGET" ]; then
               echo "$NODE already on $TARGET, skipping"
+              continue
             fi
+
+            echo "Upgrading $NODE: ${RUNNING:-unknown} → $TARGET"
+            # --drain=false: drain needs kubeconfig, and Talos only serves
+            # GetKubeconfig on control-plane nodes. This was unconditionally
+            # true when .110 was the only node upgraded here and was itself
+            # worker-only (2026-07-27 deploy failure) — that constraint no
+            # longer holds now that alpha-control exists, but revisiting
+            # drain behavior is out of scope for this change.
+            "$TALOSCTL" --talosconfig "$TC" upgrade --nodes "$NODE" --image "$IMAGE" --wait=false --drain=false
+
+            deadline=$((SECONDS + UPGRADE_TIMEOUT))
+            until [ "$("$TALOSCTL" --talosconfig "$TC" version --nodes "$NODE" 2>/dev/null | awk '/Tag:/{print $2}' | tail -1)" = "$TARGET" ]; do
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "::error::$NODE did not report $TARGET within ${UPGRADE_TIMEOUT}s"
+                exit 1
+              fi
+              sleep 15
+            done
+            echo "$NODE is now on $TARGET"
+
+            # Settle window: give the node time to rejoin and its pods time
+            # to reschedule/restart before the next node (especially the
+            # control plane) goes down too.
+            sleep 60
           done
 
       - name: Reconcile WireGuard patch on alpha
