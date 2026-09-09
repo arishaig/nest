@@ -9,21 +9,16 @@
 # PCIe driver support on RPi5 at all — not a bug being fixed, a feature never
 # upstreamed (siderolabs/sbc-raspberrypi#23). This applies to gamma too —
 # SD-only is the accepted stable end state, not a stopgap.
+#
+# Talos 1.14 multi-document config: `talosctl gen config` now emits dedicated
+# docs (ResolverConfig, KubeNodeConfig, UnattendedInstallConfig, …), so
+# DNS/kubelet/node/install settings can no longer also live under v1alpha1
+# `machine:` — doing both fails `talosctl validate` with "… is already set in
+# v1alpha1 config" / "UnattendedInstallConfig config is incompatible with
+# v1alpha1 config". Docs here: v1alpha1 machine · ResolverConfig ·
+# KubeNodeConfig · UnattendedInstallConfig · HostnameConfig. 1.14-only — to
+# rejoin a node from pre-1.14 media, use the pre-migration revision from git.
 machine:
-  # Available for pinning a workload specifically to this node if ever
-  # needed; unused as of 2026-07-21 — arm64-safe workloads (e.g. homepage)
-  # are left unpinned to float between alpha/beta/gamma, amd64-only ones
-  # (e.g. tunarr, watchback) get `nodeSelector: kubernetes.io/arch: amd64`
-  # instead. See k8s/apps/media/*.yaml.
-  nodeLabels:
-    nest.arishaig.site/workloads: rpi5
-  install:
-    disk: /dev/mmcblk0
-    # Must be the Image Factory installer with the rpi_5 overlay — a plain
-    # ghcr.io/siderolabs/installer would drop the Pi firmware/DTB on upgrade.
-    # Renovate bumps this tag in lockstep with talos_version in
-    # terraform/terraform.tfvars; CI cross-checks them.
-    image: factory.talos.dev/installer/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f:v1.14.0
   network:
     interfaces:
       # Pi 5 onboard ethernet is end0 (RP1/macb), not eth0 like the Pi 4 —
@@ -33,28 +28,53 @@ machine:
         dhcp: false
         addresses:
           - 192.168.1.118/24
-        # No `vip:` entry — vip is how a node campaigns to hold the
-        # control-plane VIP via etcd leader election (control-plane-only).
-        # Workers reach the API via cluster.controlPlane.endpoint + KubePrism,
-        # not vip. Carrying vip on a worker either fails validation or could
-        # wrongly win 192.168.1.115 with no apiserver behind it.
+        # No `vip:` entry — vip is control-plane-only (etcd leader election
+        # for 192.168.1.115). Workers reach the API via
+        # cluster.controlPlane.endpoint + KubePrism.
         routes:
           - network: 0.0.0.0/0
             gateway: 192.168.1.1
-    nameservers:
-      - 192.168.7.7
-      - 192.168.7.8
-  kubelet:
-    nodeIP:
-      validSubnets:
-        - 192.168.1.0/24
   time:
     servers:
       - 192.168.7.7
-# Hostname lives in its own config document since Talos 1.13 — setting
-# machine.network.hostname alongside it fails validation.
 ---
 apiVersion: v1alpha1
 kind: HostnameConfig
 auto: "off"
 hostname: talos-gamma-rpi5
+---
+apiVersion: v1alpha1
+kind: ResolverConfig
+# Was machine.network.nameservers.
+nameservers:
+  - address: 192.168.7.7
+  - address: 192.168.7.8
+---
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+# Was machine.kubelet.nodeIP + machine.nodeLabels. The label is available for
+# pinning a workload to this node if ever needed; unused as of 2026-07-21 —
+# arm64-safe workloads float unpinned, amd64-only ones get an arch nodeSelector.
+nodeIP:
+  validSubnets:
+    - 192.168.1.0/24
+labels:
+  nest.arishaig.site/workloads: rpi5
+---
+apiVersion: v1alpha1
+kind: UnattendedInstallConfig
+# Was machine.install (disk + image). Must be the Image Factory installer with
+# the rpi_5 overlay — a plain ghcr.io/siderolabs/installer would drop the Pi
+# firmware/DTB on upgrade. Renovate bumps this tag in lockstep with
+# talos_version in terraform/terraform.tfvars; CI (check-talos-rpi5-overlay.sh)
+# cross-checks them, and greps this one line — keep the installer URL appearing
+# exactly once in this file (never repeat it in a comment).
+installer:
+  image: factory.talos.dev/installer/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f:v1.14.0
+provisioning:
+  diskSelector:
+    match: disk.dev_path == "/dev/mmcblk0"
+  # MANDATORY: UnattendedInstallConfig.provisioning.wipe defaults to TRUE
+  # (v1alpha1 machine.install.wipe defaulted false). Omit this line and every
+  # install/upgrade wipes the SD card.
+  wipe: false

@@ -1,31 +1,30 @@
+# Legacy from-scratch bootstrap patch, used only by scripts/bootstrap-talos.sh
+# to stand up a brand-new cluster with the control plane on alpha (.110). It
+# describes the pre-2026-07-22 single-node topology (.110 = control plane +
+# workloads). The live cluster has since moved the control plane onto the
+# dedicated talos-alpha-control VM (.119, talos/patches/controlplane-alpha-control.yaml)
+# with workers on alpha/beta-rpi5/gamma-rpi5. Disaster recovery follows the
+# current topology, not this file — see docs/disaster-recovery.md. Repointing
+# bootstrap-talos.sh at the dedicated CP is a separate follow-up.
+#
+# Talos 1.14 multi-document config: `talosctl gen config` now emits dedicated
+# docs (ResolverConfig, KubeNodeConfig, KubeletConfig, KubeAPIServerConfig, …),
+# so those settings can no longer also live under v1alpha1 `machine:`/`cluster:`
+# — doing both fails `talosctl validate` with "… is already set in v1alpha1
+# config". Docs here: v1alpha1 (cluster.etcd + machine.network + machine.time) ·
+# KubeAPIServerConfig · KubeControllerManagerConfig · KubeSchedulerConfig ·
+# ResolverConfig · KubeNodeConfig · KubeletConfig. 1.14-only.
+#
+# allowSchedulingOnControlPlanes: true was dropped — 1.14 multi-doc has no such
+# field, and the single-node topology that needed it is retired. A fresh
+# bootstrap from this file lands a schedulable-CP single node only until the
+# real workers join; the CP taint being present in the interim is harmless.
 cluster:
-  allowSchedulingOnControlPlanes: true
   etcd:
     advertisedSubnets:
       - 192.168.1.0/24
-  apiServer:
-    resources:
-      requests:
-        cpu: 250m
-        memory: 768Mi
-  controllerManager:
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-  scheduler:
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
 
 machine:
-  # alpha is the single workload node. Heavy/bursty pods (sabnzbd 12Gi,
-  # anagnorisis 6Gi, subgen 4Gi, tdarr-node 4Gi, the DBs) are pinned here via
-  # nodeAffinity. RPi5 nodes (beta/delta) will take lighter workloads once they
-  # replace the temporary test VMs removed 2026-06-26.
-  nodeLabels:
-    nest.arishaig.site/workloads: general
   network:
     interfaces:
       - interface: ens18
@@ -37,21 +36,55 @@ machine:
         routes:
           - network: 0.0.0.0/0
             gateway: 192.168.1.1
-    nameservers:
-      - 192.168.7.7
-      - 192.168.7.8
-  kubelet:
-    nodeIP:
-      validSubnets:
-        - 192.168.1.0/24
-    extraArgs:
-      # Reserve memory for kubelet/OS so pod pressure triggers eviction before
-      # the OOM killer fires. Without this, kubelet itself was OOM-killed every
-      # ~68 minutes on alpha (heavy AI workloads: sabnzbd 12Gi, anagnorisis 6Gi,
-      # subgen 4Gi). Fixed long-term by reclaiming 12GB from beta/delta VMs
-      # (2026-06-26), but eviction thresholds remain as a safety net.
-      kube-reserved: memory=2Gi
-      eviction-hard: memory.available<1Gi
   time:
     servers:
       - 192.168.7.7
+---
+apiVersion: v1alpha1
+kind: ResolverConfig
+# Was machine.network.nameservers.
+nameservers:
+  - address: 192.168.7.7
+  - address: 192.168.7.8
+---
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+# Was machine.kubelet.nodeIP + machine.nodeLabels.
+nodeIP:
+  validSubnets:
+    - 192.168.1.0/24
+labels:
+  nest.arishaig.site/workloads: general
+---
+apiVersion: v1alpha1
+kind: KubeletConfig
+# Was machine.kubelet.extraArgs. Reserve memory for kubelet/OS so pod pressure
+# triggers eviction before the OOM killer fires (kubelet was OOM-killed every
+# ~68 minutes on alpha under heavy AI workloads before this).
+extraArgs:
+  kube-reserved: memory=2Gi
+  eviction-hard: memory.available<1Gi
+---
+apiVersion: v1alpha1
+kind: KubeAPIServerConfig
+# Was cluster.apiServer.resources.
+resources:
+  requests:
+    cpu: 250m
+    memory: 768Mi
+---
+apiVersion: v1alpha1
+kind: KubeControllerManagerConfig
+# Was cluster.controllerManager.resources.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+---
+apiVersion: v1alpha1
+kind: KubeSchedulerConfig
+# Was cluster.scheduler.resources.
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi

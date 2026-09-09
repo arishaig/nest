@@ -139,17 +139,28 @@ much this detour cost.
    talosctl -n <dhcp-ip> -e <dhcp-ip> get disks --insecure
    ```
 
-   Fill the recorded serial into `talos/patches/worker-omega.yaml`'s
-   `install.diskSelector.serial` (replacing the `REPLACE_WITH_DISK_SERIAL`
-   placeholder) before joining.
+   The MX500 SSDs report no serial over SATA, so the install disk is matched
+   by wwid. `talos/patches/worker-omega.yaml` carries it as a Talos 1.14
+   `UnattendedInstallConfig` document (the v1alpha1 `machine.install` block
+   was deprecated in 1.14):
 
-   `diskSelector` is untested elsewhere in this repo — every other node uses
-   a plain `disk:` path — but it validates cleanly against
+   ```yaml
+   provisioning:
+     diskSelector:
+       match: disk.wwid == "naa.<recorded-wwid>"
+     wipe: false
+   ```
+
+   Re-confirm the `disk.wwid` accessor and value against the `get disks`
+   output before joining — the CEL form validates against
    `scripts/check-talos-config.sh` (`talosctl gen config … && talosctl
-   validate -m metal`) as of `talosctl v1.13.8`. If a future Talos version
-   ever rejects it, fall back to plain `disk: /dev/<confirmed-path>` — the
-   physical-unplug safeguard above already removes the risk `diskSelector`
-   was hedging against, so that fallback is not a compromise.
+   validate -m metal`) as of `talosctl v1.14.0`, but that only checks schema,
+   not that it binds a real disk. If it doesn't bind, fall back to a symlink
+   match (`"<by-id>" in disk.symlinks`) or plain
+   `disk.dev_path == "/dev/<confirmed-path>"` — the physical-unplug safeguard
+   above already removes the risk the selector was hedging against, so that
+   fallback is not a compromise. **`wipe: false` is mandatory** — the 1.14
+   `UnattendedInstallConfig` default is `true`.
 
 4. Join (same script every other node uses):
 
