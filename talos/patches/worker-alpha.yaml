@@ -3,13 +3,15 @@
 # /home/isaac/.claude/plans/silly-riding-stroustrup.md (Phase 4). No
 # `cluster:` block: workers don't run control-plane components. Control-plane
 # now lives solely on alpha-control (talos/patches/controlplane-alpha-control.yaml).
+#
+# Talos 1.14 multi-document config: `talosctl gen config` now emits dedicated
+# docs (ResolverConfig, KubeNodeConfig, KubeletConfig, …), so DNS/kubelet/node
+# settings can no longer also live under v1alpha1 `machine:` — doing both fails
+# `talosctl validate` with "… is already set in v1alpha1 config". Docs here:
+# v1alpha1 machine · ResolverConfig · KubeNodeConfig · KubeletConfig ·
+# HostnameConfig. 1.14-only — to rejoin a node from pre-1.14 media, use the
+# pre-migration revision from git history.
 machine:
-  # alpha remains the single general-purpose workload node. Heavy/bursty pods
-  # (sabnzbd 12Gi, anagnorisis 6Gi, subgen 4Gi, tdarr-node 4Gi, the DBs) stay
-  # pinned here via nodeAffinity, and Traefik's nodeAffinity + the WireGuard
-  # ingress tunnel on wg0 both depend on this label being unchanged.
-  nodeLabels:
-    nest.arishaig.site/workloads: general
   network:
     interfaces:
       - interface: ens18
@@ -24,30 +26,46 @@ machine:
         routes:
           - network: 0.0.0.0/0
             gateway: 192.168.1.1
-    nameservers:
-      - 192.168.7.7
-      - 192.168.7.8
-  kubelet:
-    nodeIP:
-      validSubnets:
-        - 192.168.1.0/24
-    extraArgs:
-      # Reserve memory for kubelet/OS so pod pressure triggers eviction before
-      # the OOM killer fires. Without this, kubelet itself was OOM-killed every
-      # ~68 minutes on alpha (heavy AI workloads: sabnzbd 12Gi, anagnorisis 6Gi,
-      # subgen 4Gi). Unrelated to alpha's control-plane role — kept as-is.
-      kube-reserved: memory=2Gi
-      eviction-hard: memory.available<1Gi
   time:
     servers:
       - 192.168.7.7
-# Hostname lives in its own config document since Talos 1.13. alpha had no
-# explicit HostnameConfig before this migration (relied on Talos's
-# auto-generated name) — pinning it here so reset+rejoin doesn't produce a
-# different random hostname, which would break the local-path PV's
-# node-affinity and any other hostname-keyed references.
 ---
 apiVersion: v1alpha1
 kind: HostnameConfig
+# Pinned so reset+rejoin doesn't produce a different random hostname, which
+# would break the local-path PV's node-affinity and any other hostname-keyed
+# references. alpha had no explicit hostname before the control-plane migration
+# (relied on Talos's auto-generated name).
 auto: "off"
 hostname: talos-a2c-1b8
+---
+apiVersion: v1alpha1
+kind: ResolverConfig
+# Was machine.network.nameservers (deprecated in v1alpha1 as of Talos 1.14).
+nameservers:
+  - address: 192.168.7.7
+  - address: 192.168.7.8
+---
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+# Was machine.kubelet.nodeIP + machine.nodeLabels. alpha remains the single
+# general-purpose workload node; heavy/bursty pods (sabnzbd 12Gi, anagnorisis
+# 6Gi, subgen 4Gi, tdarr-node 4Gi, the DBs) stay pinned here via nodeAffinity,
+# and Traefik's nodeAffinity + the WireGuard ingress tunnel on wg0 both depend
+# on this label being unchanged.
+nodeIP:
+  validSubnets:
+    - 192.168.1.0/24
+labels:
+  nest.arishaig.site/workloads: general
+---
+apiVersion: v1alpha1
+kind: KubeletConfig
+# Was machine.kubelet.extraArgs. Reserve memory for kubelet/OS so pod pressure
+# triggers eviction before the OOM killer fires. Without this, kubelet itself
+# was OOM-killed every ~68 minutes on alpha (heavy AI workloads: sabnzbd 12Gi,
+# anagnorisis 6Gi, subgen 4Gi). Fixed long-term by reclaiming 12GB from
+# beta/delta VMs (2026-06-26), but eviction thresholds remain as a safety net.
+extraArgs:
+  kube-reserved: memory=2Gi
+  eviction-hard: memory.available<1Gi

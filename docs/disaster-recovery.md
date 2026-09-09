@@ -138,6 +138,11 @@ qm set 500 --scsi1 Tank:1000,iothread=1
 `talos/patches/controlplane-alpha-control.yaml`. This creates etcd and the
 cluster VIP at 192.168.1.115. Export kubeconfig.
 
+> The `talos/patches/*.yaml` are **Talos 1.14 multi-document configs** — they
+> cannot rejoin a node booted from pre-1.14 install media. Boot the current
+> Talos ISO/image. The pre-migration single-document versions exist only in
+> git history.
+
 ### 4. Join the workers
 
 `talos-alpha` (.110, amd64) via `talos/patches/worker-alpha.yaml`, then the two

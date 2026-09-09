@@ -17,32 +17,16 @@
 # label must use NFS-backed storage (nfs-nvme / media-nfs), never
 # local-path — a pod bound to node-local storage would not reschedule when
 # this node goes offline, defeating the entire point.
+#
+# Talos 1.14 multi-document config: `talosctl gen config` now emits dedicated
+# docs (ResolverConfig, KubeNodeConfig, UnattendedInstallConfig, …), so
+# DNS/kubelet/node/install settings can no longer also live under v1alpha1
+# `machine:` — doing both fails `talosctl validate` with "… is already set in
+# v1alpha1 config" / "UnattendedInstallConfig config is incompatible with
+# v1alpha1 config". Docs here: v1alpha1 (machine.kernel + machine.network +
+# machine.time) · ResolverConfig · KubeNodeConfig · UnattendedInstallConfig ·
+# HostnameConfig. 1.14-only.
 machine:
-  nodeLabels:
-    nest.arishaig.site/workloads: omega
-  install:
-    # Targets the dedicated second disk by SERIAL, not a /dev/nvmeXn1 path —
-    # with two NVMe drives in the machine (Windows + this one), enumeration
-    # order is not guaranteed stable across reboots, and a path-based target
-    # is exactly how a future reinstall could hit the Windows disk instead.
-    # Confirmed via `talosctl get disks --insecure` in maintenance mode: two
-    # identical 500GB Crucial MX500 SSDs are present (sdb/sdc), plus the 1TB
-    # NVMe (Windows). Neither MX500 reports a `serial` field over SATA
-    # (blank in the Disk resource) — matched instead via the `by-id` symlink
-    # (ata-CT500MX500SSD1_1912E1F47EB4) against the disk's Windows-reported
-    # serial for drive E: (confirmed empty via Disk Management), landing on
-    # sdc, wwid naa.500a0751e1f47eb4. `wwid` is a valid diskSelector field
-    # (pkg/machinery/config/types/v1alpha1 InstallDiskSelector).
-    diskSelector:
-      wwid: naa.500a0751e1f47eb4
-    # Image Factory installer for schematic 6698d6f1... (nvidia-open-gpu-kernel-modules
-    # + nvidia-container-toolkit, both production branch) — verified live
-    # (200 OK) for this cluster's pinned talos_version. A plain
-    # ghcr.io/siderolabs/installer would silently strip both NVIDIA
-    # extensions on the next upgrade, same failure mode documented for the
-    # RPi5 nodes' overlay. Renovate bumps this tag in lockstep with
-    # talos_version in terraform/terraform.tfvars (see renovate.json).
-    image: factory.talos.dev/installer/6698d6f136c5bb37ca8bb8482c9084305084da0a5ead1f4dcae760796f8ab3a2:v1.14.0
   kernel:
     modules:
       - name: nvidia
@@ -58,28 +42,64 @@ machine:
         dhcp: false
         addresses:
           - 192.168.1.120/24
-        # No `vip:` entry — vip is how a node campaigns to hold the
-        # control-plane VIP via etcd leader election (control-plane-only).
-        # Workers reach the API via cluster.controlPlane.endpoint + KubePrism,
-        # not vip. Carrying vip on a worker either fails validation or could
-        # wrongly win 192.168.1.115 with no apiserver behind it.
+        # No `vip:` entry — vip is control-plane-only (etcd leader election
+        # for 192.168.1.115). Workers reach the API via
+        # cluster.controlPlane.endpoint + KubePrism.
         routes:
           - network: 0.0.0.0/0
             gateway: 192.168.1.1
-    nameservers:
-      - 192.168.7.7
-      - 192.168.7.8
-  kubelet:
-    nodeIP:
-      validSubnets:
-        - 192.168.1.0/24
   time:
     servers:
       - 192.168.7.7
-# Hostname lives in its own config document since Talos 1.13 — setting
-# machine.network.hostname alongside it fails validation.
 ---
 apiVersion: v1alpha1
 kind: HostnameConfig
 auto: "off"
 hostname: talos-omega
+---
+apiVersion: v1alpha1
+kind: ResolverConfig
+# Was machine.network.nameservers.
+nameservers:
+  - address: 192.168.7.7
+  - address: 192.168.7.8
+---
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+# Was machine.kubelet.nodeIP + machine.nodeLabels.
+nodeIP:
+  validSubnets:
+    - 192.168.1.0/24
+labels:
+  nest.arishaig.site/workloads: omega
+---
+apiVersion: v1alpha1
+kind: UnattendedInstallConfig
+# Was machine.install (diskSelector.wwid + image).
+#
+# Disk match: target the dedicated second disk by wwid, NOT a /dev/nvmeXn1 or
+# /dev/sdX path — with multiple drives in the machine (Windows + this one),
+# enumeration order is not guaranteed stable across reboots, and a path-based
+# target is how a future reinstall could hit the Windows disk. Confirmed via
+# `talosctl get disks --insecure` in maintenance mode: two identical 500GB
+# Crucial MX500 SSDs plus the Windows NVMe; the MX500s report no serial over
+# SATA, so the install disk was identified by its wwid (naa.500a0751e1f47eb4,
+# the by-id ata-CT500MX500SSD1_1912E1F47EB4 link). The CEL form below passes
+# `talosctl validate` (schema only) with talosctl v1.14.0 — re-confirm the
+# accessor against `talosctl get disks` output before the next omega rebuild;
+# fall back to a symlink match ("<by-id>" in disk.symlinks) if it doesn't bind.
+#
+# Image: Image Factory installer for schematic 6698d6f1... (nvidia-open-gpu-
+# kernel-modules + nvidia-container-toolkit, production branch). A plain
+# ghcr.io/siderolabs/installer would strip both NVIDIA extensions on upgrade.
+# Renovate bumps this tag in lockstep with talos_version (see renovate.json);
+# keep the installer URL appearing exactly once in this file.
+installer:
+  image: factory.talos.dev/installer/6698d6f136c5bb37ca8bb8482c9084305084da0a5ead1f4dcae760796f8ab3a2:v1.14.0
+provisioning:
+  diskSelector:
+    match: disk.wwid == "naa.500a0751e1f47eb4"
+  # MANDATORY: UnattendedInstallConfig.provisioning.wipe defaults to TRUE
+  # (v1alpha1 machine.install.wipe defaulted false). Omit this line and every
+  # install/upgrade wipes the target disk.
+  wipe: false
