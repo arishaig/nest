@@ -44,7 +44,12 @@ spec:
                 cpu: 50m
                 memory: 256Mi
               limits:
-                memory: 1Gi
+                # Was 1Gi; OOMKilled 7x in 24h (2026-09-10), which also
+                # explains the ExternalEndpointDown probe failures (event
+                # loop stalls near the limit — one Jellyfin /Items call took
+                # 9.8min). No cAdvisor/kubelet scrape exists for k8s pods, so
+                # this is a blind bump, not sized against usage history.
+                memory: 2Gi
     service:
       app:
         controller: tunarr
