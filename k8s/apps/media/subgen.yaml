@@ -190,7 +190,16 @@ spec:
                 memory: 512Mi
                 nvidia.com/gpu: "1"
               limits:
-                memory: 8Gi
+                # Was 8Gi; OOMKilled (2026-09-10) mid-transcribe of an
+                # 88min file (The Joe Schmo Show S01E01E02) with large-v3 —
+                # distinct from the SIGSEGV saga above (that's a native
+                # crash with exit 0/"Completed"; this was exit 137/
+                # OOMKilled). Long-duration audio apparently needs more
+                # headroom than the short TV-episode workload this limit
+                # was originally sized for. No cAdvisor/kubelet scrape
+                # exists for k8s pods, so this is a blind bump, not sized
+                # against usage history.
+                memory: 16Gi
                 nvidia.com/gpu: "1"
     service:
       app:
