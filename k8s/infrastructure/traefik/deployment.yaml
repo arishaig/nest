@@ -45,7 +45,7 @@ spec:
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: traefik
-          image: traefik:v3.7.12
+          image: traefik:v3.7.13
           ports:
             - name: traefik
               containerPort: 8080
