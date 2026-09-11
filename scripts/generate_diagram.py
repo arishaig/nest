@@ -156,7 +156,8 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
 
         with Cluster("Proxmox VE — 192.168.1.16", graph_attr=CLUSTER):
 
-            with Cluster("Talos k8s — alpha 110 · beta 113 · delta 115\n"
+            with Cluster("Talos k8s — control-plane 112 · alpha 110\n"
+                         "RPi5 beta/gamma workers\n"
                          "Flux GitOps · API VIP .115 · ingress @ .117",
                          graph_attr=CLUSTER_INNER):
                 nest_traefik = Traefik("k8s Traefik\n+ Authelia")
@@ -197,6 +198,10 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
             with Cluster("VM 500: backup\n192.168.1.113", graph_attr=CLUSTER):
                 Server("Proxmox Backup Server")
 
+        with Cluster("talos-omega — bare metal, dual-boot\nRTX 3080 GPU worker",
+                     graph_attr=CLUSTER):
+            Docker("GPU workloads\n(subgen · ollama\nanagnorisis · tdarr-node)")
+
         with Cluster(host_label("adguard", hosts, "(primary DNS)"), graph_attr=CLUSTER):
             adguard = Coredns("AdGuard Home\n+ Unbound")
 
@@ -235,7 +240,7 @@ def generate_flow(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
             vps_traefik = Traefik("Traefik\nTCP passthrough\n:443")
             vps_wg      = VPN("WireGuard\n10.10.0.1")
 
-        with Cluster("Talos k8s cluster\nFlux GitOps", graph_attr=CLUSTER):
+        with Cluster("Talos k8s cluster\nalpha · control-plane · RPi5 x2 · omega (GPU)\nFlux GitOps", graph_attr=CLUSTER):
             nest_wg        = VPN("WireGuard\n10.10.0.3 (alpha)")
             nest_traefik   = Traefik("k8s Traefik\nMetalLB 192.168.1.117\nTLS term · PROXY v2")
             authelia       = Server("Authelia\nSSO / 2FA")
