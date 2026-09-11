@@ -10,3 +10,4 @@ resources:
   - prometheus-community.yaml
   - watchback.yaml
   - nvidia.yaml
+  - metrics-server.yaml
