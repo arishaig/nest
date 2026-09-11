@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cadvisor
+  namespace: cadvisor
+spec:
+  selector:
+    matchLabels:
+      app: cadvisor
+  template:
+    metadata:
+      labels:
+        app: cadvisor
+    spec:
+      # hostNetwork so the external Prometheus (monitoring LXC) can scrape
+      # each Talos node's own IP on :8080 directly — same pattern as
+      # node-exporter (k8s/infrastructure/node-exporter), no Service/MetalLB
+      # needed. Tolerate everything so it also lands on the tainted
+      # alpha-control node (matches alloy's tolerations).
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: cadvisor
+          # cadvisor/cadvisor is multi-arch (amd64/arm/arm64) as of this tag,
+          # so no arch nodeSelector needed — unlike tunarr, which bit us on
+          # beta-rpi5 for exactly this reason (see k8s/apps/media/tunarr.yaml).
+          image: gcr.io/cadvisor/cadvisor:v0.55.1
+          args:
+            - --housekeeping_interval=30s
+            - --docker_only=false
+            - --disable_root_cgroup_stats=false
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 200Mi
+          volumeMounts:
+            - name: rootfs
+              mountPath: /rootfs
+              readOnly: true
+            - name: var-run
+              mountPath: /var/run
+            - name: sys
+              mountPath: /sys
+              readOnly: true
+            - name: containerd
+              mountPath: /var/lib/containerd
+              readOnly: true
+            - name: containerd-sock
+              mountPath: /run/containerd
+      volumes:
+        - name: rootfs
+          hostPath:
+            path: /
+        - name: var-run
+          hostPath:
+            path: /var/run
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: containerd
+          hostPath:
+            path: /var/lib/containerd
+        - name: containerd-sock
+          hostPath:
+            path: /run/containerd

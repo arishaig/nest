@@ -239,6 +239,41 @@ scrape_configs:
         target_label: instance
         replacement: 'talos-omega'
 
+  # cadvisor DaemonSet (k8s/infrastructure/cadvisor), hostNetwork so each
+  # Talos node exposes :8080 on its own IP directly — same pattern as
+  # node-exporter/node-k8s. Gives real per-pod CPU/memory into Prometheus,
+  # unlike metrics-server (k8s Metrics API only, no history). instance is
+  # relabeled to the Talos node name so it joins node-k8s/kube-state-metrics.
+  - job_name: 'cadvisor-k8s'
+    static_configs:
+      - targets:
+          - '192.168.1.119:8080'  # talos-alpha-control
+          - '192.168.1.110:8080'  # talos-a2c-1b8 (alpha, worker)
+          - '192.168.1.112:8080'  # talos-beta-rpi5
+          - '192.168.1.118:8080'  # talos-gamma-rpi5
+          - '192.168.1.120:8080'  # talos-omega (gaming PC, RTX 3080)
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: '192\.168\.1\.119:\d+'
+        target_label: instance
+        replacement: 'talos-alpha-control'
+      - source_labels: [__address__]
+        regex: '192\.168\.1\.110:\d+'
+        target_label: instance
+        replacement: 'talos-a2c-1b8'
+      - source_labels: [__address__]
+        regex: '192\.168\.1\.112:\d+'
+        target_label: instance
+        replacement: 'talos-beta-rpi5'
+      - source_labels: [__address__]
+        regex: '192\.168\.1\.118:\d+'
+        target_label: instance
+        replacement: 'talos-gamma-rpi5'
+      - source_labels: [__address__]
+        regex: '192\.168\.1\.120:\d+'
+        target_label: instance
+        replacement: 'talos-omega'
+
   - job_name: 'speedtest'
     scrape_interval: 1h
     scrape_timeout: 90s

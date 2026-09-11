@@ -12,6 +12,7 @@ resources:
   - alloy/
   - kube-state-metrics/
   - node-exporter/
+  - cadvisor/
   - rpi5-net-tuning/
   - rpi5-nic-watchdog/
   - flannel-watchdog/
