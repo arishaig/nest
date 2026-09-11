@@ -1,0 +1,44 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: metrics-server
+  namespace: metrics-server
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: metrics-server
+      version: 3.14.0  # appVersion 0.9.0
+      sourceRef:
+        kind: HelmRepository
+        name: metrics-server
+        namespace: flux-system
+  values:
+    # 2026-09-11: added so `kubectl top pod`/`kubectl top node` (the k8s
+    # Metrics API) exist at all — every memory-limit bump on this cluster
+    # (tunarr, jellyfin, KSM...) has so far been a blind guess with no usage
+    # data behind it (see k8s/apps/media/tunarr.yaml). This does NOT feed
+    # Prometheus/Grafana — it's a live snapshot only, no history. Persisted
+    # per-pod metrics need a separate cAdvisor scrape into Prometheus.
+    #
+    # --kubelet-insecure-tls: Talos kubelet serving certs aren't signed by a
+    # CA metrics-server trusts out of the box. The "correct" fix is enabling
+    # kubelet server cert rotation in machine config + running the
+    # kubelet-serving-cert-approver, which is a fleet-wide Talos config
+    # change across all 5 nodes for a monitoring nice-to-have. Skipping TLS
+    # verification to the kubelet (still encrypted, just not CA-verified,
+    # and only reachable inside the cluster network) is the standard
+    # homelab tradeoff here — revisit if that changes.
+    #
+    # --kubelet-preferred-address-types is NOT set here — the chart's
+    # defaultArgs already includes it (InternalIP,ExternalIP,Hostname) and
+    # args[] is concatenated with defaultArgs, not a replacement, so adding
+    # it here would just pass the flag twice.
+    args:
+      - --kubelet-insecure-tls
+    resources:
+      requests:
+        cpu: 20m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
