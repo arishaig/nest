@@ -57,13 +57,31 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 | talos-beta-rpi5 | 192.168.1.112 | Talos worker (arm64) |
 | talos-gamma-rpi5 | 192.168.1.118 | Talos worker (arm64) |
 
-The cluster is four nodes: one dedicated control plane (VM 112) and three workers —
-alpha (VM 110, amd64) plus the two RPi5s (arm64). The control plane is **not**
+### Gaming PC k8s node (physical, dual-boot)
+
+| Node | IP | Role |
+|---|---|---|
+| talos-omega | 192.168.1.120 | Talos worker (amd64) — **only** GPU node in the cluster (RTX 3080) |
+
+`talos-omega` is the user's gaming PC, dual-booted between Windows and Talos off a
+dedicated second disk — not Proxmox-managed like every other node. It's routinely
+offline for hours at a time when rebooted into Windows for gaming; this is expected,
+not an incident (`KubeNodeNotReady` explicitly excludes it — see
+[docs/gaming-gpu-talos.md](gaming-gpu-talos.md) for the full onboarding runbook,
+GPU wiring, and known issues). Worker only, never joins etcd.
+
+The cluster is five nodes: one dedicated control plane (VM 112), one general-purpose
+worker (alpha, VM 110, amd64), two RPi5 workers (arm64), and the omega GPU worker
+(amd64, bare metal). The control plane is **not**
 schedulable; the multi-node control plane described in
 [k8s-migration.md](k8s-migration.md) was consolidated onto VM 112 on 2026-07-22, and the
 beta/delta test VMs (113/115) were removed. Heavy media workloads prefer or pin to alpha
 via the `nest.arishaig.site/workloads=general` node label; `amd64`-only workloads
-(jellyfin, tunarr) carry an explicit arch nodeSelector.
+(jellyfin, tunarr) carry an explicit arch nodeSelector; GPU workloads (subgen, ollama,
+anagnorisis, tdarr-node) are hard-pinned to omega via
+`nest.arishaig.site/workloads=omega` and require `runtimeClassName: nvidia`. Jellyfin
+carries an explicit anti-affinity to guarantee it never lands on omega, since it must
+stay up through omega's routine downtime.
 
 > Note that all four of these guests, the NFS storage backing the cluster's PVCs, and PBS
 > itself run on the single Proxmox host. **This is an accepted single failure domain**, not
@@ -242,6 +260,7 @@ Storage classes:
 | `alloy` | Grafana Alloy DaemonSet — ships all pod logs to Loki; parses Traefik access logs as JSON |
 | `local-path-provisioner` | Local path storage class |
 | `nfs-provisioner` | `nfs-nvme` StorageClass |
+| `gpu-operator` | NVIDIA GPU Operator — device plugin, dcgm-exporter, gpu-feature-discovery; operand DaemonSets self-scope to `talos-omega` (the sole GPU node) via NFD PCI-vendor detection, not a manual nodeSelector; 3x time-slicing configured so subgen/tdarr-node/anagnorisis can share the single 3080 |
 
 ### Apps (`k8s/apps/`)
 
@@ -295,6 +314,7 @@ Scrapes every 30s. Jobs:
 | `redis` | redis-exporter via metrics LB (`192.168.1.116:9121`) |
 | `postgres` | postgres-exporter via metrics LB (`192.168.1.116:9187`) |
 | `qbittorrent` | qbittorrent-exporter on seedbox LXC (`192.168.1.182:9022`) |
+| `dcgm` | NVIDIA DCGM exporter (gpu-operator DaemonSet on talos-omega) via metrics LB (`192.168.1.116:9400`); VRAM/temp/Xid visibility for the shared 3080 |
 | `scrutiny` | SMART metrics API |
 | `homeassistant` | HA Prometheus integration (bearer token in vault) |
 | `wled` | WLED LED controller at `backlight.arishaig.site` |
@@ -510,4 +530,5 @@ WireGuard MTU is explicitly set to 1420 on both sides of the tunnel to avoid fra
 | Cloudflare zone settings | Only DNS records are managed | |
 | TLS certificates | Issued by cert-manager (Cloudflare DNS-01), stored as k8s Secret | Lost on Talos cluster rebuild; re-issued automatically |
 | `casa.arishaig.site` | Managed by Nabu Casa | Not in Terraform |
+| `talos-omega` hardware | Physical gaming PC, dual-boot with Windows | Only the Talos machine config (`talos/patches/worker-omega.yaml`) and its join are scripted; the node itself isn't a Terraform resource like every other Talos node — see [gaming-gpu-talos.md](gaming-gpu-talos.md) |
 | Tertiary AdGuard TLS config | Provider bug: switches to https mid-apply via tunnel | Configured once via web UI; cert managed by certbot |
