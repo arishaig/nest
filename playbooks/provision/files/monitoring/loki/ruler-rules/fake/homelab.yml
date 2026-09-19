@@ -42,13 +42,18 @@ groups:
           summary: "No logs from monitoring LXC for 15 minutes"
           description: "Alloy on the monitoring LXC has stopped shipping logs (or Loki itself is struggling)."
 
+      # pve's log volume is bursty (cron, SMART, mail-queue retries) rather
+      # than continuous — 2026-09-19 investigation found multiple >15m quiet
+      # gaps in a single afternoon with Alloy/Loki both healthy, tripping
+      # this on normal cadence rather than an actual shipping failure.
+      # Widened to 30m to only catch a genuine gap.
       - alert: LogIngestionGap
-        expr: absent_over_time({host="pve"}[15m])
-        for: 0m
+        expr: absent_over_time({host="pve"}[30m])
+        for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "No logs from Proxmox for 15 minutes"
+          summary: "No logs from Proxmox for 30 minutes"
           description: "Alloy on Proxmox has stopped shipping logs."
 
       # Per-stream alert: catches Traefik going silent in k8s.
@@ -178,11 +183,19 @@ groups:
       # qBittorrent logs to an internal file, not stdout, so tracker errors can't be
       # captured directly. Monitor gluetun instead — VPN drops/reconnects cause tracker
       # timeouts and force an IP change that clears bans.
+      #
+      # PIA's NAT-PMP renewal routinely hits "connection refused" against the
+      # gateway (10.2.0.1:5351) and self-heals within ~5s on retry — 2026-09-19
+      # investigation found this happening continuously (2-20 errors/hour) for
+      # multiple days with no actual port-forward or tracker impact, tripping
+      # the old >3-in-10m threshold on ordinary noise. Widened window + raised
+      # threshold so this only fires when the VPN is actually stuck, not
+      # mid-self-heal.
       - alert: GluetunVPNError
-        expr: count_over_time({host="seedbox", container="gluetun"} |= "ERROR" [10m]) > 3
-        for: 0m
+        expr: count_over_time({host="seedbox", container="gluetun"} |= "ERROR" [30m]) > 15
+        for: 10m
         labels:
           severity: warning
         annotations:
           summary: "Gluetun VPN errors on seedbox"
-          description: "gluetun logged more than 3 errors in 10 minutes. VPN may be dropping or cycling, causing tracker failures and an IP change."
+          description: "gluetun logged more than 15 errors in 30 minutes, sustained for 10+ minutes. VPN may be dropping or cycling, causing tracker failures and an IP change."
