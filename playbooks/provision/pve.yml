@@ -92,6 +92,14 @@
         update_cache: true
         cache_valid_time: 3600
 
+    - name: Install ncdu
+      # Backs nest-mcp's media_ls tool, which shells out to ncdu on PVE to
+      # walk the media NFS share with ZFS-compression-aware directory sizes.
+      ansible.builtin.apt:
+        name: ncdu
+        state: present
+        update_cache: false
+
     - name: Deploy audio-language survey/fix scripts
       # Back nest-mcp's media_audio_lang_survey (read-only) and
       # media_audio_lang_fix (mkvpropedit, defaults to dry-run) tools, and can
