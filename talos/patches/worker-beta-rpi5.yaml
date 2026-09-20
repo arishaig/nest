@@ -80,7 +80,7 @@ kind: UnattendedInstallConfig
 # cross-checks them, and greps this one line — keep the installer URL appearing
 # exactly once in this file (never repeat it in a comment).
 installer:
-  image: factory.talos.dev/installer/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f:v1.14.0
+  image: factory.talos.dev/installer/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f:v1.14.1
 provisioning:
   diskSelector:
     match: disk.dev_path == "/dev/mmcblk0"
