@@ -95,6 +95,8 @@ async def act(action: str, request: Request):
         raise HTTPException(400, f"missing {CSRF_HEADER[0]} header")
     # Authelia forwards the authenticated username; log it for the audit trail.
     user = request.headers.get("remote-user", "unknown")
+    safe_action = action.replace("\r", "").replace("\n", "")
+    safe_user = user.replace("\r", "").replace("\n", "")
     client = request.app.state.kube
     async with _action_lock:
         try:
@@ -108,9 +110,9 @@ async def act(action: str, request: Request):
             else:
                 await kube.restart(client)
         except (httpx.HTTPError, OSError) as exc:
-            log.error("action %s by %s failed: %s", action, user, exc)
+            log.error("action %s by %s failed: %s", safe_action, safe_user, exc)
             raise HTTPException(502, f"kubernetes API error: {exc}") from exc
-    log.info("action %s by %s (was desired=%s)", action, user, desired)
+    log.info("action %s by %s (was desired=%s)", safe_action, safe_user, desired)
     return {"ok": True, "action": action}
 
 
