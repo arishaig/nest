@@ -22,6 +22,7 @@ resources:
   - bazarr.yaml  # HelmRelease (app-template) — replaces deployment+service
   # bazarr-sync-job.yaml is intentionally NOT here — manual one-shot Job (TTL self-cleans)
   - subgen-models-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - subgen-decode-patch.yaml  # kept raw — HelmRelease mounts via persistence
   - subgen.yaml  # HelmRelease (app-template) — replaces deployment+service
   - prowlarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - prowlarr.yaml  # HelmRelease (app-template) — replaces deployment+service

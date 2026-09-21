@@ -126,6 +126,11 @@ spec:
               # large-v3 is the less numerically stable of the two). GPU-side
               # visibility for the "or the GPU itself" branch is added in the
               # same PR (dcgm-exporter scrape + SubgenChronicRestart alert).
+              # /patches holds sitecustomize.py (subgen-decode-patch
+              # ConfigMap): swaps faster-whisper's PyAV decode_audio for an
+              # ffmpeg CLI one so DTS-HD MA files (mid-stream format change)
+              # stop failing with "Frame does not match AudioFifo parameters".
+              PYTHONPATH: /patches
               WHISPER_MODEL: large-v3
               COMPUTE_TYPE: int8_float16
               WHISPER_THREADS: "4"
@@ -215,6 +220,14 @@ spec:
           subgen:
             app:
               - path: /subgen/models
+      decode-patch:
+        type: configMap
+        name: subgen-decode-patch
+        advancedMounts:
+          subgen:
+            app:
+              - path: /patches
+                readOnly: true
       data:
         existingClaim: media-nfs
         advancedMounts:
