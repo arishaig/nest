@@ -55,6 +55,7 @@ locals {
     "metube.arishaig.site"       = "192.168.1.117"
     "mcp.arishaig.site"          = "192.168.1.117"
     "ollama.arishaig.site"       = "192.168.1.117"
+    "subgen.arishaig.site"       = "192.168.1.117"
 
     # UDM VPN
     "vpn.arishaig.site" = "192.168.1.1"

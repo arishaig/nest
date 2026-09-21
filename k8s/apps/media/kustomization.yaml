@@ -24,6 +24,8 @@ resources:
   - subgen-models-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - subgen-decode-patch.yaml  # kept raw — HelmRelease mounts via persistence
   - subgen.yaml  # HelmRelease (app-template) — replaces deployment+service
+  - subgen-ui-rbac.yaml  # kept raw — HelmRelease binds the ServiceAccount by name
+  - subgen-ui.yaml  # HelmRelease (app-template) — status page + stop/start/restart for subgen
   - prowlarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - prowlarr.yaml  # HelmRelease (app-template) — replaces deployment+service
   - sonarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim

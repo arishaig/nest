@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subgen</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1a1d23; --muted: #667085; --line: #e3e6ec;
+    --ok: #1a7f4b; --warn: #a15c00; --bad: #c0362c; --accent: #2b59c3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101216; --card: #181b21; --text: #e8eaee; --muted: #98a1b2; --line: #2a2e37;
+      --ok: #4cc38a; --warn: #f0b04a; --bad: #ff7a6e; --accent: #7aa2ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; }
+  h1 { font-size: 20px; margin: 0; flex: 1 1 auto; }
+  .pill { padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 13px;
+          border: 1px solid currentColor; }
+  .pill.running { color: var(--ok); } .pill.stopped { color: var(--muted); }
+  .pill.starting, .pill.stopping { color: var(--warn); } .pill.unknown { color: var(--bad); }
+  .buttons { display: flex; gap: 8px; }
+  button { font: inherit; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--card); color: var(--text); cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button.danger { color: var(--bad); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .big { font-size: 30px; font-weight: 650; line-height: 1.15; margin-top: 2px; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
+  section { margin-top: 24px; }
+  h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; background: var(--card);
+          border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  td { padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+  tr:first-child td { border-top: 0; }
+  td.age { color: var(--muted); white-space: nowrap; width: 1%; }
+  .empty { color: var(--muted); padding: 12px; }
+  .problems { border: 1px solid var(--bad); color: var(--bad); border-radius: 12px;
+              padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+  .problems:empty { display: none; }
+  #toast { color: var(--muted); font-size: 13px; min-height: 1.4em; margin-top: 12px; }
+  .foot { color: var(--muted); font-size: 12px; margin-top: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Subgen</h1>
+    <span id="state" class="pill unknown">loading…</span>
+    <div class="buttons">
+      <button id="btn-start" data-action="start">Start</button>
+      <button id="btn-restart" data-action="restart">Restart</button>
+      <button id="btn-stop" data-action="stop" class="danger">Stop</button>
+    </div>
+  </header>
+
+  <div id="problems" class="problems"></div>
+
+  <div class="grid">
+    <div class="card"><div class="label">Queued</div><div id="queued" class="big">–</div>
+      <div id="eta" class="sub"></div></div>
+    <div class="card"><div class="label">Transcribe throughput (last hour)</div><div id="rate" class="big">–</div>
+      <div id="fails" class="sub"></div></div>
+    <div class="card"><div class="label">Pod</div><div id="restarts" class="big">–</div>
+      <div id="pod" class="sub"></div></div>
+  </div>
+
+  <section>
+    <h2>Current job</h2>
+    <div class="card"><div id="job">–</div><div id="job-sub" class="sub"></div></div>
+  </section>
+
+  <section>
+    <h2>Failure reasons (this pod)</h2>
+    <table id="reasons"></table>
+  </section>
+
+  <section>
+    <h2>Recent failures</h2>
+    <table id="errors"></table>
+  </section>
+
+  <div id="toast"></div>
+  <div class="foot">Queue and failures are parsed from subgen's logs in Loki; refreshes every 10 s.</div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function dur(s) {
+  s = Math.round(s);
+  if (s < 90) return s + "s";
+  if (s < 5400) return Math.round(s / 60) + "m";
+  if (s < 172800) return (s / 3600).toFixed(1) + "h";
+  return (s / 86400).toFixed(1) + "d";
+}
+
+function fillTable(id, rows, emptyText) {
+  const t = $(id);
+  t.replaceChildren();
+  if (!rows.length) {
+    const tr = t.insertRow(), td = tr.insertCell();
+    td.className = "empty"; td.textContent = emptyText;
+    return;
+  }
+  for (const cells of rows) {
+    const tr = t.insertRow();
+    cells.forEach((text, i) => {
+      const td = tr.insertCell();
+      td.textContent = text;
+      if (i === 0) td.className = "age";
+    });
+  }
+}
+
+function render(d) {
+  const st = $("state");
+  st.textContent = d.state; st.className = "pill " + d.state;
+
+  $("btn-start").disabled = !["stopped", "unknown"].includes(d.state);
+  $("btn-restart").disabled = d.state !== "running";
+  $("btn-stop").disabled = !["running", "starting"].includes(d.state);
+
+  $("problems").textContent = d.problems.join("\n");
+  $("problems").style.whiteSpace = "pre-wrap";
+
+  const q = d.queue;
+  $("queued").textContent = q && q.queued != null ? q.queued : "–";
+  const lh = q && q.last_hour;
+  $("eta").textContent = lh && lh.eta_hours != null ? "≈ " + dur(lh.eta_hours * 3600) + " to clear (rough)" :
+    (q && q.queued === 0 ? "queue empty" : "");
+  $("rate").textContent = lh && lh.per_hour != null ? lh.per_hour.toFixed(1) + "/h" : "–";
+  $("fails").textContent = lh ? lh.finished + " finished, " + lh.failed + " failed" : "";
+
+  const p = d.pod;
+  $("restarts").textContent = p ? p.restarts + " restarts" : "–";
+  let podText = p ? p.name + " · up " + dur(p.age_s) : "no pod";
+  if (p && p.last_exit) podText += " · last exit: " + (p.last_exit.reason || "?") + " (" + p.last_exit.exit_code + ")";
+  $("pod").textContent = podText;
+
+  const c = q && q.current;
+  $("job").textContent = c ? c.name : (d.state === "running" ? "idle" : "–");
+  $("job-sub").textContent = c ? c.kind + " · running " + dur(c.elapsed_s) : "";
+
+  fillTable("reasons", (q ? q.reasons : []).map(([reason, n]) => [n + "×", reason]), "No failures in the window.");
+  fillTable("errors", (q ? q.recent_errors : []).map(e => [dur(e.age_s) + " ago", e.name, e.reason]), "No recent failures.");
+}
+
+async function refresh() {
+  try {
+    const r = await fetch("api/status");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    render(await r.json());
+  } catch (e) {
+    $("problems").textContent = "Status request failed: " + e.message;
+  }
+}
+
+const CONFIRM = {
+  stop: "Stop subgen? The job in progress is lost (it restarts from scratch on the next start).",
+  restart: "Restart subgen? The job in progress is lost.",
+};
+
+document.querySelectorAll("button[data-action]").forEach((b) => {
+  b.addEventListener("click", async () => {
+    const action = b.dataset.action;
+    if (CONFIRM[action] && !confirm(CONFIRM[action])) return;
+    document.querySelectorAll("button").forEach((x) => (x.disabled = true));
+    $("toast").textContent = action + "…";
+    try {
+      const r = await fetch("api/" + action, { method: "POST", headers: { "X-Requested-With": "subgen-ui" } });
+      const body = await r.json().catch(() => ({}));
+      $("toast").textContent = r.ok ? action + " requested." : "Failed: " + (body.detail || r.status);
+    } catch (e) {
+      $("toast").textContent = "Failed: " + e.message;
+    }
+    setTimeout(refresh, 1500);
+  });
+});
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

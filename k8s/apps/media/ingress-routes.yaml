@@ -402,3 +402,26 @@ spec:
         - name: anagnorisis
           port: 5001
   tls: {}
+---
+# Status page with stop/start/restart buttons for subgen. Both middlewares:
+# authelia for identity, local-only so a control surface that can scale a
+# workload isn't reachable through the public VPS wildcard.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: subgen-ui
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`subgen.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+        - name: local-only
+          namespace: traefik
+      services:
+        - name: subgen-ui
+          port: 8080
+  tls: {}

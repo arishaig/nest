@@ -1,0 +1,80 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: subgen-ui
+  namespace: media
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    controllers:
+      subgen-ui:
+        strategy: Recreate
+        # SA + Role are raw manifests in subgen-ui-rbac.yaml; bind to it
+        # rather than letting the chart create its own.
+        serviceAccount:
+          create: false
+          name: subgen-ui
+        pod:
+          securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
+        containers:
+          app:
+            # ghcr.io/arishaig/subgen-ui:latest — own CI image, rolling tag, no annotation.
+            image:
+              repository: ghcr.io/arishaig/subgen-ui
+              tag: latest
+              pullPolicy: Always
+            # Loki is on the monitoring LXC (192.168.1.44), outside the
+            # cluster — the same endpoint Alloy pushes to. Defaults in the
+            # app already point there; listed so the coupling is visible.
+            env:
+              SUBGEN_UI_LOKI_URL: http://192.168.1.44:3100
+              SUBGEN_UI_NAMESPACE: media
+              SUBGEN_UI_DEPLOYMENT: subgen
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: 8080
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: 8080
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 20m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+    service:
+      app:
+        controller: subgen-ui
+        ports:
+          http:
+            port: 8080
+            targetPort: 8080

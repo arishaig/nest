@@ -1,0 +1,42 @@
+# ServiceAccount + Role for subgen-ui's stop/start/restart buttons. Scoped to
+# the media namespace and, for writes, to the single `subgen` deployment: it
+# can scale it (stop/start) and patch its pod template (restart), and list
+# pods to show restart count / last exit reason. Nothing else.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: subgen-ui
+  namespace: media
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: subgen-ui
+  namespace: media
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [subgen]
+    verbs: [get, patch]
+  - apiGroups: [apps]
+    resources: [deployments/scale]
+    resourceNames: [subgen]
+    verbs: [get, patch]
+  # list can't be restricted by resourceName; the page filters by label.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: subgen-ui
+  namespace: media
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: subgen-ui
+subjects:
+  - kind: ServiceAccount
+    name: subgen-ui
+    namespace: media

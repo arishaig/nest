@@ -1,0 +1,31 @@
+name: subgen-ui Tests
+
+# Tests for subgen-ui: the subgen log parser (queue/failure stats) and the
+# safeguards on the stop/start/restart buttons, which scale a real workload.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'subgen-ui/**'
+      - '.github/workflows/subgen-ui-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  subgen-ui-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      - name: Install and run tests
+        working-directory: subgen-ui
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+          pytest

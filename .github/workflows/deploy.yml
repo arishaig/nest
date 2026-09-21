@@ -9,6 +9,10 @@ on:
         description: 'Force rebuild/deploy lidarr-ui'
         type: boolean
         default: false
+      force_subgen_ui:
+        description: 'Force rebuild/deploy subgen-ui'
+        type: boolean
+        default: false
 
 # Serialize deploys: never let two ansible runs hit the same hosts at once.
 # Queue rather than cancel — interrupting a half-applied playbook is worse
@@ -36,6 +40,7 @@ jobs:
       tofu: ${{ steps.filter.outputs.tofu }}
       mcp: ${{ steps.filter.outputs.mcp }}
       lidarr_ui: ${{ steps.filter.outputs.lidarr_ui }}
+      subgen_ui: ${{ steps.filter.outputs.subgen_ui }}
       ci_runner: ${{ steps.filter.outputs.ci_runner }}
       adguard: ${{ steps.filter.outputs.adguard }}
       foundry: ${{ steps.filter.outputs.foundry }}
@@ -84,6 +89,8 @@ jobs:
               - 'mcp/**'
             lidarr_ui:
               - 'lidarr-ui/**'
+            subgen_ui:
+              - 'subgen-ui/**'
             ci_runner:
               - 'ci/runner/**'
             adguard:
@@ -668,6 +675,58 @@ jobs:
         run: |
           if kubectl get deployment/lidarr-ui -n media &>/dev/null; then
             kubectl rollout restart deployment/lidarr-ui -n media
+          else
+            echo "Deployment not yet applied by Flux — skipping rollout restart"
+          fi
+
+  build-subgen-ui:
+    needs: changes
+    if: needs.changes.outputs.subgen_ui == 'true' || inputs.force_subgen_ui == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+      # Multi-arch (amd64+arm64) so this can schedule onto beta-rpi5 — plain
+      # python:3.14-slim base with no arch-specific deps, so no emulation
+      # surprises expected.
+      - name: Build and push image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: subgen-ui/
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/arishaig/subgen-ui:latest
+
+  deploy-subgen-ui:
+    needs: [changes, build-subgen-ui]
+    if: needs.changes.outputs.subgen_ui == 'true' || inputs.force_subgen_ui == true
+    runs-on: self-hosted
+    steps:
+      - name: Write kubeconfig
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.kube"
+          printf '%s' "${{ secrets.KUBECONFIG_TALOS }}" > "$RUNNER_TEMP/.kube/config"
+          chmod 600 "$RUNNER_TEMP/.kube/config"
+
+      - name: Rollout restart
+        env:
+          KUBECONFIG: "${{ runner.temp }}/.kube/config"
+        run: |
+          if kubectl get deployment/subgen-ui -n media &>/dev/null; then
+            kubectl rollout restart deployment/subgen-ui -n media
           else
             echo "Deployment not yet applied by Flux — skipping rollout restart"
           fi
