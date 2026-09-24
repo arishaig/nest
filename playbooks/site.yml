@@ -39,6 +39,8 @@
   import_playbook: provision/foundry.yml
 - name: "Provision: Proxmox Backup Server"
   import_playbook: provision/pbs.yml
+- name: "Provision: PiKVM (out-of-band power/reset for the PVE host)"
+  import_playbook: provision/pikvm.yml
 - name: "Provision: nftables firewall"
   import_playbook: provision/nftables.yml
 - name: "Provision: Alloy log shipper"

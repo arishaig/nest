@@ -1,0 +1,131 @@
+---
+# Provision the PiKVM (Raspberry Pi 4, Arch Linux ARM, kvmd) that is wired to
+# the PVE host's ATX power/reset/LED headers. It's the out-of-band fallback
+# for the host hangs in docs/pve-host-hangs.md, so this playbook keeps it
+# locked down and observable. It doesn't try to manage the appliance's OS:
+#
+#   - No package installs or upgrades. PiKVM OS is Arch: installing one
+#     package against a freshly synced repo is an unsupported partial upgrade.
+#     OS updates stay manual via `pikvm-update`.
+#   - No node_exporter or Alloy. kvmd's built-in Prometheus export covers
+#     reachability, the host's power LED, temperature and throttling, and the
+#     journal is volatile (RAM) on the read-only rootfs.
+#   - Web UI passwords (`kvmd-htpasswd`) are set by hand; any kvmd user can
+#     press power/reset, so that credential isn't copied into the repo.
+#
+# The rootfs is mounted read-only. Every change runs between `rw` and `ro`,
+# and `ro` is in an `always:` so a failed task can't leave the device
+# writable. Handlers are flushed before `ro` for the same reason.
+
+- name: PiKVM provisioning
+  hosts: pikvm
+  gather_facts: false
+
+  vars:
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBM7Y+b/BRai//GJ7Sczob/rX8ck3ArKGQP/jsR5OlWn isaac@isaaclaptop"
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMxOgEao2c+jTY4NdsEp46M9Fs8i1Yx6WiX42rUAXSJh ansible-on-nest"
+
+  tasks:
+    - name: Converge PiKVM config with the rootfs writable
+      block:
+        - name: Remount rootfs read-write
+          ansible.builtin.command: rw
+          changed_when: false
+
+        - name: Deploy SSH authorized keys for root
+          ansible.posix.authorized_key:
+            user: root
+            key: "{{ item }}"
+            state: present
+          loop: "{{ ssh_authorized_keys }}"
+
+        # Key-only SSH. This sorts before 99-archlinux.conf, and sshd keeps the
+        # first value it reads. If the keys ever break, the web UI's terminal
+        # (kvmd login) is still a way in.
+        - name: Require key-based SSH
+          ansible.builtin.copy:
+            content: |
+              # Managed by Ansible (playbooks/provision/pikvm.yml)
+              PasswordAuthentication no
+              KbdInteractiveAuthentication no
+              PermitRootLogin prohibit-password
+            dest: /etc/ssh/sshd_config.d/50-nest.conf
+            mode: "0644"
+            validate: /usr/bin/sshd -t -f %s
+          notify: Reload sshd
+
+        # Unauthenticated, read-only metrics for Prometheus. kvmd has no
+        # read-only users: every htpasswd account can also press power and
+        # reset. Basic auth would put a hypervisor power-button credential
+        # into the monitoring LXC's config, which is worse than exposing
+        # LED/temperature/throttling gauges on the LAN. Only the export
+        # endpoint's auth is disabled; the web UI and API keep theirs.
+        #
+        # validate: a bad drop-in stops kvmd from starting, which takes the
+        # web UI AND ATX control with it. Merging the candidate into the full
+        # config (kvmd -m) in a scratch override dir catches YAML syntax
+        # errors before it goes live. It does NOT catch misspelled keys
+        # (verified 2026-09-24), which is what the post-restart check below
+        # is for.
+        - name: Configure kvmd overrides
+          ansible.builtin.copy:
+            content: |
+              # Managed by Ansible (playbooks/provision/pikvm.yml)
+              kvmd:
+                  prometheus:
+                      auth:
+                          enabled: false
+            dest: /etc/kvmd/override.d/50-nest.yaml
+            mode: "0644"
+            validate: >-
+              sh -c 'd=$(mktemp -d) && cp %s "$d/50-nest.yaml"
+              && kvmd -m --override-dir "$d" >/dev/null; r=$?; rm -rf "$d"; exit $r'
+          notify: Restart kvmd
+
+        # Enforce defaults the user already verified: no extra remote-control
+        # protocols with their own password files.
+        - name: Keep IPMI and VNC disabled
+          ansible.builtin.systemd:
+            name: "{{ item }}"
+            enabled: false
+            state: stopped
+          loop:
+            - kvmd-ipmi
+            - kvmd-vnc
+
+        - name: Apply config changes before remounting read-only
+          ansible.builtin.meta: flush_handlers
+
+        # Proves kvmd came back after any restart, and that the override
+        # really took effect: without it this endpoint returns 401/403.
+        - name: Check kvmd serves Prometheus metrics without auth
+          ansible.builtin.uri:
+            url: https://127.0.0.1/api/export/prometheus/metrics
+            validate_certs: false
+            return_content: true
+          register: kvmd_metrics
+          retries: 10
+          delay: 3
+          until: kvmd_metrics.status == 200
+          failed_when: >-
+            kvmd_metrics.status != 200
+            or 'pikvm_atx_power' not in kvmd_metrics.content
+
+      always:
+        - name: Remount rootfs read-only
+          ansible.builtin.command: ro
+          changed_when: false
+
+  handlers:
+    - name: Reload sshd
+      ansible.builtin.systemd:
+        name: sshd
+        state: reloaded
+
+    # Safe for the host: ATX power/reset are momentary GPIO outputs that kvmd
+    # only pulses on request, so a restart doesn't press anything.
+    - name: Restart kvmd
+      ansible.builtin.systemd:
+        name: kvmd
+        state: restarted

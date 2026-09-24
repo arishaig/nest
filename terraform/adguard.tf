@@ -10,6 +10,7 @@ locals {
     "backup.local.arishaig.site"     = "192.168.1.113"
     "monitoring.local.arishaig.site" = "192.168.1.44"
     "casa.local.arishaig.site"       = "192.168.4.50"
+    "pikvm.local.arishaig.site"      = "192.168.1.195"
     "adguard.local.arishaig.site"    = "dns.arishaig.site"
     "files.local.arishaig.site"      = "files.arishaig.site"
 

@@ -172,6 +172,8 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - name: Validate Prometheus alerting rules
         run: promtool check rules playbooks/provision/files/monitoring/prometheus/rules/*.yml
+      - name: Unit-test Prometheus alerting rules
+        run: promtool test rules playbooks/provision/files/monitoring/prometheus/tests/*.yml
       - name: Validate Alertmanager config
         # The config is a Jinja template; substitute every {{ ... }} with a
         # placeholder so amtool can check the structure without vault values.

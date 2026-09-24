@@ -1,6 +1,6 @@
 ---
 - name: Apply apt updates
-  hosts: all:!proxmox:!pbs:!decommissioned
+  hosts: all:!proxmox:!pbs:!decommissioned:!pikvm
   become: true
   serial: 1
   tasks:

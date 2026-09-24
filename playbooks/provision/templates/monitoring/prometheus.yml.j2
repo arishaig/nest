@@ -40,6 +40,20 @@ scrape_configs:
         target_label: instance
         replacement: 'torrent.local.arishaig.site'
 
+  # PiKVM's built-in kvmd export: reachability, the PVE host's power LED
+  # (pikvm_atx_power), CPU temperature and undervoltage/throttling flags.
+  # Auth is disabled for this endpoint only (playbooks/provision/pikvm.yml);
+  # the cert is kvmd's self-signed one.
+  - job_name: 'pikvm'
+    scheme: https
+    metrics_path: /api/export/prometheus/metrics
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ['pikvm.local.arishaig.site:443']
+        labels:
+          instance: 'pikvm'
+
   - job_name: 'vps'
     static_configs:
       - targets: ['10.10.0.1:9100']
