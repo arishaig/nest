@@ -88,19 +88,6 @@ groups:
           summary: "PiKVM is unreachable"
           description: "Prometheus has failed most scrapes of the PiKVM over 30 minutes. While it's down there's no remote power/reset for the PVE host if it hangs."
 
-      # If Prometheus can scrape this at all, the PVE host is powered on (it
-      # runs on it). So a power-LED input stuck at 0 means the LED wire from
-      # the ATX header is loose, missing or reversed, and the PiKVM UI's
-      # power state can't be trusted.
-      - alert: PiKVMPowerLedMiswired
-        expr: max_over_time(pikvm_atx_power[30m]) == 0
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "PiKVM reads the PVE host's power LED as off while the host is running"
-          description: "pikvm_atx_power has been 0 for 30 minutes although the host is up. Check the power-LED wire between the motherboard's front-panel header and the PiKVM ATX board (GPIO 24)."
-
       # _past is sticky until the Pi reboots, so it keeps evidence of a
       # voltage dip even if it happened while the PVE host (and so
       # Prometheus) was hung. If the PiKVM shares the UPS, that's direct

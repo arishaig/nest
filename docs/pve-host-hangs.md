@@ -53,7 +53,9 @@ drifting. The UPS has no USB link to the host, so the host never sees the event.
    grace 10 min, and connect the notification method you want (e.g. the mobile app or
    email). Add the ping URL to vault:
    `ansible-vault edit inventory/group_vars/all/vault.yml` →
-   `vault_pve_heartbeat_url: "https://hc-ping.com/<uuid>"`. Push, and CI applies it.
+   `vault_pve_heartbeat_url: "https://hc-ping.com/<uuid>"`. Push, then run
+   `gh workflow run deploy.yml -f force_pve=true`: the deploy's path filter doesn't
+   watch `vault.yml`, so the push alone applies nothing.
    An unclean boot also posts to `<url>/fail`, so you'll get a "down" notice with the
    timing in the body, followed by "up" a minute later.
 2. **CMOS battery.** Replace the CR2032.
@@ -63,7 +65,6 @@ drifting. The UPS has no USB link to the host, so the host never sees the event.
    metrics export open for Prometheus. It's the manual fallback if the watchdog doesn't
    catch a hang. There's no video, because the host has no GPU (5600X, no iGPU). Power and
    reset don't need video.
-   - `PiKVMPowerLedMiswired` fires if the power-LED input reads off while the host is up.
    - `PiKVMUndervoltage` fires if the Pi has seen a voltage dip since boot. If the PiKVM
      shares the UPS, that's evidence a self-test sag is what freezes the host.
 

@@ -21,6 +21,12 @@ on:
         description: 'Force re-run the k8s playbook (pushes k8s Secrets)'
         type: boolean
         default: false
+      # Same gap for vault-only changes to pve.yml's inputs (e.g.
+      # vault_pve_heartbeat_url): the path filter doesn't watch vault.yml.
+      force_pve:
+        description: 'Force re-run the pve playbook (applies vault-only changes)'
+        type: boolean
+        default: false
 
 # Serialize deploys: never let two ansible runs hit the same hosts at once.
 # Queue rather than cancel — interrupting a half-applied playbook is worse
@@ -325,7 +331,7 @@ jobs:
 
   deploy-pve:
     needs: changes
-    if: needs.changes.outputs.pve == 'true'
+    if: needs.changes.outputs.pve == 'true' || inputs.force_pve == true
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
