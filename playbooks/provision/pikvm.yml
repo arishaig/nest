@@ -27,6 +27,24 @@
       - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMxOgEao2c+jTY4NdsEp46M9Fs8i1Yx6WiX42rUAXSJh ansible-on-nest"
 
   tasks:
+    # pikvm-update runs pacman with the rootfs writable and reboots at the
+    # end. Remounting read-only (or retrying `ro`) underneath it could break
+    # the upgrade, so refuse to start while pacman holds its lock. This sits
+    # outside the block, so the `always: ro` below doesn't run either.
+    - name: Check no PiKVM OS update is in progress
+      ansible.builtin.stat:
+        path: /var/lib/pacman/db.lck
+      register: pacman_lock
+
+    - name: Stop if pacman is running
+      ansible.builtin.assert:
+        that: not pacman_lock.stat.exists
+        fail_msg: >-
+          /var/lib/pacman/db.lck exists: an update (pikvm-update / pacman) is
+          running. Re-run the deploy after it finishes and the PiKVM reboots.
+          If no update is running, the lock is stale; remove it by hand.
+        quiet: true
+
     - name: Converge PiKVM config with the rootfs writable
       block:
         - name: Remount rootfs read-write
@@ -113,9 +131,19 @@
             or 'pikvm_atx_power' not in kvmd_metrics.content
 
       always:
+        # Retried: right after a kvmd restart its services can hold rootfs
+        # files open for writing for a few seconds, and the remount fails
+        # with "mount point is busy". Deploy run 622 (2026-09-24) hit this,
+        # possibly while a manual pikvm-update overlapped, which the pacman
+        # lock check above now prevents. A persistent failure still fails
+        # the job.
         - name: Remount rootfs read-only
           ansible.builtin.command: ro
           changed_when: false
+          register: pikvm_ro
+          retries: 12
+          delay: 5
+          until: pikvm_ro.rc == 0
 
   handlers:
     - name: Reload sshd
