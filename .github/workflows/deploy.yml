@@ -13,6 +13,14 @@ on:
         description: 'Force rebuild/deploy subgen-ui'
         type: boolean
         default: false
+      # k8s.yml pushes every k8s Secret out-of-band, but only runs when the
+      # playbook itself changes. A Secret added to it can therefore sit
+      # undeployed until some unrelated edit touches the file (e.g.
+      # anagnorisis-hf-secret, missing from the cluster 2026-08-21..09-23).
+      force_k8s:
+        description: 'Force re-run the k8s playbook (pushes k8s Secrets)'
+        type: boolean
+        default: false
 
 # Serialize deploys: never let two ansible runs hit the same hosts at once.
 # Queue rather than cancel — interrupting a half-applied playbook is worse
@@ -549,7 +557,7 @@ jobs:
 
   deploy-k8s:
     needs: changes
-    if: needs.changes.outputs.k8s == 'true'
+    if: needs.changes.outputs.k8s == 'true' || inputs.force_k8s == true
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

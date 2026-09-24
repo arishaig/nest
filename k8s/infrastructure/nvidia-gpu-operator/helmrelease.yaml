@@ -41,10 +41,13 @@ spec:
     # `nvidia.com/gpu: 1` (k8s/apps/media/subgen.yaml,
     # k8s/apps/media/tdarr-node.yaml, k8s/apps/media/anagnorisis.yaml) —
     # would leave some of them permanently Pending since the resource can't
-    # be shared. 3 replicas covers those three concurrent consumers now that
-    # anagnorisis has a CUDA image (see docs/gaming-gpu-talos.md). This
-    # multiplexes SMs, not the 10GB of VRAM — three CUDA workloads sharing it
-    # concurrently is the ceiling to watch, not just the replica count.
+    # be shared. 4 replicas covers the four consumers: those three plus
+    # ollama (k8s/apps/media/ollama.yaml, added 2026-08-23), which took one of
+    # the original 3 slots and left anagnorisis/tdarr-node unschedulable
+    # (see docs/gaming-gpu-talos.md). This multiplexes SMs, not the 10GB of
+    # VRAM — four CUDA workloads sharing it concurrently is the ceiling to
+    # watch, not just the replica count. ollama unloads idle models after 5m,
+    # which is what makes the sharing workable.
     devicePlugin:
       config:
         create: true
@@ -57,7 +60,7 @@ spec:
               timeSlicing:
                 resources:
                 - name: nvidia.com/gpu
-                  replicas: 3
+                  replicas: 4
 
     # No manual nodeSelector is set for the GPU operand DaemonSets
     # (device-plugin, dcgm-exporter, gpu-feature-discovery, etc.) — the chart
