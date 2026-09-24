@@ -1,0 +1,77 @@
+# promtool unit tests for the `pikvm` rule group in ../rules/nest.yml.
+# Run: promtool test rules playbooks/provision/files/monitoring/prometheus/tests/*.yml
+# (lint.yml's prometheus-validate job does this in CI.) Only rules/ is copied
+# to the monitoring LXC, so nothing in tests/ is ever loaded by Prometheus.
+rule_files:
+  - ../rules/nest.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Healthy for 30m, then unreachable. The ratio expression (#290 convention)
+  # holds off until most of the 30m window is failed scrapes, so a short
+  # blip doesn't page: nothing at 43m (13 of 30 failed), firing by 60m.
+  # A target that's always up never fires.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="pikvm", instance="pikvm"}'
+        values: '1x30 0x45'
+      - series: 'up{job="pikvm", instance="pikvm-healthy"}'
+        values: '1x75'
+    alert_rule_test:
+      - eval_time: 43m
+        alertname: PiKVMDown
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: PiKVMDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: pikvm
+              instance: pikvm
+            exp_annotations:
+              summary: "PiKVM is unreachable"
+              description: "Prometheus has failed most scrapes of the PiKVM over 30 minutes. While it's down there's no remote power/reset for the PVE host if it hangs."
+
+  # Power-LED input stuck at 0 while being scraped → miswired. A LED that
+  # reads 1 at any point in the window (e.g. a brief blip) doesn't fire.
+  - interval: 1m
+    input_series:
+      - series: 'pikvm_atx_power{job="pikvm", instance="pikvm"}'
+        values: '0x45'
+      - series: 'pikvm_atx_power{job="pikvm", instance="pikvm-wired"}'
+        values: '1x20 0x5 1x20'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: PiKVMPowerLedMiswired
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: pikvm
+              instance: pikvm
+            exp_annotations:
+              summary: "PiKVM reads the PVE host's power LED as off while the host is running"
+              description: "pikvm_atx_power has been 0 for 30 minutes although the host is up. Check the power-LED wire between the motherboard's front-panel header and the PiKVM ATX board (GPIO 24)."
+
+  # Sticky undervoltage_past flag → fires immediately, and the description
+  # reports whether undervoltage is still happening now.
+  - interval: 1m
+    input_series:
+      - series: 'pikvm_hw_throttling_undervoltage_past{job="pikvm", instance="pikvm"}'
+        values: '0x5 1x10'
+      - series: 'pikvm_hw_throttling_undervoltage_now{job="pikvm", instance="pikvm"}'
+        values: '0x15'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PiKVMUndervoltage
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: PiKVMUndervoltage
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: pikvm
+              instance: pikvm
+            exp_annotations:
+              summary: "PiKVM has seen undervoltage since it booted"
+              description: "The Pi's firmware recorded undervoltage (undervoltage_now=0). Compare the timing with the UPS self-test and the PVE hang schedule. The flag clears on a PiKVM reboot."

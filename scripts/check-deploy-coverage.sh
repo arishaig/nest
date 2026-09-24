@@ -30,3 +30,49 @@ if [ "$missing" -ne 0 ]; then
 fi
 
 echo "OK: all Docker service compose files are covered by the deploy filter."
+
+# Same guard one level up: every provision playbook must be wired into a
+# deploy path filter, or be listed here with the reason it isn't. A new host
+# playbook without a deploy job would otherwise only ever converge during a
+# manual site.yml run (pbs.yml did exactly that until it got deploy-pbs).
+# Shrink this list as gaps get wired in; never grow it without a reason.
+declare -A not_deployed=(
+  [alloy.yml]="multi-host log shipper, converged by site.yml only"
+  [common.yml]="base config for lxcs:dns, converged by site.yml only"
+  [docker-host.yml]="LXC 100 is decommissioned (architecture-review F6)"
+  [nftables.yml]="LXC firewall, converged by site.yml only"
+  [pve-passthrough.yml]="parametrized per-LXC, invoked by OpenTofu"
+  [runner.yml]="provisions the CI runner itself; running it from CI is circular"
+  [scrutiny.yml]="compose stack ships via deploy-docker; playbook is site.yml only"
+  [seedbox.yml]="compose stack ships via deploy-docker; playbook is site.yml only"
+)
+
+pb_missing=0
+while IFS= read -r pb; do
+  name=$(basename "$pb")
+  if grep -q "'$pb'" "$workflow"; then
+    if [ -n "${not_deployed[$name]+x}" ]; then
+      echo "ERROR: $name is now in $workflow; remove it from the not_deployed list"
+      pb_missing=1
+    fi
+  elif [ -z "${not_deployed[$name]+x}" ]; then
+    echo "ERROR: $pb has no path in $workflow and no not_deployed entry"
+    pb_missing=1
+  fi
+done < <(find playbooks/provision -maxdepth 1 -name '*.yml' | sort)
+
+for name in "${!not_deployed[@]}"; do
+  if [ ! -f "playbooks/provision/$name" ]; then
+    echo "ERROR: not_deployed lists $name, which no longer exists"
+    pb_missing=1
+  fi
+done
+
+if [ "$pb_missing" -ne 0 ]; then
+  echo
+  echo "Wire the playbook into a paths-filter + deploy job in $workflow, or add"
+  echo "it to not_deployed in $0 with the reason it can't be."
+  exit 1
+fi
+
+echo "OK: every provision playbook is deployed by CI or explicitly exempted."

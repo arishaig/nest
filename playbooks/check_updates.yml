@@ -1,6 +1,6 @@
 ---
 - name: Check for available apt updates
-  hosts: all:!proxmox:!pbs
+  hosts: all:!proxmox:!pbs:!pikvm
   become: true
   gather_facts: false
   tasks:

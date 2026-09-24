@@ -24,6 +24,7 @@ Regenerate with: `python3 scripts/generate_diagram.py`
 | Proxmox VE | 192.168.1.16 | Hypervisor | Terraform (bpg/proxmox-ve) |
 | Vultr VPS | 66.42.79.175 | Public ingress proxy | Terraform (vultr/vultr) |
 | Raspberry Pi | 192.168.7.7 | Primary DNS | Ansible (config only) |
+| PiKVM (Raspberry Pi 4) | 192.168.1.195 | Out-of-band ATX power/reset for PVE ([`pve-host-hangs.md`](pve-host-hangs.md)) | Ansible (`provision/pikvm.yml`, config only) |
 
 The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home Assistant is isolated on VLAN 4.
 
@@ -320,6 +321,7 @@ Scrapes every 30s. Jobs:
 | `wled` | WLED LED controller at `backlight.arishaig.site` |
 | `speedtest` | speedtest-exporter, 1h interval, 90s timeout |
 | `blackbox` | HTTP probes for all public-facing services (60s interval) |
+| `pikvm` | kvmd's built-in export at `pikvm.local.arishaig.site/api/export/prometheus/metrics`: host power LED, Pi temp, undervoltage/throttling |
 
 Alert rules in `playbooks/provision/files/monitoring/prometheus/rules/nest.yml`.
 Includes `PBSBackupStale` — fires when any backup group's newest snapshot is too old.
@@ -522,6 +524,7 @@ WireGuard MTU is explicitly set to 1420 on both sides of the tunnel to avoid fra
 | Component | Why | Notes |
 |---|---|---|
 | Raspberry Pi OS | Hardware, provisioned manually | Ansible manages AdGuard/Unbound config only |
+| PiKVM OS / web credentials | Arch appliance; updates via `pikvm-update`, `kvmd-htpasswd` by hand | `provision/pikvm.yml` manages SSH, kvmd overrides and service state only. DHCP reservation for `.195` lives in UniFi |
 | PBS → PVE storage link | bpg/proxmox-ve has no storage_pbs resource type | Documented in `terraform/pve-storage.tf` |
 | UniFi firewall / VLANs | UDM controller UI, no API IaC | Documented in audit summary |
 | Home Assistant integrations | HAOS, not config-file driven | |

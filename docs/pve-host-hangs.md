@@ -57,10 +57,15 @@ drifting. The UPS has no USB link to the host, so the host never sees the event.
    An unclean boot also posts to `<url>/fail`, so you'll get a "down" notice with the
    timing in the body, followed by "up" a minute later.
 2. **CMOS battery.** Replace the CR2032.
-3. **PiKVM** (`https://192.168.1.195`, wired to the host's power/reset headers). Log in
-   and change both default credentials (web `admin/admin`, SSH `root/root`). It has power
-   control over the hypervisor. It's the manual fallback if the watchdog doesn't catch a
-   hang.
+3. **PiKVM** (`https://pikvm.local.arishaig.site` / `192.168.1.195`, wired to the host's
+   ATX power/reset/LED headers). The default credentials were changed on 2026-09-24. It's
+   now managed by `playbooks/provision/pikvm.yml`: key-only SSH, IPMI/VNC off, and kvmd's
+   metrics export open for Prometheus. It's the manual fallback if the watchdog doesn't
+   catch a hang. There's no video, because the host has no GPU (5600X, no iGPU). Power and
+   reset don't need video.
+   - `PiKVMPowerLedMiswired` fires if the power-LED input reads off while the host is up.
+   - `PiKVMUndervoltage` fires if the Pi has seen a voltage dip since boot. If the PiKVM
+     shares the UPS, that's evidence a self-test sag is what freezes the host.
 
 ## Verification (do after merging)
 
