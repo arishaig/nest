@@ -54,19 +54,24 @@ jobs:
       foundry: ${{ steps.filter.outputs.foundry }}
       fileserver: ${{ steps.filter.outputs.fileserver }}
     steps:
-      # fetch-depth 2 so paths-filter has a parent commit to diff against on
-      # workflow_dispatch runs — with the default shallow (depth 1) checkout
-      # and no `base`, it can't resolve a diff at all and falls back to
-      # treating every tracked file as newly added, marking every filter
-      # (and therefore every deploy job) as changed regardless of what was
-      # actually touched.
+      # fetch-depth 2 so paths-filter has a parent commit to diff against —
+      # with the default shallow (depth 1) checkout it can't resolve a diff
+      # and falls back to treating every tracked file as newly added, marking
+      # every filter (and therefore every deploy job) as changed regardless of
+      # what was actually touched.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
+      # Push only. On workflow_dispatch there is no `before`, and the old
+      # 'HEAD~1' fallback made paths-filter run `git fetch origin HEAD~1`
+      # ("invalid refspec"), which failed every manual run from 2026-07-21
+      # to 2026-09-24. A manual run exists to fire the force_* jobs, so with
+      # the filter skipped every path output is empty and only forced jobs run.
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        if: github.event_name == 'push'
         id: filter
         with:
-          base: ${{ github.event.before || 'HEAD~1' }}
+          base: ${{ github.event.before }}
           filters: |
             docker:
               - 'playbooks/provision/files/docker/**'
