@@ -634,11 +634,19 @@ jobs:
         env:
           KUBECONFIG: "${{ runner.temp }}/.kube/config"
         run: |
-          if kubectl get deployment/nest-mcp -n nest-mcp &>/dev/null; then
-            kubectl rollout restart deployment/nest-mcp -n nest-mcp
-          else
-            echo "Deployment not yet created by Flux — skipping rollout restart"
+          # Only a genuine NotFound means "Flux hasn't created it yet". Any other
+          # error (e.g. an unreachable API server) must fail the job: from the
+          # 2026-07-22 control-plane migration until 2026-09-24, a stale
+          # KUBECONFIG_TALOS made this skip every run while reporting success.
+          if ! out=$(kubectl get deployment/nest-mcp -n nest-mcp 2>&1); then
+            if grep -q NotFound <<<"$out"; then
+              echo "Deployment not yet created by Flux — skipping rollout restart"
+              exit 0
+            fi
+            echo "$out" >&2
+            exit 1
           fi
+          kubectl rollout restart deployment/nest-mcp -n nest-mcp
 
   build-lidarr-ui:
     needs: changes
@@ -686,11 +694,19 @@ jobs:
         env:
           KUBECONFIG: "${{ runner.temp }}/.kube/config"
         run: |
-          if kubectl get deployment/lidarr-ui -n media &>/dev/null; then
-            kubectl rollout restart deployment/lidarr-ui -n media
-          else
-            echo "Deployment not yet applied by Flux — skipping rollout restart"
+          # Only a genuine NotFound means "Flux hasn't created it yet". Any other
+          # error (e.g. an unreachable API server) must fail the job: from the
+          # 2026-07-22 control-plane migration until 2026-09-24, a stale
+          # KUBECONFIG_TALOS made this skip every run while reporting success.
+          if ! out=$(kubectl get deployment/lidarr-ui -n media 2>&1); then
+            if grep -q NotFound <<<"$out"; then
+              echo "Deployment not yet applied by Flux — skipping rollout restart"
+              exit 0
+            fi
+            echo "$out" >&2
+            exit 1
           fi
+          kubectl rollout restart deployment/lidarr-ui -n media
 
   build-subgen-ui:
     needs: changes
@@ -738,11 +754,19 @@ jobs:
         env:
           KUBECONFIG: "${{ runner.temp }}/.kube/config"
         run: |
-          if kubectl get deployment/subgen-ui -n media &>/dev/null; then
-            kubectl rollout restart deployment/subgen-ui -n media
-          else
-            echo "Deployment not yet applied by Flux — skipping rollout restart"
+          # Only a genuine NotFound means "Flux hasn't created it yet". Any other
+          # error (e.g. an unreachable API server) must fail the job: from the
+          # 2026-07-22 control-plane migration until 2026-09-24, a stale
+          # KUBECONFIG_TALOS made this skip every run while reporting success.
+          if ! out=$(kubectl get deployment/subgen-ui -n media 2>&1); then
+            if grep -q NotFound <<<"$out"; then
+              echo "Deployment not yet applied by Flux — skipping rollout restart"
+              exit 0
+            fi
+            echo "$out" >&2
+            exit 1
           fi
+          kubectl rollout restart deployment/subgen-ui -n media
 
   # Custom tooling image for the lint.yml jobs, which run on GitHub-hosted
   # ubuntu-latest via `container:`. Built on a GitHub-hosted runner
