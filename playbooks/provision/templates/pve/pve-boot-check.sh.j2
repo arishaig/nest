@@ -1,0 +1,49 @@
+#!/bin/bash
+# Managed by Ansible (playbooks/provision/pve.yml).
+#
+# Reports whether the previous boot ended with a clean shutdown.
+#   start: run at boot, before the marker is cleared
+#   stop:  run at shutdown, writes the clean-shutdown marker
+#
+# A hard hang that ends in a manual reset or a hardware-watchdog reset never
+# runs "stop", so the marker is missing on the next boot. The watchdog turns
+# multi-hour hangs into a few minutes of downtime, so without this check the
+# hangs would stop being noticeable at all (see docs/pve-host-hangs.md).
+set -u
+
+STATE_DIR=/var/lib/pve-boot-check
+MARKER="$STATE_DIR/clean-shutdown"
+INITIALIZED="$STATE_DIR/initialized"
+TAG=pve-boot-check
+HEARTBEAT_URL="${PVE_HEARTBEAT_URL:-}"
+
+mkdir -p "$STATE_DIR"
+
+if [ "${1:-}" = "stop" ]; then
+    touch "$MARKER"
+    sync
+    exit 0
+fi
+
+if [ -e "$MARKER" ]; then
+    logger -t "$TAG" "previous boot ended with a clean shutdown"
+elif [ ! -e "$INITIALIZED" ]; then
+    # First run after install: there is no marker because the stop hook has
+    # never run, not because the last shutdown was unclean.
+    logger -t "$TAG" "first run, no previous-boot state to compare against"
+else
+    # The RTC may come up wrong (dead CMOS battery reset it to 2017), so
+    # wait for chrony before computing timestamps. Best effort, max ~5 min.
+    chronyc waitsync 30 0.5 >/dev/null 2>&1 || true
+    last_entry=$(journalctl -b -1 -n 1 -o short-iso --no-pager 2>/dev/null | awk 'END {print $1}')
+    boot_start=$(date -Iseconds -d "$(uptime -s)")
+    msg="UNCLEAN SHUTDOWN: previous boot ended without a clean shutdown (last journal entry ${last_entry:-unknown}, this boot started ${boot_start}). Likely a hang followed by a manual or watchdog reset."
+    logger -p daemon.crit -t "$TAG" "$msg"
+    if [ -n "$HEARTBEAT_URL" ]; then
+        curl -fsS -m 10 --retry 5 --retry-connrefused --data-raw "$msg" "$HEARTBEAT_URL/fail" >/dev/null \
+            || logger -t "$TAG" "failed to report unclean shutdown to the heartbeat URL"
+    fi
+fi
+
+rm -f "$MARKER"
+touch "$INITIALIZED"
