@@ -5,6 +5,11 @@ metadata:
   namespace: cloudflare-ddns
 spec:
   interval: 1h
+  # Explicit so kustomize-controller owns this field: a stray
+  # `flux suspend` is reverted on the next apps reconcile instead of
+  # silently freezing the release (25 media HRs sat suspended
+  # 2026-08-02..09-24). For break-glass, suspend the `apps` Kustomization.
+  suspend: false
   chart:
     spec:
       chart: app-template
