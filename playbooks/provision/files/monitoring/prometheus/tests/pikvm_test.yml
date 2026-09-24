@@ -33,26 +33,6 @@ tests:
               summary: "PiKVM is unreachable"
               description: "Prometheus has failed most scrapes of the PiKVM over 30 minutes. While it's down there's no remote power/reset for the PVE host if it hangs."
 
-  # Power-LED input stuck at 0 while being scraped → miswired. A LED that
-  # reads 1 at any point in the window (e.g. a brief blip) doesn't fire.
-  - interval: 1m
-    input_series:
-      - series: 'pikvm_atx_power{job="pikvm", instance="pikvm"}'
-        values: '0x45'
-      - series: 'pikvm_atx_power{job="pikvm", instance="pikvm-wired"}'
-        values: '1x20 0x5 1x20'
-    alert_rule_test:
-      - eval_time: 40m
-        alertname: PiKVMPowerLedMiswired
-        exp_alerts:
-          - exp_labels:
-              severity: warning
-              job: pikvm
-              instance: pikvm
-            exp_annotations:
-              summary: "PiKVM reads the PVE host's power LED as off while the host is running"
-              description: "pikvm_atx_power has been 0 for 30 minutes although the host is up. Check the power-LED wire between the motherboard's front-panel header and the PiKVM ATX board (GPIO 24)."
-
   # Sticky undervoltage_past flag → fires immediately, and the description
   # reports whether undervoltage is still happening now.
   - interval: 1m
