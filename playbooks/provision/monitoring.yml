@@ -60,6 +60,26 @@
             enabled: true
             state: started
 
+    # --- Docker daemon DNS ---
+    # Internal resolvers only. This file was hand-set to 192.168.7.7 + 1.1.1.1;
+    # the public fallback answers *.local.arishaig.site with the VPS (Cloudflare
+    # wildcard), so a container resolving an internal name during an AdGuard
+    # blip silently reaches the VPS Traefik instead. That pinned the pikvm
+    # scrape to the VPS via a keep-alive connection (404, PiKVMDown) from
+    # 2026-09-24. If both AdGuards are down, failing to resolve is correct.
+    # The restart also recreates every container's connections, which is what
+    # clears a scrape stuck on a wrong address.
+    - name: Configure Docker daemon DNS
+      ansible.builtin.copy:
+        content: |
+          {"dns": ["192.168.7.7", "192.168.7.8"]}
+        dest: /etc/docker/daemon.json
+        mode: "0644"
+      notify: Restart Docker
+
+    - name: Apply Docker daemon config before the stack starts
+      ansible.builtin.meta: flush_handlers
+
     # --- Create config directories ---
     - name: Create monitoring config directories
       ansible.builtin.file:
@@ -231,6 +251,11 @@
         state: started
 
   handlers:
+    - name: Restart Docker
+      ansible.builtin.systemd:
+        name: docker
+        state: restarted
+
     - name: Restart prometheus
       community.docker.docker_compose_v2:
         project_src: "{{ monitoring_dir }}"
