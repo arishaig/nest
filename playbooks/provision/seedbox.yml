@@ -49,6 +49,20 @@
             enabled: true
             state: started
 
+    # --- Docker daemon DNS ---
+    # Public resolvers on purpose, unlike monitoring.yml. qBittorrent resolves
+    # through gluetun's own DNS inside the tunnel; the rest of the stack
+    # reaches peers by IP and never needs an internal name. Public DNS lets
+    # gluetun find its VPN endpoint even when both AdGuards are down. Content
+    # matches what was hand-set on the host, so adopting it is a no-op.
+    - name: Configure Docker daemon DNS
+      ansible.builtin.copy:
+        content: |
+          {"dns": ["1.1.1.1", "1.0.0.1"]}
+        dest: /etc/docker/daemon.json
+        mode: "0644"
+      notify: Restart Docker
+
     # --- Seedbox setup ---
     - name: Create seedbox directory
       ansible.builtin.file:
@@ -72,3 +86,9 @@
       community.docker.docker_compose_v2:
         project_src: "{{ seedbox_dir }}"
         state: present
+
+  handlers:
+    - name: Restart Docker
+      ansible.builtin.systemd:
+        name: docker
+        state: restarted

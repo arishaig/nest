@@ -42,6 +42,23 @@
     pbs_k8s_configs_path: /rpool/data/k8s-configs
 
   tasks:
+    # ── DNS ─────────────────────────────────────────────────────────────────
+    # dns2 was still the retired 192.168.1.53 (old dns-secondary address), so
+    # PBS had no working fallback when the Pi AdGuard was down. PBS owns
+    # /etc/resolv.conf, so set it through proxmox-backup-manager.
+    - name: Read PBS DNS servers
+      ansible.builtin.command: proxmox-backup-manager dns get --output-format json
+      register: pbs_dns
+      changed_when: false
+
+    - name: Point PBS at both AdGuards
+      ansible.builtin.command: >
+        proxmox-backup-manager dns set --dns1 192.168.7.7 --dns2 192.168.7.8
+      when: >-
+        (pbs_dns.stdout | from_json).dns1 | default('') != '192.168.7.7' or
+        (pbs_dns.stdout | from_json).dns2 | default('') != '192.168.7.8'
+      changed_when: true
+
     # ── Retention on pbs-local ──────────────────────────────────────────────
     - name: List existing prune jobs
       ansible.builtin.command: proxmox-backup-manager prune-job list --output-format json
