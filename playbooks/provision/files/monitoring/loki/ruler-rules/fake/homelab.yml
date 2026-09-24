@@ -177,6 +177,21 @@ groups:
           summary: "Disk I/O errors on {{ $labels.host }}"
           description: "Kernel I/O errors detected in journal on {{ $labels.host }}. Check dmesg and disk health."
 
+      # pve-boot-check (playbooks/provision/pve.yml) logs this at boot when the
+      # previous boot never ran its clean-shutdown hook, i.e. the host hung and
+      # was reset by hand or by the hardware watchdog. It fires after recovery,
+      # through the normal Alertmanager -> Home Assistant path. While the host
+      # is down nothing on it can alert, which is what the external heartbeat
+      # is for (docs/pve-host-hangs.md).
+      - alert: HostUncleanShutdown
+        expr: sum by (host) (count_over_time({job="journal", host="pve"} |= "UNCLEAN SHUTDOWN" [30m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.host }} recovered from an unclean shutdown"
+          description: "The PVE host's previous boot ended without a clean shutdown (hang + manual/watchdog reset). Check `journalctl -t pve-boot-check` for the timing and compare it against the UPS self-test schedule."
+
   - name: media
     interval: 5m
     rules:

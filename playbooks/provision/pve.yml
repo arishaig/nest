@@ -7,6 +7,11 @@
   become: true
   gather_facts: false
 
+  vars:
+    # External dead-man's-switch ping URL (e.g. a healthchecks.io check).
+    # Empty = heartbeat disabled; see docs/pve-host-hangs.md.
+    pve_heartbeat_url: "{{ vault_pve_heartbeat_url | default('') }}"
+
   tasks:
     - name: Deploy IP-based NTP fallbacks for chrony
       ansible.builtin.copy:
@@ -150,7 +155,150 @@
       register: rename_cold_backup
       changed_when: "'changed' in rename_cold_backup.stdout"
 
+    # The host hard-hangs (fans spinning, unresponsive) every ~13d23h15m, and
+    # each hang lasted 2-8.5h until someone reset it by hand (Jul-Sep 2026,
+    # see docs/pve-host-hangs.md). watchdog-mux is always running and feeding
+    # a watchdog, but the default softdog lives inside the kernel and dies
+    # with it. The B450's FCH TCO timer is real hardware and resets the board
+    # ~10s after watchdog-mux stops feeding it (verified to initialize via
+    # MMIO on 2026-09-23). The Proxmox blacklist is fine as-is: watchdog-mux
+    # modprobes the configured module itself.
+    #
+    # No restart handler on purpose: /dev/watchdog stays bound to softdog
+    # until the next reboot, so restarting watchdog-mux would just reopen
+    # softdog. After rebooting, `journalctl -u watchdog-mux -b` should read
+    # "Watchdog driver 'SP5100 TCO timer'".
+    - name: Use the hardware TCO watchdog for watchdog-mux (takes effect on reboot)
+      ansible.builtin.lineinfile:
+        path: /etc/default/pve-ha-manager
+        regexp: '^#?\s*WATCHDOG_MODULE='
+        line: WATCHDOG_MODULE=sp5100_tco
+        create: true
+        mode: "0644"
+
+    - name: Check which watchdog driver is active
+      ansible.builtin.command: cat /sys/class/watchdog/watchdog0/identity
+      register: watchdog_identity
+      changed_when: false
+      check_mode: false
+
+    - name: Warn that a reboot is needed to switch to the hardware watchdog
+      ansible.builtin.debug:
+        msg: >-
+          watchdog0 is still '{{ watchdog_identity.stdout }}'. The hardware
+          watchdog takes effect on the next reboot of the PVE host.
+      when: "'SP5100' not in watchdog_identity.stdout"
+
+    # panic=10 reboots 10s after a kernel panic instead of sitting there
+    # forever (default 0). hardlockup_panic turns an NMI-detected hard lockup
+    # into a panic, and so a reboot. softlockup_panic and hung_task_panic are
+    # deliberately left off: on a ZFS + NFS server, a long scrub or an NFS
+    # stall would turn into a reboot.
+    - name: Reboot on kernel panic and hard lockup
+      ansible.builtin.copy:
+        content: |
+          kernel.panic = 10
+          kernel.hardlockup_panic = 1
+        dest: /etc/sysctl.d/90-panic-reboot.conf
+        mode: "0644"
+      notify: Apply panic sysctls
+
+    # Writes a marker on clean shutdown and checks for it at boot. If it's
+    # missing, the last boot ended in a hang or hard reset: the script logs a
+    # daemon.crit line (Loki ruler alert HostUncleanShutdown), and posts to
+    # the heartbeat URL's /fail endpoint if one is configured.
+    - name: Deploy the unclean-shutdown check script
+      ansible.builtin.template:
+        src: templates/pve/pve-boot-check.sh.j2
+        dest: /usr/local/sbin/pve-boot-check
+        mode: "0755"
+
+    - name: Deploy the heartbeat environment file
+      ansible.builtin.copy:
+        content: |
+          PVE_HEARTBEAT_URL={{ pve_heartbeat_url }}
+        dest: /etc/default/pve-heartbeat
+        mode: "0600"
+      # The repo is public: keep the ping URL out of CI logs if --diff or
+      # -v is ever added, since anyone holding it can mask an outage.
+      no_log: true
+
+    - name: Create the unclean-shutdown check unit
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Report whether the previous boot ended with a clean shutdown
+          Wants=network-online.target
+          After=network-online.target time-sync.target
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=yes
+          EnvironmentFile=-/etc/default/pve-heartbeat
+          ExecStart=/usr/local/sbin/pve-boot-check start
+          ExecStop=/usr/local/sbin/pve-boot-check stop
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/pve-boot-check.service
+        mode: "0644"
+
+    - name: Enable the unclean-shutdown check
+      ansible.builtin.systemd:
+        name: pve-boot-check.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # A dead-man's switch has to live off the host: Prometheus, Alertmanager
+    # and its Home Assistant receiver all run on this host and freeze with
+    # it, so a hang used to page nobody. The host pings an external check
+    # (e.g. healthchecks.io) every minute, and the service alerts when the
+    # pings stop. It also fires if the home internet goes down. Skipped
+    # until vault_pve_heartbeat_url is set.
+    - name: Create the heartbeat unit
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Ping the external heartbeat check
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          Type=oneshot
+          EnvironmentFile=/etc/default/pve-heartbeat
+          ExecStart=/usr/bin/curl -fsS -m 10 --retry 3 -o /dev/null ${PVE_HEARTBEAT_URL}
+        dest: /etc/systemd/system/pve-heartbeat.service
+        mode: "0644"
+
+    - name: Create the heartbeat timer
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Ping the external heartbeat check every minute
+
+          [Timer]
+          OnBootSec=2min
+          OnUnitActiveSec=1min
+          AccuracySec=5s
+
+          [Install]
+          WantedBy=timers.target
+        dest: /etc/systemd/system/pve-heartbeat.timer
+        mode: "0644"
+
+    - name: Enable the heartbeat timer when a URL is configured
+      ansible.builtin.systemd:
+        name: pve-heartbeat.timer
+        enabled: "{{ pve_heartbeat_url | length > 0 }}"
+        state: "{{ 'started' if pve_heartbeat_url | length > 0 else 'stopped' }}"
+        daemon_reload: true
+
   handlers:
+    - name: Apply panic sysctls
+      ansible.builtin.command: sysctl -p /etc/sysctl.d/90-panic-reboot.conf
+      changed_when: true
+
     - name: Update initramfs
       ansible.builtin.command: update-initramfs -u -k all
       changed_when: true
