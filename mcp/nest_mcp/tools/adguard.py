@@ -9,12 +9,25 @@ def _auth() -> tuple[str, str]:
     return (config.adguard.username, config.adguard.password)
 
 
+def stats_window(d: dict) -> str:
+    """The period a /control/stats response covers, e.g. "24h" or "90d".
+
+    Counts are totals over AdGuard's configured statistics retention, not a
+    day: dns_queries holds one bucket per time unit (hours or days).
+    """
+    buckets = len(d.get("dns_queries", []))
+    if not buckets:
+        return "unknown"
+    return f"{buckets}{'h' if d.get('time_units') == 'hours' else 'd'}"
+
+
 async def _fetch_stats(url: str) -> dict:
     async with make_client(url, verify=config.adguard.verify_tls) as client:
         resp = await client.get("/control/stats", auth=_auth())
         resp.raise_for_status()
         d = resp.json()
         return {
+            "stats_window": stats_window(d),
             "num_dns_queries": d.get("num_dns_queries", 0),
             "num_blocked_filtering": d.get("num_blocked_filtering", 0),
             "num_replaced_safebrowsing": d.get("num_replaced_safebrowsing", 0),
@@ -30,7 +43,7 @@ def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def adguard_stats() -> dict:
-        """Get AdGuard Home 24-hour DNS statistics from both primary (192.168.7.7) and secondary (192.168.7.8): query counts, top blocked domains and clients."""
+        """Get AdGuard Home DNS statistics from both primary (192.168.7.7) and secondary (192.168.7.8): query counts, top blocked domains and clients. Counts cover each server's statistics retention period (stats_window, e.g. "90d"), not just today."""
         primary, secondary = await asyncio.gather(
             _fetch_stats(config.adguard.url),
             _fetch_stats(config.adguard.url_secondary),
