@@ -14,10 +14,15 @@ def test_parse_docker_ps():
 
 def test_parse_adguard_stats():
     out = summary._parse_adguard_stats(
-        {"num_dns_queries": 1000, "num_blocked_filtering": 250, "avg_processing_time": 0.004})
-    assert out["queries_today"] == 1000 and out["blocked_pct"] == 25.0
+        {"num_dns_queries": 1000, "num_blocked_filtering": 250, "avg_processing_time": 0.004,
+         "time_units": "days", "dns_queries": [10] * 90})
+    assert out["queries"] == 1000 and out["blocked_pct"] == 25.0
+    assert out["stats_window"] == "90d"
     assert out["avg_processing_ms"] == 4.0
     assert summary._parse_adguard_stats({})["blocked_pct"] == 0.0
+    assert summary._parse_adguard_stats({})["stats_window"] == "unknown"
+    assert summary._parse_adguard_stats(
+        {"time_units": "hours", "dns_queries": [1] * 24})["stats_window"] == "24h"
 
 
 def test_overall_status_branches():
@@ -137,7 +142,7 @@ async def test_lab_health_summary_aggregates(monkeypatch):
     assert out["disks"][0]["device"] == "sda"
     assert out["vps"]["docker"]["running"] == 1
     assert out["unifi"]["wan"]["ip"] == "1.2.3.4"
-    assert out["dns"]["primary"]["queries_today"] == 100
+    assert out["dns"]["primary"]["queries"] == 100
     assert out["homeassistant"]["total_entities"] == 1
     assert out["k8s_nodes"][0]["name"] == "alpha" and out["k8s_nodes"][0]["pods_total"] == 1
     # Regression: the datastore usage must be real numbers, not zeros. Querying

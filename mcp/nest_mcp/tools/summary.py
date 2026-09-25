@@ -8,6 +8,7 @@ from nest_mcp import config
 from nest_mcp.http_client import make_client
 from nest_mcp.ssh_client import ssh_run
 from nest_mcp.tools import kubernetes
+from nest_mcp.tools.adguard import stats_window
 from nest_mcp.tools.unifi import get_session
 
 
@@ -340,7 +341,8 @@ def _parse_adguard_stats(d: dict) -> dict:
     queries = d.get("num_dns_queries", 0)
     blocked = d.get("num_blocked_filtering", 0)
     return {
-        "queries_today": queries,
+        "stats_window": stats_window(d),
+        "queries": queries,
         "blocked_pct": round(blocked / queries * 100, 1) if queries else 0.0,
         "avg_processing_ms": round(d.get("avg_processing_time", 0) * 1000, 2),
     }
