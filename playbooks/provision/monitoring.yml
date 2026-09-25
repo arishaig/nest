@@ -9,6 +9,9 @@
 
   vars:
     monitoring_dir: /opt/monitoring
+    # healthchecks.io ping URL for the Watchdog alert. Empty = disabled; see
+    # docs/pve-host-hangs.md.
+    alertmanager_heartbeat_url: "{{ vault_alertmanager_heartbeat_url | default('') }}"
     config_dirs:
       - "{{ monitoring_dir }}"
       - "{{ monitoring_dir }}/prometheus"

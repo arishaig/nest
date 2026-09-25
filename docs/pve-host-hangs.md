@@ -58,6 +58,31 @@ drifting. The UPS has no USB link to the host, so the host never sees the event.
    watch `vault.yml`, so the push alone applies nothing.
    An unclean boot also posts to `<url>/fail`, so you'll get a "down" notice with the
    timing in the body, followed by "up" a minute later.
+   The host heartbeat can't see a dead alerting pipeline on a healthy host (monitoring
+   LXC stopped, Prometheus/Alertmanager crash-looping, HA down). Two more checks cover
+   that, and the one that goes down tells you which part broke. Route all three checks'
+   notifications somewhere other than HA:
+   - **Alerting pipeline** (period 2 min, grace 5 min): Alertmanager sends the
+     always-firing `Watchdog` alert to it every ~1 min. Set
+     `vault_alertmanager_heartbeat_url` in vault; the next `monitoring` deploy applies it
+     (or re-run a deploy that touches the monitoring paths, since vault changes alone
+     don't trigger one).
+   - **Home Assistant** (period 5 min, grace 10 min): HA isn't managed in this repo, so
+     add this in HA (`hc_ha_ping_url` in `secrets.yaml`):
+     ```yaml
+     rest_command:
+       hc_ping:
+         url: !secret hc_ha_ping_url
+         method: POST
+     automation:
+       - alias: healthchecks heartbeat
+         triggers:
+           - trigger: time_pattern
+             minutes: "/5"
+         actions:
+           - action: rest_command.hc_ping
+     ```
+   During a host hang all three go down at once; `pve-host` is the one that explains it.
 2. **CMOS battery.** Replace the CR2032.
 3. **PiKVM** (`https://pikvm.local.arishaig.site` / `192.168.1.195`, wired to the host's
    ATX power/reset/LED headers). The default credentials were changed on 2026-09-24. It's

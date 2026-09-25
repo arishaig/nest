@@ -9,6 +9,19 @@ route:
   repeat_interval: 4h
   receiver: 'homeassistant'
   routes:
+{% if alertmanager_heartbeat_url %}
+    # External dead-man's switch for the alerting pipeline itself. The PVE
+    # host's own heartbeat (pve.yml) only proves the kernel is alive; this one
+    # stops when Prometheus or Alertmanager does, even with the host healthy.
+    # `continue` lets Watchdog also match the weekly HA route below.
+    - match:
+        alertname: Watchdog
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 1m
+      receiver: 'healthchecks'
+      continue: true
+{% endif %}
     - match:
         severity: watchdog
       group_wait: 0s
@@ -57,3 +70,11 @@ receivers:
     webhook_configs:
       - url: {{ alertmanager_webhook_url }}
         send_resolved: true
+{% if alertmanager_heartbeat_url %}
+  # healthchecks.io accepts POST pings and ignores the body. Anyone holding
+  # this URL can mask a pipeline outage; the repo is public, keep it in vault.
+  - name: 'healthchecks'
+    webhook_configs:
+      - url: {{ alertmanager_heartbeat_url }}
+        send_resolved: false
+{% endif %}
