@@ -110,18 +110,21 @@
         src: templates/monitoring/alertmanager.yml.j2
         dest: "{{ monitoring_dir }}/alertmanager/alertmanager.yml"
         mode: "0644"
+      notify: Restart alertmanager
 
     - name: Template pve.yml from vault
       ansible.builtin.template:
         src: templates/monitoring/pve.yml.j2
         dest: "{{ monitoring_dir }}/pve/pve.yml"
         mode: "0644"
+      notify: Restart pve-exporter
 
     - name: Template up.conf from vault
       ansible.builtin.template:
         src: templates/monitoring/up.conf.j2
         dest: "{{ monitoring_dir }}/unpoller/up.conf"
         mode: "0600"
+      notify: Restart unpoller
 
     - name: Copy prometheus alert rules
       ansible.builtin.copy:
@@ -264,6 +267,30 @@
         project_src: "{{ monitoring_dir }}"
         services:
           - prometheus
+        state: restarted
+
+    # Config templated from vault is only read at startup; without these, a
+    # change sat on disk until some unrelated restart (the Watchdog heartbeat
+    # route from #607 deployed but never loaded).
+    - name: Restart alertmanager
+      community.docker.docker_compose_v2:
+        project_src: "{{ monitoring_dir }}"
+        services:
+          - alertmanager
+        state: restarted
+
+    - name: Restart pve-exporter
+      community.docker.docker_compose_v2:
+        project_src: "{{ monitoring_dir }}"
+        services:
+          - pve-exporter
+        state: restarted
+
+    - name: Restart unpoller
+      community.docker.docker_compose_v2:
+        project_src: "{{ monitoring_dir }}"
+        services:
+          - unpoller
         state: restarted
 
     - name: Restart grafana
