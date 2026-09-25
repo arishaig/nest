@@ -85,6 +85,30 @@ def _fmt_side(side: dict, networks: dict[str, str]) -> str:
     return target
 
 
+# Allowlist, not denylist: wlanconf also carries x_passphrase, PPSKs and RADIUS
+# secrets, and new secret-bearing fields must not leak by default.
+_WLAN_FIELDS = (
+    "enabled", "hide_ssid", "is_guest", "security", "wpa_mode", "wpa_enc",
+    "wpa3_support", "wpa3_transition", "wpa3_fast_roaming", "wpa3_enhanced_192",
+    "pmf_mode", "sae_anti_clogging", "group_rekey", "fast_roaming_enabled",
+    "bss_transition", "iapp_enabled", "uapsd_enabled", "wlan_band", "wlan_bands",
+    "mlo_enabled", "minrssi_enabled", "minrssi", "dtim_mode", "dtim_ng", "dtim_na",
+    "dtim_6e", "minrate_setting_preference", "minrate_ng_enabled",
+    "minrate_ng_data_rate_kbps", "minrate_na_enabled", "minrate_na_data_rate_kbps",
+    "l2_isolation", "proxy_arp", "bc_filter_enabled", "mcastenhance_enabled",
+    "mac_filter_enabled", "mac_filter_policy", "no2ghz_oui",
+    "optimize_iot_wifi_connectivity", "enhanced_iot", "schedule_enabled",
+    "private_preshared_keys_enabled", "radius_das_enabled", "ap_group_ids",
+)
+
+
+def _fmt_wlan(w: dict, networks: dict[str, str]) -> dict:
+    net_id = w.get("networkconf_id", "")
+    out = {"name": w.get("name", ""), "network": networks.get(net_id, net_id)}
+    out.update({k: w[k] for k in _WLAN_FIELDS if k in w})
+    return out
+
+
 def _fmt_policy(p: dict, zones: dict[str, str], networks: dict[str, str]) -> dict:
     src = p["source"]
     dst = p["destination"]
@@ -191,6 +215,27 @@ def register(mcp: MCPServer) -> None:
                 "wan_ip": s.get("wan_ip", ""),
             }
         return result
+
+    @mcp.tool()
+    async def unifi_wlan_config(name: str = "") -> list[dict]:
+        """List UniFi WiFi (SSID) settings for diagnosing per-SSID connectivity issues.
+
+        Covers security (WPA mode, WPA3/transition, PMF, group rekey), roaming
+        (802.11r, BSS transition), bands/MLO, minimum RSSI, DTIM, min data rates,
+        isolation/proxy-ARP/multicast settings, and the bound network. Passphrases,
+        PPSKs and RADIUS secrets are never returned.
+
+        Args:
+            name: Filter to SSIDs whose name contains this string (case-insensitive).
+        """
+        session = get_session()
+        networks = await _fetch_networks(session)
+        resp = await session.get("/proxy/network/api/s/default/rest/wlanconf")
+        wlans = [_fmt_wlan(w, networks) for w in resp.json().get("data", [])]
+        if name:
+            n = name.lower()
+            wlans = [w for w in wlans if n in w["name"].lower()]
+        return sorted(wlans, key=lambda w: w["name"])
 
     @mcp.tool()
     async def unifi_firewall_summary() -> dict:
