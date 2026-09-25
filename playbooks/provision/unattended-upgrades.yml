@@ -1,0 +1,106 @@
+---
+# Daily automatic security updates for the Debian hosts (LXCs, the AdGuard Pi
+# and dns-secondary). The policy lives here; each host applies it itself via
+# apt-daily-upgrade.timer.
+#
+#   - Debian-Security only. Point releases, third-party repos (docker-ce,
+#     nodesource, the Raspberry Pi Foundation kernel) and everything else
+#     wait for the manual "guests" run of .github/workflows/maintenance.yml.
+#   - Never reboots. OSRebootRequired alerts when a host with its own kernel
+#     needs one; the LXCs share the PVE host's kernel.
+#   - The two DNS servers upgrade at different times, so an unbound security
+#     restart can't take both resolvers down at once.
+#
+# Whether it's working shows up in Prometheus: OSSecurityUpdatesPending
+# (update-metrics.yml) fires if security updates sit for 2 days.
+#
+# The VPS (dns-tertiary / vps-proxy) keeps the stock Debian policy set up in
+# vps.yml. PVE and PBS are never updated unattended: see maintenance.yml.
+
+- name: Unattended security upgrades
+  hosts: lxcs:dns:!dns-tertiary
+  become: true
+  gather_facts: false
+
+  vars:
+    # Local time. The stock timer runs 06:00 plus up to 60m random delay.
+    dns_upgrade_times:
+      adguard: "04:00"
+      dns-secondary: "05:30"
+
+  tasks:
+    - name: Install unattended-upgrades
+      ansible.builtin.apt:
+        name: unattended-upgrades
+        state: present
+
+    - name: Turn on daily list updates and unattended upgrades
+      ansible.builtin.copy:
+        content: |
+          // Managed by Ansible (playbooks/provision/unattended-upgrades.yml)
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        mode: "0644"
+
+    # apt config lists add up across files, so without the #clear lines the
+    # stock 50unattended-upgrades origins (which include point releases)
+    # would still apply. This file sorts after 50, so it wins.
+    - name: Limit unattended upgrades to Debian security
+      ansible.builtin.copy:
+        content: |
+          // Managed by Ansible (playbooks/provision/unattended-upgrades.yml)
+          #clear Unattended-Upgrade::Origins-Pattern;
+          #clear Unattended-Upgrade::Allowed-Origins;
+          Unattended-Upgrade::Origins-Pattern {
+                  "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+          };
+          Unattended-Upgrade::Automatic-Reboot "false";
+        dest: /etc/apt/apt.conf.d/52nest-unattended-upgrades
+        mode: "0644"
+
+    - name: Check the effective origins are security-only
+      ansible.builtin.command: apt-config dump Unattended-Upgrade::Origins-Pattern
+      register: uu_origins
+      changed_when: false
+      failed_when: >-
+        uu_origins.stdout_lines | select('search', '::Origins-Pattern:: ') | list | length != 1
+        or 'Debian-Security' not in uu_origins.stdout
+
+    - name: Stagger the DNS servers' upgrade time
+      when: inventory_hostname in dns_upgrade_times
+      block:
+        - name: Create apt-daily-upgrade.timer drop-in directory
+          ansible.builtin.file:
+            path: /etc/systemd/system/apt-daily-upgrade.timer.d
+            state: directory
+            mode: "0755"
+
+        # The empty OnCalendar= clears the stock schedule; without it both run.
+        - name: Set the upgrade time
+          ansible.builtin.copy:
+            content: |
+              # Managed by Ansible (playbooks/provision/unattended-upgrades.yml)
+              [Timer]
+              OnCalendar=
+              OnCalendar=*-*-* {{ dns_upgrade_times[inventory_hostname] }}
+              RandomizedDelaySec=15m
+            dest: /etc/systemd/system/apt-daily-upgrade.timer.d/nest.conf
+            mode: "0644"
+          notify: Restart apt-daily-upgrade timer
+
+    - name: Enable the apt timers
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop:
+        - apt-daily.timer
+        - apt-daily-upgrade.timer
+
+  handlers:
+    - name: Restart apt-daily-upgrade timer
+      ansible.builtin.systemd:
+        name: apt-daily-upgrade.timer
+        state: restarted
+        daemon_reload: true

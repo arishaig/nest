@@ -47,6 +47,8 @@
   import_playbook: provision/alloy.yml
 - name: "Provision: pending OS update metrics"
   import_playbook: provision/update-metrics.yml
+- name: "Provision: unattended security upgrades"
+  import_playbook: provision/unattended-upgrades.yml
 
 # --- Update: refresh OS packages, container images, and Proxmox ---
 - name: "Update: OS packages"

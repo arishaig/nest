@@ -1,36 +1,49 @@
 ---
-- name: Update Proxmox / PBS hosts
-  hosts: proxmox:pbs
+# Update PBS, then the PVE host. Driven by the "proxmox" target of
+# .github/workflows/maintenance.yml; with no extra vars it only reports.
+#
+#   -e do_upgrade=true   apply a full dist-upgrade
+#   -e do_reboot=true    reboot afterwards (PBS, then PVE)
+#
+# PBS goes first and is rebooted with a wait: it's a VM, so the CI runner
+# survives it. The runner is itself an LXC on the PVE host, so PVE's reboot
+# is scheduled 2 minutes out and the play ends before it fires. That reboot
+# takes down every guest: the Talos control plane, Home Assistant,
+# dns-secondary, monitoring and CI. They all have onboot: 1.
+
+- name: Update PBS
+  hosts: pbs
   become: true
+  gather_facts: false
   tasks:
-    - name: Update apt cache
-      apt:
-        update_cache: yes
+    - name: Update apt packages
+      ansible.builtin.import_tasks: tasks/proxmox-apt-upgrade.yml
 
-    - name: Show pending updates
-      shell: apt list --upgradable 2>/dev/null
-      register: pve_updates
-      changed_when: false
+    - name: Reboot PBS and wait for it
+      ansible.builtin.reboot:
+        reboot_timeout: 900
+      when: do_reboot | default(false) | bool
 
-    - name: Display pending updates
-      debug:
-        var: pve_updates.stdout_lines
+- name: Update the PVE host
+  hosts: proxmox
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Update apt packages
+      ansible.builtin.import_tasks: tasks/proxmox-apt-upgrade.yml
 
-    - name: Apply updates
-      apt:
-        upgrade: safe
-      when: do_upgrade | default(false) | bool
+    - name: Schedule the PVE reboot for 2 minutes from now
+      ansible.builtin.command: >-
+        systemd-run --unit=nest-maintenance-reboot --on-active=120
+        /bin/systemctl reboot
+      changed_when: true
+      when: do_reboot | default(false) | bool
 
-    - name: Check if reboot required
-      stat:
-        path: /var/run/reboot-required
-      register: reboot_check
-
-    - name: Notify if reboot needed
-      debug:
-        msg: "{{ inventory_hostname }} requires a reboot!"
-      when: reboot_check.stat.exists
-# To check updates
-# ansible-playbook playbooks/update_proxmox.yml
-# To perform updates
-# ansible-playbook playbooks/update_proxmox.yml -e do_upgrade=true
+    - name: Say how to follow up
+      ansible.builtin.debug:
+        msg: >-
+          PVE reboots in about 2 minutes. Everything on it goes down for a few
+          minutes, including this runner. Check afterwards with
+          lab_health_summary. To cancel before it fires:
+          systemctl stop nest-maintenance-reboot.timer
+      when: do_reboot | default(false) | bool

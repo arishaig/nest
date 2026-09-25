@@ -1,6 +1,9 @@
 ---
 - name: Apply apt updates
-  hosts: all:!proxmox:!pbs:!decommissioned:!pikvm
+  # Named groups, not `all:!...`: `all` also matched talos (no SSH, so it
+  # failed and, with serial: 1, ended the play) and ran the VPS twice, since
+  # dns-tertiary and vps-proxy are the same machine.
+  hosts: lxcs:dns:vps:!dns-tertiary
   become: true
   serial: 1
   tasks:
