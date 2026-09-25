@@ -1,11 +1,15 @@
 name: MCP Tests
 
 # Unit tests + coverage for the nest_mcp server (mcp/). Runs only on PRs that
-# touch mcp/, before merge — pytest enforces --cov-fail-under, and the job also
-# verifies the committed coverage badge (assets/coverage.svg) is current. The
-# badge is regenerated and committed by whoever changes mcp/ (genbadge); this
-# gate fails the PR if it drifts, so the badge stays honest without a redundant
-# post-merge run.
+# touch mcp/, before merge — pytest enforces --cov-fail-under, and the job then
+# checks the committed coverage badge (assets/coverage.svg). If the percentage
+# changed, it commits a regenerated badge back onto the PR's own branch (same
+# pattern as docs.yml), so nobody has to remember to run genbadge.
+#
+# main is PR-only (repo ruleset), so the PR branch is the only place the badge
+# can be kept current. The push uses the default GITHUB_TOKEN, which does NOT
+# re-trigger workflows, so there's no regenerate→push loop. Where the job can't
+# push (fork PRs, workflow_dispatch), a stale badge fails the run instead.
 on:
   pull_request:
     branches: [main]
@@ -15,13 +19,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   mcp-tests:
     runs-on: ubuntu-latest
     steps:
+      # Check out the PR branch itself (not the merge ref) so a regenerated
+      # badge can be pushed back to it. Empty on workflow_dispatch → default ref.
       - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.head_ref }}
 
       - uses: actions/setup-python@v7
         with:
@@ -34,15 +42,28 @@ jobs:
           pip install -e ".[test]"
           pytest
 
-      - name: Verify the committed coverage badge is current
+      - name: Update the coverage badge if stale
         working-directory: mcp
+        env:
+          # Fork PRs get a read-only GITHUB_TOKEN; workflow_dispatch has no PR branch.
+          CAN_PUSH: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           genbadge coverage -i coverage.xml -o /tmp/coverage.svg
           fresh=$(grep -oE 'coverage: [0-9.]+%' /tmp/coverage.svg | head -1)
           committed=$(grep -oE 'coverage: [0-9.]+%' ../assets/coverage.svg | head -1)
           echo "committed badge: ${committed:-<none>} | actual: ${fresh}"
-          if [ "$fresh" != "$committed" ]; then
+          if [ "$fresh" = "$committed" ]; then
+            exit 0
+          fi
+          if [ "$CAN_PUSH" != "true" ]; then
             echo "::error::Coverage badge is stale. Regenerate and commit it:"
             echo "::error::  cd mcp && genbadge coverage -i coverage.xml -o ../assets/coverage.svg"
             exit 1
           fi
+          cp /tmp/coverage.svg ../assets/coverage.svg
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ../assets/coverage.svg
+          git commit -m "chore(mcp): regenerate coverage badge (${fresh#coverage: })"
+          git push origin "HEAD:${HEAD_REF}"
