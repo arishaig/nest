@@ -26,7 +26,7 @@ spec:
           app:
             image:
               repository: favonia/cloudflare-ddns
-              tag: 1.17.0
+              tag: 1.17.1
             env:
               CF_API_TOKEN:
                 valueFrom:
