@@ -29,6 +29,24 @@
       dns-secondary: "05:30"
 
   tasks:
+    # ci and monitoring had HashiCorp's repo added by hand for terraform,
+    # which nothing uses since the move to OpenTofu (runner.yml installs
+    # tofu). HashiCorp rotated its signing key in 2026-09, so that repo fails
+    # verification and makes every `apt update` here and in update_apt.yml
+    # fail. Remove it and the unused package, before the cache refresh below.
+    - name: Remove the stale HashiCorp repo
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/hashicorp.list
+        - /usr/share/keyrings/hashicorp-archive-keyring.asc
+
+    - name: Remove unused terraform package
+      ansible.builtin.apt:
+        name: terraform
+        state: absent
+
     # Refresh first: until 20auto-upgrades (below) exists, apt-daily.timer
     # fires but doesn't update the lists, so some hosts had lists months old
     # and the install 404'd on superseded dependency versions.
