@@ -17,6 +17,7 @@ resources:
   - rpi5-net-tuning/
   - rpi5-nic-watchdog/
   - flannel-watchdog/
+  - dead-pod-cleanup/
   - nvidia-gpu-operator/
   - flux-metrics/
 

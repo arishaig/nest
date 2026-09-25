@@ -1,0 +1,39 @@
+# promtool unit tests for the `kubernetes` rule group in ../rules/nest.yml.
+# Run: promtool test rules playbooks/provision/files/monitoring/prometheus/tests/*.yml
+# (lint.yml's prometheus-validate job does this in CI.)
+rule_files:
+  - ../rules/nest.yml
+
+evaluation_interval: 1m
+
+tests:
+  # dead-pod-cleanup deletes an old evicted pod in the same hour a new one is
+  # evicted. The old count-delta rule saw 1 - 1 = 0 and stayed silent; the
+  # uid match must still fire. A standing evicted pod on its own must not.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="kube-state-metrics"}'
+        values: '1x200'
+      - series: 'kube_pod_status_reason{job="kube-state-metrics", namespace="media", pod="old", uid="old", reason="TerminationByKubelet"}'
+        values: '1x90 _x110'
+      - series: 'kube_pod_status_reason{job="kube-state-metrics", namespace="media", pod="new", uid="new", reason="TerminationByKubelet"}'
+        values: '_x90 1x110'
+    alert_rule_test:
+      - eval_time: 80m
+        alertname: KubePodEvicted
+        exp_alerts: []
+      - eval_time: 100m
+        alertname: KubePodEvicted
+        exp_alerts: []
+      - eval_time: 110m
+        alertname: KubePodEvicted
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Kubelet is evicting pods under node pressure"
+              description: "1 more pod(s) have been evicted by kubelet in the last hour. Check node memory/disk pressure — evictions target BestEffort pods first, which on this cluster means traefik, authelia and the storage provisioners."
+      # An hour after the eviction the pod is no longer new.
+      - eval_time: 160m
+        alertname: KubePodEvicted
+        exp_alerts: []
