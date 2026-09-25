@@ -45,6 +45,8 @@
   import_playbook: provision/nftables.yml
 - name: "Provision: Alloy log shipper"
   import_playbook: provision/alloy.yml
+- name: "Provision: pending OS update metrics"
+  import_playbook: provision/update-metrics.yml
 
 # --- Update: refresh OS packages, container images, and Proxmox ---
 - name: "Update: OS packages"

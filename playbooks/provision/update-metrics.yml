@@ -1,0 +1,103 @@
+---
+# Pending OS update metrics for the Debian hosts (LXCs, the AdGuard Pi and
+# dns-secondary). An hourly timer writes os_updates_pending,
+# os_updates_pending_security and, on hosts with their own kernel,
+# os_reboot_required to node_exporter's textfile collector. Prometheus alerts
+# on them (the `updates` group in rules/nest.yml).
+#
+# The VPS (dns-tertiary / vps-proxy) is out of scope: vps.yml owns its
+# node_exporter unit. The PiKVM has its own pacman-based version in pikvm.yml.
+#
+# Nothing here installs or upgrades packages; update_apt.yml still does that.
+
+- name: Pending OS update metrics
+  hosts: lxcs:dns:!dns-tertiary
+  become: true
+  gather_facts: false
+
+  vars:
+    # Same path as pbs.yml's textfile collector.
+    textfile_dir: /var/lib/node_exporter/textfile_collector
+
+  tasks:
+    - name: Create node_exporter textfile collector directory
+      ansible.builtin.file:
+        path: "{{ textfile_dir }}"
+        state: directory
+        mode: "0755"
+
+    # Must match the unit in common.yml, which writes the same file.
+    - name: Enable textfile collector on node_exporter
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Prometheus Node Exporter
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/local/bin/node_exporter --collector.systemd --collector.processes --collector.textfile.directory={{ textfile_dir }}
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/node_exporter.service
+        mode: "0644"
+      notify: Restart node_exporter
+
+    - name: Install pending-updates script
+      ansible.builtin.copy:
+        src: files/updates/apt-updates-textfile.sh
+        dest: /usr/local/bin/apt-updates-textfile.sh
+        mode: "0755"
+
+    - name: Deploy pending-updates units
+      ansible.builtin.copy:
+        content: "{{ item.content }}"
+        dest: "/etc/systemd/system/{{ item.name }}"
+        mode: "0644"
+      loop:
+        - name: apt-updates-textfile.service
+          content: |
+            [Unit]
+            Description=Write pending apt update metrics
+
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/local/bin/apt-updates-textfile.sh
+        - name: apt-updates-textfile.timer
+          content: |
+            [Unit]
+            Description=Check for pending apt updates
+
+            [Timer]
+            OnBootSec=5min
+            OnUnitActiveSec=1h
+            RandomizedDelaySec=10min
+
+            [Install]
+            WantedBy=timers.target
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Enable the pending-updates timer
+      ansible.builtin.systemd:
+        name: apt-updates-textfile.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Apply node_exporter changes before generating metrics
+      ansible.builtin.meta: flush_handlers
+
+    - name: Generate pending-update metrics now
+      ansible.builtin.systemd:
+        name: apt-updates-textfile.service
+        state: started
+
+  handlers:
+    - name: Restart node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        state: restarted
+        daemon_reload: true

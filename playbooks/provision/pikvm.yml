@@ -7,9 +7,14 @@
 #   - No package installs or upgrades. PiKVM OS is Arch: installing one
 #     package against a freshly synced repo is an unsupported partial upgrade.
 #     OS updates stay manual via `pikvm-update`.
-#   - No node_exporter or Alloy. kvmd's built-in Prometheus export covers
-#     reachability, the host's power LED, temperature and throttling, and the
-#     journal is volatile (RAM) on the read-only rootfs.
+#   - No Alloy, and node_exporter only for pending updates. kvmd's built-in
+#     Prometheus export covers reachability, the host's power LED,
+#     temperature and throttling, and the journal is volatile (RAM) on the
+#     read-only rootfs. The one thing kvmd can't report is pending OS
+#     updates, so a textfile-only node_exporter (upstream binary in
+#     /usr/local/bin, not a pacman package) serves the output of
+#     pacman-updates-textfile.sh. That check syncs into a throwaway db under
+#     /tmp and never touches pacman's real sync state.
 #   - Web UI passwords (`kvmd-htpasswd`) are set by hand; any kvmd user can
 #     press power/reset, so that credential isn't copied into the repo.
 #
@@ -22,6 +27,7 @@
   gather_facts: false
 
   vars:
+    node_exporter_version: "1.12.1"
     ssh_authorized_keys:
       - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBM7Y+b/BRai//GJ7Sczob/rX8ck3ArKGQP/jsR5OlWn isaac@isaaclaptop"
       - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMxOgEao2c+jTY4NdsEp46M9Fs8i1Yx6WiX42rUAXSJh ansible-on-nest"
@@ -112,6 +118,104 @@
             - kvmd-ipmi
             - kvmd-vnc
 
+        # Pending-update metrics. See the header: textfile collector only,
+        # reading /run (tmpfs), so nothing it does needs the rootfs writable.
+        - name: Check current node_exporter version
+          ansible.builtin.command: /usr/local/bin/node_exporter --version
+          register: node_exporter_version_check
+          failed_when: false
+          changed_when: false
+
+        - name: Install node_exporter
+          when: >-
+            node_exporter_version_check.rc != 0
+            or node_exporter_version not in node_exporter_version_check.stderr + node_exporter_version_check.stdout
+          block:
+            - name: Download and extract node_exporter
+              ansible.builtin.unarchive:
+                src: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-arm64.tar.gz"
+                dest: /tmp
+                remote_src: true
+
+            - name: Install node_exporter binary
+              ansible.builtin.copy:
+                src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-arm64/node_exporter"
+                dest: /usr/local/bin/node_exporter
+                mode: "0755"
+                remote_src: true
+              notify: Restart node_exporter
+
+            - name: Clean up node_exporter download
+              ansible.builtin.file:
+                path: "/tmp/node_exporter-{{ node_exporter_version }}.linux-arm64"
+                state: absent
+
+        - name: Install pending-updates script
+          ansible.builtin.copy:
+            src: files/pikvm/pacman-updates-textfile.sh
+            dest: /usr/local/bin/pacman-updates-textfile.sh
+            mode: "0755"
+
+        - name: Deploy node_exporter and pending-updates units
+          ansible.builtin.copy:
+            content: "{{ item.content }}"
+            dest: "/etc/systemd/system/{{ item.name }}"
+            mode: "0644"
+          loop:
+            - name: node_exporter.service
+              content: |
+                # Managed by Ansible (playbooks/provision/pikvm.yml)
+                [Unit]
+                Description=Prometheus Node Exporter (textfile only)
+                After=network.target
+
+                [Service]
+                Type=simple
+                RuntimeDirectory=node_exporter
+                RuntimeDirectoryPreserve=yes
+                ExecStart=/usr/local/bin/node_exporter --collector.disable-defaults --collector.textfile --collector.textfile.directory=/run/node_exporter
+                Restart=always
+
+                [Install]
+                WantedBy=multi-user.target
+            - name: pacman-updates-textfile.service
+              content: |
+                # Managed by Ansible (playbooks/provision/pikvm.yml)
+                [Unit]
+                Description=Write pending PiKVM OS update metrics
+                Wants=network-online.target
+                After=network-online.target
+
+                [Service]
+                Type=oneshot
+                ExecStart=/usr/local/bin/pacman-updates-textfile.sh
+            - name: pacman-updates-textfile.timer
+              content: |
+                # Managed by Ansible (playbooks/provision/pikvm.yml)
+                [Unit]
+                Description=Check for pending PiKVM OS updates
+
+                [Timer]
+                OnBootSec=10min
+                OnUnitActiveSec=6h
+                RandomizedDelaySec=30min
+
+                [Install]
+                WantedBy=timers.target
+          loop_control:
+            label: "{{ item.name }}"
+          notify: Restart node_exporter
+
+        - name: Enable node_exporter and the pending-updates timer
+          ansible.builtin.systemd:
+            name: "{{ item }}"
+            enabled: true
+            state: started
+            daemon_reload: true
+          loop:
+            - node_exporter
+            - pacman-updates-textfile.timer
+
         - name: Apply config changes before remounting read-only
           ansible.builtin.meta: flush_handlers
 
@@ -130,6 +234,24 @@
             kvmd_metrics.status != 200
             or 'pikvm_atx_power' not in kvmd_metrics.content
 
+        # Writes to /run only, so it's fine here or after `ro`. Running it
+        # now means the metric exists straight after a deploy.
+        - name: Generate pending-update metrics now
+          ansible.builtin.systemd:
+            name: pacman-updates-textfile.service
+            state: started
+
+        - name: Check node_exporter serves pending-update metrics
+          ansible.builtin.uri:
+            url: http://127.0.0.1:9100/metrics
+            return_content: true
+          register: pikvm_node_metrics
+          retries: 10
+          delay: 3
+          until: >-
+            pikvm_node_metrics.status == 200
+            and 'os_updates_pending{manager="pacman"}' in pikvm_node_metrics.content
+
       always:
         # Retried: right after a kvmd restart its services can hold rootfs
         # files open for writing for a few seconds, and the remount fails
@@ -146,6 +268,12 @@
           until: pikvm_ro.rc == 0
 
   handlers:
+    - name: Restart node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        state: restarted
+        daemon_reload: true
+
     - name: Reload sshd
       ansible.builtin.systemd:
         name: sshd
