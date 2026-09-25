@@ -98,3 +98,26 @@ async def test_firewall_rules_filters_and_formats(monkeypatch):
     assert len(await tools["unifi_firewall_rules"](action="allow")) == 1
     assert len(await tools["unifi_firewall_rules"](name="iot")) == 1
     assert len(await tools["unifi_firewall_rules"](zone="iot")) == 2
+
+
+async def test_wlan_config_allowlists_fields_and_filters(monkeypatch):
+    _patch(monkeypatch, {
+        "/proxy/network/api/s/default/rest/networkconf": {"data": [{"_id": "n1", "name": "The Nest"}]},
+        "/proxy/network/api/s/default/rest/wlanconf": {"data": [
+            {"name": "The Nest", "networkconf_id": "n1", "pmf_mode": "required",
+             "fast_roaming_enabled": True, "x_passphrase": "hunter2",
+             "private_preshared_keys": [{"password": "ppsk"}], "x_iapp_key": "k"},
+            {"name": "Branch Office", "networkconf_id": "n2", "pmf_mode": "optional"},
+        ]},
+    })
+    tools = load_tools(unifi)
+    out = await tools["unifi_wlan_config"]()
+    assert [w["name"] for w in out] == ["Branch Office", "The Nest"]
+    nest = out[1]
+    assert nest["network"] == "The Nest" and nest["pmf_mode"] == "required"
+    assert nest["fast_roaming_enabled"] is True
+    assert not {"x_passphrase", "private_preshared_keys", "x_iapp_key"} & nest.keys()
+    assert out[0]["network"] == "n2"  # unresolved id falls back to raw id
+
+    filtered = await tools["unifi_wlan_config"](name="nest")
+    assert [w["name"] for w in filtered] == ["The Nest"]
