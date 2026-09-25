@@ -29,10 +29,15 @@
       dns-secondary: "05:30"
 
   tasks:
+    # Refresh first: until 20auto-upgrades (below) exists, apt-daily.timer
+    # fires but doesn't update the lists, so some hosts had lists months old
+    # and the install 404'd on superseded dependency versions.
     - name: Install unattended-upgrades
       ansible.builtin.apt:
         name: unattended-upgrades
         state: present
+        update_cache: true
+        cache_valid_time: 3600
 
     - name: Turn on daily list updates and unattended upgrades
       ansible.builtin.copy:

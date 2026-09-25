@@ -6,8 +6,9 @@
 # textfile collector. Prometheus alerts on it (the `updates` group in
 # rules/nest.yml).
 #
-# Doesn't refresh the apt lists itself: apt-daily.timer already does that on
-# every in-scope host.
+# Doesn't refresh the apt lists itself: apt-daily.timer does, daily, because
+# unattended-upgrades.yml sets APT::Periodic::Update-Package-Lists. Without
+# that setting the timer fires but does nothing, and these counts go stale.
 #
 # os_reboot_required is only written on hosts with their own kernel. LXCs run
 # the PVE host's kernel, so the running kernel says nothing about them.
