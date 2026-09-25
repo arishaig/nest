@@ -1,3 +1,7 @@
+import json
+
+import pytest
+
 from nest_mcp.tools import homeassistant
 from helpers import load_tools, patch_http
 
@@ -41,3 +45,65 @@ async def test_list_areas_resolves_names(monkeypatch):
     out = await load_tools(homeassistant)["ha_list_areas"]()
     assert {a["area_id"] for a in out} == {"kitchen", "bedroom"}
     assert out[0]["name"] == "Bedroom"
+
+
+async def test_list_automations_only_automations(monkeypatch):
+    patch_http(monkeypatch, homeassistant, {
+        "/api/states": [
+            {"entity_id": "light.kitchen", "state": "on", "attributes": {}},
+            {"entity_id": "automation.feed", "state": "on",
+             "attributes": {"id": "171", "friendly_name": "Feed", "last_triggered": "t"}},
+        ],
+    })
+    out = await load_tools(homeassistant)["ha_list_automations"]()
+    assert out == [{"entity_id": "automation.feed", "automation_id": "171",
+                    "alias": "Feed", "state": "on", "last_triggered": "t"}]
+
+
+async def test_save_automation_creates_with_new_id(monkeypatch):
+    posted = {}
+
+    def route(request):
+        if request.method == "GET":
+            return (404, {"message": "Resource not found"})
+        posted["body"] = json.loads(request.content)
+        posted["path"] = request.url.path
+        return {"result": "ok"}
+
+    patch_http(monkeypatch, homeassistant, {"/api/config/automation/config/*": route})
+    cfg = {"alias": "Ping", "triggers": [], "actions": []}
+    out = await load_tools(homeassistant)["ha_save_automation"](automation=cfg)
+    assert out["created"] and posted["body"] == cfg
+    assert posted["path"] == f"/api/config/automation/config/{out['automation_id']}"
+
+
+async def test_save_automation_refuses_id_collision_on_create(monkeypatch):
+    patch_http(monkeypatch, homeassistant, {
+        "/api/config/automation/config/*": {"alias": "Existing"},
+    })
+    with pytest.raises(ValueError, match="already exists"):
+        await load_tools(homeassistant)["ha_save_automation"](automation={"alias": "New"})
+
+
+async def test_save_automation_surfaces_validation_error(monkeypatch):
+    patch_http(monkeypatch, homeassistant, {
+        "/api/config/automation/config/171": (400, {"message": "Message malformed: bad trigger"}),
+    })
+    with pytest.raises(ValueError, match="bad trigger"):
+        await load_tools(homeassistant)["ha_save_automation"](
+            automation={"alias": "X"}, automation_id="171")
+
+
+async def test_save_automation_requires_alias(monkeypatch):
+    with pytest.raises(ValueError, match="alias"):
+        await load_tools(homeassistant)["ha_save_automation"](automation={"triggers": []})
+
+
+async def test_get_and_delete_automation(monkeypatch):
+    patch_http(monkeypatch, homeassistant, {
+        "/api/config/automation/config/171": lambda r: (
+            {"result": "ok"} if r.method == "DELETE" else {"id": "171", "alias": "Feed"}),
+    })
+    tools = load_tools(homeassistant)
+    assert (await tools["ha_get_automation"](automation_id="171"))["alias"] == "Feed"
+    assert await tools["ha_delete_automation"](automation_id="171") == {"deleted": "171"}

@@ -1,3 +1,5 @@
+import time
+
 from mcp.server.mcpserver import MCPServer
 from nest_mcp import config
 from nest_mcp.http_client import make_client
@@ -73,3 +75,62 @@ def register(mcp: MCPServer) -> None:
                 "entity_id": entity_id,
                 "changed_states": len(changed),
             }
+
+    # Automations go through the config API the HA editor uses: it writes
+    # automations.yaml and reloads, so they show up and stay editable in the UI.
+    # It needs an admin token.
+
+    @mcp.tool()
+    async def ha_list_automations() -> list[dict]:
+        """List Home Assistant automations with their config id (for ha_get_automation), enabled state and last trigger time."""
+        async with make_client(config.homeassistant.url, headers=_headers()) as client:
+            resp = await client.get("/api/states")
+            resp.raise_for_status()
+            return [
+                {
+                    "entity_id": s["entity_id"],
+                    "automation_id": s["attributes"].get("id", ""),
+                    "alias": s["attributes"].get("friendly_name", ""),
+                    "state": s["state"],
+                    "last_triggered": s["attributes"].get("last_triggered"),
+                }
+                for s in sorted(resp.json(), key=lambda x: x["entity_id"])
+                if s["entity_id"].startswith("automation.")
+            ]
+
+    @mcp.tool()
+    async def ha_get_automation(automation_id: str) -> dict:
+        """Get a Home Assistant automation's full config (alias, triggers, conditions, actions) by its config id from ha_list_automations."""
+        async with make_client(config.homeassistant.url, headers=_headers()) as client:
+            resp = await client.get(f"/api/config/automation/config/{automation_id}")
+            resp.raise_for_status()
+            return resp.json()
+
+    @mcp.tool()
+    async def ha_save_automation(automation: dict, automation_id: str = "") -> dict:
+        """[DESTRUCTIVE] Create or replace a Home Assistant automation. It's active immediately and may control physical devices. `automation` is the full config as in automations.yaml: alias, description, triggers, conditions, actions, mode. Omit automation_id to create a new one; pass one to REPLACE that automation entirely (fetch it with ha_get_automation first and send the edited whole). Show the user the final config and confirm before calling."""
+        if not automation.get("alias"):
+            raise ValueError("automation needs an alias")
+        created = not automation_id
+        # Same id scheme as the HA editor (epoch millis).
+        automation_id = automation_id or str(int(time.time() * 1000))
+        async with make_client(config.homeassistant.url, headers=_headers()) as client:
+            if created:
+                # Never overwrite by accident on an id collision.
+                existing = await client.get(f"/api/config/automation/config/{automation_id}")
+                if existing.status_code != 404:
+                    raise ValueError(f"automation id {automation_id} already exists")
+            resp = await client.post(f"/api/config/automation/config/{automation_id}", json=automation)
+            if resp.status_code == 400:
+                # HA's validation message says what's wrong with the config.
+                raise ValueError(f"Home Assistant rejected the config: {resp.json().get('message', resp.text)}")
+            resp.raise_for_status()
+            return {"automation_id": automation_id, "alias": automation["alias"], "created": created}
+
+    @mcp.tool()
+    async def ha_delete_automation(automation_id: str) -> dict:
+        """[DESTRUCTIVE] Permanently delete a Home Assistant automation by its config id. Confirm the automation (alias and id) with the user before calling."""
+        async with make_client(config.homeassistant.url, headers=_headers()) as client:
+            resp = await client.delete(f"/api/config/automation/config/{automation_id}")
+            resp.raise_for_status()
+            return {"deleted": automation_id}
