@@ -718,7 +718,7 @@ jobs:
       # plain python:3.14-slim base with no arch-specific deps, so no emulation
       # surprises expected.
       - name: Build and push image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: mcp/
           platforms: linux/amd64,linux/arm64
@@ -778,7 +778,7 @@ jobs:
       # python:3.14-slim base with no arch-specific deps, so no emulation
       # surprises expected.
       - name: Build and push image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: lidarr-ui/
           platforms: linux/amd64,linux/arm64
@@ -838,7 +838,7 @@ jobs:
       # python:3.14-slim base with no arch-specific deps, so no emulation
       # surprises expected.
       - name: Build and push image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: subgen-ui/
           platforms: linux/amd64,linux/arm64
