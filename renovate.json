@@ -136,8 +136,8 @@
     },
     {
       "customType": "regex",
-      "description": "node_exporter version pin in vps.yml and common.yml",
-      "managerFilePatterns": ["/playbooks/provision/vps\\.yml/", "/playbooks/provision/common\\.yml/"],
+      "description": "node_exporter version pin in vps.yml, common.yml and pikvm.yml",
+      "managerFilePatterns": ["/playbooks/provision/vps\\.yml/", "/playbooks/provision/common\\.yml/", "/playbooks/provision/pikvm\\.yml/"],
       "matchStrings": ["node_exporter_version:\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "prometheus/node_exporter",
       "datasourceTemplate": "github-releases",

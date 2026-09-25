@@ -101,6 +101,64 @@ groups:
           summary: "PiKVM has seen undervoltage since it booted"
           description: "The Pi's firmware recorded undervoltage (undervoltage_now={{ with query \"pikvm_hw_throttling_undervoltage_now\" }}{{ . | first | value }}{{ end }}). Compare the timing with the UPS self-test and the PVE hang schedule. The flag clears on a PiKVM reboot."
 
+  # Pending OS updates. Written by apt-updates-textfile.sh
+  # (update-metrics.yml: LXCs, AdGuard Pi, dns-secondary) and
+  # pacman-updates-textfile.sh (pikvm.yml) via node_exporter's textfile
+  # collector. The windows are min_over_time over stored samples, not long
+  # `for:` clauses: pending `for:` state is lost when Prometheus is down for
+  # more than an hour, which the PVE host hangs (docs/pve-host-hangs.md) do
+  # every two weeks. A host that has only just started reporting fires as soon
+  # as it has any samples, because the window only covers what exists.
+  - name: updates
+    rules:
+      - alert: OSUpdatesPending
+        expr: min_over_time(os_updates_pending[7d]) > 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} has had OS updates pending for a week"
+          description: "{{ $labels.instance }} hasn't been fully up to date at any point in the last 7 days (at least {{ $value }} {{ $labels.manager }} updates pending throughout). Debian hosts: run update_apt.yml. PiKVM: run pikvm-update on it by hand."
+
+      - alert: OSSecurityUpdatesPending
+        expr: min_over_time(os_updates_pending_security[2d]) > 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} has had security updates pending for 2 days"
+          description: "{{ $labels.instance }} has had updates from a -security suite pending for at least 2 days (at least {{ $value }} throughout). Run update_apt.yml."
+
+      - alert: OSRebootRequired
+        expr: min_over_time(os_reboot_required[2d]) == 1
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} is running an old kernel"
+          description: "A newer kernel has been installed on {{ $labels.instance }} for at least 2 days, but the host hasn't rebooted into it."
+
+      # A stuck or failing timer leaves the last file in place, and a stale
+      # "0 pending" looks healthy. The timers run hourly (apt) and every 6h
+      # (PiKVM), so a day without a rewrite means the check is broken.
+      - alert: UpdateMetricsStale
+        expr: time() - node_textfile_mtime_seconds{file=~".*os_updates\\.prom"} > 86400
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pending-update check hasn't run on {{ $labels.instance }} for a day"
+          description: "os_updates.prom on {{ $labels.instance }} was last written {{ $value | humanizeDuration }} ago. Check apt-updates-textfile.service (or pacman-updates-textfile.service on the PiKVM) with journalctl."
+
+      - alert: NodeTextfileScrapeError
+        expr: node_textfile_scrape_error == 1
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "node_exporter can't read a textfile metric on {{ $labels.instance }}"
+          description: "node_exporter's textfile collector is failing on {{ $labels.instance }}, so pending-update (or PBS backup-freshness) metrics there are missing or stale. Look for a malformed .prom file in the textfile directory."
+
   - name: services
     rules:
       - alert: CAdvisorDown

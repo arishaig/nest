@@ -60,6 +60,7 @@ jobs:
       foundry: ${{ steps.filter.outputs.foundry }}
       fileserver: ${{ steps.filter.outputs.fileserver }}
       pikvm: ${{ steps.filter.outputs.pikvm }}
+      update_metrics: ${{ steps.filter.outputs.update_metrics }}
     steps:
       # fetch-depth 2 so paths-filter has a parent commit to diff against —
       # with the default shallow (depth 1) checkout it can't resolve a diff
@@ -124,6 +125,10 @@ jobs:
               - 'playbooks/provision/fileserver.yml'
             pikvm:
               - 'playbooks/provision/pikvm.yml'
+              - 'playbooks/provision/files/pikvm/**'
+            update_metrics:
+              - 'playbooks/provision/update-metrics.yml'
+              - 'playbooks/provision/files/updates/**'
 
   deploy-adguard:
     needs: changes
@@ -153,6 +158,35 @@ jobs:
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit 'adguard,dns-secondary'
+
+  deploy-update-metrics:
+    needs: changes
+    if: needs.changes.outputs.update_metrics == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Write SSH key
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.ssh"
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
+          chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
+
+      - name: Write vault password
+        run: |
+          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
+          chmod 600 "$RUNNER_TEMP/vault-pass"
+
+      # The play's own host pattern already excludes the VPS; no --limit.
+      - name: Run update-metrics playbook
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          ansible-playbook \
+            -i inventory/hosts.yml \
+            playbooks/provision/update-metrics.yml \
+            --vault-password-file "$RUNNER_TEMP/vault-pass" \
+            --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
+            --ssh-extra-args "-o StrictHostKeyChecking=no"
 
   deploy-pikvm:
     needs: changes

@@ -1,0 +1,109 @@
+# promtool unit tests for the `updates` rule group in ../rules/nest.yml.
+# Run: promtool test rules playbooks/provision/files/monitoring/prometheus/tests/*.yml
+# (lint.yml's prometheus-validate job does this in CI.) Only rules/ is copied
+# to the monitoring LXC, so nothing in tests/ is ever loaded by Prometheus.
+rule_files:
+  - ../rules/nest.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Pending every sample for 7 days fires. A host that got to 0 once during
+  # the window doesn't, even though it has updates pending now.
+  - interval: 1h
+    input_series:
+      - series: 'os_updates_pending{job="node", instance="stale-host", manager="apt"}'
+        values: '5x200'
+      - series: 'os_updates_pending{job="node", instance="patched-host", manager="apt"}'
+        values: '5x100 0 3x99'
+    alert_rule_test:
+      - eval_time: 200h
+        alertname: OSUpdatesPending
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance: stale-host
+              manager: apt
+            exp_annotations:
+              summary: "stale-host has had OS updates pending for a week"
+              description: "stale-host hasn't been fully up to date at any point in the last 7 days (at least 5 apt updates pending throughout). Debian hosts: run update_apt.yml. PiKVM: run pikvm-update on it by hand."
+
+  - interval: 1h
+    input_series:
+      - series: 'os_updates_pending_security{job="node", instance="host", manager="apt"}'
+        values: '2x60'
+      - series: 'os_updates_pending_security{job="node", instance="clean", manager="apt"}'
+        values: '0x60'
+    alert_rule_test:
+      - eval_time: 60h
+        alertname: OSSecurityUpdatesPending
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance: host
+              manager: apt
+            exp_annotations:
+              summary: "host has had security updates pending for 2 days"
+              description: "host has had updates from a -security suite pending for at least 2 days (at least 2 throughout). Run update_apt.yml."
+
+  # Rebooting (flag back to 0) inside the window clears it.
+  - interval: 1h
+    input_series:
+      - series: 'os_reboot_required{job="pikvm-node", instance="pikvm"}'
+        values: '1x60'
+      - series: 'os_reboot_required{job="node", instance="rebooted"}'
+        values: '1x40 0x20'
+    alert_rule_test:
+      - eval_time: 60h
+        alertname: OSRebootRequired
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: pikvm-node
+              instance: pikvm
+            exp_annotations:
+              summary: "pikvm is running an old kernel"
+              description: "A newer kernel has been installed on pikvm for at least 2 days, but the host hasn't rebooted into it."
+
+  # The file's mtime stops moving at 0 (timer broken). Under a day old
+  # nothing fires; past a day plus the 1h `for:` it does. Other textfiles
+  # (PBS backup freshness) are ignored.
+  - interval: 1m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{job="node", instance="host", file="/var/lib/node_exporter/textfile_collector/os_updates.prom"}'
+        values: '0x1600'
+      - series: 'node_textfile_mtime_seconds{job="node", instance="backup", file="/var/lib/node_exporter/textfile_collector/pbs_backup.prom"}'
+        values: '0x1600'
+    alert_rule_test:
+      - eval_time: 23h
+        alertname: UpdateMetricsStale
+        exp_alerts: []
+      - eval_time: 26h
+        alertname: UpdateMetricsStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance: host
+              file: /var/lib/node_exporter/textfile_collector/os_updates.prom
+            exp_annotations:
+              summary: "Pending-update check hasn't run on host for a day"
+              description: "os_updates.prom on host was last written 1d 2h 0m 0s ago. Check apt-updates-textfile.service (or pacman-updates-textfile.service on the PiKVM) with journalctl."
+
+  - interval: 1m
+    input_series:
+      - series: 'node_textfile_scrape_error{job="node", instance="host"}'
+        values: '1x90'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: NodeTextfileScrapeError
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance: host
+            exp_annotations:
+              summary: "node_exporter can't read a textfile metric on host"
+              description: "node_exporter's textfile collector is failing on host, so pending-update (or PBS backup-freshness) metrics there are missing or stale. Look for a malformed .prom file in the textfile directory."

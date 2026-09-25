@@ -27,6 +27,9 @@ scrape_configs:
           - 'dns.arishaig.site:9100'
           - '192.168.1.46:9100'
           - '192.168.1.182:9100'
+          - 'ci.local.arishaig.site:9100'
+          - '192.168.1.21:9100'
+          - 'dns2.arishaig.site:9100'
     relabel_configs:
       - source_labels: [__address__]
         regex: '([^:]+):\d+'
@@ -39,6 +42,10 @@ scrape_configs:
         regex: '192\.168\.1\.182'
         target_label: instance
         replacement: 'torrent.local.arishaig.site'
+      - source_labels: [instance]
+        regex: '192\.168\.1\.21'
+        target_label: instance
+        replacement: 'foundry'
 
   # PiKVM's built-in kvmd export: reachability, the PVE host's power LED
   # (pikvm_atx_power), CPU temperature and undervoltage/throttling flags.
@@ -51,6 +58,14 @@ scrape_configs:
       insecure_skip_verify: true
     static_configs:
       - targets: ['pikvm.local.arishaig.site:443']
+        labels:
+          instance: 'pikvm'
+
+  # PiKVM's textfile-only node_exporter: just the pending-update metrics
+  # (os_updates_pending, os_reboot_required), which kvmd can't export.
+  - job_name: 'pikvm-node'
+    static_configs:
+      - targets: ['pikvm.local.arishaig.site:9100']
         labels:
           instance: 'pikvm'
 
