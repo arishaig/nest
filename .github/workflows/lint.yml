@@ -176,10 +176,12 @@ jobs:
         run: promtool test rules playbooks/provision/files/monitoring/prometheus/tests/*.yml
       - name: Validate Alertmanager config
         # The config is a Jinja template; substitute every {{ ... }} with a
-        # placeholder so amtool can check the structure without vault values.
+        # placeholder and drop {% ... %} lines (checking every optional block
+        # as enabled) so amtool can check the structure without vault values.
         run: |
           tmp=$(mktemp)
-          sed -E 's#\{\{[^}]*\}\}#http://example.invalid/placeholder#g' \
+          sed -E -e '/^[[:space:]]*\{%.*%\}[[:space:]]*$/d' \
+            -e 's#\{\{[^}]*\}\}#http://example.invalid/placeholder#g' \
             playbooks/provision/templates/monitoring/alertmanager.yml.j2 > "$tmp"
           amtool check-config "$tmp"
           rm -f "$tmp"
