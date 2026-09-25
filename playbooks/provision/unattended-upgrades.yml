@@ -14,13 +14,18 @@
 # Whether it's working shows up in Prometheus: OSSecurityUpdatesPending
 # (update-metrics.yml) fires if security updates sit for 2 days.
 #
+# It also keeps the apt sources on these hosts sane, since unattended and
+# maintenance upgrades both depend on `apt update` succeeding: it removes the
+# stale HashiCorp repo and pins Docker's repo to each host's own release.
+#
 # The VPS (dns-tertiary / vps-proxy) keeps the stock Debian policy set up in
 # vps.yml. PVE and PBS are never updated unattended: see maintenance.yml.
 
 - name: Unattended security upgrades
   hosts: lxcs:dns:!dns-tertiary
   become: true
-  gather_facts: false
+  gather_facts: true
+  gather_subset: [min]
 
   vars:
     # Local time. The stock timer runs 06:00 plus up to 60m random delay.
@@ -29,6 +34,74 @@
       dns-secondary: "05:30"
 
   tasks:
+    # ci and monitoring had HashiCorp's repo added by hand for terraform,
+    # which nothing uses since the move to OpenTofu (runner.yml installs
+    # tofu). HashiCorp rotated its signing key in 2026-09, so that repo fails
+    # verification and makes every `apt update` here and in update_apt.yml
+    # fail. Remove it and the unused package, before the cache refresh below.
+    - name: Remove the stale HashiCorp repo
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/hashicorp.list
+        - /usr/share/keyrings/hashicorp-archive-keyring.asc
+
+    - name: Remove unused terraform package
+      ansible.builtin.apt:
+        name: terraform
+        state: absent
+
+    # The per-host playbooks only add Docker's repo when Docker isn't
+    # installed yet, so hosts upgraded bookworm -> trixie kept pulling
+    # bookworm builds (monitoring, scrutiny, seedbox, dns-secondary as of
+    # 2026-09-25), in files with three different names. Keep one
+    # docker.sources per host that has the repo, on the host's own release.
+    # (find matches `contains` from the start of each line, hence the .*)
+    - name: Find Docker apt repo files
+      ansible.builtin.find:
+        paths: /etc/apt/sources.list.d
+        patterns: "*.list,*.sources"
+        contains: '.*download\.docker\.com'
+      register: docker_repo_files
+
+    - name: Pin the Docker repo to this host's release
+      when: docker_repo_files.matched > 0
+      block:
+        - name: Create /etc/apt/keyrings
+          ansible.builtin.file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: "0755"
+
+        - name: Install Docker's signing key
+          ansible.builtin.get_url:
+            url: https://download.docker.com/linux/debian/gpg
+            dest: /etc/apt/keyrings/docker.asc
+            mode: "0644"
+
+        - name: Write docker.sources
+          ansible.builtin.copy:
+            content: |
+              # Managed by Ansible (playbooks/provision/unattended-upgrades.yml)
+              Types: deb
+              URIs: https://download.docker.com/linux/debian
+              Suites: {{ ansible_facts['distribution_release'] }}
+              Components: stable
+              Architectures: {{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] }}
+              Signed-By: /etc/apt/keyrings/docker.asc
+            dest: /etc/apt/sources.list.d/docker.sources
+            mode: "0644"
+
+        - name: Remove other Docker repo files
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: absent
+          loop: "{{ docker_repo_files.files }}"
+          loop_control:
+            label: "{{ item.path }}"
+          when: item.path != '/etc/apt/sources.list.d/docker.sources'
+
     # Refresh first: until 20auto-upgrades (below) exists, apt-daily.timer
     # fires but doesn't update the lists, so some hosts had lists months old
     # and the install 404'd on superseded dependency versions.
