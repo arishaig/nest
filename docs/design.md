@@ -425,9 +425,9 @@ GitHub Actions runs on two runner pools, split by blast radius:
 |---|---|---|---|
 | `lint.yml` | every push / PR | `arc-lint` | `tofu validate`, `ansible-lint`, `yamllint`, `shellcheck` 0.10.0, `promtool`/`amtool` rule checks, `kubeconform` (k8s-validate), **helm-render** (flux-local renders every HelmRelease → kubeconform + `check-helm-pvc-safety.sh`), **talos-config-validate** (`talosctl gen config`/`validate -m metal` over `talos/patches/`), deploy-coverage + RPi5 overlay checks |
 | `integration.yml` | PR/push touching `talos/**`, `k8s/**`, tfvars | `ubuntu-latest` | Boots a **Talos-in-Docker** cluster (`talosctl cluster create docker`), waits for nodes `Ready`, then server-side dry-run applies the rendered manifests against the ephemeral API |
-| `mcp-tests.yml` | PR touching `mcp/**` | `ubuntu-latest` | `pytest` for `nest_mcp` (86 tests, ~92% coverage, `--cov-fail-under=85`) + verifies the committed `assets/coverage.svg` badge is current |
+| `mcp-tests.yml` | PR touching `mcp/**` | `ubuntu-latest` | `pytest` for `nest_mcp` (86 tests, ~92% coverage, `--cov-fail-under=85`) + commits a regenerated `assets/coverage.svg` badge to the PR branch if the percentage changed |
 | `deploy.yml` | push to `main` | `self-hosted` (+ `ubuntu-latest` image builds) | `deploy-tofu`, `deploy-k8s` (Flux reconcile), per-host ansible deploys, and image builds (`build-mcp`, `build-lidarr-ui`, `build-ci-runner`) |
-| `docs.yml` | push to `main` touching inventory/`lxc-*.tf`/diagram script | `self-hosted` | Regenerates `docs/architecture*.png` from `scripts/generate_diagram.py` and commits if changed |
+| `docs.yml` | PR touching inventory/`lxc-*.tf`/diagram script | `self-hosted` | Regenerates `docs/architecture*.png` from `scripts/generate_diagram.py` and commits to the PR branch if changed |
 
 The unit tier (helm-render + talos-config-validate) proves the manifests/machine configs are
 well-formed; the Docker integration tier proves a cluster actually forms and a node joins. The
