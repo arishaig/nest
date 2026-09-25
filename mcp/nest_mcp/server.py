@@ -24,7 +24,7 @@ mcp = MCPServer(
         "Kubernetes (Talos) pods/events/nodes and Traefik ingress health, "
         "ZFS ARC and NFS server stats, "
         "monitoring stack (Prometheus/Loki/Grafana), "
-        "Home Assistant devices and areas, UniFi network and clients, "
+        "Home Assistant devices, areas and automations, UniFi network and clients, "
         "AdGuard DNS (stats, rewrites, plus host-level fail2ban/service status "
         "on the AdGuard Pis), Prometheus alerts, Jellyfin, the *arr media stack, "
         "seedbox (qBittorrent torrents, tracker status, VPN/gluetun exit IP), "
