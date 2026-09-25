@@ -1,6 +1,9 @@
 ---
 - name: Check for available apt updates
-  hosts: all:!proxmox:!pbs:!pikvm
+  # Named groups, not `all:!...`: `all` also matched talos (no SSH, so it
+  # failed) and ran the VPS twice, since
+  # dns-tertiary and vps-proxy are the same machine.
+  hosts: lxcs:dns:vps:!dns-tertiary
   become: true
   gather_facts: false
   tasks:

@@ -465,7 +465,10 @@ Secrets: `inventory/group_vars/all/vault.yml` (ansible-vault, password in `~/.co
 1. `provision/common.yml` — node_exporter, BBR sysctl (all LXCs + VPS)
 2. Per-host provision playbooks (adguard, docker-host, vps, fileserver, monitoring, scrutiny, seedbox, pbs, nftables, mcp, foundry)
 3. `alloy.yml` — Grafana Alloy on all hosts
-4. `update_apt.yml`, `update_docker.yml`, `update_proxmox.yml`
+4. `update-metrics.yml` (pending-update metrics) and `unattended-upgrades.yml` (daily Debian-Security upgrades, no reboots) on the LXCs and DNS Pis
+5. `update_apt.yml`, `update_docker.yml`, `update_proxmox.yml` (report-only unless `-e do_upgrade=true`)
+
+OS updates beyond daily security patches go through the manually triggered `.github/workflows/maintenance.yml`: `guests` runs `update_apt.yml`; `proxmox` runs a dist-upgrade on PBS then PVE, optionally rebooting both (PVE's reboot is scheduled 2 minutes out because the CI runner lives on it). The PiKVM stays manual (`pikvm-update`).
 
 OpenTofu triggers Ansible via `local-exec` on resource creation. Subsequent converges run `site.yml` manually.
 

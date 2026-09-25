@@ -29,6 +29,22 @@
 # host/ group directory alongside ct/ and vm/, and PBSBackupStale has no
 # guest_type filter, so the k8s-configs group alerts for free.
 
+# Same as pve.yml: the enterprise repo 401s without a subscription, which
+# fails every `apt update` on PBS, and upgrades have re-created it before.
+# The no-subscription repo is already configured.
+- name: PBS apt repositories
+  hosts: pbs
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Remove the unusable pbs-enterprise apt repo
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/pbs-enterprise.sources
+        - /etc/apt/sources.list.d/pbs-enterprise.list
+
 - name: PBS host-level backup coverage
   hosts: pbs
   become: true

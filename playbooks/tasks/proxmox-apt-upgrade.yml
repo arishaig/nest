@@ -1,0 +1,44 @@
+---
+# Shared by both plays in playbooks/update_proxmox.yml. Proxmox needs a full
+# dist-upgrade: `upgrade: safe` can hold back packages whose dependencies
+# changed and leave PVE/PBS half-upgraded.
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: List pending updates
+  ansible.builtin.command: apt list --upgradable
+  register: pending_updates
+  changed_when: false
+
+- name: Show pending updates
+  ansible.builtin.debug:
+    msg: "{{ pending_updates.stdout_lines | reject('match', '^Listing') | list }}"
+
+- name: Apply updates (dist-upgrade)
+  ansible.builtin.apt:
+    upgrade: dist
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: do_upgrade | default(false) | bool
+
+- name: Remove unused packages
+  ansible.builtin.apt:
+    autoremove: true
+  when: do_upgrade | default(false) | bool
+
+# /run/reboot-required is never created on PVE/PBS. A running kernel whose
+# version isn't the newest in /lib/modules means one is waiting.
+- name: Check whether a newer kernel is installed
+  ansible.builtin.shell: |
+    set -o pipefail
+    newest="$(find /lib/modules -mindepth 1 -maxdepth 1 -printf '%f\n' | sort -V | tail -1)"
+    [ "$newest" = "$(uname -r)" ] && echo current || echo "newer: $newest"
+  args:
+    executable: /bin/bash
+  register: kernel_check
+  changed_when: false
+
+- name: Report kernel state
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }} kernel {{ kernel_check.stdout }}"
