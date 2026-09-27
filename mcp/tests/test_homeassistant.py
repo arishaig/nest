@@ -107,3 +107,144 @@ async def test_get_and_delete_automation(monkeypatch):
     tools = load_tools(homeassistant)
     assert (await tools["ha_get_automation"](automation_id="171"))["alias"] == "Feed"
     assert await tools["ha_delete_automation"](automation_id="171") == {"deleted": "171"}
+
+
+# --- automation audit / export ---
+
+DOOR = "binary_sensor.test_door"
+
+
+def _states(**extra):
+    base = {
+        DOOR: {"entity_id": DOOR, "state": "unavailable", "last_changed": "t0",
+               "attributes": {"device_class": "door"}},
+        "binary_sensor.test_presence": {"entity_id": "binary_sensor.test_presence", "state": "off",
+                              "attributes": {"device_class": "occupancy"}},
+        "light.test": {"entity_id": "light.test", "state": "off", "attributes": {}},
+    }
+    base.update(extra)
+    return base
+
+
+def test_lint_flags_device_trigger():
+    cfg = {"triggers": [{"trigger": "device", "device_id": "abc", "domain": "binary_sensor"}]}
+    assert [f["rule"] for f in homeassistant._lint_automation(cfg, {})] == ["device_trigger"]
+
+
+@pytest.mark.parametrize("trigger, flagged", [
+    ({"trigger": "state", "entity_id": DOOR, "from": "off", "to": "on"}, True),
+    # Legacy platform key and list-form from are covered too.
+    ({"platform": "state", "entity_id": [DOOR], "from": ["off"], "to": "on"}, True),
+    ({"trigger": "state", "entity_id": DOOR, "to": "on"}, False),
+    # from: null means "any state" in HA.
+    ({"trigger": "state", "entity_id": DOOR, "from": None, "to": "on"}, False),
+    ({"trigger": "state", "entity_id": DOOR, "from": ["off", "unavailable"], "to": "on"}, False),
+    # Presence sensors often want the from: guard on purpose.
+    ({"trigger": "state", "entity_id": "binary_sensor.test_presence", "from": "off", "to": "on"}, False),
+])
+def test_lint_from_state_only_on_opening_sensors(trigger, flagged):
+    findings = homeassistant._lint_automation({"triggers": [trigger]}, _states())
+    assert (["from_state_misses_recovery"] if flagged else []) == [f["rule"] for f in findings]
+
+
+def test_collect_refs_skips_templates_and_notification_action_ids():
+    refs = {"entities": set(), "devices": set(), "areas": set(), "services": set()}
+    homeassistant._collect_refs({
+        "triggers": [{"trigger": "state", "entity_id": [DOOR, "{{ x }}"]}],
+        "actions": [
+            {"action": "light.turn_on", "target": {"area_id": ["test_area"], "entity_id": "light.test"}},
+            {"action": "notify.test_target", "data": {"data": {"actions": [{"action": "SOME_ACTION_ID"}]}}},
+            {"service": "{{ svc }}", "device_id": "dev1"},
+        ],
+    }, refs)
+    assert refs == {
+        "entities": {DOOR, "light.test"},
+        "devices": {"dev1"},
+        "areas": {"test_area"},
+        "services": {"light.turn_on", "notify.test_target"},
+    }
+
+
+def _auto(aid, state="on", last="t"):
+    return {"automation_id": aid, "alias": f"A{aid}", "state": state, "last_triggered": last}
+
+
+def test_audit_reference_checks_and_ordering():
+    configs = {
+        "1": {"triggers": [{"trigger": "state", "entity_id": DOOR, "to": "on"}],
+              "actions": [{"action": "light.turn_on", "target": {"area_id": "gone_area", "entity_id": "light.gone"}},
+                          {"action": "notify.gone_target"},
+                          {"device_id": "dead"}]},
+        "2": None,
+        "3": {"triggers": [{"trigger": "state", "entity_id": "light.gone"}]},
+        "4": {"triggers": []},
+    }
+    autos = [_auto("1"), _auto("2", state="unavailable"), _auto("3", state="off"), _auto("4", last=None)]
+    findings = homeassistant._audit(autos, configs, _states(), {"light.turn_on"}, {"test_area"}, {"dead"})
+    got = [(f["automation_id"], f["severity"], f["rule"]) for f in findings]
+    assert got == [
+        ("1", "error", "missing_area"),
+        ("1", "error", "missing_device"),
+        ("1", "error", "missing_entity"),
+        ("1", "error", "missing_service"),
+        ("2", "error", "config_invalid"),
+        ("1", "warning", "unavailable_entity"),
+        # Disabled automations get only the info finding, not their broken refs.
+        ("3", "info", "disabled"),
+        ("4", "info", "never_triggered"),
+    ]
+
+
+async def test_audit_tool_end_to_end(monkeypatch):
+    posted = {}
+
+    def template(request):
+        posted.update(json.loads(request.content))
+        return json.dumps({"areas": ["test_area"], "missing_devices": [],
+                           "device_entities": [["dev1", ["sensor.test_battery", "binary_sensor.test_contact"]]]})
+
+    patch_http(monkeypatch, homeassistant, {
+        "/api/states": list(_states(**{"automation.test": {
+            "entity_id": "automation.test", "state": "on",
+            "attributes": {"id": "171", "friendly_name": "Test lights", "last_triggered": None}}}).values()),
+        "/api/config/automation/config/171": {
+            "id": "171", "alias": "Test lights",
+            "triggers": [{"trigger": "state", "entity_id": DOOR, "from": "off", "to": "on"},
+                         {"trigger": "device", "device_id": "dev1", "domain": "binary_sensor"}],
+            "actions": [{"action": "light.turn_on", "target": {"area_id": "test_area"}}]},
+        "/api/services": [{"domain": "light", "services": {"turn_on": {}}}],
+        "/api/template": template,
+    })
+    tool = load_tools(homeassistant)["ha_audit_automations"]
+    out = await tool()
+    assert posted["variables"] == {"dev_ids": ["dev1"]}
+    assert out["automations_checked"] == 1
+    assert out["summary"] == {"error": 0, "warning": 3, "info": 1}
+    assert {f["rule"] for f in out["findings"]} == {
+        "device_trigger", "from_state_misses_recovery", "unavailable_entity", "never_triggered"}
+    device = next(f for f in out["findings"] if f["rule"] == "device_trigger")
+    assert device["suggested_entities"] == ["binary_sensor.test_contact"]
+    assert (await tool(include_info=False))["summary"]["info"] == 0
+
+
+async def test_audit_and_export_unknown_id(monkeypatch):
+    patch_http(monkeypatch, homeassistant, {"/api/states": []})
+    tools = load_tools(homeassistant)
+    for name in ("ha_audit_automations", "ha_export_automations"):
+        with pytest.raises(ValueError, match="no automation"):
+            await tools[name](automation_id="999")
+
+
+async def test_export_returns_configs_and_skips_unloadable(monkeypatch):
+    patch_http(monkeypatch, homeassistant, {
+        "/api/states": [
+            {"entity_id": "automation.a", "state": "on", "attributes": {"id": "1", "friendly_name": "A"}},
+            {"entity_id": "automation.b", "state": "unavailable", "attributes": {"id": "2", "friendly_name": "B"}},
+            {"entity_id": "automation.yaml_only", "state": "on", "attributes": {"friendly_name": "No id"}},
+        ],
+        "/api/config/automation/config/1": {"id": "1", "alias": "A"},
+        "/api/config/automation/config/2": (404, {"message": "Resource not found"}),
+    })
+    out = await load_tools(homeassistant)["ha_export_automations"]()
+    assert out == {"count": 1, "automations": [{"id": "1", "alias": "A"}],
+                   "skipped": [{"automation_id": "2", "alias": "B"}]}
