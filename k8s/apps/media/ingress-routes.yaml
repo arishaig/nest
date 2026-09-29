@@ -214,6 +214,30 @@ spec:
           port: 9000
   tls: {}
 ---
+# AudioMuse-AI web UI. Both middlewares, like subgen-ui: it can kick off
+# library-wide analysis/clustering jobs, so keep it off the public VPS
+# wildcard. The Jellyfin plugin talks to the in-cluster Service directly
+# and never goes through this route.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: audiomuse
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`audiomuse.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+        - name: local-only
+          namespace: traefik
+      services:
+        - name: audiomuse
+          port: 8000
+  tls: {}
+---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:

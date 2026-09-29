@@ -37,6 +37,14 @@
         - name: prowlarr-api-key
           data:
             APIKEY: "{{ prowlarr_api_key }}"
+        # AudioMuse-AI (docs/music-audiomuse.md). JELLYFIN_TOKEN is a
+        # dedicated Jellyfin API key, not jellyfin_api_key (nest-mcp's), so
+        # it can be revoked on its own.
+        - name: audiomuse-secret
+          data:
+            POSTGRES_PASSWORD: "{{ audiomuse_postgres_password }}"
+            JELLYFIN_USER_ID: "{{ audiomuse_jellyfin_user_id }}"
+            JELLYFIN_TOKEN: "{{ audiomuse_jellyfin_token }}"
         - name: subgen-secrets
           data:
             HF_TOKEN: "{{ hugging_face_access_token }}"
