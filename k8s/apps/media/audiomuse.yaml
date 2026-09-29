@@ -113,36 +113,36 @@ spec:
                 memory: 2Gi
       worker:
         strategy: Recreate
-        # --- GPU HOOK (not enabled) -------------------------------------
-        # To move analysis onto omega's RTX 3080, add to this controller:
-        #
-        #   pod:
-        #     runtimeClassName: nvidia   # required or no GPU is attached
-        #     affinity:
-        #       nodeAffinity:
-        #         requiredDuringSchedulingIgnoredDuringExecution:
-        #           nodeSelectorTerms:
-        #             - matchExpressions:
-        #                 - key: nest.arishaig.site/workloads
-        #                   operator: In
-        #                   values: [omega]
-        #
-        # and on the container: tag `3.6.3-nvidia`, env
-        # NVIDIA_VISIBLE_DEVICES=all, NVIDIA_DRIVER_CAPABILITIES=compute,utility,
-        # USE_GPU_CLUSTERING="true", and `nvidia.com/gpu: "1"` in both
-        # requests and limits. Omega has a spare time-slice since
-        # anagnorisis was removed (nvidia-gpu-operator/helmrelease.yaml),
-        # but VRAM is shared with subgen/tdarr-node/ollama, not partitioned.
-        # Same pattern as k8s/apps/media/ollama.yaml.
-        # -----------------------------------------------------------------
+        # GPU analysis on omega's RTX 3080 (moved off alpha 2026-09-29: on
+        # alpha's 3 capped vCPUs the first full scan ran ~28s/track, ~45h
+        # for the library). Same pattern as ollama.yaml/subgen.yaml: without
+        # runtimeClassName the pod schedules but silently gets no GPU. Omega
+        # is the dual-boot gaming PC — while it's in Windows the worker sits
+        # Pending; AudioMuse keeps finished tracks and requeues interrupted
+        # ones. Uses the 4th time-slice freed by anagnorisis; VRAM is shared
+        # with subgen/tdarr-node/ollama, not partitioned (models are small,
+        # CLAP ~270MB). flask/postgres stay on alpha.
+        pod:
+          runtimeClassName: nvidia
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: nest.arishaig.site/workloads
+                        operator: In
+                        values: [omega]
         containers:
           app:
             image:
               # renovate: datasource=docker depName=ghcr.io/neptunehub/audiomuse-ai
               repository: ghcr.io/neptunehub/audiomuse-ai
-              tag: 3.6.3
+              # CUDA build (amd64). Keep in step with the flask tag above.
+              tag: 3.6.3-nvidia
             env:
               SERVICE_TYPE: worker
+              NVIDIA_DRIVER_CAPABILITIES: compute,utility
+              USE_GPU_CLUSTERING: "true"
               TZ: America/Los_Angeles
               TEMP_DIR: /app/temp_audio
               POSTGRES_HOST: audiomuse-postgres
@@ -175,17 +175,18 @@ spec:
                 enabled: false
               startup:
                 enabled: false
-            # CPU-only analysis. The limit keeps the one-time library scan
-            # from starving Jellyfin and the *arrs on alpha (8 vCPU); memory
-            # is capped because CLAP-class models already OOM'd this host
-            # once (anagnorisis, 2026-06-14 — see terraform/vm-talos.tf).
+            # Decoding/resampling stay on CPU; omega has 24 cores and little
+            # else requesting them. Memory capped as before (CLAP-class models
+            # OOM'd a node once — anagnorisis, 2026-06-14).
             resources:
               requests:
-                cpu: 500m
+                cpu: "1"
                 memory: 1Gi
+                nvidia.com/gpu: "1"
               limits:
-                cpu: "3"
+                cpu: "8"
                 memory: 6Gi
+                nvidia.com/gpu: "1"
       postgres:
         strategy: Recreate
         containers:
