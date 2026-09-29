@@ -17,7 +17,7 @@
 # the "or the GPU itself" branch of the subgen SIGSEGV investigation — with
 # this in place, DCGM_FI_DEV_FB_USED / _GPU_TEMP / _XID_ERRORS are queryable
 # and the subgen crashes can be correlated against VRAM pressure, thermals,
-# and Xid faults (tdarr-node and anagnorisis share the 3080 via time-slicing).
+# and Xid faults (tdarr-node and ollama share the 3080 via time-slicing).
 apiVersion: v1
 kind: Service
 metadata:

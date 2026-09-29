@@ -200,7 +200,7 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
 
         with Cluster("talos-omega — bare metal, dual-boot\nRTX 3080 GPU worker",
                      graph_attr=CLUSTER):
-            Docker("GPU workloads\n(subgen · ollama\nanagnorisis · tdarr-node)")
+            Docker("GPU workloads\n(subgen · ollama\ntdarr-node)")
 
         with Cluster(host_label("adguard", hosts, "(primary DNS)"), graph_attr=CLUSTER):
             adguard = Coredns("AdGuard Home\n+ Unbound")

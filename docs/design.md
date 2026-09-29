@@ -79,7 +79,7 @@ schedulable; the multi-node control plane described in
 beta/delta test VMs (113/115) were removed. Heavy media workloads prefer or pin to alpha
 via the `nest.arishaig.site/workloads=general` node label; `amd64`-only workloads
 (jellyfin, tunarr) carry an explicit arch nodeSelector; GPU workloads (subgen, ollama,
-anagnorisis, tdarr-node) are hard-pinned to omega via
+tdarr-node) are hard-pinned to omega via
 `nest.arishaig.site/workloads=omega` and require `runtimeClassName: nvidia`. Jellyfin
 carries an explicit anti-affinity to guarantee it never lands on omega, since it must
 stay up through omega's routine downtime.
@@ -261,7 +261,7 @@ Storage classes:
 | `alloy` | Grafana Alloy DaemonSet — ships all pod logs to Loki; parses Traefik access logs as JSON |
 | `local-path-provisioner` | Local path storage class |
 | `nfs-provisioner` | `nfs-nvme` StorageClass |
-| `gpu-operator` | NVIDIA GPU Operator — device plugin, dcgm-exporter, gpu-feature-discovery; operand DaemonSets self-scope to `talos-omega` (the sole GPU node) via NFD PCI-vendor detection, not a manual nodeSelector; 3x time-slicing configured so subgen/tdarr-node/anagnorisis can share the single 3080 |
+| `gpu-operator` | NVIDIA GPU Operator — device plugin, dcgm-exporter, gpu-feature-discovery; operand DaemonSets self-scope to `talos-omega` (the sole GPU node) via NFD PCI-vendor detection, not a manual nodeSelector; 4x time-slicing configured so subgen/tdarr-node/ollama (plus one spare slot) can share the single 3080 |
 
 ### Apps (`k8s/apps/`)
 

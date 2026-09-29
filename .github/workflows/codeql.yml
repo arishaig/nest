@@ -1,9 +1,7 @@
 name: CodeQL
 
 # Advanced setup (not GitHub's autodetected default setup): default setup only
-# scans python + actions in the top-level checkout, misses the anagnorisis
-# submodule entirely, and uses the shallow "default" query suite. This uses
-# security-and-quality and checks out submodules so anagnorisis/ is covered.
+# uses the shallow "default" query suite. This uses security-and-quality.
 on:
   push:
     branches: [main]
@@ -26,8 +24,6 @@ jobs:
         language: [python, actions]
     steps:
       - uses: actions/checkout@v7.0.1
-        with:
-          submodules: recursive
 
       - uses: github/codeql-action/init@v4
         with:

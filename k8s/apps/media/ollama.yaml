@@ -20,7 +20,7 @@ spec:
         namespace: flux-system
   values:
     # Pinned to omega (talos-omega, the RTX 3080) for GPU inference — same
-    # placement as subgen/anagnorisis. Reschedule-tolerant: when the owner
+    # placement as subgen/tdarr-node. Reschedule-tolerant: when the owner
     # reboots into Windows, ollama just sits pending until omega rejoins.
     defaultPodOptions:
       # See subgen.yaml — without this the pod schedules fine but silently

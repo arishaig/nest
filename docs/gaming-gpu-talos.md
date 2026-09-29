@@ -237,7 +237,7 @@ apply, obviously.
   — the base image doesn't set these itself, and `video` specifically (not
   just `compute,utility`) is what exposes NVENC/NVDEC to ffmpeg; omitting it
   silently falls back to CPU transcode with no error.
-- **anagnorisis wired to the GPU** (`k8s/apps/media/anagnorisis.yaml`):
+- **anagnorisis wired to the GPU** (removed from the cluster 2026-09; kept here as history):
   hard-pinned to `omega` (was `general`/alpha), CUDA-enabled torch (cu121
   wheels) baked into the image in `anagnorisis/Dockerfile` — every embedder
   already gates on `torch.cuda.is_available()`, so no app code changes were
