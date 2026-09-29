@@ -162,6 +162,7 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
                          graph_attr=CLUSTER_INNER):
                 nest_traefik = Traefik("k8s Traefik\n+ Authelia")
                 Docker("app-template\nHelmReleases\n(Sonarr · Radarr\nJellyfin…)")
+                Server("nest-mcp :8765")
 
             with Cluster(lxc_label("monitoring", hosts, lxcs), graph_attr=CLUSTER):
                 Prometheus("Prometheus")
@@ -179,9 +180,6 @@ def generate_full(hosts: dict, lxcs: dict, out_dir: Path, fmt: str) -> None:
 
             with Cluster(lxc_label("dns-secondary", hosts, lxcs), graph_attr=CLUSTER):
                 adguard2 = Coredns("AdGuard Home\n(secondary) + Unbound")
-
-            with Cluster(lxc_label("mcp", hosts, lxcs), graph_attr=CLUSTER):
-                Server("nest-mcp :8765")
 
             with Cluster(lxc_label("ci", hosts, lxcs), graph_attr=CLUSTER):
                 Server("Actions runner\n(deploy)")
