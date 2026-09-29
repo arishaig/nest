@@ -313,6 +313,14 @@ jobs:
   # concurrent apply; treat it as informational, not a required check.
   tofu-plan:
     runs-on: self-hosted
+    # Serialize across PRs: every run binds the same fixed local port (13001)
+    # for the VPS AdGuard tunnel on the shared runner host, and the cleanup
+    # step pkills by that port. Two PRs touching terraform/ at once collided
+    # ("Address already in use") and the loser's cleanup killed the winner's
+    # tunnel (PRs #628/#629, 2026-09-29).
+    concurrency:
+      group: tofu-plan-tunnel
+      cancel-in-progress: false
     env:
       TF_PLUGIN_CACHE_DIR: /opt/terraform-plugin-cache
       TF_STATE_DIR: /opt/terraform-state/nest
