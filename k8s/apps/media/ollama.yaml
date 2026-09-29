@@ -52,6 +52,12 @@ spec:
               # subgen's transcription bursts need.
               OLLAMA_KEEP_ALIVE: "5m"
               OLLAMA_MAX_LOADED_MODELS: "1"
+              # Default context is VRAM-tiered: 4k on a 10GB card. Reasoning
+              # models (qwen3.5) spend thousands of tokens thinking, so Digarr's
+              # requests hit 4096 mid-thought and came back empty (2026-09-29,
+              # "truncated = 1"). 16k is per request, not per model; the KV
+              # cache grows with it, so watch VRAM alongside subgen/tdarr.
+              OLLAMA_CONTEXT_LENGTH: "16384"
             probes:
               liveness:
                 enabled: true
