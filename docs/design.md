@@ -39,7 +39,6 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 | 105 | monitoring | 192.168.1.44 (static) | Prometheus · Grafana · Loki · Alertmanager |
 | 106 | dns-secondary | 192.168.7.8 (VLAN 7, static) | AdGuard Home + Unbound (secondary DNS) |
 | 108 | ci | 192.168.1.18 (static) | GitHub Actions self-hosted runner |
-| 109 | mcp | 192.168.1.19 (static) | Nest MCP HTTP server (port 8765) |
 | 111 | foundry | 192.168.1.21 (static) | FoundryVTT game server |
 
 ### VMs (Proxmox)
@@ -93,6 +92,32 @@ stay up through omega's routine downtime.
 Cluster-level IPs (not VMs): `192.168.1.115` Talos API VIP (port 6443 only — kube-proxy
 in nftables mode does not serve NodePorts on it), `192.168.1.116` MetalLB metrics LB
 (shared by all exporter services), `192.168.1.117` MetalLB ingress LB (k8s Traefik).
+
+### Network segmentation (UniFi)
+
+VLANs, SSIDs and zone-based firewall rules live in the UniFi controller UI (not IaC, see
+[What Is Not Managed by IaC](#what-is-not-managed-by-iac)); nest-mcp's `unifi_*` tools read
+them live. Networks are referred to here by VLAN and role, not SSID.
+
+| Network | Subnet | What lives there | Egress |
+|---|---|---|---|
+| Main LAN (untagged) | 192.168.1.0/24 | PVE, LXCs, Talos nodes, trusted clients | Internet; may reach IoT and Infra |
+| Work (VLAN 3) | 192.168.3.0/24 | Work devices | Internet, gateway, AdGuard DNS |
+| IoT (VLAN 4) | 192.168.4.0/24 | Home Assistant, ESPHome devices, speakers, TV | Per-device groups: internet / local-only / none; may reach Main LAN monitoring; DNS via gateway (encrypted DNS only to Infra) |
+| Infra (VLAN 7) | 192.168.7.0/24 | Primary/secondary AdGuard | Internet; may reach Main LAN monitoring |
+| Cloud IoT (VLAN 8) | 192.168.8.0/24 | Cloud-dependent consumer devices that won't onboard on the IoT SSID | Internet only; no rules to any other zone |
+
+**Cloud IoT (VLAN 8)** has its own zone, network and SSID. It exists because cheap
+cloud-onboarded devices fail to pair on the IoT SSID and report it as "wrong password".
+Its SSID uses the lowest-common-denominator settings: 2.4 GHz only, WPA2-only, PMF
+disabled, and an alphanumeric SSID and passphrase. Known failure modes: WPA2/WPA3
+transition mode (the device joins, sends nothing, and drops), and spaces or special
+characters in the SSID or passphrase. Its only custom rule allows it out to the internet.
+It is treated as untrusted: nothing may reach the Main LAN or IoT, and Home Assistant
+talks to these devices through their vendor cloud rather than locally. First occupant: a
+Winix air purifier, which reaches HA through the HACS
+[`iprak/winix`](https://github.com/iprak/winix) integration using a second Winix account
+with the device shared to it, because Winix allows one session per account.
 
 ---
 
@@ -155,7 +180,7 @@ Trusts PROXY protocol from `10.10.0.1/32`. Rate-limit middleware applied globall
 Uses the `kubernetesCRD` provider — routes are defined as `IngressRoute` CRDs; no Docker socket.
 
 Routes to k8s services within the cluster or to `ExternalName` services for non-k8s targets
-(Proxmox, PBS, monitoring, scrutiny, torrent, foundry, glances, backlight, mcp).
+(Proxmox, PBS, monitoring, scrutiny, torrent, foundry, glances, backlight).
 
 Access logs written as JSON to stdout; shipped to Loki by the k8s Alloy DaemonSet
 with `job="traefik-access"` and parsed `router`/`status` labels.
@@ -349,7 +374,6 @@ Retention is 30 days. The Loki Ruler evaluates log-based alert rules and sends t
 | scrutiny | `docker`, `journal` |
 | dns-secondary | `docker` (adguard-exporter), `journal` |
 | fileserver | `journal` |
-| mcp | `journal` |
 | pbs | `journal` |
 | pve | `journal` |
 | ci | `journal` |
@@ -394,16 +418,26 @@ Grafana Alloy config at `/etc/alloy/config.alloy`. Logs ship to `192.168.1.44:31
 
 ---
 
-## MCP Server (LXC 109)
+## MCP Server (k8s)
 
 `nest-mcp` is an HTTP MCP server exposing live homelab state to AI assistants (Claude Code).
-Runs on port 8765, exposed externally at `https://mcp.arishaig.site` behind Authelia OIDC.
+It runs in the Talos cluster as a bjw-s app-template HelmRelease
+(`k8s/apps/nest-mcp/`): 3 replicas, multi-arch image `ghcr.io/arishaig/nest-mcp:latest`,
+port 8765, exposed at `https://mcp.arishaig.site` via an IngressRoute. There is no
+Authelia forwardAuth layer; the server validates Authelia-issued OIDC bearer JWTs itself.
+Secrets come from `nest-mcp-secrets` and `nest-mcp-ssh-key` (created by
+`playbooks/provision/k8s.yml`); in-cluster access uses the read-only `nest-mcp`
+ServiceAccount from `k8s/apps/mcp-rbac/`. Deploys: `build-mcp` pushes the image and
+`deploy-mcp` does a rollout restart when `mcp/**` changes. The old LXC 109 deployment has
+been torn down.
 
-Tools cover: Proxmox (VMs/LXCs/tasks/snapshots), PBS backups, Docker (containers/logs),
-Home Assistant entities, UniFi (clients/devices/firewall), AdGuard (rewrites/query log/stats),
-Prometheus (queries/alerts/targets), Loki (log queries), Jellyfin, *arr stack, Mealie,
-Jellyseerr, Scrutiny, seedbox, VPS (nftables/fail2ban/WireGuard/Vultr), and a `lab_health_summary`
-tool that gives a full live snapshot of the homelab in one call.
+Tools cover: Proxmox (VMs/LXCs/tasks/snapshots/storage), PBS backups, Kubernetes
+(pods/events/nodes/logs), Traefik routes, ZFS ARC and NFS, Docker (containers/logs),
+Home Assistant (entities, areas, automations), UniFi (clients/devices/firewall/WLANs),
+AdGuard (rewrites/query log/stats), Prometheus (queries/alerts/targets), Loki (log
+queries), Jellyfin, *arr stack, Mealie, Jellyseerr, Scrutiny, seedbox, VPS
+(nftables/fail2ban/WireGuard/Vultr), and a `lab_health_summary` tool that gives a full
+live snapshot of the homelab in one call.
 
 ---
 
@@ -463,7 +497,7 @@ Secrets: `inventory/group_vars/all/vault.yml` (ansible-vault, password in `~/.co
 
 `playbooks/site.yml` runs the full converge:
 1. `provision/common.yml` — node_exporter, BBR sysctl (all LXCs + VPS)
-2. Per-host provision playbooks (adguard, docker-host, vps, fileserver, monitoring, scrutiny, seedbox, pbs, nftables, mcp, foundry)
+2. Per-host provision playbooks (adguard, docker-host, vps, fileserver, monitoring, scrutiny, seedbox, pbs, nftables, foundry)
 3. `alloy.yml` — Grafana Alloy on all hosts
 4. `update-metrics.yml` (pending-update metrics) and `unattended-upgrades.yml` (daily Debian-Security upgrades, no reboots) on the LXCs and DNS Pis
 5. `update_apt.yml`, `update_docker.yml`, `update_proxmox.yml` (report-only unless `-e do_upgrade=true`)
@@ -529,7 +563,7 @@ WireGuard MTU is explicitly set to 1420 on both sides of the tunnel to avoid fra
 | Raspberry Pi OS | Hardware, provisioned manually | Ansible manages AdGuard/Unbound config only |
 | PiKVM OS / web credentials | Arch appliance; updates via `pikvm-update`, `kvmd-htpasswd` by hand | `provision/pikvm.yml` manages SSH, kvmd overrides and service state only. DHCP reservation for `.195` lives in UniFi |
 | PBS → PVE storage link | bpg/proxmox-ve has no storage_pbs resource type | Documented in `terraform/pve-storage.tf` |
-| UniFi firewall / VLANs | UDM controller UI, no API IaC | Documented in audit summary |
+| UniFi firewall / VLANs | UDM controller UI, no API IaC | Zones summarised in [Network segmentation](#network-segmentation-unifi) |
 | Home Assistant integrations | HAOS, not config-file driven | |
 | rclone Google Drive OAuth | Interactive auth, can't be automated | Must re-authorize on rebuild |
 | ProtonVPN WireGuard key | Generated per-device by ProtonVPN | Must regenerate on rebuild |

@@ -176,7 +176,7 @@ use the bjw-s `app-template` chart; cluster primitives use their official upstre
 | **Watchback** | — | Private (Isaac's own) | [arishaig/watchback](https://github.com/arishaig/watchback) |
 | **nest-mcp** | — | Private (Isaac's own) | this repo (`mcp/`) — homelab MCP server |
 
-> **nest-mcp** (LXC 109) is built on the [FastMCP / `mcp` Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+> **nest-mcp** (k8s, `k8s/apps/nest-mcp/`) is built on the [FastMCP / `mcp` Python SDK](https://github.com/modelcontextprotocol/python-sdk)
 > (MIT, ✅ FOSS) and `httpx` (BSD-3); it exposes live homelab state to Claude Code. Its test suite
 > uses `pytest` + `pytest-asyncio` + `pytest-cov`, and `genbadge` for the committed coverage badge.
 
@@ -219,7 +219,6 @@ All LXCs receive the following via `playbooks/provision/common.yml`:
 | 105 | monitoring | Docker CE, Prometheus, Grafana, Loki, Alertmanager, cAdvisor, pve-exporter, speedtest-exporter, unpoller |
 | 106 | dns-secondary | AdGuard Home (install script), Unbound, unbound_exporter v0.6.0, Docker CE |
 | 108 | ci | GitHub Actions self-hosted runner (recovery-critical deploy jobs); OpenTofu, ansible venv, kustomize/kubeconform/kubectl/shellcheck |
-| 109 | mcp | nest-mcp HTTP server (FastMCP, port 8765), systemd unit |
 | 111 | foundry | FoundryVTT game server |
 
 ### Talos VMs (Kubernetes control plane)
@@ -329,7 +328,6 @@ Proxmox VE (192.168.1.16)
 │   └── AdGuard Home + Unbound
 │
 ├── LXC 108: ci   └── GitHub Actions self-hosted runner (deploy jobs)
-├── LXC 109: mcp  └── nest-mcp (FastMCP HTTP server :8765)
 ├── LXC 111: foundry └── FoundryVTT
 │
 ├── VM 107: homeassistant (VLAN 4)
