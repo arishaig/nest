@@ -29,15 +29,16 @@ controllers (`flask`, `worker`, `postgres:15`), Postgres data on the raw
 ## Resources and placement
 
 - Soft preference for alpha (`workloads=general`), like the *arrs.
-- The worker is capped at **3 CPU / 6Gi** so the initial library analysis
-  can't starve Jellyfin and the *arrs on alpha's 8 vCPU. Expect the first full
-  analysis to take a long time on CPU (hours to days, depending on library
-  size); it's a one-time cost, later runs only process new tracks.
-- **GPU hook:** a commented block on the `worker` controller shows exactly
-  what to add to move analysis to omega's 3080 (`-nvidia` image tag,
-  `runtimeClassName: nvidia`, omega affinity, `nvidia.com/gpu`). One GPU
-  time-slice is free since Anagnorisis was removed; VRAM is shared, not
-  partitioned. Not enabled.
+- The web UI and Postgres prefer alpha. The first full analysis is a
+  one-time cost; later runs only process new tracks.
+- **The worker runs on omega's GPU** (since 2026-09-29). On alpha's 3
+  capped vCPUs the first full scan ran about 28 s per track (~45 h for the
+  library), mostly model inference. It now uses the `-nvidia` image,
+  `runtimeClassName: nvidia`, a required omega affinity and one of the four
+  GPU time-slices (VRAM is shared with subgen, tdarr-node and ollama, not
+  partitioned). While omega is booted into Windows the worker is Pending;
+  finished tracks are kept and interrupted ones are re-queued. The web UI and
+  Postgres stay on alpha. To go back to CPU, revert that change.
 
 ## Before merging: add the vault vars
 

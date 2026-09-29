@@ -41,8 +41,9 @@ spec:
     # `nvidia.com/gpu: 1` (k8s/apps/media/subgen.yaml,
     # k8s/apps/media/tdarr-node.yaml, k8s/apps/media/ollama.yaml) — would
     # leave some of them permanently Pending since the resource can't be
-    # shared. 4 replicas: those three plus one spare slot, freed when
-    # anagnorisis was removed (2026-09). At 3 slots, ollama's arrival in
+    # shared. 4 replicas: those three plus audiomuse-worker
+    # (k8s/apps/media/audiomuse.yaml), which took the slot anagnorisis
+    # freed (2026-09). At 3 slots, ollama's arrival in
     # 2026-08 left a consumer unschedulable
     # (see docs/gaming-gpu-talos.md). This multiplexes SMs, not the 10GB of
     # VRAM — four CUDA workloads sharing it concurrently is the ceiling to
