@@ -1,0 +1,283 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: audiomuse
+  namespace: media
+spec:
+  interval: 1h
+  # Explicit so kustomize-controller owns this field: a stray
+  # `flux suspend` is reverted on the next apps reconcile instead of
+  # silently freezing the release (25 media HRs sat suspended
+  # 2026-08-02..09-24). For break-glass, suspend the `apps` Kustomization.
+  suspend: false
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  # AudioMuse-AI: sonic analysis + "more like this" mixes for Jellyfin (its
+  # Jellyfin plugin backs Instant Mix). See docs/music-audiomuse.md.
+  #
+  # app-template rather than the upstream chart (NeptuneHub/AudioMuse-AI-helm):
+  # that chart's bundled Postgres mints a Helm-owned PVC with no existingClaim
+  # option (fails scripts/check-helm-pvc-safety.sh), defaults the image to
+  # `latest`, and still ships a Redis that AudioMuse 3.x no longer uses (the
+  # 3.6 compose file and config.py have no Redis). Shape mirrors upstream's
+  # deployment/docker-compose.yaml: flask + worker + postgres:15.
+  values:
+    # Prefer alpha (nest.arishaig.site/workloads=general), same as the *arrs.
+    # Image is multi-arch, so no arch nodeSelector.
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+    controllers:
+      flask:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=ghcr.io/neptunehub/audiomuse-ai
+              repository: ghcr.io/neptunehub/audiomuse-ai
+              tag: 3.6.3
+            env:
+              SERVICE_TYPE: flask
+              TZ: America/Los_Angeles
+              TEMP_DIR: /app/temp_audio
+              POSTGRES_HOST: audiomuse-postgres
+              POSTGRES_PORT: "5432"
+              POSTGRES_DB: audiomusedb
+              POSTGRES_USER: audiomuse
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: audiomuse-secret
+                    key: POSTGRES_PASSWORD
+              MEDIASERVER_TYPE: jellyfin
+              # In-cluster, not jellyfin.arishaig.site: keeps analysis
+              # downloads off Traefik/the ingress LB entirely.
+              JELLYFIN_URL: http://jellyfin.media.svc.cluster.local:8096
+              JELLYFIN_USER_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: audiomuse-secret
+                    key: JELLYFIN_USER_ID
+              JELLYFIN_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: audiomuse-secret
+                    key: JELLYFIN_TOKEN
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 8000
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 8000
+                  initialDelaySeconds: 10
+                  periodSeconds: 15
+                  timeoutSeconds: 10
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+      worker:
+        strategy: Recreate
+        # --- GPU HOOK (not enabled) -------------------------------------
+        # To move analysis onto omega's RTX 3080, add to this controller:
+        #
+        #   pod:
+        #     runtimeClassName: nvidia   # required or no GPU is attached
+        #     affinity:
+        #       nodeAffinity:
+        #         requiredDuringSchedulingIgnoredDuringExecution:
+        #           nodeSelectorTerms:
+        #             - matchExpressions:
+        #                 - key: nest.arishaig.site/workloads
+        #                   operator: In
+        #                   values: [omega]
+        #
+        # and on the container: tag `3.6.3-nvidia`, env
+        # NVIDIA_VISIBLE_DEVICES=all, NVIDIA_DRIVER_CAPABILITIES=compute,utility,
+        # USE_GPU_CLUSTERING="true", and `nvidia.com/gpu: "1"` in both
+        # requests and limits. Omega has a spare time-slice since
+        # anagnorisis was removed (nvidia-gpu-operator/helmrelease.yaml),
+        # but VRAM is shared with subgen/tdarr-node/ollama, not partitioned.
+        # Same pattern as k8s/apps/media/ollama.yaml.
+        # -----------------------------------------------------------------
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=ghcr.io/neptunehub/audiomuse-ai
+              repository: ghcr.io/neptunehub/audiomuse-ai
+              tag: 3.6.3
+            env:
+              SERVICE_TYPE: worker
+              TZ: America/Los_Angeles
+              TEMP_DIR: /app/temp_audio
+              POSTGRES_HOST: audiomuse-postgres
+              POSTGRES_PORT: "5432"
+              POSTGRES_DB: audiomusedb
+              POSTGRES_USER: audiomuse
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: audiomuse-secret
+                    key: POSTGRES_PASSWORD
+              MEDIASERVER_TYPE: jellyfin
+              # In-cluster, not jellyfin.arishaig.site: keeps analysis
+              # downloads off Traefik/the ingress LB entirely.
+              JELLYFIN_URL: http://jellyfin.media.svc.cluster.local:8096
+              JELLYFIN_USER_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: audiomuse-secret
+                    key: JELLYFIN_USER_ID
+              JELLYFIN_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: audiomuse-secret
+                    key: JELLYFIN_TOKEN
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
+            # CPU-only analysis. The limit keeps the one-time library scan
+            # from starving Jellyfin and the *arrs on alpha (8 vCPU); memory
+            # is capped because CLAP-class models already OOM'd this host
+            # once (anagnorisis, 2026-06-14 — see terraform/vm-talos.tf).
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: "3"
+                memory: 6Gi
+      postgres:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # Upstream compose pins postgres 15; major bumps are
+              # disabled for depName=postgres in renovate.json.
+              # renovate: datasource=docker depName=postgres
+              repository: postgres
+              tag: "15.19"
+            env:
+              POSTGRES_DB: audiomusedb
+              POSTGRES_USER: audiomuse
+              PGUSER: audiomuse
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: audiomuse-secret
+                    key: POSTGRES_PASSWORD
+              # PVC mounts at /var/lib/postgresql; DB lives in its /data
+              # subdir (same layout as k8s/apps/media/postgres.yaml).
+              PGDATA: /var/lib/postgresql/data
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["pg_isready"]
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["pg_isready"]
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+    service:
+      app:
+        controller: flask
+        # Two services in one release get suffixed (audiomuse-app); keep the
+        # plain name the Jellyfin plugin URL and IngressRoute use.
+        forceRename: audiomuse
+        ports:
+          http:
+            port: 8000
+            targetPort: 8000
+      postgres:
+        controller: postgres
+        ports:
+          postgres:
+            port: 5432
+            targetPort: 5432
+    persistence:
+      data:
+        existingClaim: audiomuse-data
+        advancedMounts:
+          postgres:
+            app:
+              - path: /var/lib/postgresql
+      # Scratch space for tracks downloaded from Jellyfin during analysis,
+      # and AudioMuse's installed-plugin cache (re-fetched on restart).
+      temp-audio:
+        type: emptyDir
+        sizeLimit: 10Gi
+        advancedMounts:
+          flask:
+            app:
+              - path: /app/temp_audio
+          worker:
+            app:
+              - path: /app/temp_audio
+      plugins:
+        type: emptyDir
+        advancedMounts:
+          flask:
+            app:
+              - path: /app/plugin/installed
+          worker:
+            app:
+              - path: /app/plugin/installed

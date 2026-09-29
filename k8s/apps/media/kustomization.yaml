@@ -78,6 +78,9 @@ resources:
   # --- ollama (local LLM inference, GPU; backs CutScript's AI features) ---
   - ollama-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - ollama.yaml  # HelmRelease (app-template)
+  # --- audiomuse (sonic analysis / Jellyfin Instant Mix; docs/music-audiomuse.md) ---
+  - audiomuse-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - audiomuse.yaml  # HelmRelease (app-template) — flask + worker + postgres
   - ingress-routes.yaml
 
 # Self-heal transient install/upgrade failures (e.g. helm-controller client
