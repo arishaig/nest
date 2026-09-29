@@ -8,6 +8,3 @@ paths-ignore:
   - '**/node_modules/**'
   - '**/tests/**'
   - '**/test/**'
-  - 'anagnorisis/static/**'
-  - 'anagnorisis/wiki/**'
-  - 'anagnorisis/research/**'

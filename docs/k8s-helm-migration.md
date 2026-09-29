@@ -105,7 +105,7 @@ Cluster-primitive charts:
 | **tools** | metube, medialyze, storyteller, copyparty | app-template |
 | **dashboard** | homepage | app-template |
 | **recipes** | mealie, postgres, postgres-exporter | app-template |
-| **your own** | anagnorisis, lidarr-ui, nest-mcp | app-template |
+| **your own** | lidarr-ui, nest-mcp | app-template |
 | **infrastructure** | traefik, cert-manager, metallb, kube-state-metrics, authelia(+redis), alloy, nfs-subdir, local-path | official charts |
 | **stays raw** | namespaces, cluster-issuer, metallb pools, storageclasses, mcp-rbac, ingress-routes, media NFS PV/PVC, rpi5-net-tuning | Kustomize |
 | **delete** | nginx-test | — |
@@ -201,7 +201,5 @@ Each phase is independently shippable.
   rendered-≠-file opacity this migration exists to remove.
 - **postgres:** keep simple as an app-template workload (not CloudNativePG) for
   now; revisit only if Postgres becomes load-bearing for more than mealie.
-- **anagnorisis:** no longer deferred — it is up and hashing; convert in the
-  `your own` pass.
 - **local-path-provisioner / cert-manager:** marginal / already coherent —
   optional, lowest priority.
