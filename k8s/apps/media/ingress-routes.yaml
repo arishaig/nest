@@ -373,6 +373,27 @@ spec:
           port: 11434
   tls: {}
 ---
+# Digarr (discovery-only trial). Authelia in front of Digarr's own local
+# login: its proxy-auth expects X-Forwarded-User, Authelia sends
+# Remote-User, and an OIDC client isn't worth it for a trial.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: digarr
+  namespace: media
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`digarr.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: digarr
+          port: 3000
+  tls: {}
+---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:

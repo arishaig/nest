@@ -51,6 +51,9 @@ resources:
   - medialyze.yaml  # HelmRelease (app-template) — replaces deployment+service
   - storyteller-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - storyteller.yaml  # HelmRelease (app-template) — replaces deployment+service
+  # --- digarr (AI music discovery, discovery-only trial; docs/music-digarr.md) ---
+  - digarr-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - digarr.yaml  # HelmRelease (app-template)
   # --- tracking / watchlists ---
   - watcharr-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - watcharr.yaml  # HelmRelease (app-template) — replaces deployment+service

@@ -1,0 +1,136 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: digarr
+  namespace: media
+spec:
+  interval: 1h
+  # Explicit so kustomize-controller owns this field: a stray
+  # `flux suspend` is reverted on the next apps reconcile instead of
+  # silently freezing the release (25 media HRs sat suspended
+  # 2026-08-02..09-24). For break-glass, suspend the `apps` Kustomization.
+  suspend: false
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  # Digarr: AI music discovery. TRIAL, DISCOVERY-ONLY — deliberately no
+  # LIDARR_URL / LIDARR_API_KEY, so it can recommend but never add or
+  # monitor anything. See docs/music-digarr.md before wiring Lidarr in.
+  # Mirrors upstream deploy/docker/docker-compose.pglite.yml (embedded
+  # PGlite, single container). Upstream's own Helm chart isn't used: it
+  # templates its PVCs (fails check-helm-pvc-safety).
+  values:
+    # Prefer alpha (nest.arishaig.site/workloads=general). Image is multi-arch.
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+    controllers:
+      digarr:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=ghcr.io/iuliandita/digarr
+              repository: ghcr.io/iuliandita/digarr
+              tag: 1.18.0
+            env:
+              PORT: "3000"
+              # Embedded PGlite; empty DSN vars force it (as upstream's compose does).
+              DB_PATH: /app/data
+              DATABASE_URL: ""
+              DB_HOST: ""
+              # Inside the one PVC mount: Digarr creates it as UID 1000.
+              # (A kubelet-created subPath dir on NFS would be root-owned.)
+              DIGARR_BACKUP_DIR: /app/data/backups
+              ALLOWED_ORIGIN: https://digarr.arishaig.site
+              TZ: America/Los_Angeles
+              # Encrypts stored connector tokens (ListenBrainz, Jellyfin) at rest.
+              DIGARR_ENCRYPTION_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: digarr-secret
+                    key: DIGARR_ENCRYPTION_KEY
+              # Local Ollama on omega (native provider, not openai-compatible).
+              # Omega is a dual-boot gaming PC: AI calls fail while it's in
+              # Windows. Model is pulled by hand — see docs/music-digarr.md.
+              # These only seed Digarr's settings on first boot; after that the
+              # AI provider is changed in its Settings UI (e.g. to compare with
+              # Claude), not here.
+              AI_PROVIDER: ollama
+              AI_MODEL: qwen3.5:9b
+              AI_BASE_URL: http://ollama.media.svc.cluster.local:11434
+              # Cold model loads on omega are slow, and qwen3.5 reasons before
+              # answering.
+              DIGARR_AI_TIMEOUT_SECONDS: "600"
+            securityContext:
+              readOnlyRootFilesystem: true
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["/app/healthcheck.sh"]
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["/app/healthcheck.sh"]
+                  initialDelaySeconds: 10
+                  periodSeconds: 15
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: false
+            # PGlite (Postgres-in-WASM) runs in-process; upstream calls 768M
+            # the safe floor and 1G for big libraries.
+            resources:
+              requests:
+                cpu: 50m
+                memory: 512Mi
+              limits:
+                memory: 1Gi
+    service:
+      app:
+        controller: digarr
+        ports:
+          http:
+            port: 3000
+            targetPort: 3000
+    persistence:
+      data:
+        existingClaim: digarr-data
+        advancedMounts:
+          digarr:
+            app:
+              - path: /app/data
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          digarr:
+            app:
+              - path: /tmp
