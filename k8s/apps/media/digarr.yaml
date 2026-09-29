@@ -69,11 +69,14 @@ spec:
               # Local Ollama on omega (native provider, not openai-compatible).
               # Omega is a dual-boot gaming PC: AI calls fail while it's in
               # Windows. Model is pulled by hand — see docs/music-digarr.md.
+              # These only seed Digarr's settings on first boot; after that the
+              # AI provider is changed in its Settings UI (e.g. to compare with
+              # Claude), not here.
               AI_PROVIDER: ollama
-              AI_MODEL: qwen3:14b
+              AI_MODEL: qwen3.5:9b
               AI_BASE_URL: http://ollama.media.svc.cluster.local:11434
-              # Cold model loads on omega (and partial CPU offload of a 14B
-              # model on a shared 10GB card) are slow.
+              # Cold model loads on omega are slow, and qwen3.5 reasons before
+              # answering.
               DIGARR_AI_TIMEOUT_SECONDS: "600"
             securityContext:
               readOnlyRootFilesystem: true

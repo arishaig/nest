@@ -42,37 +42,39 @@ AES-256-GCM. **Keep it:** lose it and those stored tokens are unreadable.
 **Merging is applying**: Flux deploys the app, `deploy-k8s` pushes the secret,
 and `deploy-terraform` adds the DNS rewrite.
 
-## Model (manual pull)
+## Model
 
-Settings: `AI_PROVIDER=ollama`, `AI_MODEL=qwen3:14b`,
-`AI_BASE_URL=http://ollama.media.svc.cluster.local:11434`. That's Digarr's
-native Ollama provider, in-cluster.
+The trial starts local, then compares against Claude.
 
-Ollama's models were all pulled by hand. There is no GitOps for models; the
-same gap exists for the three already there. Pull it from the LAN
-(`ollama.arishaig.site` is `local-only`):
-
-```bash
-curl -N https://ollama.arishaig.site/api/pull -d '{"model":"qwen3:14b"}'
-curl -s https://ollama.arishaig.site/api/tags | python3 -m json.tool | grep '"name"'
-```
-
-The pull goes to the `ollama-data` PVC (50Gi; about 9.3 GB needed).
+**Local (default):** `AI_PROVIDER=ollama`, `AI_MODEL=qwen3.5:9b`,
+`AI_BASE_URL=http://ollama.media.svc.cluster.local:11434` (Digarr's native
+Ollama provider, in-cluster). `qwen3.5:9b` is already pulled (6.6 GB); it fits
+entirely on the 3080 alongside subgen and tdarr. Ollama models are pulled by
+hand; there's no GitOps for them.
 
 Caveats:
-- **VRAM.** qwen3:14b is 9.3 GB of weights plus its context cache, on a
-  10 GB 3080. GPU time-slicing shares compute, not memory, with subgen,
-  tdarr-node (and, if enabled, AudioMuse's GPU hook). Expect Ollama to
-  offload part of the model to CPU, which is slower but works (the ollama pod
-  has 12Gi). With `OLLAMA_MAX_LOADED_MODELS=1`, a Digarr run also evicts
-  whatever model CutScript last loaded.
 - **Omega availability.** Omega is the dual-boot gaming PC. While it's in
   Windows, Ollama is Pending and every Digarr AI step fails. Run discovery
   when omega is up. The timeout is 600 s to survive cold loads.
-- **Thinking output.** qwen3 is a reasoning model. If Digarr's pipeline chokes
-  on its thinking output (malformed JSON in the Digarr logs), switch
-  `AI_MODEL` to `qwen3:8b` (5.2 GB, fits entirely in VRAM) or the existing
+- **One model at a time.** `OLLAMA_MAX_LOADED_MODELS=1`, so a Digarr scan
+  evicts whatever model was loaded last, and vice versa.
+- **Thinking output.** qwen3.5 is a reasoning model. If Digarr's pipeline
+  chokes on it (malformed JSON in the Digarr logs), try
   `qwen2.5:7b-instruct-ctx16k`.
+
+**Claude comparison:** Settings → AI provider → **Anthropic**, model
+`claude-sonnet-4-6`, API key = the AudioMuse key (vault
+`anthropic_audiomuse_api_key`; stored encrypted by Digarr, and spend shows up
+under that key). Run the same scan and compare.
+- **Why Sonnet 4.6:** Digarr's Anthropic provider forces a specific tool call
+  (`tool_choice: {type: "tool"}`), which the 5.5-generation models reject.
+  Digarr's own default, Haiku 4.5, also works but knows less about music.
+- **Cost:** not yet measured; estimated at roughly $0.10–0.50 per scan. Check
+  the Claude Console after the first scan.
+- **Data:** your taste profile (built from listening history) is sent to
+  Anthropic. The listens are public on ListenBrainz already.
+- The `AI_*` env vars in `digarr.yaml` only seed settings on first boot, so
+  switching providers is a UI change, not a commit.
 
 ## First run
 
@@ -115,8 +117,8 @@ Keep a short running note per scan:
 - **Operational:** scan duration, failures while omega was down, pod memory
   (1Gi limit; upstream says 768M is the floor for PGlite), and GPU contention
   with subgen and tdarr jobs (Grafana's dcgm panels).
-- **Model:** compare one scan on qwen3:14b with one on qwen3:8b. If they
-  aren't clearly different, the smaller model is kinder to the shared GPU.
+- **Model:** run the same scan on `qwen3.5:9b` and on `claude-sonnet-4-6`.
+  Compare hit rate and novelty against the per-scan cost of Claude.
 
 ## If you later add Lidarr access (don't do this yet)
 
@@ -132,8 +134,6 @@ It would involve:
   albums*. Otherwise one approval can queue a whole discography.
 - Choose the quality and metadata profiles deliberately. See
   `docs/music-lidarr-config.md`.
-- Keep an eye on overlap with the triage tool: Digarr-added albums will show
-  up as HOLD (no plays) until you listen.
 
 ## Rollback
 
@@ -143,5 +143,5 @@ IngressRoute, and `deploy-terraform` removes the DNS rewrite. Left behind:
   `/rpool/data/k8s-configs/media/digarr-data` (`Retain`);
 - the `digarr-secret` Secret;
 - the Jellyfin `digarr` API key (revoke it in Jellyfin);
-- the pulled model (`curl -X DELETE https://ollama.arishaig.site/api/delete
-  -d '{"model":"qwen3:14b"}'`).
+- the pulled model, if nothing else uses it (`curl -X DELETE
+  https://ollama.arishaig.site/api/delete -d '{"model":"qwen3.5:9b"}'`).
