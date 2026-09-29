@@ -94,6 +94,32 @@ Cluster-level IPs (not VMs): `192.168.1.115` Talos API VIP (port 6443 only — k
 in nftables mode does not serve NodePorts on it), `192.168.1.116` MetalLB metrics LB
 (shared by all exporter services), `192.168.1.117` MetalLB ingress LB (k8s Traefik).
 
+### Network segmentation (UniFi)
+
+VLANs, SSIDs and zone-based firewall rules live in the UniFi controller UI (not IaC, see
+[What Is Not Managed by IaC](#what-is-not-managed-by-iac)); nest-mcp's `unifi_*` tools read
+them live.
+
+| Zone | Subnet | What lives there | Egress |
+|---|---|---|---|
+| Internal | 192.168.1.0/24 | PVE, LXCs, Talos nodes, trusted clients | Internet; may reach IoT and Infra |
+| Infra | 192.168.7.0/24 (VLAN 7) | Primary/secondary AdGuard | Internet; may reach Internal monitoring |
+| IoT | 192.168.4.0/24 (VLAN 4) | Home Assistant, ESPHome devices, speakers, TV | Per-device groups: internet / local-only / none; may reach Internal monitoring; DNS via gateway (encrypted DNS only to Infra) |
+| CheapSlop | 192.168.8.0/24 | Cloud-dependent consumer IoT that won't onboard on the IoT SSID | Internet only; no rules to any other zone |
+| Work | 192.168.3.0/24 | Work devices | Internet, gateway, AdGuard DNS |
+
+**CheapSlop** (zone, network and SSID all share the name) exists because cheap
+cloud-onboarded devices fail to pair on the IoT SSID and report it as "wrong password".
+Its SSID uses the lowest-common-denominator settings: 2.4 GHz only, WPA2-only, PMF
+disabled, and an alphanumeric SSID and passphrase. Known failure modes: WPA2/WPA3
+transition mode (the device joins, sends nothing, and drops), and spaces or special
+characters in the SSID or passphrase. Its only custom rule is `Allow CheapSlop To
+Internet`. It is treated as untrusted: nothing may reach Internal or IoT, and Home
+Assistant talks to these devices through their vendor cloud rather than locally. First
+occupant: a Winix air purifier, which reaches HA through the HACS
+[`iprak/winix`](https://github.com/iprak/winix) integration using a second Winix account
+with the device shared to it, because Winix allows one session per account.
+
 ---
 
 ## Public Ingress Path
@@ -529,7 +555,7 @@ WireGuard MTU is explicitly set to 1420 on both sides of the tunnel to avoid fra
 | Raspberry Pi OS | Hardware, provisioned manually | Ansible manages AdGuard/Unbound config only |
 | PiKVM OS / web credentials | Arch appliance; updates via `pikvm-update`, `kvmd-htpasswd` by hand | `provision/pikvm.yml` manages SSH, kvmd overrides and service state only. DHCP reservation for `.195` lives in UniFi |
 | PBS → PVE storage link | bpg/proxmox-ve has no storage_pbs resource type | Documented in `terraform/pve-storage.tf` |
-| UniFi firewall / VLANs | UDM controller UI, no API IaC | Documented in audit summary |
+| UniFi firewall / VLANs | UDM controller UI, no API IaC | Zones summarised in [Network segmentation](#network-segmentation-unifi) |
 | Home Assistant integrations | HAOS, not config-file driven | |
 | rclone Google Drive OAuth | Interactive auth, can't be automated | Must re-authorize on rebuild |
 | ProtonVPN WireGuard key | Generated per-device by ProtonVPN | Must regenerate on rebuild |
