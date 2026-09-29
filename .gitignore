@@ -32,3 +32,13 @@ mcp/coverage.xml
 mcp/.coverage
 .pytest_cache/
 *.egg-info/
+
+# Personal listening data (music stack, docs/music-*.md) — never commit.
+# Spotify Extended Streaming History export and anything derived from it.
+spotify-history/
+**/Streaming_History_*.json
+**/my_spotify_data*.zip
+**/my_spotify_data/
+# lidarr-triage outputs contain play-derived reports and action logs
+tools/lidarr-triage/reports/
+tools/lidarr-triage/runs/
