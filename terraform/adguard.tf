@@ -53,6 +53,7 @@ locals {
     "backup.arishaig.site"       = "192.168.1.117"
     "watchback.arishaig.site"    = "192.168.1.117"
     "medialyze.arishaig.site"    = "192.168.1.117"
+    "digarr.arishaig.site"       = "192.168.1.117"
     "metube.arishaig.site"       = "192.168.1.117"
     "mcp.arishaig.site"          = "192.168.1.117"
     "ollama.arishaig.site"       = "192.168.1.117"

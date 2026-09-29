@@ -34,6 +34,11 @@
         - name: bazarr-api-key
           data:
             APIKEY: "{{ bazarr_api_key }}"
+        # Digarr (docs/music-digarr.md): encrypts stored connector tokens at
+        # rest. Deliberately no Lidarr key — discovery-only trial.
+        - name: digarr-secret
+          data:
+            DIGARR_ENCRYPTION_KEY: "{{ digarr_encryption_key }}"
         - name: prowlarr-api-key
           data:
             APIKEY: "{{ prowlarr_api_key }}"
