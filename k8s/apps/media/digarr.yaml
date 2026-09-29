@@ -59,6 +59,14 @@ spec:
               # (A kubelet-created subPath dir on NFS would be root-owned.)
               DIGARR_BACKUP_DIR: /app/data/backups
               ALLOWED_ORIGIN: https://digarr.arishaig.site
+              # Minimum gap between public MusicBrainz requests (default 1000).
+              # MusicBrainz rate-limits per source IP (~1 req/s) and the whole
+              # house shares one WAN IP; the first CSV import hit 100+ HTTP 503s
+              # in 30 min, and Digarr retries a 503 immediately, so ~4% of
+              # artists failed to resolve (2026-09-29). Env-only; applies on
+              # restart. Drop to 0 only if pointed at a local mirror
+              # (DIGARR_MUSICBRAINZ_URL).
+              DIGARR_MUSICBRAINZ_INTERVAL_MS: "1500"
               TZ: America/Los_Angeles
               # Encrypts stored connector tokens (ListenBrainz, Jellyfin) at rest.
               DIGARR_ENCRYPTION_KEY:
