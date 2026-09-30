@@ -201,6 +201,10 @@ spec:
               POSTGRES_DB: audiomusedb
               POSTGRES_USER: audiomuse
               PGUSER: audiomuse
+              # pg_isready (the probes below) otherwise defaults the database
+              # to PGUSER ("audiomuse", which doesn't exist) and logs a FATAL
+              # line on every probe.
+              PGDATABASE: audiomusedb
               POSTGRES_PASSWORD:
                 valueFrom:
                   secretKeyRef:
