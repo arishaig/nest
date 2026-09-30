@@ -19,6 +19,8 @@ def _headers() -> dict:
 _SEVERITY_ORDER = {"error": 0, "warning": 1, "info": 2}
 _SERVICE_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 _OPENING_CLASSES = {"door", "window", "opening", "garage_door"}
+# A script's key in scripts.yaml; it's also used as a URL path segment.
+_SCRIPT_ID_RE = re.compile(r"^[a-z0-9_]+$")
 # Renders the area list, the device ids that no longer resolve, and each
 # live device's entities (to suggest a state-trigger replacement) in one call.
 _REGISTRY_TEMPLATE = (
@@ -28,6 +30,14 @@ _REGISTRY_TEMPLATE = (
     "{%- else -%}{%- set ns.e = ns.e + [[d, device_entities(d)]] -%}{%- endif -%}{%- endfor -%}"
     "{{ {'areas': areas(), 'missing_devices': ns.m, 'device_entities': ns.e} | tojson }}"
 )
+
+
+async def _post_config(client, path: str, config: dict) -> None:
+    resp = await client.post(path, json=config)
+    if resp.status_code == 400:
+        # HA's validation message says what's wrong with the config.
+        raise ValueError(f"Home Assistant rejected the config: {resp.json().get('message', resp.text)}")
+    resp.raise_for_status()
 
 
 def _as_list(value) -> list:
@@ -283,11 +293,7 @@ def register(mcp: MCPServer) -> None:
                 existing = await client.get(f"/api/config/automation/config/{automation_id}")
                 if existing.status_code != 404:
                     raise ValueError(f"automation id {automation_id} already exists")
-            resp = await client.post(f"/api/config/automation/config/{automation_id}", json=automation)
-            if resp.status_code == 400:
-                # HA's validation message says what's wrong with the config.
-                raise ValueError(f"Home Assistant rejected the config: {resp.json().get('message', resp.text)}")
-            resp.raise_for_status()
+            await _post_config(client, f"/api/config/automation/config/{automation_id}", automation)
             return {"automation_id": automation_id, "alias": automation["alias"], "created": created}
 
     @mcp.tool()
@@ -297,6 +303,60 @@ def register(mcp: MCPServer) -> None:
             resp = await client.delete(f"/api/config/automation/config/{automation_id}")
             resp.raise_for_status()
             return {"deleted": automation_id}
+
+    # Scripts use the same config API, keyed by the script's key in scripts.yaml.
+    # Script states don't carry that key, so the list derives it from the
+    # entity_id, which matches unless the entity was renamed in the UI.
+
+    @mcp.tool()
+    async def ha_list_scripts() -> list[dict]:
+        """List Home Assistant scripts with their script_id (for ha_get_script), state (on = running now) and last run time."""
+        async with make_client(config.homeassistant.url, headers=_headers()) as client:
+            resp = await client.get("/api/states")
+            resp.raise_for_status()
+            return [
+                {
+                    "entity_id": s["entity_id"],
+                    "script_id": s["entity_id"].split(".", 1)[1],
+                    "alias": s["attributes"].get("friendly_name", ""),
+                    "state": s["state"],
+                    "last_triggered": s["attributes"].get("last_triggered"),
+                }
+                for s in sorted(resp.json(), key=lambda x: x["entity_id"])
+                if s["entity_id"].startswith("script.")
+            ]
+
+    async def _get_script(client, script_id: str) -> dict | None:
+        if not _SCRIPT_ID_RE.match(script_id):
+            raise ValueError(f"invalid script_id {script_id!r}: use lowercase letters, digits and underscores")
+        resp = await client.get(f"/api/config/script/config/{script_id}")
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        return resp.json()
+
+    @mcp.tool()
+    async def ha_get_script(script_id: str) -> dict:
+        """Get a Home Assistant script's full config (alias, fields, sequence, mode) by its script_id from ha_list_scripts."""
+        async with make_client(config.homeassistant.url, headers=_headers()) as client:
+            cfg = await _get_script(client, script_id)
+        if cfg is None:
+            raise ValueError(f"no script config for {script_id!r} (entity renamed, or script not defined in scripts.yaml?)")
+        return cfg
+
+    @mcp.tool()
+    async def ha_save_script(script_id: str, script: dict, create: bool = False) -> dict:
+        """[DESTRUCTIVE] Create or replace a Home Assistant script. The change is live immediately for every automation that calls it, and scripts may control physical devices. `script` is the full config as in scripts.yaml under its key: alias, description, fields, sequence, mode. With create=True, makes a new script with this script_id (lowercase letters, digits, underscores) and refuses if one exists. Otherwise the script must exist and is REPLACED entirely: fetch it with ha_get_script first and send the edited whole. Show the user the final config and confirm before calling."""
+        if not script.get("sequence"):
+            raise ValueError("script needs a sequence")
+        async with make_client(config.homeassistant.url, headers=_headers()) as client:
+            exists = await _get_script(client, script_id) is not None
+            if create and exists:
+                raise ValueError(f"script {script_id} already exists")
+            if not create and not exists:
+                raise ValueError(f"no script {script_id} to replace; pass create=True to make a new one")
+            await _post_config(client, f"/api/config/script/config/{script_id}", script)
+        return {"script_id": script_id, "alias": script.get("alias", ""), "created": create}
 
     async def _fetch_automations(client, automation_id: str = "") -> tuple[list[dict], dict, dict]:
         """(automation list, {id: config or None}, {entity_id: state}) in one pass."""

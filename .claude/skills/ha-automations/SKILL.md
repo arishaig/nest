@@ -16,6 +16,13 @@ Tools (nest-mcp):
 | `ha_audit_automations(automation_id="", include_info=True)` | Read-only. Lints for known bad patterns and reconciles every reference against live HA |
 | `ha_export_automations(automation_id="")` | Read-only. Full configs, in the shape `ha_save_automation` accepts |
 | `ha_get_automation` / `ha_save_automation` / `ha_delete_automation` | Read one, replace one (destructive), delete one (destructive) |
+| `ha_list_scripts` / `ha_get_script` / `ha_save_script` | Scripts the automations call: list, read one, create or replace one (destructive) |
+
+Scripts (`script.*`) are keyed by their scripts.yaml key, which
+`ha_list_scripts` derives from the entity_id. A script edit changes every
+automation that calls it, so before saving, find its callers: search
+`ha_export_automations` output for the script's entity_id. The audit doesn't
+cover scripts yet.
 
 ## Workflow
 
