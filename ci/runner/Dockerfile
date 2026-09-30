@@ -25,7 +25,7 @@ ARG KUSTOMIZE_VERSION=5.8.1
 # renovate: datasource=github-releases depName=yannh/kubeconform
 ARG KUBECONFORM_VERSION=0.8.0
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
-ARG KUBECTL_VERSION=1.32.0
+ARG KUBECTL_VERSION=1.37.1
 # shellcheck pinned to 0.10.0: the SC2015 exclude in the shellcheck lint job is
 # tuned to it (0.11.0 dropped that warning). renovate: datasource=github-releases depName=koalaman/shellcheck
 ARG SHELLCHECK_VERSION=0.10.0
