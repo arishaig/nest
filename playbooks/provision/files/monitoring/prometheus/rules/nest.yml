@@ -544,6 +544,26 @@ groups:
           summary: "Control-plane component {{ $labels.pod }} is restarting"
           description: "{{ $labels.container }} in {{ $labels.pod }} has restarted {{ $value | printf \"%.0f\" }} times in the last 30 minutes. Check apiserver/etcd health on talos-alpha-control (etcd disk-fsync latency is the usual cause on shared Proxmox storage)."
 
+      # Leading indicator for the restart alert above. etcd's own fsync
+      # histogram isn't exposed (no listen-metrics-urls on the sole control
+      # plane), but every etcd fdatasync becomes a flush on the VM's sda, and
+      # node-exporter already reports flush time. Baseline is ~3 ms median,
+      # ~20 ms p99 over 7 days. On 2026-09-30 a MediaDash recycle bin writing
+      # into a config PVC on the same NVMe rpool pushed it to ~670 ms (5m avg)
+      # and the scheduler/controller-manager lost their leases. >100 ms for
+      # 10m had never happened outside that incident.
+      - alert: ControlPlaneDiskFlushSlow
+        expr: |
+          rate(node_disk_flush_requests_time_seconds_total{job="node-k8s", instance="talos-alpha-control", device="sda"}[5m])
+            / rate(node_disk_flush_requests_total{job="node-k8s", instance="talos-alpha-control", device="sda"}[5m])
+            > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk flushes on talos-alpha-control are slow (etcd fsync at risk)"
+          description: "Average flush latency on {{ $labels.instance }} {{ $labels.device }} is {{ $value | humanizeDuration }} (baseline ~3 ms). Something is saturating the NVMe rpool that also holds etcd. Find the writer with topk(5, max by (dataset) (rate(node_zfs_zpool_dataset_nwritten{zpool=\"rpool\"}[5m]))), usually a bulk write into a k8s-configs PVC. Stop it before the scheduler and controller-manager lose their leases."
+
       # No separate KSM replica-availability rule is needed, contrary to
       # architecture review finding D2. That finding assumed two KSM replicas
       # behind the shared MetalLB IP, one of which could sit Failed while the
