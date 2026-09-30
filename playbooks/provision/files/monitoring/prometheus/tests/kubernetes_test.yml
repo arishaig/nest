@@ -37,3 +37,29 @@ tests:
       - eval_time: 160m
         alertname: KubePodEvicted
         exp_alerts: []
+
+  # Flush latency on the control-plane VM's disk. Baseline is 3 ms per flush
+  # (0.18 s of flush time per 60 flushes/min). From 30m it jumps to 500 ms, as
+  # it did when a bulk write into an rpool PVC starved etcd. The alert must
+  # stay quiet at baseline and fire once the slow period outlasts `for: 10m`.
+  - interval: 1m
+    input_series:
+      - series: 'node_disk_flush_requests_total{job="node-k8s", instance="talos-alpha-control", device="sda"}'
+        values: '0+60x80'
+      - series: 'node_disk_flush_requests_time_seconds_total{job="node-k8s", instance="talos-alpha-control", device="sda"}'
+        values: '0+0.18x30 5.4+30x50'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: ControlPlaneDiskFlushSlow
+        exp_alerts: []
+      - eval_time: 50m
+        alertname: ControlPlaneDiskFlushSlow
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node-k8s
+              instance: talos-alpha-control
+              device: sda
+            exp_annotations:
+              summary: "Disk flushes on talos-alpha-control are slow (etcd fsync at risk)"
+              description: "Average flush latency on talos-alpha-control sda is 500ms (baseline ~3 ms). Something is saturating the NVMe rpool that also holds etcd. Find the writer with topk(5, max by (dataset) (rate(node_zfs_zpool_dataset_nwritten{zpool=\"rpool\"}[5m]))), usually a bulk write into a k8s-configs PVC. Stop it before the scheduler and controller-manager lose their leases."
