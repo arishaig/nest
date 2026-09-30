@@ -1,0 +1,32 @@
+name: lidarr-triage Tests
+
+# Unit tests for tools/lidarr-triage (docs/music-lidarr-safety.md): matching,
+# scoring, buckets, and apply-mode ordering/abort paths against a mocked
+# Lidarr. All fixtures are synthetic; no real listening history is used.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/lidarr-triage/**'
+      - '.github/workflows/lidarr-triage-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lidarr-triage-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      - name: Install and run tests
+        working-directory: tools/lidarr-triage
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+          pytest
