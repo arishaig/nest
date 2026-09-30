@@ -70,19 +70,20 @@ spec:
               tag: 10.11.11-1
             env:
               # Library DB lives in the shared `postgres` service (DB: jellyfin),
-              # not a bundled instance — despite the image name.
+              # not a bundled instance — despite the image name. Connects as its
+              # own `jellyfin` role (DB owner, not superuser), not Mealie's.
               POSTGRES_HOST: postgres
               POSTGRES_PORT: "5432"
               POSTGRES_DB: jellyfin
               POSTGRES_USER:
                 valueFrom:
                   secretKeyRef:
-                    name: postgres-secret
+                    name: jellyfin-postgres-secret
                     key: POSTGRES_USER
               POSTGRES_PASSWORD:
                 valueFrom:
                   secretKeyRef:
-                    name: postgres-secret
+                    name: jellyfin-postgres-secret
                     key: POSTGRES_PASSWORD
             probes:
               liveness:
