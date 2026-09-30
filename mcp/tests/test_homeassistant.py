@@ -109,6 +109,83 @@ async def test_get_and_delete_automation(monkeypatch):
     assert await tools["ha_delete_automation"](automation_id="171") == {"deleted": "171"}
 
 
+# --- scripts ---
+
+async def test_list_scripts_derives_id_from_entity(monkeypatch):
+    patch_http(monkeypatch, homeassistant, {
+        "/api/states": [
+            {"entity_id": "automation.feed", "state": "on", "attributes": {"id": "171"}},
+            {"entity_id": "script.announce", "state": "off",
+             "attributes": {"friendly_name": "Announce", "last_triggered": "t"}},
+        ],
+    })
+    out = await load_tools(homeassistant)["ha_list_scripts"]()
+    assert out == [{"entity_id": "script.announce", "script_id": "announce",
+                    "alias": "Announce", "state": "off", "last_triggered": "t"}]
+
+
+async def test_get_script(monkeypatch):
+    patch_http(monkeypatch, homeassistant, {
+        "/api/config/script/config/announce": {"alias": "Announce", "sequence": []},
+    })
+    tools = load_tools(homeassistant)
+    assert (await tools["ha_get_script"](script_id="announce"))["alias"] == "Announce"
+    with pytest.raises(ValueError, match="no script config"):
+        await tools["ha_get_script"](script_id="gone")
+
+
+async def test_script_id_rejects_path_characters():
+    with pytest.raises(ValueError, match="invalid script_id"):
+        await load_tools(homeassistant)["ha_get_script"](script_id="../automation/config/1")
+
+
+def _script_route(exists: bool, posted: dict):
+    def route(request):
+        if request.method == "GET":
+            return {"alias": "Old", "sequence": []} if exists else (404, {"message": "Resource not found"})
+        posted["body"] = json.loads(request.content)
+        posted["path"] = request.url.path
+        return {"result": "ok"}
+    return route
+
+
+@pytest.mark.parametrize("exists, create", [(True, False), (False, True)])
+async def test_save_script_replaces_or_creates(monkeypatch, exists, create):
+    posted = {}
+    patch_http(monkeypatch, homeassistant, {"/api/config/script/config/*": _script_route(exists, posted)})
+    cfg = {"alias": "Announce", "sequence": [{"action": "tts.cloud_say"}]}
+    out = await load_tools(homeassistant)["ha_save_script"](script_id="announce", script=cfg, create=create)
+    assert out == {"script_id": "announce", "alias": "Announce", "created": create}
+    assert posted == {"body": cfg, "path": "/api/config/script/config/announce"}
+
+
+@pytest.mark.parametrize("exists, create, error", [
+    (True, True, "already exists"),
+    (False, False, "create=True"),
+])
+async def test_save_script_refuses_wrong_mode(monkeypatch, exists, create, error):
+    posted = {}
+    patch_http(monkeypatch, homeassistant, {"/api/config/script/config/*": _script_route(exists, posted)})
+    with pytest.raises(ValueError, match=error):
+        await load_tools(homeassistant)["ha_save_script"](
+            script_id="announce", script={"sequence": [{}]}, create=create)
+    assert not posted
+
+
+async def test_save_script_surfaces_validation_error(monkeypatch):
+    patch_http(monkeypatch, homeassistant, {
+        "/api/config/script/config/announce": lambda r: (
+            {"sequence": []} if r.method == "GET" else (400, {"message": "Message malformed: bad action"})),
+    })
+    with pytest.raises(ValueError, match="bad action"):
+        await load_tools(homeassistant)["ha_save_script"](script_id="announce", script={"sequence": [{}]})
+
+
+async def test_save_script_requires_sequence():
+    with pytest.raises(ValueError, match="sequence"):
+        await load_tools(homeassistant)["ha_save_script"](script_id="announce", script={"alias": "X"})
+
+
 # --- automation audit / export ---
 
 DOOR = "binary_sensor.test_door"
