@@ -189,6 +189,30 @@ much this detour cost.
 - On the node: `talosctl -n 192.168.1.120 get extensions` (both NVIDIA
   extensions listed) and `/proc/driver/nvidia/version`.
 
+## Scheduling taint
+
+omega carries `nest.arishaig.site/workloads=omega:PreferNoSchedule`
+(`KubeNodeConfig.taints` in `talos/patches/worker-omega.yaml`). Before it
+existed, any pod with only a soft "prefer alpha" affinity could land here,
+and by 2026-09 postgres, authelia, the Flux controllers, cert-manager and
+most of the *arrs had. All of them went down whenever omega booted into
+Windows. The taint is soft, so omega still takes overflow when the other
+nodes are full. The GPU workloads (subgen, ollama, tdarr-node,
+audiomuse-worker) tolerate it. Anything that must never run here also needs
+a hard `NotIn [omega]` node affinity, as jellyfin and postgres have.
+
+The patch only sets the taint when the node registers. Kubernetes'
+NodeRestriction admission stops a worker's kubelet from changing its own
+taints later, so after adding or changing it on a registered node, apply the
+same taint once by hand:
+
+```bash
+kubectl taint nodes talos-omega nest.arishaig.site/workloads=omega:PreferNoSchedule --overwrite
+```
+
+A taint doesn't evict running pods. Pods already on omega move off the next
+time they restart, or all at once the next time omega reboots into Windows.
+
 ## Upgrades
 
 Renovate bumps `talos_version` in `terraform.tfvars` and the installer tag in
@@ -218,6 +242,8 @@ apply, obviously.
   up, unlike whisper/subgen/radarr/sonarr which the user explicitly said are
   fine to reschedule. Hard anti-affinity in `k8s/apps/media/jellyfin.yaml`
   (`nest.arishaig.site/workloads NotIn [omega]`) enforces this.
+  The shared `postgres` (Jellyfin's library DB) carries the same hard
+  exclusion. Without it, Jellyfin went down with omega anyway.
 - **subgen wired to the GPU** (`k8s/apps/media/subgen.yaml`): hard-pinned to
   `omega` (was `general`/alpha), `mccloud/subgen:2026.07.3` (the CUDA-capable
   default image — the old `-cpu` tag can't use the GPU at all),

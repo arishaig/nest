@@ -7,10 +7,12 @@
 # for its RTX 3080, primarily for GPU-accelerated transcription workloads.
 # See docs/gaming-gpu-talos.md for the full runbook.
 #
-# Scope as of onboarding: this node runs nothing but the NVIDIA GPU Operator
-# (k8s/infrastructure/nvidia-gpu-operator/). Wiring an actual workload
-# (subgen/whisper) to request nvidia.com/gpu and prefer this node is a
-# deliberate follow-up, not done here.
+# Tainted PreferNoSchedule (KubeNodeConfig below) so pods without an explicit
+# toleration prefer the always-on nodes. Without it, anything with only a soft
+# "prefer alpha" affinity drifted here (postgres, authelia, the Flux
+# controllers…) and went down with omega. Soft, not NoSchedule: with 24 cores
+# omega is still the overflow when alpha/the Pis are full. The GPU workloads
+# (subgen, ollama, tdarr-node, audiomuse-worker) tolerate it.
 #
 # Jellyfin must NEVER schedule here — see the hard anti-affinity in
 # k8s/apps/media/jellyfin.yaml. Everything else that opts into this node's
@@ -72,6 +74,12 @@ nodeIP:
     - 192.168.1.0/24
 labels:
   nest.arishaig.site/workloads: omega
+# NodeRestriction stops a worker's kubelet from changing its own taints once
+# registered, so editing this on a live node does nothing until it
+# re-registers. After changing it, also apply it once by hand — see
+# docs/gaming-gpu-talos.md "Scheduling taint".
+taints:
+  nest.arishaig.site/workloads: omega:PreferNoSchedule
 ---
 apiVersion: v1alpha1
 kind: UnattendedInstallConfig

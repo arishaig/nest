@@ -32,6 +32,13 @@ spec:
     # no actual GPU device — a runtime failure invisible to kustomize/CI.
     defaultPodOptions:
       runtimeClassName: nvidia
+      # Tolerates omega's PreferNoSchedule taint (talos/patches/worker-omega.yaml)
+      # so the scheduler doesn't score this pod down on its own pinned node.
+      tolerations:
+        - key: nest.arishaig.site/workloads
+          operator: Equal
+          value: omega
+          effect: PreferNoSchedule
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
