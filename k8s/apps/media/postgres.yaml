@@ -22,6 +22,10 @@ spec:
     # Prefer alpha (nest.arishaig.site/workloads=general): stateful DB backing
     # the *arr/mealie stack. Soft so it can still reschedule if alpha is
     # unavailable.
+    # Hard exclusion from omega (the dual-boot gaming PC): Jellyfin, Mealie and
+    # the *arrs all depend on this DB, so it landing on omega (it did, via the
+    # soft preference alone, 2026-09) took them all down whenever omega booted
+    # into Windows — defeating Jellyfin's own omega exclusion.
     defaultPodOptions:
       affinity:
         nodeAffinity:
@@ -32,6 +36,12 @@ spec:
                   - key: nest.arishaig.site/workloads
                     operator: In
                     values: [general]
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: NotIn
+                    values: [omega]
     controllers:
       postgres:
         strategy: Recreate

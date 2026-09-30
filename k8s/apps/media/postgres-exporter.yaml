@@ -23,6 +23,7 @@ spec:
     # node-affine postgres it was unconstrained against (A3 in
     # architecture-review.md). Soft so it can still reschedule if alpha is
     # unavailable.
+    # Hard exclusion from omega, same as postgres itself.
     defaultPodOptions:
       affinity:
         nodeAffinity:
@@ -33,6 +34,12 @@ spec:
                   - key: nest.arishaig.site/workloads
                     operator: In
                     values: [general]
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: NotIn
+                    values: [omega]
     controllers:
       postgres-exporter:
         strategy: Recreate
