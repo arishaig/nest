@@ -89,19 +89,16 @@ audiomuse_jellyfin_token: "<new Jellyfin API key>"
 4. Dashboard → Scheduled Tasks now lists the AudioMuse tasks (analysis,
    clustering, sonic fingerprint). Run them once manually.
 
-**Version caveat.** Plugin releases 0.2.0 and later target Jellyfin 12.0.
-We're on Jellyfin 10.11 (`jellyfin.pgsql:10.11.11-1`), so Jellyfin will offer
-**0.1.55.0** (June 2026), the last 10.11 build. It's compiled against
-Jellyfin **10.11.10**: on 10.11.8 Jellyfin disabled it at startup
-(`Failed to load assembly … MediaBrowser.Controller, Version=10.11.10.0`),
-which is why Jellyfin is on 10.11.11. Keep Jellyfin at ≥ 10.11.10 while
-this plugin is installed. If Instant Mix ignores AudioMuse, grep Jellyfin's
+**Versions.** Jellyfin is on 12.1 (`jellyfin.pgsql:12.1-2`), so Jellyfin
+offers plugin **0.3.x** (0.3.5 as of 2026-09). Plugin 0.2.0 and later target
+Jellyfin 12; 0.1.55 was the last 10.11 build. The plugin gives no minimum
+AudioMuse server version. If Instant Mix ignores AudioMuse, grep Jellyfin's
 startup log for `AudioMuse` first.
 
-On 10.11, the plugin only replaces Instant Mix. It does **not** feed
-`/Items/{id}/Similar` ("More Like This"). Music Assistant's radio mode uses
-that endpoint, so it stays on Jellyfin's metadata-based similarity. The
-plugin's similar-items provider (0.2+) needs Jellyfin 12.
+On 12, the plugin replaces Instant Mix **and** registers a similar-items
+provider for `/Items/{id}/Similar` ("More Like This"). For that, enable
+AudioMuse under the music library's **Similar items** providers (Dashboard →
+Libraries → Music). Music Assistant's radio mode uses this endpoint.
 
 ## Which clients benefit
 
@@ -112,7 +109,8 @@ plugin's similar-items provider (0.2+) needs Jellyfin 12.
   support for the AudioMuse Jellyfin plugin ("Smart flows"; needs plugin
   ≥ 0.1.18, which 0.1.55 satisfies). Worth checking in its settings once the
   plugin is installed, rather than writing it off.
-- **Music Assistant:** no, not on Jellyfin 10.11 (see the version caveat).
+- **Music Assistant:** yes, for radio mode, via `/Items/{id}/Similar`. This needs
+  the Similar items provider enabled (see Versions).
 
 ## Rollback
 

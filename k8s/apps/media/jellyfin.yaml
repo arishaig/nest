@@ -67,7 +67,9 @@ spec:
             image:
               # renovate: datasource=docker depName=ghcr.io/jpvenson/jellyfin.pgsql
               repository: ghcr.io/jpvenson/jellyfin.pgsql
-              tag: 10.11.11-1
+              # Digest-pinned: the fork re-tags quickly, and every bump needs the
+              # offline rehearsal in docs/jellyfin-upgrades.md against this exact image.
+              tag: 12.1-2@sha256:b1cafefc4732895b9bece7da1787690aa462ee2e46e968b99c735754d95c785d
             env:
               # Library DB lives in the shared `postgres` service (DB: jellyfin),
               # not a bundled instance — despite the image name.
@@ -107,8 +109,20 @@ spec:
                   periodSeconds: 10
                   timeoutSeconds: 5
                   failureThreshold: 3
+              # Upgrades run DB migrations before /health answers (20 s for
+              # 12.1 in rehearsal, more if the stale-file cleanup deletes items).
+              # Liveness killing the pod mid-migration skips the plugin's restore,
+              # so give startup up to 15 min before liveness takes over.
               startup:
-                enabled: false
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 8096
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 90
             # 4Gi: the 2Gi limit OOM-killed Jellyfin repeatedly during evening
             # streaming (3× on 2026-07-07 alone) — this is the Jellyfin server
             # itself despite the pgsql name, and transcode/stream buffers spike
