@@ -4,7 +4,8 @@ from nest_mcp.http_client import make_client
 
 
 def _headers() -> dict:
-    return {"X-Emby-Token": config.jellyfin.key}
+    # Jellyfin 12 disables the legacy X-Emby-Token header by default.
+    return {"Authorization": f'MediaBrowser Token="{config.jellyfin.key}"'}
 
 
 def register(mcp: MCPServer) -> None:
