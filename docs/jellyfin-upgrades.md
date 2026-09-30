@@ -23,8 +23,10 @@ successfully". A later upgrade then fails on objects that "already exist".
 
 From `12.1-2` the restore drops and recreates `public`, then loads the dump in
 one transaction. Rehearsal showed it exact: same rows, FKs and indexes.
-Afterwards `public` is owned by `mealie` and has no `USAGE` grant to PUBLIC.
-Jellyfin doesn't care, since it connects as `mealie`.
+Afterwards `public` is owned by the connecting role (`jellyfin`) and has no
+`USAGE` grant to PUBLIC. Jellyfin doesn't care. The restore needs that role to
+own `public`, which a DB owner does. This was rehearsed as the non-superuser
+`jellyfin` role.
 
 The restore only covers the DB. Config-file changes made by migrations that
 ran before the failure stay. For example, `DisableLegacyAuthorization` sets
@@ -152,10 +154,14 @@ P=$(kubectl -n media get pod -l app.kubernetes.io/name=postgres -o name)
 kubectl -n media exec $P -- sh -c 'pg_dump -U "$POSTGRES_USER" -d jellyfin -Fc' > jellyfin.dump
 
 # 2. Local Postgres, same major as prod (k8s/apps/media/postgres.yaml).
+#    Jellyfin connects as the non-superuser `jellyfin` DB owner, like prod.
 docker network create jfr
-docker run -d --name jfr-pg --network jfr -e POSTGRES_USER=mealie \
-  -e POSTGRES_PASSWORD=rehearsal -e POSTGRES_DB=jellyfin -v "$PWD:/d:ro" postgres:18.6
-docker exec jfr-pg pg_restore -U mealie -d jellyfin --no-owner --role=mealie --exit-on-error /d/jellyfin.dump
+docker run -d --name jfr-pg --network jfr -e POSTGRES_USER=admin \
+  -e POSTGRES_PASSWORD=rehearsal -v "$PWD:/d:ro" postgres:18.6
+docker exec jfr-pg psql -U admin -d postgres -c "CREATE ROLE jellyfin LOGIN PASSWORD 'rehearsal'" \
+  -c "CREATE DATABASE jellyfin OWNER jellyfin"
+docker exec -e PGPASSWORD=rehearsal jfr-pg pg_restore -h localhost -U jellyfin -d jellyfin \
+  --no-owner --exit-on-error /d/jellyfin.dump
 
 # 3. Prod's config, root (library roots!) and plugins. Leave out
 #    database.xml (the entrypoint writes it from env) and
@@ -172,7 +178,7 @@ kubectl -n media exec $P -- sh -c 'psql -U "$POSTGRES_USER" -d jellyfin -At -c "
 #    __EFMigrationsHistory, per-Type BaseItems counts, UserData, /health,
 #    and /Items listings.
 docker run -d --name jfr-jf --network jfr -e POSTGRES_HOST=jfr-pg -e POSTGRES_PORT=5432 \
-  -e POSTGRES_DB=jellyfin -e POSTGRES_USER=mealie -e POSTGRES_PASSWORD=rehearsal \
+  -e POSTGRES_DB=jellyfin -e POSTGRES_USER=jellyfin -e POSTGRES_PASSWORD=rehearsal \
   -v "$PWD/cfg:/config" -v "$PWD/media:/data/media:ro" ghcr.io/jpvenson/jellyfin.pgsql:<new-tag>@<digest>
 
 # 6. Rollback check: start the *current* tag against the upgraded DB. If the
@@ -206,10 +212,10 @@ started cleanly on the upgraded DB.
    in one transaction:
    ```sql
    DROP SCHEMA public CASCADE;
-   CREATE SCHEMA public AUTHORIZATION pg_database_owner;
+   CREATE SCHEMA public AUTHORIZATION pg_database_owner;  -- as mealie (superuser)
    GRANT USAGE ON SCHEMA public TO PUBLIC;
    ```
-   then `pg_restore --no-owner --role=mealie --single-transaction
+   then `pg_restore --no-owner --role=jellyfin --single-transaction
    --exit-on-error`. **Replace** `/config/plugins` from the tar rather than
    unpacking over it, because newer-ABI plugin folders would otherwise stay.
 5. After success:
