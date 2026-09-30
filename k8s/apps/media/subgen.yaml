@@ -158,11 +158,16 @@ spec:
               # skip logic (subtitle_exists_in_language /
               # has_external_subtitle_in_language). Verified clean on one
               # small show (The Comeback) first; now widened to the full
-              # tv/movies library. Pipe-separated per subgen's
+              # tv/movies library, plus filler/ (short commercials/bumpers;
+              # subs there mostly exist so MediaDash stops flagging them —
+              # music-only clips may get junk Whisper lines, accepted).
+              # Clips shorter than DETECT_LANGUAGE_OFFSET are fine: the
+              # detect step fails soft and Whisper auto-detects instead.
+              # Pipe-separated per subgen's
               # TRANSCRIBE_FOLDERS syntax. Requires Bazarr's Whisper provider
               # staying disabled in its UI (not git-managed) so the two don't
               # fight over CONCURRENT_TRANSCRIPTIONS.
-              TRANSCRIBE_FOLDERS: "/data/media/tv|/data/media/movies"
+              TRANSCRIBE_FOLDERS: "/data/media/tv|/data/media/movies|/data/media/filler"
               MONITOR: "True"
               SKIP_ONLY_SUBGEN_SUBTITLES: "True"
               SKIP_IF_INTERNAL_SUBTITLES_LANGUAGE: ""
