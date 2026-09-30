@@ -28,6 +28,12 @@
           data:
             POSTGRES_USER: "{{ mealie_postgres_user }}"
             POSTGRES_PASSWORD: "{{ mealie_postgres_password }}"
+        # Jellyfin's own non-superuser role on the shared postgres, owning
+        # only the `jellyfin` DB (postgres-secret is Mealie's superuser).
+        - name: jellyfin-postgres-secret
+          data:
+            POSTGRES_USER: "{{ jellyfin_postgres_user }}"
+            POSTGRES_PASSWORD: "{{ jellyfin_postgres_password }}"
         - name: lidarr-api-key
           data:
             APIKEY: "{{ lidarr_api_key }}"
