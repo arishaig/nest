@@ -67,7 +67,7 @@ spec:
             image:
               # renovate: datasource=docker depName=ghcr.io/jpvenson/jellyfin.pgsql
               repository: ghcr.io/jpvenson/jellyfin.pgsql
-              tag: 10.11.11-1
+              tag: 10.11.8-1
             env:
               # Library DB lives in the shared `postgres` service (DB: jellyfin),
               # not a bundled instance — despite the image name.
