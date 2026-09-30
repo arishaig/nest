@@ -21,6 +21,17 @@ Up to and including `10.11.11-1`, step 3 is **not all-or-nothing**
 leave new columns, indexes and FKs behind, and still logs "restore completed
 successfully". A later upgrade then fails on objects that "already exist".
 
+From `12.1-2` the restore drops and recreates `public`, then loads the dump in
+one transaction. Rehearsal showed it exact: same rows, FKs and indexes.
+Afterwards `public` is owned by the connecting role (`jellyfin`) and has no
+`USAGE` grant to PUBLIC. Jellyfin doesn't care. The restore needs that role to
+own `public`, which a DB owner does. This was rehearsed as the non-superuser
+`jellyfin` role.
+
+The restore only covers the DB. Config-file changes made by migrations that
+ran before the failure stay. For example, `DisableLegacyAuthorization` sets
+`EnableLegacyAuthorization=false` in `system.xml`.
+
 ## 2026-09-30: 10.11.8 → 10.11.11 blocked, repaired
 
 The 10.11.11 bump (#641) failed with
@@ -59,6 +70,79 @@ END $$;
 COMMIT;
 ```
 
+## 2026-09-30: 10.11.11 → 12.1 (`12.1-2`)
+
+Stock `jellyfin/jellyfin:12.1` has two core migration routines that fail on
+Postgres. The fork doesn't patch Jellyfin core (upstream fork #47):
+- `20260910120000_MigrateRatingLevels` fails with `A command is already in
+  progress`. It streams a `Distinct()` while running `ExecuteUpdate`, which
+  Npgsql can't do. Any library with a rating hits it.
+- `20260911120000_StripEmbeddedLinkedChildren` fails with `42883`, because it
+  runs SQLite's `json_valid`/`json_remove`.
+
+Core routines are recorded in `__EFMigrationsHistory` like EF migrations, so
+we pre-insert them and Jellyfin skips them. We also skip
+`DisableLegacyAuthorization`, which keeps `X-Emby-Token`/`api_key` clients
+working; retiring legacy auth is a separate job. Run this before the first
+12.1 start. 10.11.11 ignores the extra rows (rehearsed):
+
+```sql
+\set ON_ERROR_STOP on
+INSERT INTO "__EFMigrationsHistory" ("MigrationId","ProductVersion") VALUES
+  ('20260531160000_DisableLegacyAuthorization','12.1.0.0'),
+  ('20260910120000_MigrateRatingLevels','12.1.0.0'),
+  ('20260911120000_StripEmbeddedLinkedChildren','12.1.0.0');
+```
+
+What skipping costs:
+- `InheritedParentalRatingValue` keeps its 10.11 values. That only matters
+  for users with a max parental rating.
+- Dead keys stay in the `Data` blobs until each item is next saved.
+
+**Every later 12.x bump needs the same check.** `release-12.z` already has
+another `MigrateRatingLevels` copy (`20260915120000`). Before each bump, list
+the new routines in `Jellyfin.Server/Migrations/Routines/` and look for the
+same patterns.
+
+There is **no downgrade**: 12.1 converts columns to `uuid` and adds the
+`LinkedChildren` table and FKs. To go back, restore the pre-upgrade dump (see
+the checklist) and replace `/config/plugins`.
+
+What the 12.x routines did to our DB in rehearsal:
+- merged 126 case-only duplicate MusicArtists;
+- moved 20 playlists' children into `LinkedChildren`;
+- refreshed 6.4k `CleanName`s;
+- **deleted no items** (`MigrateLinkedChildren`: "No stale items found").
+It took 20 s.
+
+Plugins: Jellyfin disables the 10.11 builds of Intro Skipper and Chapter
+Segments Provider and loads the rest. The "Update Plugins" task then installs
+the 12 builds (AudioMuse 0.3.5, Intro Skipper 12.0.4, Chapter Creator 0.6.1,
+Chapter Segments 5.0, LrcLib 5.0, Webhook 22.0, and the 12 ABI builds of File
+Transformation and MediaDash). After one restart, all of them are Active.
+ListenBrainz 6.5.3.4 stays; it supports 12.
+
+### `MigrateLinkedChildren` deletes items whose files are missing
+
+On first start, 12.x removes every non-folder item whose file is missing
+under a library root. It also removes items outside every root, but only
+while all roots are reachable. Library roots come from the `.mblink` files in
+`/config/root/default/*/`. **If `/config/root` is missing, there are no
+roots, so every media item counts as "outside every root" and is deleted.**
+
+An early rehearsal with only `config/` and `plugins/` copied lost 15,212
+items this way. That was the rehearsal copy, not prod. So:
+- Rehearse with `/config/root` included, and give the container a
+  `/data/media` holding an empty placeholder file at each item path (below).
+- Before the prod bump, check that every item path exists in the pod. Expect
+  0 missing:
+
+```sh
+P=$(kubectl -n media get pod -l app.kubernetes.io/name=postgres -o name)
+kubectl -n media exec $P -- sh -c 'psql -U "$POSTGRES_USER" -d jellyfin -At -c "select \"Path\" from \"BaseItems\" where \"Path\" like '"'"'/data/media/%'"'"' and not \"IsFolder\" and not \"IsVirtualItem\""' > paths.txt
+kubectl -n media exec -i deploy/jellyfin -- sh -c 'while IFS= read -r p; do [ -e "$p" ] || echo "MISSING $p"; done' < paths.txt | wc -l
+```
+
 ## Before any Jellyfin bump: rehearse offline
 
 Run the new image against a copy of the DB on a workstation with Docker. Don't
@@ -70,25 +154,44 @@ P=$(kubectl -n media get pod -l app.kubernetes.io/name=postgres -o name)
 kubectl -n media exec $P -- sh -c 'pg_dump -U "$POSTGRES_USER" -d jellyfin -Fc' > jellyfin.dump
 
 # 2. Local Postgres, same major as prod (k8s/apps/media/postgres.yaml).
+#    Jellyfin connects as the non-superuser `jellyfin` DB owner, like prod.
 docker network create jfr
-docker run -d --name jfr-pg --network jfr -e POSTGRES_USER=mealie \
-  -e POSTGRES_PASSWORD=rehearsal -e POSTGRES_DB=jellyfin -v "$PWD:/d:ro" postgres:18.6
-docker exec jfr-pg pg_restore -U mealie -d jellyfin --no-owner --role=mealie --exit-on-error /d/jellyfin.dump
+docker run -d --name jfr-pg --network jfr -e POSTGRES_USER=admin \
+  -e POSTGRES_PASSWORD=rehearsal -v "$PWD:/d:ro" postgres:18.6
+docker exec jfr-pg psql -U admin -d postgres -c "CREATE ROLE jellyfin LOGIN PASSWORD 'rehearsal'" \
+  -c "CREATE DATABASE jellyfin OWNER jellyfin"
+docker exec -e PGPASSWORD=rehearsal jfr-pg pg_restore -h localhost -U jellyfin -d jellyfin \
+  --no-owner --exit-on-error /d/jellyfin.dump
 
-# 3. New image, empty config. Expect "Startup complete", then check
-#    __EFMigrationsHistory, row counts and /health.
+# 3. Prod's config, root (library roots!) and plugins. Leave out
+#    database.xml (the entrypoint writes it from env) and
+#    plugins/configurations (holds the ListenBrainz token and Webhook targets).
+mkdir cfg && kubectl -n media exec deploy/jellyfin -- tar -C /config -cf - \
+  --exclude=config/database.xml --exclude=plugins/configurations \
+  config root plugins | tar -C cfg -xf -
+
+# 4. Placeholder media tree, so library roots look like prod's.
+kubectl -n media exec $P -- sh -c 'psql -U "$POSTGRES_USER" -d jellyfin -At -c "select \"Path\" from \"BaseItems\" where \"Path\" like '"'"'/data/media/%'"'"' and not \"IsFolder\" and not \"IsVirtualItem\""' \
+  | sed 's#^/data/media/##' | while IFS= read -r p; do mkdir -p "media/$(dirname "$p")"; : > "media/$p"; done
+
+# 5. New image, pinned by digest. Expect "Startup complete", then check
+#    __EFMigrationsHistory, per-Type BaseItems counts, UserData, /health,
+#    and /Items listings.
 docker run -d --name jfr-jf --network jfr -e POSTGRES_HOST=jfr-pg -e POSTGRES_PORT=5432 \
-  -e POSTGRES_DB=jellyfin -e POSTGRES_USER=mealie -e POSTGRES_PASSWORD=rehearsal \
-  -v "$PWD/cfg:/config" ghcr.io/jpvenson/jellyfin.pgsql:<new-tag>
+  -e POSTGRES_DB=jellyfin -e POSTGRES_USER=jellyfin -e POSTGRES_PASSWORD=rehearsal \
+  -v "$PWD/cfg:/config" -v "$PWD/media:/data/media:ro" ghcr.io/jpvenson/jellyfin.pgsql:<new-tag>@<digest>
 
-# 4. Rollback check: start the *current* tag against the upgraded DB.
-# 5. Clean up.
-docker rm -f jfr-jf jfr-pg && docker network rm jfr && rm -rf jellyfin.dump cfg
+# 6. Rollback check: start the *current* tag against the upgraded DB. If the
+#    new version can't be downgraded from, restore the dump instead
+#    (checklist step 3), then start the current tag.
+# 7. Clean up. The container writes as root, so remove cfg through docker.
+docker rm -f jfr-jf jfr-pg && docker network rm jfr
+docker run --rm --entrypoint rm -v "$PWD:/w" postgres:18.6 -rf /w/cfg /w/media
+rm -f jellyfin.dump
 ```
 
-The rehearsal uses an empty `/config`, so it doesn't exercise prod's plugins.
-Before merging a bump, check each installed plugin's target ABI against the
-new version.
+Stop the rehearsal container soon after checking. With the library roots
+readable, a library scan would start probing the empty placeholder files.
 
 For the 10.11.11 retry, the unrepaired DB reproduced the 42701 failure. The
 repaired DB applied `AddNormalizedUsername` → `UpdateNormalizedUsername` →
@@ -97,11 +200,25 @@ started cleanly on the upgraded DB.
 
 ## Prod rollout checklist
 
-1. `pg_dump -Fc` the `jellyfin` DB right before merging. Keep it off-cluster.
-2. Merge. Watch `kubectl -n media logs deploy/jellyfin -f` for
-   `Perform migration` / `Startup complete` / `FTL`.
-3. On failure: revert the tag. If the DB is left inconsistent (pre-12.1-2
-   restore), restore the dump yourself in one transaction:
-   drop and recreate `public`, then `pg_restore --single-transaction
-   --exit-on-error`.
-4. After success: remove the stray backups in `/config/data/PgsqlBackups/`.
+1. `pg_dump -Fc` the `jellyfin` DB right before merging, and tar
+   `/config/config` + `/config/plugins`. Keep both off-cluster.
+2. Apply any pre-seed SQL for the version (see the 12.1 section), and run the
+   missing-files check.
+3. Merge. Watch `kubectl -n media logs deploy/jellyfin -f` for
+   `Perform migration` / `Startup complete` / `FTL`. The startup probe allows
+   15 min before liveness can restart the pod.
+4. On failure: revert the tag. If the DB is left inconsistent (pre-12.1-2
+   restore, or a version with no downgrade path), restore the dump yourself
+   in one transaction:
+   ```sql
+   DROP SCHEMA public CASCADE;
+   CREATE SCHEMA public AUTHORIZATION pg_database_owner;  -- as mealie (superuser)
+   GRANT USAGE ON SCHEMA public TO PUBLIC;
+   ```
+   then `pg_restore --no-owner --role=jellyfin --single-transaction
+   --exit-on-error`. **Replace** `/config/plugins` from the tar rather than
+   unpacking over it, because newer-ABI plugin folders would otherwise stay.
+5. After success:
+   - restart once, so the updated plugins load;
+   - check that every plugin is Active;
+   - remove the stray backups in `/config/data/PgsqlBackups/`.
