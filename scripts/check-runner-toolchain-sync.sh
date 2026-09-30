@@ -2,9 +2,9 @@
 # Guards against CI toolchain drift: ci/runner/Dockerfile (lint.yml's container image) and
 # playbooks/provision/runner.yml (the LXC self-hosted runner) install the
 # same CLI tools for the same lint/deploy jobs and must stay on the same
-# versions. Renovate manages each pin independently (separate PRs, separate
-# merge times), so nothing previously stopped them drifting apart between
-# merges — this turns that into a loud CI failure instead of a silent one.
+# versions. Renovate tracks both files under the same depName, so one PR
+# bumps both (see the ci/runner/Dockerfile custom manager in renovate.json);
+# this catches hand edits or a manager regex that stops matching.
 set -euo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
@@ -42,8 +42,8 @@ done
 
 if [ "$mismatch" -ne 0 ]; then
   echo
-  echo "Bring both pins to the same version. Whichever Renovate PR lands second"
-  echo "for a shared dependency should bump the other file too."
+  echo "Bring both pins to the same version. If a Renovate PR only bumped one"
+  echo "file, the renovate.json manager for the other file has stopped matching."
   exit 1
 fi
 
