@@ -82,6 +82,11 @@
       "allowedVersions": "<8.0.0"
     },
     {
+      "description": "shellcheck (CI lint image) stays on 0.10.x — the SC2015 exclude in the shellcheck lint job is tuned to it (0.11.0 dropped that warning)",
+      "matchPackageNames": ["koalaman/shellcheck"],
+      "allowedVersions": "<0.11.0"
+    },
+    {
       "description": "gpu-operator: pinned to v26.3.3. The v26.7.0 bump (#520) wedged Flux — its pre-upgrade CRD hook Job never gets its hook ServiceAccount, the Helm upgrade fails, Flux can't roll back, and the failed HelmRelease stalls the whole infrastructure Kustomization (and apps behind it). Unpin once the v26.7+ CRD-hook upgrade path is verified working.",
       "matchDatasources": ["helm"],
       "matchPackageNames": ["gpu-operator"],
@@ -213,6 +218,24 @@
       "depNameTemplate": "fluxcd/flux2",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "kubectl version pin (CI) in runner.yml",
+      "managerFilePatterns": ["/playbooks/provision/runner\\.yml/"],
+      "matchStrings": ["kubectl_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "kubernetes/kubernetes",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "CI lint image toolchain pins in ci/runner/Dockerfile, keyed off the `# renovate:` comment ending the line above each ARG. Every pin here mirrors one in runner.yml under the same depName, so Renovate bumps both files in ONE PR (scripts/check-runner-toolchain-sync.sh fails CI if they drift). Without this manager nothing read those comments and every bump needed a hand-fix commit on the Renovate branch.",
+      "managerFilePatterns": ["/ci/runner/Dockerfile/"],
+      "matchStrings": [
+        "renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( extractVersion=(?<extractVersion>\\S+))?\\s*\\nARG [A-Z_]+=(?<currentValue>\\S+)"
+      ],
+      "extractVersionTemplate": "{{#if extractVersion}}{{{extractVersion}}}{{else}}^v?(?<version>.+)${{/if}}"
     },
     {
       "customType": "regex",
