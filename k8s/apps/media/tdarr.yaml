@@ -19,12 +19,20 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
-    # Prefer alpha (nest.arishaig.site/workloads=general): 2Gi limit fits
-    # delta but the tdarr server pairs with tdarr-node (alpha-pinned). Soft so
-    # it can still reschedule if alpha is unavailable.
+    # Prefer alpha (nest.arishaig.site/workloads=general); soft so it can
+    # still reschedule if alpha is unavailable. Never the 4GB Pis, though:
+    # the server grew to 1.7GiB on gamma-rpi5 (2026-09-30), starved kubelet
+    # and took the node NotReady — and because tdarr-data is NFS, the
+    # evicted copy kept running beside its replacement on the same DB.
     defaultPodOptions:
       affinity:
         nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: NotIn
+                    values: [rpi5]
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
               preference:
