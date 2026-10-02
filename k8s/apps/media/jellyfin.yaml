@@ -128,12 +128,17 @@ spec:
             # streaming (3× on 2026-07-07 alone) — this is the Jellyfin server
             # itself despite the pgsql name, and transcode/stream buffers spike
             # past 2Gi under concurrent use.
+            # 6Gi: MediaDash runs its x265 re-encode fixes as ffmpeg children
+            # inside this cgroup (~0.6-1.1Gi each); 6-8 of them in parallel
+            # OOM-killed the whole pod 10× between 2026-09-30 and 10-02. Keep
+            # MediaDash's fix concurrency low too — the limit alone won't
+            # hold 8 parallel encodes.
             resources:
               requests:
                 cpu: 100m
                 memory: 1Gi
               limits:
-                memory: 4Gi
+                memory: 6Gi
     service:
       app:
         controller: jellyfin
