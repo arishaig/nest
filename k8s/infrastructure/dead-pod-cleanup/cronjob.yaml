@@ -48,7 +48,7 @@ spec:
             runAsGroup: 65534
           containers:
             - name: cleanup
-              image: alpine/kubectl:1.37.0
+              image: alpine/kubectl:1.37.1
               env:
                 # kubectl's discovery cache needs a writable home.
                 - name: HOME
