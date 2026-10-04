@@ -1,0 +1,10 @@
+[project]
+name = "prepper-library"
+version = "0.1.0"
+description = "Fetch and convert the offline prepper/emergency reference library (content lives on the NAS, never in git)"
+requires-python = ">=3.12"
+dependencies = [
+    "libzim>=3.6",
+    "pyyaml>=6",
+    "requests>=2.32",
+]
