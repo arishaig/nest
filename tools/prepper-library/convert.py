@@ -95,9 +95,6 @@ def converter(ocr):
         opts.generate_picture_images = True
         opts.images_scale = 1.5
         opts.accelerator_options = AcceleratorOptions(num_threads=int(os.environ.get("DOCLING_THREADS", "4")))
-        # Models baked into the docling-serve image; otherwise downloaded from HF.
-        if os.environ.get("DOCLING_SERVE_ARTIFACTS_PATH"):
-            opts.artifacts_path = os.environ["DOCLING_SERVE_ARTIFACTS_PATH"]
         _converters[ocr] = DocumentConverter(
             format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
         )

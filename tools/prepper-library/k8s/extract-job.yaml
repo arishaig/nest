@@ -49,6 +49,13 @@ spec:
           env:
             - name: HOME
               value: /tmp
+            # uid 1000 has no passwd entry in this image; without these,
+            # getpass.getuser() raises during docling's plugin loading and
+            # every layout model fails to register ("No class found ...").
+            - name: USER
+              value: prepper
+            - name: LOGNAME
+              value: prepper
             - name: DOCLING_THREADS
               value: "6"
             - name: OMP_NUM_THREADS
