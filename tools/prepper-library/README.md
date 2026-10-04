@@ -35,6 +35,7 @@ Tested 2026-10-04 on FM 21-76, *Where There Is No Doctor*, and an 1893 Survivor 
   - ALL-CAPS → h2
   - everything else → h3
   - the printed table of contents is dropped
+- **Image captions:** docling gives every picture the placeholder alt text `Image`, which pandoc turns into a figure caption. The post-pass empties that alt text so uncaptioned images get no caption; real captions come through as their own text.
 - **Multi-part books:** each part becomes one chapter. This is why the 2025 Hesperian per-chapter PDFs are preferred over the older single-file edition.
 - **Scans (Survivor Library):** the 1893 test scan already had a text layer of decent quality. Its old-OCR errors (`tlie`→`the`) are mostly in headings, and a dictionary-checked correction pass should fix them. A forced full-page RapidOCR run returned very little text. That run looks misconfigured rather than conclusive, so OCR is still an open question until we know how many Survivor Library PDFs lack a text layer.
 - **Medical tables:** table columns drawn as icons are lost (for example, STI protection in the family-planning table). Medical EPUBs therefore always ship with the original PDF alongside, and get a manual table review before going on a device.
