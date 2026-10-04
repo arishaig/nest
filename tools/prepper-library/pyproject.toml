@@ -8,3 +8,10 @@ dependencies = [
     "pyyaml>=6",
     "requests>=2.32",
 ]
+
+[project.optional-dependencies]
+convert = [
+    "docling>=2.133",
+    "pypandoc_binary>=1.15",
+    "pyspellchecker>=0.8",
+]

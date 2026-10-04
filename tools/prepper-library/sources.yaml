@@ -192,3 +192,19 @@ sources:
     path: Vegetable_Gardening_and_Canning.pdf
   # Where_There_Is_No_Doctor.pdf (older edition) is superseded by the 2025
   # Hesperian parts above and intentionally not migrated.
+
+# --- Survivor Library (survivorlibrary.com) ---------------------------------
+# 1800s-early-1900s technical books, ~13.7k scanned PDFs (~200 GB), nearly all
+# with an OCR text layer. survivor.py mirrors these categories (or --all) to
+# the NAS at reference/survivor-library/<site category>/; convert.py treats
+# each PDF as a book, filed under the mapped category/priority below.
+# NB: historical — e.g. 1890s canning advice predates modern food-safety
+# guidance (the USDA guide above is the reference for that).
+survivor_library:
+  medical: {priority: 3, site: [medical_emergency, medical_nursing, medical_courses_us_army, dentistry, herbalism]}
+  water: {priority: 3, site: [sanitation, sewage]}
+  food: {priority: 3, site: [canning, food, butchering, cheese_and_butter, baking]}
+  shelter-survival: {priority: 3, site: [survival_individual, shelter, trapping_hunting, fishing, boy_scout_manuals]}
+  preparedness: {priority: 3, site: [nbc]}
+  agriculture: {priority: 4, site: [farming, poultry, beekeeping, livestock_cattle, livestock_sheep, livestock_swine, veterinary, mushrooms, berries]}
+  tools-building: {priority: 4, site: [smithing, forging_and_casting, wood_carpentry, stone_and_masonry, soap, leather, weaving]}
