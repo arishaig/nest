@@ -5,21 +5,38 @@ Pipeline per book: docling (PDF -> Markdown + images, cached by the PDF's
 sha256) -> normalize (heading hierarchy, printed-TOC removal, placeholder
 alt text, old-OCR fixes) -> pandoc (EPUB3 with metadata, cover, TOC) -> QA.
 
+Modes:
+    all      (default) extract locally as needed, then package
+    extract  queue worker: claim PDFs one at a time and extract them into the
+             shared cache. Several workers (k8s Job on omega, --workers N, or
+             other machines with the NAS mounted) can run against one --root.
+    package  build EPUBs from the cache only; books not yet extracted are
+             reported as pending
+
     uv run --extra convert convert.py --pull          # rsync sources from the NAS first
     uv run --extra convert convert.py --only zimgit-water
-    uv run --extra convert convert.py --push          # rsync built EPUBs to the NAS
+    uv run --extra convert convert.py extract --root /mnt/reference --workers 4
+    uv run --extra convert convert.py package --pull-cache --push
 
-Layout (all under data/, gitignored):
-    sources/<category>/<id>/...       inputs (fetch.py / NAS)
-    extracted/<sha256>/book.md, img/  docling cache, reused across runs
-    ebooks/<category>/<id>/*.epub     output (+ original PDF for medical)
+Layout under --root (default data/, gitignored; on the NAS: media/reference):
+    sources/<category>/<id>/...       inputs (fetch.py)
+    survivor-library/<category>/...   inputs (survivor.py)
+    extracted/<sha256>/               docling cache: book.md, img/, cover.jpg, info.json
+    extracted/_bypath/<key>           relative path -> sha256 (saves re-hashing)
+    extracted/_claims/<key>           worker claims (stale after CLAIM_TTL)
+    ebooks/<category>/<id>.epub       output (+ original PDF for medical)
     qa.json                           per-book quality metrics
 """
 
 import argparse
+import collections
 import hashlib
 import itertools
 import json
+import multiprocessing
+import os
+import random
+import socket
 import re
 import shutil
 import subprocess
@@ -31,6 +48,8 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
+ROOT = DATA  # overridden by --root
+CLAIM_TTL = 3 * 3600  # seconds after which another worker may take over a claim
 NAS = "root@192.168.1.16:/Tank/media_root/media/reference"
 SSH_KEY = Path.home() / ".ssh" / "ansible-on-nest"
 MIN_CHARS_PER_PAGE = 100  # below this the PDF has no usable text layer
@@ -63,6 +82,7 @@ _converters = {}
 def converter(ocr):
     """docling converter; OCR (tesseract) only for PDFs with no text layer."""
     if ocr not in _converters:
+        from docling.datamodel.accelerator_options import AcceleratorOptions
         from docling.datamodel.base_models import InputFormat
         from docling.datamodel.pipeline_options import PdfPipelineOptions, TesseractCliOcrOptions
         from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -70,22 +90,26 @@ def converter(ocr):
         opts = PdfPipelineOptions()
         opts.do_ocr = ocr
         if ocr:
-            opts.ocr_options = TesseractCliOcrOptions(force_full_page_ocr=True)
+            opts.ocr_options = TesseractCliOcrOptions(lang=["eng"], force_full_page_ocr=True)
         opts.do_table_structure = True
         opts.generate_picture_images = True
         opts.images_scale = 1.5
+        opts.accelerator_options = AcceleratorOptions(num_threads=int(os.environ.get("DOCLING_THREADS", "4")))
+        # Models baked into the docling-serve image; otherwise downloaded from HF.
+        if os.environ.get("DOCLING_SERVE_ARTIFACTS_PATH"):
+            opts.artifacts_path = os.environ["DOCLING_SERVE_ARTIFACTS_PATH"]
         _converters[ocr] = DocumentConverter(
             format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
         )
     return _converters[ocr]
 
 
-def extract(pdf, ocr_missing):
+def extract(pdf, ocr_missing, digest=None):
     """PDF -> cached Markdown dir. Returns (dir, info) or (None, info)."""
     from docling_core.types.doc import ImageRefMode
 
-    digest = sha256(pdf)
-    out = DATA / "extracted" / digest
+    digest = digest or resolve(pdf)
+    out = ROOT / "extracted" / digest
     info_path = out / "info.json"
     if info_path.exists():
         info = json.loads(info_path.read_text())
@@ -101,14 +125,100 @@ def extract(pdf, ocr_missing):
     try:
         doc = converter(ocr).convert(str(pdf)).document
     except Exception as e:  # corrupt/odd PDFs: record and move on
-        info.update(status="error", error=str(e)[:300])
-        info_path.write_text(json.dumps(info, indent=1))
+        info.update(status="error", error=str(e)[:300])  # not cached: retried next run
         return None, info
     # artifacts_dir is resolved relative to the markdown file's directory
     doc.save_as_markdown(out / "book.md", image_mode=ImageRefMode.REFERENCED, artifacts_dir=Path("img"))
-    info.update(status="ok", seconds=round(time.time() - t))
-    info_path.write_text(json.dumps(info, indent=1))
+    render_cover(pdf, out / "cover.jpg")  # here, so packaging doesn't need the PDF
+    info.update(status="ok", seconds=round(time.time() - t), host=socket.gethostname())
+    # info.json last: its presence marks the cache entry complete
+    tmp = out / "info.json.tmp"
+    tmp.write_text(json.dumps(info, indent=1))
+    tmp.replace(info_path)
     return out, info
+
+
+# ------------------------------------------------------------- work queue
+
+
+def path_key(pdf):
+    return hashlib.sha1(pdf.relative_to(ROOT).as_posix().encode()).hexdigest()
+
+
+def resolve(pdf):
+    """sha256 of a PDF via the shared by-path index; hash and record on a miss."""
+    marker = ROOT / "extracted" / "_bypath" / path_key(pdf)
+    if marker.exists():
+        return marker.read_text().strip()
+    digest = sha256(pdf)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    tmp = marker.with_name(f"{marker.name}.{os.getpid()}.tmp")
+    tmp.write_text(digest)
+    tmp.replace(marker)
+    return digest
+
+
+def claim(key):
+    """Atomically claim a PDF (O_EXCL create is atomic on NFSv4)."""
+    path = ROOT / "extracted" / "_claims" / key
+    path.parent.mkdir(parents=True, exist_ok=True)
+    for _ in range(2):
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, f"{socket.gethostname()} {os.getpid()} {time.time():.0f}".encode())
+            os.close(fd)
+            return True
+        except FileExistsError:
+            try:
+                if time.time() - path.stat().st_mtime < CLAIM_TTL:
+                    return False
+                path.unlink()  # stale: its worker died (e.g. omega rebooted)
+            except FileNotFoundError:
+                pass
+    return False
+
+
+def release(key):
+    try:
+        (ROOT / "extracted" / "_claims" / key).unlink()
+    except FileNotFoundError:
+        pass
+
+
+def done(pdf):
+    marker = ROOT / "extracted" / "_bypath" / path_key(pdf)
+    return marker.exists() and (ROOT / "extracted" / marker.read_text().strip() / "info.json").exists()
+
+
+def worker(n, ocr, only):
+    """Extract every PDF not yet in the cache; exit when a pass finds nothing."""
+    manifest = yaml.safe_load((HERE / "sources.yaml").read_text())
+    tag = f"{socket.gethostname()}/{n}"
+    while True:
+        pdfs = list(dict.fromkeys(
+            pdf for book_id, _, parts in all_books(manifest)
+            if not only or any(book_id.startswith(o) for o in only) for pdf in parts))
+        random.Random(f"{tag}{time.time()}").shuffle(pdfs)  # spread workers apart
+        worked = 0
+        for pdf in pdfs:
+            if done(pdf):
+                continue
+            key = path_key(pdf)
+            if not claim(key):
+                continue
+            try:
+                out, info = extract(pdf, ocr)
+                if out:
+                    worked += 1
+                print(f"[{tag}] {info['status']:8} {info.get('seconds', 0):5}s "
+                      f"{info['pages']:4}pp {pdf.relative_to(ROOT)}", flush=True)
+            except Exception as e:
+                print(f"[{tag}] FAILED {pdf.relative_to(ROOT)}: {e}", flush=True)
+            finally:
+                release(key)
+        if not worked:
+            print(f"[{tag}] nothing left to claim", flush=True)
+            return
 
 
 # ------------------------------------------------------------- normalizing
@@ -209,6 +319,9 @@ def normalize(md, as_part=False):
     # docling's placeholder alt text "Image" becomes a bogus figure caption in
     # pandoc; empty alt -> plain image. Real captions are separate text blocks.
     md = re.sub(r"!\[Image\]\(", "![](", md)
+    # docling placeholders (e.g. <!-- formula-not-decoded -->) would render as
+    # literal text with raw_html off; drop them (counted in QA beforehand)
+    md = re.sub(r"<!--.*?-->", "", md, flags=re.S)
     if not as_part:
         # Promote so the book's top heading level is h1 (otherwise a book
         # with only h3s gets an empty TOC at --toc-depth=2).
@@ -226,16 +339,19 @@ WORD = re.compile(r"\b[A-Za-z]{3,}\b")
 
 
 def fix_ocr(md):
-    """Dictionary-checked repair of common old-OCR errors. Returns (md, fixes)."""
+    """Dictionary-checked repair of common old-OCR errors.
+
+    Only for scanned sources (Survivor Library, OCR'd PDFs): on born-digital
+    text the substitutions do more harm than good ('Iid' -> 'nd').
+    Returns (md, Counter of 'old->new' pairs)."""
     global _spell
     if _spell is None:
         from spellchecker import SpellChecker
 
         _spell = SpellChecker()
-    fixes = 0
+    fixes = collections.Counter()
 
     def repl(m):
-        nonlocal fixes
         w = m.group(0)
         lw = w.lower()
         if lw in _spell:
@@ -244,10 +360,9 @@ def fix_ocr(md):
             if bad in lw:
                 cand = lw.replace(bad, good)
                 if cand in _spell:
-                    fixes += 1
-                    if w.isupper():
-                        return cand.upper()
-                    return cand.capitalize() if w[0].isupper() else cand
+                    new = cand.upper() if w.isupper() else cand.capitalize() if w[0].isupper() else cand
+                    fixes[f"{w}->{new}"] += 1
+                    return new
         return w
 
     # leave image paths and table separators alone
@@ -307,7 +422,10 @@ def package(md_chunks, resource_dirs, meta, cover_pdf, dest):
         body.append(md.replace("](img/", f"](img{n}/"))
     (work / "book.md").write_text("\n\n".join(body))
     cover = work / "cover.jpg"
-    render_cover(cover_pdf, cover)
+    if (resource_dirs[0] / "cover.jpg").exists():
+        shutil.copy2(resource_dirs[0] / "cover.jpg", cover)
+    else:
+        render_cover(cover_pdf, cover)
     md_meta = {
         "title": meta["title"],
         "creator": [{"role": "author", "text": meta["author"]}] if meta.get("author") else [],
@@ -321,7 +439,7 @@ def package(md_chunks, resource_dirs, meta, cover_pdf, dest):
     }
     (work / "meta.yaml").write_text(yaml.safe_dump(md_meta, allow_unicode=True))
     pypandoc.convert_file(
-        str(work / "book.md"), "epub3", format="markdown-raw_html-raw_tex",
+        str(work / "book.md"), "epub3", format="markdown-raw_html-raw_tex-superscript-subscript-tex_math_dollars-tex_math_single_backslash",
         outputfile=str(dest),
         extra_args=["--toc", "--toc-depth=2", "--split-level=1", f"--resource-path={work}",
                     f"--metadata-file={work / 'meta.yaml'}",
@@ -361,6 +479,16 @@ def books(manifest, src_root):
                 yield f"{s['id']}--{Path(m['file']).stem}", meta, [d / m["file"]]
 
 
+def save_qa(path, qa):
+    """Merge this run's entries over what's on disk (another run may be
+    writing too) and write atomically."""
+    current = json.loads(path.read_text()) if path.exists() else {}
+    current.update(qa)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(current, indent=1, sort_keys=True))
+    tmp.replace(path)
+
+
 def survivor_title(raw):
     """'A_Treatise_On_Canning-1917' -> 'A Treatise on Canning (1917)'."""
     m = re.match(r"^(.*?)[-_](1[6-9]\d\d|20[0-2]\d)$", raw)
@@ -384,57 +512,98 @@ def survivor_books(manifest, root):
                     meta = {"title": survivor_title(b["title"]), "author": "", "category": category,
                             "publisher": "Survivor Library", "priority": cfg["priority"],
                             "license": "Public domain (historical)",
-                            "description": f"survivorlibrary.com / {site_cat}"}
+                            "description": f"survivorlibrary.com / {site_cat}", "scan": True}
                     yield f"survivor--{pdf.stem}", meta, [pdf]
 
 
+def all_books(manifest):
+    return itertools.chain(books(manifest, ROOT / "sources"), survivor_books(manifest, ROOT / "survivor-library"))
+
+
+def cached(pdf):
+    """(dir, info) from the cache without extracting, or (None, info)."""
+    digest = resolve(pdf)
+    info_path = ROOT / "extracted" / digest / "info.json"
+    if not info_path.exists():
+        return None, {"status": "pending-extraction", "pages": 0, "chars_per_page": 0}
+    info = json.loads(info_path.read_text())
+    return (info_path.parent if info["status"] == "ok" else None), info
+
+
 def main():
+    global ROOT
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("mode", nargs="?", choices=["all", "extract", "package"], default="all")
+    ap.add_argument("--root", type=Path, default=DATA, help="library root (see Layout)")
+    ap.add_argument("--workers", type=int, default=1, help="extract: parallel worker processes")
+    ap.add_argument("--pull-cache", action="store_true", help="package: rsync the NAS extraction cache first")
     ap.add_argument("--only", nargs="*", help="source ids (prefix match) to convert")
     ap.add_argument("--ocr", action="store_true", help="also OCR PDFs with no text layer (slow)")
     ap.add_argument("--force", action="store_true", help="rebuild EPUBs that already exist")
     ap.add_argument("--pull", action="store_true", help="rsync sources from the NAS first")
     ap.add_argument("--push", action="store_true", help="rsync ebooks to the NAS afterwards")
     args = ap.parse_args()
+    ROOT = args.root
+
+    if args.mode == "extract":
+        if args.workers == 1:
+            worker(0, args.ocr, args.only)
+            return 0
+        # spawn: each worker loads its own docling models
+        ctx = multiprocessing.get_context("spawn")
+        procs = [ctx.Process(target=_worker_main, args=(str(ROOT), n, args.ocr, args.only))
+                 for n in range(args.workers)]
+        for proc in procs:
+            proc.start()
+        for proc in procs:
+            proc.join()
+        return 0
 
     rsync = ["rsync", "-a", "-e", f"ssh -i {SSH_KEY}"]
     if args.pull:
-        subprocess.run(rsync + [f"{NAS}/sources/", f"{DATA / 'sources'}/"], check=True)
+        subprocess.run(rsync + [f"{NAS}/sources/", f"{ROOT / 'sources'}/"], check=True)
+    if args.pull_cache:
+        subprocess.run(rsync + ["--exclude=_claims", f"{NAS}/extracted/", f"{ROOT / 'extracted'}/"], check=True)
 
     manifest = yaml.safe_load((HERE / "sources.yaml").read_text())
-    qa_path = DATA / "qa.json"
-    qa = json.loads(qa_path.read_text()) if qa_path.exists() else {}
+    qa_path = ROOT / "qa.json"
+    qa = {}  # this run's entries; save_qa merges them over the file on disk
     seen = {}  # sha256 of first part -> book id, to skip duplicate PDFs across bundles
 
-    every = itertools.chain(books(manifest, DATA / "sources"), survivor_books(manifest, DATA / "survivor"))
-    for book_id, meta, pdfs in every:
+    for book_id, meta, pdfs in all_books(manifest):
         if args.only and not any(book_id.startswith(o) for o in args.only):
             continue
-        key = sha256(pdfs[0])
+        key = resolve(pdfs[0])
         if key in seen:
             qa[book_id] = {"status": "duplicate", "of": seen[key]}
             continue
         seen[key] = book_id
-        dest = DATA / "ebooks" / meta["category"] / f"{book_id}.epub"
+        dest = ROOT / "ebooks" / meta["category"] / f"{book_id}.epub"
         if dest.exists() and not args.force:
             continue
         print(f"{book_id}: {meta['title']} ({len(pdfs)} file(s))", flush=True)
         chunks, dirs, infos = [], [], []
         for pdf in pdfs:
-            out, info = extract(pdf, args.ocr)
+            out, info = extract(pdf, args.ocr) if args.mode == "all" else cached(pdf)
             infos.append(info)
             if out:
                 chunks.append(normalize((out / "book.md").read_text(), as_part=len(pdfs) > 1))
                 dirs.append(out)
+        pending = [i for i in infos if i["status"] == "pending-extraction"]
+        if pending:  # don't package a multi-part book with parts missing
+            qa[book_id] = {"status": "pending-extraction", "title": meta["title"]}
+            continue
         if not chunks:
             qa[book_id] = {"status": infos[0]["status"], "title": meta["title"], **infos[0]}
             print(f"  skipped: {infos[0]['status']}", flush=True)
             continue
-        fixes = 0
-        if any(i.get("ocr") or i["chars_per_page"] < 3000 for i in infos):
+        formulas_lost = sum((d / "book.md").read_text().count("formula-not-decoded") for d in dirs)
+        fixes = collections.Counter()
+        if meta.get("scan") or any(i.get("ocr") for i in infos):
             fixed = [fix_ocr(c) for c in chunks]
             chunks = [c for c, _ in fixed]
-            fixes = sum(f for _, f in fixed)
+            for _, f in fixed:
+                fixes.update(f)
         try:
             package(chunks, dirs, meta, pdfs[0], dest)
         except Exception as e:  # one bad book shouldn't stop the run
@@ -457,22 +626,32 @@ def main():
             "chars_per_page": round(len(text) / max(pages, 1)),
             # converted text vs the PDF's own text layer; a low ratio means
             # the normalizer (or docling) dropped content
-            "text_retained": round(len(text) / max(1, sum(i["chars_per_page"] * i["pages"] for i in infos)), 2),
+            # (meaningless for OCR'd books, whose source text layer is empty)
+            "text_retained": 1.0 if any(i.get("ocr") for i in infos) else
+            round(len(text) / max(1, sum(i["chars_per_page"] * i["pages"] for i in infos)), 2),
             "suspicious_words": suspicious_ratio(text),
-            "ocr_fixes": fixes,
+            "ocr_fixes": sum(fixes.values()),
+            "ocr_fix_pairs": dict(fixes.most_common(40)),
+            "formulas_lost": formulas_lost,
             "ocr": any(i.get("ocr") for i in infos),
             "headings": len(re.findall(r"^#{1,2} ", text, re.M)),
             "images": text.count("]("),
             "epub_bytes": dest.stat().st_size,
         }
-        qa_path.write_text(json.dumps(qa, indent=1, sort_keys=True))
-        print(f"  ok: {qa[book_id]['chars_per_page']} chars/pg, "
-              f"{qa[book_id]['suspicious_words']:.1%} suspicious, {fixes} OCR fixes", flush=True)
+        save_qa(qa_path, qa)
+        print(f"  ok: {qa[book_id]['chars_per_page']} chars/pg, {qa[book_id]['text_retained']:.0%} retained, "
+              f"{qa[book_id]['suspicious_words']:.1%} suspicious, {sum(fixes.values())} OCR fixes", flush=True)
 
-    qa_path.write_text(json.dumps(qa, indent=1, sort_keys=True))
+    save_qa(qa_path, qa)
     if args.push:
-        subprocess.run(rsync + ["--chown=1000:1000", f"{DATA / 'ebooks'}/", f"{NAS}/ebooks/"], check=True)
+        subprocess.run(rsync + ["--chown=1000:1000", f"{ROOT / 'ebooks'}/", f"{NAS}/ebooks/"], check=True)
     return 0
+
+
+def _worker_main(root, n, ocr, only):
+    global ROOT
+    ROOT = Path(root)
+    worker(n, ocr, only)
 
 
 if __name__ == "__main__":

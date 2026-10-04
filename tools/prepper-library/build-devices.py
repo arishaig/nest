@@ -87,7 +87,8 @@ def main():
             dest = root / q["category"] / (safe_name(q["title"]) + dev["ext"])
             if dest in kept:  # two books with the same title: disambiguate
                 dest = dest.with_name(safe_name(f"{q['title']} ({bid})") + dev["ext"])
-            extras = sorted(epub.parent.glob(f"{bid}*.pdf")) if q["category"] == "medical" else []
+            original = epub.with_suffix(".pdf")
+            extras = [original] if q["category"] == "medical" and original.exists() else []
             size = q["epub_bytes"] + sum(p.stat().st_size for p in extras)
             if used + size > dev["budget"]:
                 cut.append(bid)
@@ -95,8 +96,7 @@ def main():
             convert(epub, dest, dev["format"])
             kept.add(dest)
             for pdf in extras:
-                target = dest.parent / (safe_name(q["title"]) + " (original PDF" +
-                                        (f", {pdf.stem.split('--')[-1]}" if "--" in pdf.stem else "") + ").pdf")
+                target = dest.parent / (safe_name(q["title"]) + " (original PDF).pdf")
                 if not target.exists():
                     shutil.copy2(pdf, target)
                 kept.add(target)

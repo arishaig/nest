@@ -1,0 +1,13 @@
+# Applied by hand (kubectl apply -k), not reconciled by Flux — see k8s/extract-job.yaml.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: media
+resources:
+  - k8s/extract-job.yaml
+configMapGenerator:
+  - name: prepper-scripts
+    files:
+      - convert.py
+      - sources.yaml
+generatorOptions:
+  disableNameSuffixHash: true

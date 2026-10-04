@@ -1,0 +1,82 @@
+# One-shot docling extraction worker on omega (RTX 3080, ad-hoc GPU slot —
+# see k8s/infrastructure/nvidia-gpu-operator/helmrelease.yaml). NOT part of
+# the Flux tree: apply by hand, it TTL-cleans itself a day after finishing.
+#
+#   kubectl apply -k tools/prepper-library    # (re)creates ConfigMap + Job
+#   kubectl -n media logs -f job/prepper-extract
+#   kubectl -n media delete job prepper-extract    # stop early (e.g. to game)
+#
+# Re-running: delete the Job first (Jobs are immutable). Work is claim-based
+# and cached on the NAS (media/reference/extracted), so a stopped or evicted
+# run loses at most the PDFs in flight; their claims go stale after 3h.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prepper-extract
+  namespace: media
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: OnFailure
+      # Same GPU wiring as k8s/apps/media/subgen.yaml: CDI isn't the default,
+      # so without the runtime class the pod gets no GPU device.
+      runtimeClassName: nvidia
+      tolerations:
+        - key: nest.arishaig.site/workloads
+          operator: Equal
+          value: omega
+          effect: PreferNoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [omega]
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        # the image's venv and baked models are group-0 (OpenShift-style)
+        supplementalGroups: [0]
+      containers:
+        - name: extract
+          image: ghcr.io/docling-project/docling-serve-cu128:v1.36.0
+          command: ["python", "/scripts/convert.py", "extract",
+                    "--root", "/data", "--ocr", "--workers", "3"]
+          env:
+            - name: HOME
+              value: /tmp
+            - name: DOCLING_THREADS
+              value: "6"
+            - name: OMP_NUM_THREADS
+              value: "6"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: "8"
+              memory: 8Gi
+              nvidia.com/gpu: "1"
+            limits:
+              memory: 20Gi
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+            - name: reference
+              mountPath: /data
+              subPath: media/reference
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: scripts
+          configMap:
+            name: prepper-scripts
+        - name: reference
+          persistentVolumeClaim:
+            claimName: media-nfs
+        - name: tmp
+          emptyDir: {}
