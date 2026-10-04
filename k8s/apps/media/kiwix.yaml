@@ -1,0 +1,191 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kiwix
+  namespace: media
+spec:
+  interval: 1h
+  # Explicit so kustomize-controller owns this field: a stray
+  # `flux suspend` is reverted on the next apps reconcile instead of
+  # silently freezing the release (25 media HRs sat suspended
+  # 2026-08-02..09-24). For break-glass, suspend the `apps` Kustomization.
+  suspend: false
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    # Offline reference library (prepper/emergency ZIMs + WikiMed).
+    # ZIM masters live on the NAS at media/reference/zim; the Kobo/Kindle
+    # EPUB pipeline is in tools/prepper-library/. Both controllers mount the
+    # ZIMs at the same /data path.
+    #
+    # Out-of-band NAS prerequisite (kiwix-serve exits at startup if the
+    # library file is missing): /Tank/media_root/media/reference/zim owned
+    # 1000:1000, seeded with an empty library:
+    #   <library version="20110515">
+    #   </library>
+    # Created 2026-10-04; recreate by hand if the dataset is ever rebuilt.
+    defaultPodOptions:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+    controllers:
+      kiwix:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=ghcr.io/kiwix/kiwix-serve
+              repository: ghcr.io/kiwix/kiwix-serve
+              tag: 3.8.2
+            # start.sh appends these to `kiwix-serve --port=8080`.
+            # --monitorLibrary polls library.xml's mtime once a second
+            # (kiwix-serve.cpp), so it works over NFS — no inotify needed.
+            args: ["--library", "/data/library.xml", "--monitorLibrary"]
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 20m
+                memory: 64Mi
+              limits:
+                memory: 1Gi
+      kiwix-sync:
+        type: cronjob
+        cronjob:
+          schedule: "0 4 3 * *"
+          concurrencyPolicy: Forbid
+        pod:
+          restartPolicy: OnFailure
+        containers:
+          app:
+            # Same image as the server: kiwix-serve is built FROM kiwix-tools,
+            # so kiwix-manage and wget are both present.
+            image:
+              # renovate: datasource=docker depName=ghcr.io/kiwix/kiwix-serve
+              repository: ghcr.io/kiwix/kiwix-serve
+              tag: 3.8.2
+            command: ["/bin/sh", "/scripts/sync.sh"]
+            env:
+              # <download.kiwix.org/zim subdir>/<name without _YYYY-MM.zim>
+              ZIMS: >-
+                other/zimgit-post-disaster_en
+                other/zimgit-medicine_en
+                other/zimgit-water_en
+                other/zimgit-food-preparation_en
+                other/zimgit-knots_en
+                wikipedia/wikipedia_en_medicine_maxi
+            resources:
+              requests:
+                cpu: 20m
+                memory: 32Mi
+              limits:
+                memory: 256Mi
+    configMaps:
+      scripts:
+        data:
+          # Download the newest dated build of each ZIM, then rebuild
+          # library.xml, and only THEN prune superseded builds — kiwix-serve
+          # must never be pointed at a file that has already been deleted.
+          # Idempotent: an up-to-date run downloads and prunes nothing.
+          sync.sh: |
+            set -u
+            cd /data
+            base=https://download.kiwix.org/zim
+            rm -f ./*.zim.tmp
+            keep=""
+            fail=0
+            for entry in $ZIMS; do
+              dir=${entry%/*}
+              name=${entry#*/}
+              latest=$(wget -qO- "$base/$dir/" \
+                | grep -o "href=\"${name}_[0-9]\{4\}-[0-9]\{2\}\.zim\"" \
+                | sed 's/^href="//; s/"$//' | sort | tail -n1)
+              if [ -z "$latest" ]; then
+                echo "no build found for $entry" >&2
+                fail=1
+                # keep whatever we already have for this name
+                current=$(ls "${name}"_*.zim 2>/dev/null | sort | tail -n1)
+                [ -n "$current" ] && keep="$keep $current"
+                continue
+              fi
+              if [ ! -f "$latest" ]; then
+                echo "downloading $latest"
+                if wget -q -O "$latest.tmp" "$base/$dir/$latest"; then
+                  mv "$latest.tmp" "$latest"
+                else
+                  echo "download failed: $latest" >&2
+                  rm -f "$latest.tmp"
+                  fail=1
+                  current=$(ls "${name}"_*.zim 2>/dev/null | sort | tail -n1)
+                  [ -n "$current" ] && keep="$keep $current"
+                  continue
+                fi
+              fi
+              keep="$keep $latest"
+            done
+            rm -f library.xml.tmp
+            libfail=0
+            for zim in $keep; do
+              kiwix-manage library.xml.tmp add "/data/$zim" || libfail=1
+            done
+            # If any add failed, keep the old library.xml AND the old builds
+            # it references — pruning now would leave kiwix-serve pointing at
+            # deleted files.
+            if [ "$libfail" -ne 0 ] || [ ! -f library.xml.tmp ]; then
+              echo "library rebuild failed; keeping old library.xml, not pruning" >&2
+              rm -f library.xml.tmp
+              exit 1
+            fi
+            mv library.xml.tmp library.xml
+            # Prune only superseded builds of the names managed here.
+            for entry in $ZIMS; do
+              name=${entry#*/}
+              for zim in "${name}"_*.zim; do
+                [ -e "$zim" ] || continue
+                case " $keep " in
+                  *" $zim "*) ;;
+                  *) echo "pruning $zim"; rm -f "$zim" ;;
+                esac
+              done
+            done
+            exit $fail
+    service:
+      app:
+        controller: kiwix
+        type: ClusterIP
+        ports:
+          http:
+            port: 8080
+            targetPort: 8080
+    persistence:
+      scripts:
+        type: configMap
+        identifier: scripts
+        advancedMounts:
+          kiwix-sync:
+            app:
+              - path: /scripts
+      media:
+        existingClaim: media-nfs
+        advancedMounts:
+          kiwix:
+            app:
+              - path: /data
+                subPath: media/reference/zim
+                readOnly: true
+          kiwix-sync:
+            app:
+              - path: /data
+                subPath: media/reference/zim

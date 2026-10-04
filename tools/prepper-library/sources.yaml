@@ -1,0 +1,194 @@
+# Prepper / emergency reference library — source manifest.
+#
+# Only free / public-domain material. Content never lands in git (this repo is
+# public): fetch.py stages files locally and pushes them to the NAS at
+# /Tank/media_root/media/reference/sources/<category>/<id>/. Per-file sha256s
+# are recorded in sources.lock.json on first fetch so upstream changes show up
+# as a diff.
+#
+# Types:
+#   url      single file
+#   parts    one book published as several files (each part becomes a chapter)
+#   zimgit   Kiwix "zimgit" ZIM bundle; fetch.py unpacks its PDFs + titles
+#   legacy   already on the NAS (migrated from reference/to_import); not fetched
+#
+# priority: 1 = goes on every device first; higher numbers fill remaining space.
+# Prefer a born-digital EPUB/HTML edition over a PDF whenever one exists.
+
+categories: [medical, water, food, shelter-survival, agriculture, tools-building, preparedness, military]
+
+sources:
+  # --- medical ---------------------------------------------------------------
+  - id: hesperian-where-there-is-no-doctor-2025
+    type: parts
+    title: Where There Is No Doctor (2025)
+    author: David Werner, Carol Thuman, Jane Maxwell
+    publisher: Hesperian Health Guides
+    category: medical
+    priority: 1
+    license: Hesperian open copyright (free non-commercial copying)
+    url_template: https://hesperian.org/wp-content/uploads/pdf/en_wtnd_2025/en_wtnd_2025_{part}.pdf
+    parts: [fm, "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12",
+            "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", gp, bm]
+
+  - id: hesperian-where-there-is-no-dentist-2020
+    type: parts
+    title: Where There Is No Dentist (2020)
+    author: Murray Dickson
+    publisher: Hesperian Health Guides
+    category: medical
+    priority: 1
+    license: Hesperian open copyright (free non-commercial copying)
+    url_template: https://hesperian.org/wp-content/uploads/pdf/en_dent_2020/en_dent_2020_{part}.pdf
+    parts: [fm, "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+
+  - id: zimgit-medicine
+    type: zimgit
+    zim: other/zimgit-medicine_en
+    category: medical
+    priority: 2
+
+  # --- water -----------------------------------------------------------------
+  - id: zimgit-water
+    type: zimgit
+    zim: other/zimgit-water_en
+    category: water
+    priority: 1
+
+  # --- food ------------------------------------------------------------------
+  - id: usda-complete-guide-to-home-canning-2015
+    type: parts
+    title: Complete Guide to Home Canning (2015 revision)
+    author: USDA / National Center for Home Food Preservation
+    publisher: USDA
+    category: food
+    priority: 1
+    license: US government work (public domain)
+    url_template: https://nchfp.uga.edu/papers/guide/{part}.pdf
+    parts: [INTRO_HomeCanrev0715, GUIDE01_HomeCan_rev0715, GUIDE02_HomeCan_rev0715,
+            GUIDE03_HomeCan_rev0715, GUIDE04_HomeCan_rev0715, GUIDE05_HomeCan_rev0715,
+            GUIDE06_HomeCan_rev0715, GUIDE07_HomeCan_rev0715]
+
+  - id: zimgit-food-preparation
+    type: zimgit
+    zim: other/zimgit-food-preparation_en
+    category: food
+    priority: 2
+
+  # --- shelter / survival ----------------------------------------------------
+  - id: zimgit-post-disaster
+    type: zimgit
+    zim: other/zimgit-post-disaster_en
+    category: shelter-survival
+    priority: 1
+
+  - id: zimgit-knots
+    type: zimgit
+    zim: other/zimgit-knots_en
+    category: shelter-survival
+    priority: 2
+
+  # --- general preparedness ----------------------------------------------------
+  - id: fema-are-you-ready
+    type: url
+    title: "Are You Ready? An In-Depth Guide to Citizen Preparedness"
+    author: FEMA
+    publisher: FEMA
+    category: preparedness
+    priority: 1
+    license: US government work (public domain)
+    url: https://www.ready.gov/sites/default/files/2021-11/are-you-ready-guide.pdf
+
+  # --- legacy (migrated from reference/to_import on 2026-10-04) ---------------
+  - id: legacy-fm21-76-survival
+    type: legacy
+    title: FM 21-76 US Army Survival Manual
+    category: shelter-survival
+    priority: 1
+    path: FM21-76_Survival_Manual.pdf
+  - id: legacy-army-survival-evasion-recovery
+    type: legacy
+    title: US Army Survival, Evasion, and Recovery
+    category: shelter-survival
+    priority: 2
+    path: US_Army_Survival_Evasion_Recovery.pdf
+  - id: legacy-ultimate-guide-army-survival-tactics
+    type: legacy
+    title: Ultimate Guide to Army Survival Tactics
+    category: shelter-survival
+    priority: 3
+    path: Ultimate_Guide_Army_Survival_Tactics.pdf
+  - id: legacy-army-map-reading-land-navigation
+    type: legacy
+    title: US Army Map Reading and Land Navigation
+    category: shelter-survival
+    priority: 2
+    path: US_Army_Map_Reading_Land_Navigation.pdf
+  - id: legacy-seabee-combat-handbook-vol1
+    type: legacy
+    title: US Navy Seabee Combat Handbook, Vol. 1
+    category: tools-building
+    priority: 2
+    path: US_Navy_Seabee_Combat_Handbook_Vol1.pdf
+  - id: legacy-seabee-combat-handbook-vol2
+    type: legacy
+    title: US Navy Seabee Combat Handbook, Vol. 2
+    category: tools-building
+    priority: 2
+    path: US_Navy_Seabee_Combat_Handbook_Vol2.pdf
+  - id: legacy-army-explosives-demolitions
+    type: legacy
+    title: US Army Explosives and Demolitions
+    category: military
+    priority: 4
+    path: US_Army_Explosives_Demolitions.pdf
+  - id: legacy-army-sf-unconventional-warfare
+    type: legacy
+    title: US Army Special Forces Unconventional Warfare
+    category: military
+    priority: 4
+    path: US_Army_Special_Forces_Unconventional_Warfare.pdf
+  - id: legacy-navy-seal-patrol-leaders-handbook
+    type: legacy
+    title: US Navy SEAL Patrol Leader's Handbook
+    category: military
+    priority: 4
+    path: US_Navy_SEAL_Patrol_Leaders_Handbook.pdf
+  - id: legacy-usmc-close-quarter-combat
+    type: legacy
+    title: USMC Close Quarter Combat Manual
+    category: military
+    priority: 4
+    path: USMC_Close_Quarter_Combat_Manual.pdf
+  - id: legacy-vegetable-gardening-cornell
+    type: legacy
+    title: Vegetable Gardening (Cornell)
+    category: agriculture
+    priority: 2
+    path: Vegetable_Gardening_Cornell.pdf
+  - id: legacy-vegetable-gardening-midwest
+    type: legacy
+    title: Vegetable Gardening (Midwest)
+    category: agriculture
+    priority: 2
+    path: Vegetable_Gardening_Midwest.pdf
+  - id: legacy-vegetable-gardening-watts
+    type: legacy
+    title: Vegetable Gardening (Watts)
+    category: agriculture
+    priority: 3
+    path: Vegetable_Gardening_Watts.pdf
+  - id: legacy-vegetable-gardening-manual-green
+    type: legacy
+    title: Vegetable Gardening Manual (Green)
+    category: agriculture
+    priority: 3
+    path: Vegetable_Gardening_Manual_Green.pdf
+  - id: legacy-vegetable-gardening-and-canning
+    type: legacy
+    title: Vegetable Gardening and Canning
+    category: agriculture
+    priority: 3
+    path: Vegetable_Gardening_and_Canning.pdf
+  # Where_There_Is_No_Doctor.pdf (older edition) is superseded by the 2025
+  # Hesperian parts above and intentionally not migrated.
