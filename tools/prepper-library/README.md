@@ -65,15 +65,27 @@ PDFs with no text layer (fewer than 100 characters per page) are skipped unless 
 
 Speed is about 1 s/page on CPU. Survivor Library scans almost all have a text layer (16/16 sampled), so no GPU or OCR is needed for them.
 
+## Triage
+
+`triage.yaml` gives every book a tier: 1 Survive, 2 Sustain, 3 Rebuild, 4 Archive (NAS/Kiwix only). Each source or Survivor category has a default tier, and individual books are listed where they differ. Books are judged by subject, not age. An 1880s camp-sanitation manual stays; municipal sewer tables, periodical runs, memoirs and scout novels go to tier 4. Files that differ only in spaces versus underscores are near-duplicates and also drop to tier 4.
+
+Three hazard flags mark books worth keeping but not to follow blindly: `old-medicine`, `old-food-safety` (pre-USDA canning) and `id-caution` (wild plant and mushroom identification). Flagged books carry a tag in their title on the device.
+
+```sh
+uv run triage.py --root /mnt/fileserver/media/reference                       # check names, size per tier
+uv run triage.py --root /mnt/fileserver/media/reference --list data/triage-list.tsv
+```
+
 ## Building device libraries
 
 ```sh
+uv run build-devices.py --labels                          # what each device holds, for its label
 uv run build-devices.py                                   # data/devices/{kobo,kindle}/prepper/<category>/
 uv run build-devices.py --device kobo --copy-to /run/media/$USER/KOBOeReader
 uv run build-devices.py --device kindle --copy-to /run/media/$USER/Kindle
 ```
 
-Books are added in priority order, then category order, until each device's budget is full (Kobo 13 GB as KEPUB, Kindle 28 GB as AZW3, both converted with Calibre's `ebook-convert`).
+Each device takes whole tiers of a fixed list of topics (`DEVICES` in `build-devices.py`). That way its label is accurate. Kobo gets tiers 1–2 as KEPUB and Kindle gets tiers 1–3 as AZW3, both converted with Calibre's `ebook-convert`. If a selection exceeds the budget (13 / 28 GB), the build fails for that device rather than dropping part of a topic.
 
 A book is flagged and left out unless `--include-flagged` is given if either:
 - `suspicious_words` > 8%, or

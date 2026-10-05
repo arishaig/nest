@@ -1,0 +1,672 @@
+# Prepper library curation: which books matter, and how much.
+#
+# Every book gets a tier. Devices take whole tiers of whole topics (see
+# build-devices.py), so what's on a device can be printed on a label.
+# Tiers judge usefulness to a household without outside help, by subject,
+# not age: an 1880s camp-sanitation manual is post-germ-theory and still
+# right; a sewer-discharge table book is useless because it's municipal-scale.
+#
+# Resolution, most specific first:
+#   1. a book's stem listed under a tier in its source/category `books`
+#   2. the source/category `tier`
+#   3. sources.yaml priority (capped at 4) for anything not mentioned here
+# Hazard flags come from the category `hazard` (minus `safe`) plus `flag`.
+#
+# Stems: survivor books are keyed by PDF stem; zimgit books by their file stem
+# inside the bundle. Check names and see tier sizes: `uv run triage.py --root <NAS reference mount>`.
+
+tiers:
+  1: "Survive: first days to months. Injuries and illness, water, sanitation, shelter, fire, food safety, foraging, navigation, fallout"
+  2: "Sustain: feeding and keeping people and animals healthy for years. Gardening, livestock, dairy, baking, nursing, home trades"
+  3: "Rebuild: trades and deep references. Smithing, foundry, masonry, carpentry, leather, weaving, specialist medicine"
+  4: "Archive: NAS/Kiwix only. Periodicals, superseded editions, industrial/municipal scale, histories, memoirs, fiction, curiosities"
+
+hazards:
+  old-medicine: "Pre-modern medicine: doses and remedies may be useless or poisonous; check against Where There Is No Doctor"
+  old-food-safety: "Pre-USDA canning/preserving: use the USDA guide's methods and times"
+  id-caution: "Wild food ID: never eat a plant or mushroom on one book's identification; taxonomy and lookalikes have changed"
+
+# --------------------------------------------------------- curated sources
+
+sources:
+  hesperian-where-there-is-no-doctor-2025: {tier: 1}
+  hesperian-where-there-is-no-dentist-2020: {tier: 1}
+  usda-complete-guide-to-home-canning-2015: {tier: 1}
+  fema-are-you-ready: {tier: 1}
+
+  zimgit-medicine:
+    tier: 1
+    books:
+      2: [Encyclopedia_of_Knots]
+      3: [HHS_Pandemic_Influenza_Plan]
+      4: [Where_there_is_no_Doctor, Where_There_is_No_Dentist, Tongue_Diagnosis_in_Chinese_Medicine]  # superseded by Hesperian 2025/2020
+
+  zimgit-water:
+    tier: 1
+    books:
+      2: [Plants_as_Indicator_of_Ground_Water]
+
+  zimgit-food-preparation:
+    tier: 2
+    books:
+      1: [Complete_Guide_to_Home_Canning, Canning_Food, Preservation_of_Fish_and_Meat, Preserving_Food_Drying_Fruits_and_Vegetables]
+      3: [Camping_Recipes, Dutch_oven_cookbook, Dutch_Oven_Grill_BBQ_recipes, Philmont_Trail_Cookbook]
+      4: [60_gift_mixes_in_a_jar_recipes, Colonial_New_England_Recipes, Famous_Recipes_from_Old_Virginia, Unusual_Old_World_and_American_Recipes]
+
+  zimgit-knots:
+    tier: 3
+    books:
+      2: [Handbook_of_Knots_and_Splices, Knots_Splices_and_Rope_Work, Encyclopedia_of_Knots, Ropes_Knots_Ladders_Lashings_Anchorages]
+      4: [Take_me_fishing, Working_with_Heifers]  # misfiled in the knots bundle
+
+  zimgit-post-disaster:
+    tier: 2
+    books:
+      1: [ENEWER_US_ARMY_FM_21_76_Survival_2002, Wilderness_Survival_FM_2176, Full_First_Aid_Manual_FM_2111,
+          AppNee_com_SAS_Survival_Handbook_2nd_Edition, USMC_Winter_Survival_Course, US_Marine_Corps_Summer_Survival_Course,
+          Survival_Water_Purification, DOH_Pub_821_031_Purifying_Water_During_an_Emergency, Water_purification, Water_Treatment,
+          Distillation_For_Home_Water_Treatment, Safe_Water_School, giardia_factsheet,
+          checklist_1_72_hr_kit, family_list1, 3_month_supply_of_food, Three_Days_Emergency_Preparedness, Survive_Unexpected_Emergency,
+          FEMA_nuclear_survival, Nuclear_Survival_Skills, How_to_Build_a_Debris_Hut, How_to_Find_Your_Way, Traps,
+          Emergency_War_Surgery, Medical_Survival_Wound_Closure_Manual, First_Aid_and_Medicine_midwife_2011_Full_Book,
+          Wilderness_Medicine_Course, survival_personal_wilderness_medical_kit, Survival_and_Austere_Medicine,
+          GUIDE06_HomeCan_rev0715, canning, Preservation_of_Fish_and_Meat_2004, Preserving_Food_Drying_Fruits_And_Vegetables]
+      3: [whitetail_deer_hunting, deer_hunt_basics, Basics_of_Waterfowling, Duck_Hunting_Tips_for_Beginners,
+          Dove_Hunting_for_Beginners_Lesson_Plan, The_Prepper_Phone_210808_101519,
+          GSA_Child_Care_Emergency_Preparedness_Toolbox_June_2014, Ontario_Nature_Forest_Foraging_Guide_official,
+          Stitches_Sutures_ETHICON_Wound_Closure_Manual_2004, HHS_Pandemic_Influenza_Plan, samuel_1995_beer,
+          Boy_Scout_cookbook_PDF, Camping_Recipes, Dutch_Oven_Grill_Bar_BQ_recipes, Dutch_oven_cookbook_PDF,
+          Knots_by_Andrew_Adamides, Knots_and_String, Knots_Splices_Attachments, Sea_Scout_Knots,
+          Knots_for_Mountaineering_Camping_Climbing_Utility_Rescue_Etc, Tying_Farm_Knots, Essential_Fishing_knots,
+          Student_manual_2005, MP_15_fam_1959, "173165", wdfw01803, wdfw01807, wfsriverside10]
+      4: [Where_there_is_no_Doctor_book, Where_There_is_No_Dentist_Murray_Dickson, Under_The_Tongue_Diagnosis_2009,
+          FEMA_REP_Program_Manual_Dec_2019, fema_emergency_preparedness_guidelines_for_levees_2018,
+          Worm_Factory_360_Manual, The_SAS_Self_Defense_Handbook, How_to_make_Black_Powder, trapping_history,
+          1971_31_4_colonial_garden_plants, gift_mixes_jar_recipes, nordic_ware_unusual_old_world_and_american_recipes_1972,
+          Famous_Recipes_from_Old_Virginia, Colonial_New_England_Recipes]
+    flag:
+      id-caution: [2011_wild_edible_directory, Pocket_Guide_to_Urban_Foraging, Urban_Foraging, forage_guide, foraging_guide,
+                   Field_Guide_to_Mushrooms, Mushroom_Guide, Mushroom_from_Forest_to_Plate, shellfish_foraging_guide_1_5_14_final,
+                   Ontario_Nature_Forest_Foraging_Guide_official]
+
+  legacy-fm21-76-survival: {tier: 2}                 # older edition of the 2002 FM 21-76 in post-disaster
+  legacy-army-survival-evasion-recovery: {tier: 2}
+  legacy-ultimate-guide-army-survival-tactics: {tier: 2}
+  legacy-army-map-reading-land-navigation: {tier: 1}
+  legacy-seabee-combat-handbook-vol1: {tier: 2}
+  legacy-seabee-combat-handbook-vol2: {tier: 2}
+  legacy-vegetable-gardening-cornell: {tier: 2}
+  legacy-vegetable-gardening-midwest: {tier: 2}
+  legacy-vegetable-gardening-watts: {tier: 3}
+  legacy-vegetable-gardening-manual-green: {tier: 3}
+  legacy-vegetable-gardening-and-canning: {tier: 3}
+  legacy-army-explosives-demolitions: {tier: 4}
+  legacy-army-sf-unconventional-warfare: {tier: 4}
+  legacy-navy-seal-patrol-leaders-handbook: {tier: 4}
+  legacy-usmc-close-quarter-combat: {tier: 4}
+
+# ------------------------------------------------- Survivor Library, by site category
+
+survivor:
+  # --- medical -----------------------------------------------------------------
+  medical_emergency:
+    tier: 1
+    books:
+      3: [hhspandemicinfluenzaplan, nato-emergency-war-surgery]
+      4: [dale-pendell-pharmako-poeia]
+
+  medical_courses_us_army:  # 1980s-90s Army medic correspondence courses: modern and practical
+    tier: 2
+    books:
+      1: [cardiopulmonary_resuscitation_cpr, wound_care, environmental_injuries, environmental_diseases_and_injuries_i,
+          environmental_diseases_and_injuries_ii, chest_and_airway_problems, eye_ear_and_nose_injuries, taking_vital_signs,
+          obstetrics_and_newborn_care_i, obstetrics_and_newborn_care_ii]
+      3: [bacteriology, hematology_i, hematology_ii, mycology-fungus_medicine, microbiology_for_the_veterinary_specialist,
+          dental_anatomy_and_physiology, dental_instrument_setups, oral_and_maxillofacial_pathology, introduction_to_the_operating_room,
+          scrub_gown_and_glove_procedures, special_surgical_procedures_i, special_surgical_procedures_ii, routine_procedures_for_an_operation,
+          surgical_methods, cardiac_impairment]
+      4: [dental_radiography, fluoroscopy_and_special_radiographic_techniques, principles_of_radiographic_exposure,
+          clinical_chemistry_i, clinical_chemistry_ii, immunohematology_and_blood_banking_i, immunohematology_and_blood_banking_ii,
+          health_care_ethics_i, health_care_ethics_ii]
+
+  medical_nursing:
+    tier: 3
+    hazard: old-medicine
+    books:
+      2: [bandages_and_bandaging_for_nurses_1920, the_principles_and_practice_of_bandaging_1911, bandaging_1915,
+          manual_of_splints_and_appliances_1917, home_nursing-motherhood-care_of_children_1905, suggestions_on_home_nursing_1903,
+          lectures_on_home_nursing_for_the_poor_1906, textbook_of_nursing_procedures_1921, a_manual_of_fever_nursing_1908]
+      4: [finding_themselves-the_letters_of_an_american_army_chief_nurse_1918, in_a_french_hospital-notes_of_a_nurse_1915,
+          reminiscences_of_an_army_nurse_during_the_civil_war_1911, twelve_months_in_an_army_hospital_by_a_nurse_who_didnt_go_across_1921,
+          womans_secrets_for_the_wife_daughter_mother_and_nurse_1909, the_nurse_guide_for_all_women_who_desire_a_healthy_family_1904,
+          library_of_health-complete_guide_to_prevention_and_cure_of_disease_1916]
+    safe: [bandages_and_bandaging_for_nurses_1920, the_principles_and_practice_of_bandaging_1911, bandaging_1915,
+           manual_of_splints_and_appliances_1917]
+
+  dentistry:
+    tier: 3
+    hazard: old-medicine
+    books:
+      2: [an_atlas_of_dental_extractions_1919, exodontia-a_practical_treatise_on_the_technic_of_extraction_of_teeth_1913,
+          essentials_of_operative_dentistry_1917, mouth_hygiene-a_text-book_for_dental_hygienists_1921, a_childs_book_of_the_teeth_1918_1924,
+          teeth_and_health-how_to_lengthen_life_and_increase_happiness_by_proper_care_1921]
+      4: [where-there-is-no-dentist_2010,  # superseded by Hesperian 2020
+          dentistry_in_the_bible_and_talmud_1918, around_the_world_dentistry_1910, the_rise_fall_and_revival_of_dental_prosthesis_1892,
+          the_cell_doctrine-its_history_and_present_state-for_the_use_of_students_in_medicine_and_dentistry_1878, horses_teeth_1884,
+          notes_on_dental_porcelain_1905, practical_dental_metallurgy-hodgen_1921, prosthetic_dentistry_1916,
+          professional_denture_service_vol_1_1918, professional_denture_service_vol_2_1918, a_practical_treatise_on_artificial_crown-and_bridge-work_1889,
+          practical_orthodontia-dewey_1921, the_angle_system_of_regulation_and_retention_of_the_teeth_1899, irregularities_of_the_teeth_and_their_treatment_1888,
+          a_new_classification_of_human_tooth_forms_1914, transplantation_of_teeth_into_artificial_sockets_1886,
+          the_american_system_of_dentistry_in_treatises_by_various_authors_vol_1_1886, the_microscopic_anatomy_of_the_teeth_1919,
+          dental_formulary_1911, dental_materia_medica_and_therapeutics_1909, greene_brothers_clinical_course_in_dental_prosthesis_1916,
+          a_practical_guide_to_the_management_of_the_teeth_1819, on_the_loss_of_the_teeth_and_loose_teeth-and_on_the_best_means_of_restoring_them_1861,
+          the_dental_monitor-a_practical_guide_for_the_regulation_and_management_of_the_teeth_1852]
+
+  herbalism:
+    tier: 4
+    hazard: old-medicine
+    books:
+      2: [edible-wild-plants, edible-and-medicinal-plants, who-monographs-on-selected-medicinal-plants,
+          who-monographs-on-selected-medicinal-plants-vol-2, who-monographs-on-selected-medicinal-plants-vol-3,
+          who-monographs-on-selected-medicinal-plants-volume-4, herbal-pdrsmall, medicinal_herbs_and_poisonous_plants_1918,
+          culinary_herbs_1912, how_to_grow_vegetables_and_garden_herbs_1917, root_and_stem_vegetables_1910, vegeculture_1917]
+      3: [culpepers_complete_herbal_1880, a_manual_of_the_medical_botany_of_north_america_1884, american_medicinal_leaves_and_herbs_1911,
+          medicinal-plants-in-folk-tradition-2004-allen-hatfield, ethnobotany-of-the-forest-indians, crow-indian-recipes-herbal-medicines,
+          survival-how-to-make-herbal-preparations, herbal-manual-, the_book_of_herbs_1903, the_herb_garden_1911, a_garden_of_herbs_1921,
+          profitable_herb_growing_and_collecting_1916, grays_school_and_field_book_of_botany-1881,
+          the_standard_cyclopedia_of_horticulture_vol_1_1916, the_standard_cyclopedia_of_horticulture_vol_2_1916,
+          the_standard_cyclopedia_of_horticulture_vol_3_1916, the_standard_cyclopedia_of_horticulture_vol_4_1916,
+          the_standard_cyclopedia_of_horticulture_vol_5_1916, the_standard_cyclopedia_of_horticulture_vol_6_1916]
+    safe: [who-monographs-on-selected-medicinal-plants, who-monographs-on-selected-medicinal-plants-vol-2,
+           who-monographs-on-selected-medicinal-plants-vol-3, who-monographs-on-selected-medicinal-plants-volume-4, herbal-pdrsmall,
+           culinary_herbs_1912, how_to_grow_vegetables_and_garden_herbs_1917, root_and_stem_vegetables_1910, vegeculture_1917,
+           the_herb_garden_1911, a_garden_of_herbs_1921, profitable_herb_growing_and_collecting_1916, grays_school_and_field_book_of_botany-1881,
+           the_standard_cyclopedia_of_horticulture_vol_1_1916, the_standard_cyclopedia_of_horticulture_vol_2_1916,
+           the_standard_cyclopedia_of_horticulture_vol_3_1916, the_standard_cyclopedia_of_horticulture_vol_4_1916,
+           the_standard_cyclopedia_of_horticulture_vol_5_1916, the_standard_cyclopedia_of_horticulture_vol_6_1916]
+    flag:
+      id-caution: [edible-wild-plants, edible-and-medicinal-plants, medicinal_herbs_and_poisonous_plants_1918]
+
+  # --- water & sanitation --------------------------------------------------------
+  sanitation:
+    tier: 3
+    books:
+      1: [fm_21-10_field_hygiene_and_sanitation_2000, fm_4-25-12_unit_field_sanitation_team_2002, first_aid_and_field_sanitation_1943]
+      2: [a_septic_tank_for_farm_homes_1933, primer_of_sanitation-disease_germs_and_how_to_fight_them_1915, field_sanitation_1918,
+          field_sanitation-a_manual_for_noncommissioned_officers_1914, elements_of_field_hygiene_and_sanitation_1918,
+          colonial_and_camp_sanitation_1903, health_on_the_farm-a_manual_of_rural_sanitation_and_hygiene_1911,
+          the_theory_and_practice_of_sanitation_in_country_places_1907, the_sanitation_of_a_country_house_1905,
+          the_sanitation_water_supply_and_sewage_disposal_of_country_houses_1909, the_disposal_of_sewage_of_isolated_country_houses_1886,
+          chloride_of_lime_in_sanitation_1913, preventive_medicine_in_the_home_1912, sanitary_entomology-the_entomology_of_disease_hygiene_and_sanitation_1921,
+          house_sanitation-manual_for_housekeepers_1912]
+      4: [aesthetical_sanitation_1883, history_of_sanitation_1909, longevity_and_sanitation_1908, municipal_engineering_and_sanitation_1902,
+          municipal_sanitation_in_the_united_states_1901, state_sanitation_vol_1_1917, state_sanitation_vol_2_1917, rural_school_sanitation_1913,
+          school_sanitation_1913, school_sanitation_and_decoration_1899, schoolhouse_sanitation_1915, minimum_health_and_sanitation_standards_in_schools_1921,
+          sanitation_in_panama_1915, sanitation_of_the_isthmus_of_panama_during_the_constructive_period_1915, studies_on_the_sanitation_of_swimming_pools_1914,
+          the_modern_factory-safety_sanitation_and_welfare_1914, sanitation_of_public_buildings_1907, the_sanitation_of_cities_1921,
+          the_sanitation_of_cities_and_towns_1887, sewers-ancient_and_modern_vol_1_1887, sewers-ancient_and_modern_vol_2_1887,
+          sewers_and_drains_for_populous_districts_1880, hydraulic_tables_for_the_calculation_of_the_discharge_through_sewers_1883,
+          flow_of_water_in_open_channels_pipes_sewers_1911, public_sanitation_and_other_papers_1916, physiology_hygiene_and_sanitation_1916,
+          physiology_hygiene_and_sanitation_1919, new_primer_of_sanitation_and_physiology_1919, sanitation_and_physiology_1920,
+          life_with_health-on_physiology_hygiene_and_sanitation_1906, the_human_body_and_its_enemies-hygiene_and_sanitation_1913,
+          primer_of_hygiene_and_sanitation_1910, lessons_on_sanitation_1906, public_and_personal_health_1916,
+          human_physiology_with_emphasis_on_hygiene_and_sanitation_1915, sanitation_and_microbiology_as_related_to_vegetable_dehydration_1952,
+          which-sanitation_and_sanatory_remedies_1892, wholesome_houses-the_banner_system_of_sanitation_1882, foods_and_sanitation_1914,
+          sanitation_and_health_1898, conservation_by_sanitation_1911, sanitation_and_sanitary_engineering_1909,
+          fm_21-10_military_sanitation_1945, fm_21-10_military_sanitation_1957]  # 1945/57/70 superseded by the 2000 FM 21-10
+
+  sewage:  # almost all municipal works; keep the farm/household ones
+    tier: 4
+    books:
+      2: [sewage_and_sewerage_of_farm_homes_1922, sewage_disposal_on_the_farm_and_the_protection_of_drinking_water_1896,
+          sewage_and_garbage_disposal_on_the_farm_1946, the_homebuilders_guide_to_effective_sewage_disposal_1958,
+          subsurface_sewage_disposal_1948, earth-closets_and_earth_sewage_1870]
+      3: [sewage_purification_plans_for_residences_and_small_institutions_1909, the_disposal_of_sewage_of_isolated_country_houses_1890,
+          sewerage_and_sewage_disposal_of_a_small_town_1895, standard_methods_for_the_examination_of_water_and_sewage_1946,
+          an_introduction_to_communal_sewage_systems_1994, water_purification_and_sewage_disposal_1913]
+
+  nbc:
+    tier: 3
+    books:
+      1: [fallout_protection-what_to_know_and_do_about_nuclear_attack_december_1961]
+      2: [guidance_for_development_of_an_emergency_fallout_shelter_stocking_plan_july_1978, protection_against_fallout_radiation_october_1958,
+          emergency_exposures_to_nuclear_radiation_october_1958, effects_1977]
+      4: [capabilities_of_nuclear_weapons_1_july_1972_part_1, capabilities_of_nuclear_weapons_1_july_1972_part_2,
+          civil_defense_utilization_of_ships_and_boats_16_july_1963, a_handbook_for_messengers_december_1941,
+          civilian_protection_why_what_how_who_where_when_october_1941, enrolled_volunteer_groups_for_civilian_protection_august_1941,
+          united_states_citizen_defense_corps_unknown_date, office_of_civil_defense_research_report_no_10_probability_of_effective_post-attack_fire_fighting_in_wildlands_march_1965,
+          fire_effects_of_bombing_attacks_1950, thermal_radiation_from_nuclear_explosions_august_1963,
+          us_department_of_housing_and_urban_development_post-attack_plan_1992, the_effects_of_nuclear_weapons_june_1956]
+
+  # --- food ----------------------------------------------------------------------
+  canning:
+    tier: 3
+    hazard: old-food-safety
+    books:
+      1: [canning-meat-wild-game-poultry-fish-safely-, canning-principles, canning-processing-charts, complete-guide-to-home-canning-nutrition,
+          drying-fruits-and-vegetables, preparing-and-canning-fermented-food-and-pickled-vegetables-, preserving-food-drying-fruits-and-vegetables-,
+          usda-utah-can-guide-05, preserving_game_meats, food-storage-for-survival, canning]
+      2: [jerky-recipes, food-storage-cooking-school-use-it-or-lose-it, joy-of-canning, dehydrating_foods_fruits_vegetables_fish_and_meats_with_recipes-1920,
+          the_whole_art_of_curing_pickling_and_smoking-1847]
+      4: [lowneys_cook_book-1907, the_mary_frances_cook_book_or_adventures_among_the_kitchen_people-1912, the_new_hydropathic_cookbook-1857,
+          the_practice_of_cookery_pastry_and_confectionary-1820, vegetable_diet_including_a_system_of_vegetable_cookery-1853,
+          what_to_eat_and_how_to_cook_it-1863, muscle_brain_and_diet-a_plea_for_simpler_foods-1900, the_hygienic_cook-book-1881,
+          the_elements_of_the_science_of_nutrition-1919, food_supplies_in_peace_and_war-1920, food_drying_progress_and_importance-1919,
+          practical_suggestions_for_food_conservation-1918, methods_of_canning_fruits_and_vegetables_by_hot_air_and_steam-1890,
+          hints_and_remedies_for_the_treatment_of_common_accidents_and_diseases_and_rules_of_simple_hygiene-1882, indian-food-recipes]
+    safe: [canning-meat-wild-game-poultry-fish-safely-, canning-principles, canning-processing-charts, complete-guide-to-home-canning-nutrition,
+           drying-fruits-and-vegetables, preparing-and-canning-fermented-food-and-pickled-vegetables-, preserving-food-drying-fruits-and-vegetables-,
+           usda-utah-can-guide-05, preserving_game_meats, food-storage-for-survival, canning, jerky-recipes, food-storage-cooking-school-use-it-or-lose-it,
+           dehydrating_foods_fruits_vegetables_fish_and_meats_with_recipes-1920, fabulous-frugal-food-bills]
+
+  food:
+    tier: 2
+    books:
+      1: [survival-edible-medicinal-plants, useful-wild-plants-of-the-united-states-and-canada]
+      3: [the-new-complete-book-of-food, dictionary-of-food, native-berry-recipes, the-jerky-chef]
+      4: [food-in-medieval-times, raw-foods-bible]
+    flag:
+      id-caution: [survival-edible-medicinal-plants, useful-wild-plants-of-the-united-states-and-canada]
+
+  butchering:
+    tier: 2
+    books:
+      3: [meatcutting_workbook_part_1_1981, meatcutting_workbook_part_2_1982, handbook_on_cutting_lamb_1940]
+      4: [the_modern_packing_house_1905, the_packers_encyclopedia-blue_book_of_american_meat_packing_1922,
+          receiving_blocking_and_cutting_meats_in_retail_food_stores_1953, the_hotel_butcher_garde_manger_and_carver_1916,
+          processing_factors_affecting_the_quality_of_pheasant_meat_1968, butchers_packers_and_sausage_makers_red_book_1913, the_retail_butcher_1911]
+
+  cheese_and_butter:  # mostly creamery-factory science; keep the farm-kitchen ones
+    tier: 4
+    books:
+      2: [butter-making_on_the_farm_1920, cheese_making-cheddar_swiss_brick_limburger_edam_cottage_1905,
+          neufchatel_and_cream_cheese-farm_manufacture_and_use_1918, buttermilk_cheese_and_cottage_cheese_1920, butter_and_cheese_1920,
+          the_book_of_cheese_1918, a_b_c_in_cheese-making-a_short_manual_for_farm_cheese-makers_in_cheddar_gouda_danish_export_skim_cheese_1902]
+      3: [fancy_cheeses_for_the_farm_and_factory_1909, how_to_make_creamery_butter_on_the_farm_1915,
+          milk_cheese_and_butter-a_practical_handbook_on_their_properties_and_the_processes_of_their_production_1894,
+          american_dairying-a_manual_for_butter_and_cheese_makers_1878, principles_and_practice_of_butter-making_1906,
+          cheese_making-a_book_for_practical_cheesemakers_factory_patrons_agricultural_colleges_and_dairy_schools_1918,
+          hand-book_on_cheese_making_1889, cheese_manual_1889, abc_butter_making-a_hand-book_for_the_beginner_1888,
+          butter-making_on_the_farm_in_summer_1892, how_to_make_the_best_butter_1886, the_making_of_cheese_1893, cheese_making_1897,
+          fancy_cheese_in_america_from_the_milk_of_cows_sheep_and_goats_1910, practical_hints_on_dairying_1871]
+
+  baking:
+    tier: 3
+    books:
+      2: [bread_making_and_bread_baking_1915, leavening_agents-yeast_leaven_salt-rising_fermentation_baking_powder_1914, baking_in_the_home_1922,
+          home_baking_1925, use_of_wheat_flour_substitutes_in_baking_1918, war_bread_1918, bread_and_the_principles_of_bread_making_1906]
+      4: [baking_powder-a_healthful_convenient_leavening_agent_1915, baking_powders-a_treatise_of_the_character_1899, baking_powders_1889,
+          baking_powders_1912, development_and_use_of_baking_powder_and_baking_chemicals_1940,
+          grocers_manual_containing_formulas_for_the_manufacture_of_baking_powders_1888, the_effect_of_alum_upon_the_human_system_when_used_in_baking_powders_1901,
+          kramers_book_of_trade_secrets-formulae_for_flavoring_extracts_baking_powders_jellies_1905, ornamental_confectionery_and_practical_assistant_to_the_art_of_baking_1892,
+          ornamental_confectionery_and_the_art_of_baking_in_all_its_branches_1905, report_on_vienna_bread_1875, siebels_manual_and_record_book_for_bakers_and_millers_1917,
+          the_complete_confectioner_pastry-cook_and_baker_1846, the_complete_confectioner_pastry-cook_and_baker_1864,
+          book_of_american_baking-a_practical_guide_covering_the_baking_industry_1910, richard_f_nehrings_modern_ideas_in_baking_1907,
+          perfection_in_baking_1895, the_cook_and_housekeepers_complete_and_universal_dictionary_1832, studies_on_bread_and_bread_making_1903]
+
+  # --- shelter & survival --------------------------------------------------------
+  survival_individual:
+    tier: 2
+    books:
+      1: [fm_21-76-us-army-survival-manual, cold-weather-survival-2005, cold-weather-survival, survival-in-coldweather-areas,
+          usmc-winter-survival-course, usmc-summer-survival-course, how-to-build-a-debris-hut, how-to-find-your-way,
+          how-to-make-a-plastic-covered-solar-still, us-army-map-reading-and-land-navigation, nuclear-war-survival-skills,
+          wilderness-medicine-course, the_ship_captains_medical_guide_2014, wilderness-survival-skills, survival-wilderness-survival,
+          fm4-2511, traps]
+      3: [declination-diagram, the-book-of-camplore-and-woodcraft-dan-beard, american-boys-book-of-camp-lore-and-woodcraft,
+          how-to-make-common-things-by-bower, army-fm5-428-concrete-and-masonry, flintknapping_pdf_book, food-for-fifty,
+          fema-emergency-gassifer-1, electro-motors, the-unofficial-macgyver-howto-handbook-revised-2nd-edition, alpine-living-2008,
+          adventurer-woodstravel-module, australian_bushcraft_pdf, rappelling-tc2124, urban-preparation-kit-part-i-on,
+          marines-individual-terrorism-survival, combat-survival-evasion, combat-skills-of-the-soldier-fm2175,
+          army-stp21-1-soldiers-manual-of-common-tasks-warrior-skills-level-1, fm_21-76-1_survival-evasion-recovery, army-fm5-103-survivability,
+          survival-evasion-and-recovery]
+      4: [nuclear_war_survival_skills_september_1979,  # older printing of nuclear-war-survival-skills
+          steal-this-book, the_journals_of_lewis_and_clark_by_meriwether_lewis, army-fm20-3-camouflage-concealment-and-decoys, army-fm3-06-urban-operations,
+          fm3-06_urban_combat, army-stp21-24-soldiers-manual-of-common-tasks-warrior-skills-level-2-3-and-4, big-book-of-homemade-weapons,
+          cia-lock-picking-field-operative-training-manual-1, cia-simple-sabatoge-field-manual-1, civil-disturbance-operations,
+          combat-conditioning-manual-jiujitsu-lt-col-re-hanley-usmc, combat-guerrila-survival-skills-the-bear-went-over-the-mountain,
+          combat-survival-guerrila-skills-handbook-of-the-red-chinese, get-tough,
+          getaway-driving-techniques-for-escape-and-evasion-ronald-george-eriksen-ii-loompanics-unlimited, hand-to-hand-combat-martial-arts-aikido,
+          how-to-start-and-train-a-militia-unit-pm-94-1, krav-maga-pressure-points-military-hand-to-hand-combat-guide, marine-martial-arts-training-,
+          mountain-operations-fm3976, national-defense-defence-nationale, navy-seal-physical-fitness-guide, practical-unarmed-combat-by-moshe-feldenkrais,
+          ranger-handbook, ranger-unit-operations-fm785, secret-hiding-places, special-forces-caching-techniques-tc-3129a, terrain-analysis,
+          topographic-operations, united-states-marine-corps-fmfrp-12185-april-1989mao-guerrila-warfare, us-army-combat-training-w-pistols-fm-323x35,
+          us-army-combatives-handtohand-combat-fm-325-150, us-army-how-to-kill-tanks, us-marine-corp-pistol-markmanship,
+          us-marine-corps-hand-to-hand-combat, us-marines-close-quarters-combat-manual-fmfm-07, usmc-kill-or-get-killed, usmc-mcrp-301a-rifle-marksmanship]
+
+  shelter:
+    tier: 3
+    books:
+      1: [expedient_fallout_shelter_construction]
+      2: [the_family_fallout_shelter_1959, wilderness_homes-a_book_of_the_log_cabin_1908]
+      4: [psychological_and_social_adjustment_in_a_simulated_shelter-a_research_report_1960, my_year_in_a_log_cabin_1893,
+          the_evolving_house_volume_ii_the_economics_of_shelter_1934, the_evolving_house_volume_iii_rational_design_1936,
+          the_growth_of_the_english_house_from_1100_to_1800_1909, the_prefabrication_of_houses_1951,
+          the_theory_practice_and_architecture_of_bridges_of_stone_iron_timber_and_wire_1843, family_housing_1949, housing_1907]
+
+  trapping_hunting:
+    tier: 3
+    books:
+      2: [the_amateur_trapper-a_complete_guide_to_the_arts_of_trapping_snaring_and_netting_1917, the_art_of_trapping_1917,
+          science_of_trapping-fur_bearing_animals_with_practical_methods_for_their_capture_1909, trapping_1921,
+          i_abraham_trappers_guide-latest_methods_of_trapping_animals_caught_on_the_north_american_continent_1913,
+          the_trappers_guide-manual_of_instructions_for_capturing_all_kinds_of_fur-bearing_animals_and_curing_their_skins_1867,
+          camp_life_in_the_woods_and_the_tricks_of_trapping_and_trap_making_1881,
+          life_in_the_back-woods-a_guide_to_hunting_and_trapping_of_all_kinds_of_animals_1875, feral_forager]
+      4: [canadian_wilds-nothern_indians_and_their_modes_of_hunting_trapping_etc_1907,
+          carolina_sports_by_land_and_water-including_devil-fishing_wild-cat_deer_and_bear_hunting_1867, city_boys_in_the_woods_or_a_trapping_venture_in_maine_1889,
+          fifty_years_a_hunter_and_trapper_autobiography_1903, letters_to_young_sportsmen_on_hunting_angling_and_shooting_1920,
+          my_sixty_years_on_the_plains-trapping_trading_and_indian_fighting_1905, narratives_of_trapping_life_-_stories_of_the_trail_and_trap-line_in_the_adirondacks_1922,
+          red_deer-natural_history_1896, sketches_of_camp_life_in_the_wilds_of_the_aroostook_woods_1892, the_autobiography_of_an_english_gamekeeper_1892,
+          the_deer_family-theodore_roosevelt_1903, thirty-one_years_on_the_plains_and_in_the_mountains_1900,
+          three_years_hunting_and_trapping_in_america_and_the_great_northwest_1888, twenty_years_on_the_trap_line-notes_written_during_a_20_yrs_on_the_nw_plains_1891]
+    flag:
+      id-caution: [feral_forager]
+
+  fishing:  # mostly sport angling and memoir; keep catching, tackle-making, preserving
+    tier: 4
+    books:
+      2: [essential-fishing-knots, fishing-knots-tying-how-to-tie-a-knot-knotting, bait_angling_for_common_fishes_with_illustrations_by_the_author-louis_rhead_1907,
+          science_of_fishing-the_most_practical_book_on_fishing_ever_published_1912, why_and_how_to_use_salt_and_smoked_fish_1917]
+      3: [how_to_catch_coarse_fish-an_old_anglers_hints_and_wrinkles-a_r_matthews_1921, the_book_of_fish_and_fishing-a_complete_compendium_of_practical_advice_1908,
+          the_practical_fisherman-j_h_keene_1881, line_fishing-c_m_mundahl_1883, fishing-when_where_and_how_to_fish_without_live_bait_1862,
+          fishing_with_hook_and_line-a_manual_for_amateur_anglers-frank_forrester_1870, the_young_fisherman_1862, fish_preservation_and_refrigeration-mr_j_k_kilbourn_1883,
+          how_to_cook_fish-recipes_for_preparing_sea_and_fresh_water_fish_for_the_table-verein_deutcher_fisch_haendler_1886,
+          recipes_for_sea_food-how_to_prepare_and_serve_fish_oysters_clams_scallops_lobsters_crabs_and_shrimp-freeman_and_cobb_1913,
+          300_ways_to_cook_and_serve_shell_fish-h_franklyn_hall_1901, home_fishing_and_home_waters-a_practical_treatise_on_fish_culture-seth_green_1888,
+          practical_trout_culture-j_h_slack_1872, fish_hatching_and_fish_catching-seth_green_and_r_b_roosevelt_1879, american_fish-culture-thaddeus_norris_1868,
+          board_of_agriculture_and_fisheries_leaflet_1-100_1919, board_of_agriculture_and_fisheries_leaflet_101-200_1912,
+          board_of_agriculture_and_fisheries_leaflet_201-300_1917, sharks_as_food-with_thirty_recipes_1918,
+          skates_and_rays-interesting_fishes_of_great_food_value_with_29_recipes_for_cooking_them_1918, fish_roe_and_buckroe-with_85_recipes_1918,
+          fishing_tackle_its_materials_and_manufacture_1886, the_boys_own_guide_to_fishing_tackle-making_and_fish-breeding-john_harrington_keene_1894,
+          fishing_kits_and_equipment-samuel_g_camp_1913, american_fishes-a_popular_treatise_upon_the_game_and_food_fishes_of_north_america-g_brown_goode_1888,
+          the_sea-fisherman-j_c_wilcocks_1884, the_complete_fisherman-walter_m_gallichan_1907]
+
+  boy_scout_manuals:  # mostly 1910s boy-scout adventure novels and movement admin
+    tier: 4
+    books:
+      2: [boy_scout_handbook_1911, first_aid_for_boys-a_manual_for_boy_scouts_1917]
+      3: [camp_cookery_1910, camp_craft_1915, camping_and_woodcraft_vol_2, harpers_camping_and_scouting-an_outdoor_guide_for_american_boys_1911,
+          the_book_of_woodcraft_and_indian_lore_1912, camp_kits_and_camp_life_1906, camping_out_1918, camping_1911,
+          boy_scouts_of_america-a_handbook_of_woodcraft_scouting_and_life-craft_1910,
+          the_boys_camp_book-a_guidebook_based_upon_the_annual_encampment_of_a_boy_scout_troop_1914, canoeing_sailing_and_motor_boating_1919,
+          the_boys_book_of_hunting_and_fishing_1916, information_about_fish_and_how_to_use_them_1914, the_boy_scouts_hike_book_1913]
+
+  # --- agriculture ---------------------------------------------------------------
+  farming:
+    tier: 3
+    books:
+      2: [a-b-c_of_gardening-1915, beginners_book_of_gardening-1911, garden_guide-the_amateur_gardeners_handbook-1917,
+          garden_vegetables_and_how_to_cultivate_them-1866,
+          how_to_grow_vegetables_and_garden_herbs-a_practical_handbook_and_planting_table_for_the_vegetable_gardener-1911,
+          the_plain_path_to_good_gardening_or_how_to_grow_vegetables_fruits_and_flowers_successfully-1871, the_amateurs_practical_garden-book_1900,
+          vegetable-garden-encyclopedia, garden_farming-1913, the_nursery_book-a_complete_guide_to_the_multiplication_and_pollination_of_plants-1892,
+          how_to_succeed_with_the_home_orchard-1920, fertilizers-how_to_make_them-1885, fertilizers-how_to_make_them_by_gregory,
+          care_and_management_of_rabbits-1920, practical_rabbit_keeping-1919, common_diseases_of_farm_animals_1916, meat_curing_and_sausage_making-1922,
+          cottage_economy-making_beer_and_bread_and_raising_livestock-1833, dairy_farming-what_cows_to_buy__how_to_house_feed_and_care_for_them_and_make_dairying_pay-1912,
+          the_farm_dairy_1908, injurious_insects_of_the_orchard_vineyard_field__garden_conservatory_household_etc_with_remedies_for_their_extermination-1883,
+          jacques_new_manual_of_the_garden_farm_and_barnyard_1870, farm_and_garden_rule-book_1911,
+          diseases_of_domestic_animals_and_poultry_their_cause_symptoms_and_treatment-1915]
+      4: [homesteading_two_prairie_seasons-1918, canadian_life_as_i_found_it-four_years_homesteading_in_the_north-west_territories-1908,
+          my_farm_of_edgewood-a_country_book_1884, the_fat_of_the_land-the_story_of_an_american_farm_1908, notes_on_north_america-agricultural_economical_and_social_vol_1_1851,
+          notes_on_north_america-agricultural_economical_and_social_vol_2_1851, the_rural_economy_of_england_scotland_and_ireland_1855, farm_family_record_book_1939,
+          farming_costs-1921, agricultural_apparatus_manufactured_and_imported_by_central_scientific_co_september_1914_reprinted_june_1915_1915,
+          the_lehigh_farm_book_of_structographs_1927, fox_trapping-a_book_of_instruction_telling_how_to_trap_snare_poison_and_shoot-1906,
+          mink_trapping-a_book_of_instruction_giving_many_methods_of_trapping-1906, life_in_the_back-woods-a_guide_to_the_successful_hunting_and_trapping_of_all_kinds_of_animals-1875,
+          hunting-1885, the_book_of_the_farm_vol_1_1844, the_book_of_the_farm_vol_2_1844, the_book_of_the_farm_vol_3_1844,
+          the_book_of_the_farm_div_1_1889, the_book_of_the_farm_div_2_1889, the_book_of_the_farm_div_3_1889, the_book_of_the_farm_div_4_1889,
+          the_book_of_the_farm_div_5_1889, the_book_of_the_farm_div_6_1889, the_book_of_the_farm_4th_edition_vol_1_1891,
+          the_book_of_the_farm_4th_edition_vol_2_1891, the_book_of_the_farm_4th_edition_vol_3_1891,  # superseded by the 5th edition (1908)
+          the_book_of_the_garden_vol_1_1853, the_book_of_the_garden_vol_2_1855, public_school_agriculture_1929, new_elementry_agriculture_1911,
+          farming_for_boys-how_to_begin_how_to_proceed_and_what_to_aim_at-1869, catechism_of_practical_agriculture_1856, experimental_agriculture_1849,
+          elements_of_agricultural_chemistry_1860, johnstons_elements_of_agricultural_chemistry_1894, instructions_for_the_analysis_of_soils_limestones_and_manures_1856,
+          facts_for_farmers-_also_for_the_family_circle-a_compost_of_rich_materials_for_all_land-owners-1865, modern_high_farming-1886,
+          principles_of_irrigation_engineering-1913, the_nutrition_of_farm_animals_1917, feeds_and_feeding_by_w_a_henry_1916,
+          a_text-book_of_the_diseases_of_the_small_domestic_animals-1921, a_treatise_on_surgical_therapeutics_of_domestic_animals-1906,
+          the_diseases_of_the_genital_organs_of_domestic_animals_1921, the_anatomy_of_the_domestic_animals-1914, the_physiology_of_domestic_animals-1905,
+          the_physiology_of_the_domestic_animals-a_text-book_for_veterinary_and_medical_students_and_practitioners-1889, protozoan_parasites_of_domestic_animals_and_of_man_(1961),
+          restraint_of_domestic_animals-a_book_for_the_use_of_students_and_practitioners-1912, special_pathology_and_therapeutics_of_the_diseases_of_domestic_animals_1926,
+          veterinary_bacteriology-a_treatise_on_the_bacteria_yeasts_molds_and_protozoa_pathogenic_for_domestic_animals-1911,
+          the_diseases_of_the_mammary_gland_of_the_domestic_animals-1904, insects_affecting_domestic_animals-an_account_of_the_species_of_importance_in_north_america-1896,
+          the_american_veterinarian_or_diseases_of_domestic_animals-1850, our_domestic_animals-their_habits_intelligence_and_usefulness-1907,
+          cattle-their_breeds__management__and_diseases-1836, dairy_farming-1862, dairying_exemplified-1787, american_dairying-a_manual_for_butter_and_cheese_makers-1876,
+          modern_methods_of_testing_milk_and_milk_products-a_handbook_prepared_for_the_use_of_dairy_students_1906, village_and_farm_cottages-the_requirements_of_american_village_homes_1856,
+          the_forcing_fruit_and_kitchen_gardener-1802, another_hardy_garden_book-1905, the_chemistry_of_the_farm_1882,
+          the_chemistry_of_farming_made_easy-a_textbook_for_the_schools_in_north_carolina_1867, cultivated_plants_and_domestic_animals-1891,
+          contagious_diseases_of_domesticated_animals_1880, diseases_of_fur_animals_1942, the_farmers_medical_dictionary_for_the_diseases_of_animals_1845,
+          the_dictionary_of_the_farm_1853]
+    flag:
+      old-medicine: [common_diseases_of_farm_animals_1916, diseases_of_domestic_animals_and_poultry_their_cause_symptoms_and_treatment-1915,
+                     our_domestic_animals_in_health_and_disease_vol_1-1871, our_domestic_animals_in_health_and_disease_vol_2-1871,
+                     the_farmers_veterinary_advisor-a_guide_to_the_prevention_and_treatment_of_disease_in_domestic_animals-1897,
+                     the_stock_owners_adviser-the_breeding__rearing__management__diseases_and_treatment_of_domestic_animals-1901,
+                     conservation_of_the_health_of_domestic_animals-1906, the_diseases_of_animals_1903, veterinary_obstetrics_1909]
+
+  poultry:
+    tier: 3
+    books:
+      2: [biggle_poultry_book-1917, homemade_poultry_appliances-1921, making_a_poultry_house-1912, the_practical_poultry_keeper_1917,
+          poultry_craft-a_textbook_for_poultry_keepers-1899, diseases_of_poultry-their_etiology_diagnosis_treatment_and_prevention-1915]
+      4: [a_practical_guide_to_the_breeding_feeding_and_rearing_of_the_houdan_fowl-1874, a_text_book_and_catalog_on_the_vigorous_strain_of_silver_campines-1916,
+          barred_and_white_plymouth_rock_poultry_illustrated-1893, barred_and_white_plymouth_rocks-their_history_characteristics_and_standard_points-1888,
+          feathers_wyandotte_book-1905, fowls_for_the_times-the_history_and_development_of_the_orpington_fowl-1896, game_fowls-their_origin_and_history-1869,
+          minorcas-all_varieties-1898, minorcas_of_every_comb_and_color-1907, origins_and_history_of_all_breeds_of_poultry-1908,
+          ornamental_and_domestic_poultry-their_history_and_management-1850, ornamental_aquatic_and_domestic_fowl_and_game_birds-1850,
+          domestic_fowl_and_ornamental_poultry-1852, preparing_poultry_for_exhibition-1900, races_of_domestic_poultry-1906, rhode_island_reds-1910,
+          secrets_in_fowl_breeding-1876, standard-bred_leghorns-1911, standard-bred_orpingtons-1911, standard-bred_rhode_island_reds_rose_and_single_comb-1911,
+          the_american_standard_of_excellence-1874, the_asiatics_brahmas_cochins_and_langshans-1904,
+          the_bantam_fowl-a_description_of_all_standard_breeds_and_varieties_of_bantams-1903, the_blue_andalusian-its_breeding_management_and_exhibition-1897,
+          the_book_of_the_dorking-1886, the_brahma_fowl-a_monograph, the_campine_history-1913, the_campines_silver_and_golden-1914,
+          the_china_fowl-shanghae_cochin_and_brahma-1874, the_game_cock-1873, the_game_fowl-old_english_and_modern-1912,
+          the_illustrated_book_of_domestic_poultry-1892, the_illustrated_book_of_poultry-1873, the_indian_runner_duck_book_1911,
+          the_langshan_fowl-its_history_and_characteristics-1889, the_leghorn_of_the_past_and_present-1878,
+          the_leghorns_brown_white_black_buff_and_duckwing-an_illustrated_leghorn_standard-1904, the_minorca_fowl-1893,
+          the_old_english_game_fowl-its_history_description_management_breeding_and_feeding-1891, the_plymouth_rock_standard_and_breed_book-1919,
+          the_plymouth_rocks-how_to_mate_rear_and_judge_them-1880, the_wyandotte_standard_and_breed_book-1919,
+          burnhams_new_poultry_book-a_practical_work_on_selecting_housing_and_breeding_domestic_fowls-1877, diseases_of_domestic_poultry-1876,
+          manual_of_veterinary_homeopathy-1922]
+    flag:
+      old-medicine: [diseases_of_poultry-their_etiology_diagnosis_treatment_and_prevention-1915, lehmans_poultry_doctor-1909,
+                     poultry_diseases_and_their_remedies-the_cause_symptoms_and_treatment-1910, the_diseases_of_poultry-1899]
+
+  beekeeping:
+    tier: 4
+    books:
+      2: [first_lessons_in_beekeeping-dadant_1919, beginners_bee_book_1919, langstroth_on_the_hive_and_honey_bee_1888,
+          the_abc_and_xyz_of_bee_culture_1920, starting_right_with_bees_1922, beekeeping-plans_for_a_complete_beekeeping_system_1975]
+      3: [how_to_keep_bees-a_handbook_for_the_use_of_beginners_1905, bee_disease_control_1917, every_step_in_beekeeping_1921,
+          the_practical_bee_guide-a_manual_of_modern_beekeeping_1921, langstroth_on_the_hive_and_honey_bee_1919, beehives_and_bee_keepers_appliances_1911,
+          transferring_of_bees_1920, spring_management_of_bees_1921, wintering_bees_in_canada_1922, queen_rearing_simplified_1923,
+          practical_queen_rearing_1918, dadant_system_of_beekeeping_1920, outapiaries_and_their_management-dadant_1919,
+          american_honey_plants_together_with_those_which_are_of_special_value_to_the_beekeeper_as_sources_of_pollen_1920,
+          beekeeping-a_discussion_of_the_life_of_the_honeybee_and_of_the_production_of_honey_1915, a_thousand_answers_to_beekeeping_questions_1917,
+          bees_for_pleasure_and_profit_1921, the_bee-keepers_guide_or_manual_of_the_apiary_1902, quinbys_new_bee-keeping_1900,
+          how_to_keep_bees_for_profit_1910, beekeeping_in_the_south_1920, biggle_bee_book-a_swarm_of_facts_on_practical_bee-keeping_1909]
+
+  livestock_cattle:
+    tier: 4
+    books:
+      2: [feeding_dairy_cattle_1921, how_to_kill_animals_humanely_1879, special_report_on_diseases_of_cattle_1912]
+      3: [american_cattle_doctor_1884, the_american_cattle_doctor-a_complete_work_on_the_diseases_of_cattle_1880, animal_breeding_1903,
+          the_dairymens_assistant_and_cattle_breeders_manual_1895, feeding_cows_for_profit_1914, bovine_tuberculosis-its_cause_symptoms_and_treatment_1911,
+          guide_for_meat_inspectors_1915, handbook_of_meat_inspection_1904, food_for_starving_cattle_on_the_plains_1884, silos_silage_and_cattle_feeding_1890]
+    flag:
+      old-medicine: [special_report_on_diseases_of_cattle_1912, american_cattle_doctor_1884,
+                     the_american_cattle_doctor-a_complete_work_on_the_diseases_of_cattle_1880, bovine_tuberculosis-its_cause_symptoms_and_treatment_1911]
+
+  livestock_sheep:
+    tier: 3
+    books:
+      2: [biggle_sheep_book_1912, practical_sheep_husbandry_1919]
+      4: [the_gid_parasite-cnurus_cerebralis-its_presence_in_american_sheep_1905, the_hemolymph_nodes_of_sheep_1914,
+          flushing_and_other_means_of_increasing_lamb_yields_1921, total_per_cent_lambing_rules_1915, more_sheep_more_wool_1917, an_essay_on_sheep_1824,
+          breeding_shropshires_1910, the_cheviot_sheep_1899, the_fattening_of_sheep_in_winter_1869, the_animal_parasites_of_sheep_1890]
+
+  livestock_swine:
+    tier: 3
+    books:
+      2: [biggle_swine_book_1912, a_practical_manual_for_the_breeding_rearing_and_management_of_swine_1913]
+      4: [history_of_the_duroc_1918, scientific_line_breeding_of_big_type_polands_1919, disposal_of_irrigated_crops_through_the_use_of_hogs_1917,
+          pacific_northwest_swine_husbandry_1915, sal_vet_swine_book_1912, inoculation-a_preventive_of_swine_plague_1892,
+          a_treatise_on_hog_cholera_and_chicken_cholera_1879, hog_cholera_and_how_to_prevent_it_1877, the_hog_and_hog_cholera_1900, remedies_for_hog_cholera_1914]
+
+  veterinary:
+    tier: 3
+    hazard: old-medicine
+    books:
+      2: [the_farmers_practical_veterinary_guide_1921, common_sense_treatment_of_farm_animals_1911, dr_david_roberts_practical_home_veterinarian_1913,
+          the_care_of_animals_1903, the_veterinary_obstetrical_compendium_for_the_farmer_and_breeder_1903,
+          the_symptoms_and_treatment_of_the_diseases_of_domestic_animals_1902]
+      4: [a_manual_of_homoeopathic_veterinary_practice_1873, manual_of_veterinary_homeopathy1922, manual_of_veterinary_specific_homeopathy_1891,
+          catalogue_of_veterinary_instruments_1894, animal_plagues-their_history_nature_and_prevention_1871, the_veterinarians_call_book-perpetual_1893,
+          the_stockmans_note_book-a_convenient_pocket_and_account_book_1896, takosis-a_contagious_disease_of_goats_1903,
+          a_text_book_of_veterinary_ophthalmology_1897, the_clinical_pathology_of_the_blood_of_domesticated_animals_1917,
+          text_book_of_comparative_general_pathology_for_veterinary_medicine_1906, gleasona_veterinary_hand_book_and_system_of_horse_taming_1897,
+          the_illustrated_stock_doctor_and_live-stock_encyclopaedia_1882, the_american_farrier_and_family_medical_companion_1852,
+          the_american_horse_doctor_1866, every_man_his_own_horse_doctor_1868, hand_book_to_veterinary_medicine_or_a_treatise_on_the_sick_horse_1870,
+          new_manual_of_veterinary_medicine_of_diseases_of_the_horse_1868, the_american_veterinarian_or_diseases_of_domestic_animals_1859,
+          dadds_theory_and_practice_of_veterinary_medicine_and_surgery_1867, the_horse_and_other_live_stock_1866,
+          the_american_farmers_pictorial_cyclopedia_of_live_stock_1882, the_diseases_of_the_genital_organs_of_domestic_animals_1921,
+          springtime_surgery-cryptorchid_castration_1912, notes_on_veterinary_materia_medica_1898, the_countrymans_experience_1872,
+          guide_and_protection_for_stock_owners_1879, shooks_guide_for_swine_poultry_and_stock_breeders_1887, pratts_pointers_on_cows_sheep_and_hogs_1905]
+
+  mushrooms:
+    tier: 3
+    hazard: id-caution
+    books:
+      2: [edible_and_poisonous_mushrooms_of_canada_1979, some_common_mushrooms_and_how_to_know_them_1953, poisonous_mushrooms_1910,
+          mushrooms_and_their_cultivation_1909, wild_edible_mushrooms_in_the_blue_mountains_1997]
+      4: [insects_injurious_to_mushrooms_1912, the_mycogone_disease_of_mushrooms_and_its_control_1914, a_study_of_mushrooms_and_mushroom_spawn_1914,
+          you_can_make_big_money_raising_mushrooms_1908, mycological_glossary_or_aid_to_the_study_of_mushrooms_1905,
+          flowerless_plants-ferns_mushrooms_mosses_lichens_and_seaweeds_1907, mushrooms_ferns_and_grasses_and_some_more_wild_flowers_1930,
+          the_mushrooms_of_canada_1871, mushrooms_of_america-edible_and_poisonous_1885, studies_of_american_fungi_mushrooms_edible_poisonous_1901,
+          mushrooms_for_the_million_1884, mushrooms_and_mushroom_spawns_and_guide_to_mushroom_culture_1905]
+    safe: [mushrooms_and_their_cultivation_1909, how_to_grow_mushrooms_1897, mushrooms_how_to_grow_them_1901,
+           mushrooms-guide_to_mushroom_culture_1908, recipes_for_cooking_mushrooms_1903]
+
+  berries:
+    tier: 3
+    books:
+      2: [productive_small_fruit_culture_1920, raspberry_currant_and_strawberry_1915, thornless_blackberries_for_the_home_garden_1973]
+      4: [breeding_and_testing_strawberry_varieties_1949, diseases_of_strawberry-_a_guide_for_the_commercial_grower_1961,
+          floating_row_cover_to_produce_early_ripening_of_strawberry_1989, studies_on_forcing_of_strawberry_cultivars_1979,
+          winter_storage_of_strawberry_plants_1943, the_strawberry-a_monthly_magazine_devoted_to_strawberry_production_1906,
+          the_strawberry_in_north_america-history_origin_botany_and_breeding_1917, instructions_for_digging_strawberry_plants_1885,
+          farmer_on_the_strawberry-fall_bearing_strawberries_1912, fall-bearing_strawberry_secrets_gathered_from_personal_experience_1912,
+          the_illustrated_strawberry_culturist_1887]
+
+  # --- tools & building ----------------------------------------------------------
+  smithing:
+    tier: 3
+    books:
+      2: [farm_blacksmithing_1904, the_blacksmiths_guide_1907, elementary_forge_practice-a_text-book_for_technical_and_vocational_schools_1920,
+          forging_manual_of_practical_instruction_in_hand_forging_1919, modern_blacksmithing_1904, hardening_tempering_annealing_and_forging_of_steel_1903,
+          steel_working_and_tool_dressing_1914, farm_shop_work_1915]
+      4: [american_blacksmith_vol_01_1901, american_blacksmith_vol_02_1902, american_blacksmith_vol_03_1903, american_blacksmith_vol_04_1904,
+          american_blacksmith_vol_05_1905, american_blacksmith_vol_06_1906, american_blacksmith_vol_07_1907, american_blacksmith_vol_08_1908,
+          american_blacksmith_vol_09_1909, american_blacksmith_vol_10_1910, american_blacksmith_vol_11_1911, american_blacksmith_vol_12_1912,
+          american_blacksmith_vol_13_1913, american_blacksmith_vol_14_1914, american_blacksmith_vol_15_1915, american_blacksmith_vol_16_1916,
+          american_blacksmith_vol_17_1917, american_blacksmith_vol_18_1918,
+          practical_sheet_metal_work_and_demonstrated_patterns_volume_1_1910, practical_sheet_metal_work_and_demonstrated_patterns_volume_2_1911,
+          practical_sheet_metal_work_and_demonstrated_patterns_volume_3_1911, practical_sheet_metal_work_and_demonstrated_patterns_volume_5_1911,
+          practical_sheet_metal_work_and_demonstrated_patterns_volume_6_1911, practical_sheet_metal_work_and_demonstrated_patterns_volume_7_1912,
+          practical_sheet_metal_work_and_demonstrated_patterns_volume_9_1911, practical_sheet_metal_work_and_demonstrated_patterns_volume_10_1911,
+          practical_sheet_metal_work_and_demonstrated_patterns_volume_11_1911, practical_sheet_metal_work_and_demonstrated_patterns_volume_12_1912,
+          church_metal_work_1887, deformation_processing_of_stainless_steel_nasa_1966, english_metal_work-ninety-three_drawings_1904,
+          forges_and_furnaces_in_the_province_of_pennsylvania_1914, furnishing_plan-blacksmith_shop_1982,
+          guide_for_drawing_the_acanthus_and_every_description_of_ornamental_foliage_1886, james_nasmyth_engineer_1883, mechanical_exercises_1812,
+          mediaeval_craftsmanship_and_the_modern_amateur_1923, old_english_pattern_books_of_the_metal_trades_1913, the_boilermakers_journal,
+          the_boilermakers_ready_reckoner_1882,
+          united_states_navy_drop_forging_book-covering_drop_forgings_under_all_bureaus_for_which_dies_are_on_hand_at_navy_yards_1919,
+          wartime_employment_of_women_in_the_metal_trades, the_corrosion_of_fence_wire_1905, the_neverslip_self_sharpening_horse_shoe_calks_1890,
+          estimating_sheet_metal_work_1921, drop-forgings_1901, drop_forging_1910, drop_forging_die_sinking_and_machine_forming_of_steel_1911,
+          press-working_of_metals_1896, press-working_of_metals_1901, machine_forging_1921, practical_guide_to_iron_and_steel_works_analyses_1911,
+          laying_out_for_boiler_makers_and_sheet_metal_workers_1907, hinds_farriery_and_stud_book_1867]
+
+  forging_and_casting:  # mostly industrial foundry; keep small-shop casting and pattern making
+    tier: 4
+    books:
+      3: [a_text-book_of_elementary_foundry_practice_1910, foundry_work-gray_1920, foundry_work-part_1_1906, foundry_work-part_2_1906,
+          general_foundry_practice-being_a_treatise_on_general_iron_founding_1910, pattern_making_and_foundry_practice_1905,
+          practical_pattern_making-hasluck_1905, the_principles_of_pattern_making_1900, the_art_of_the_bronze_founder_1916,
+          practical_alloying-a_compendium_of_alloys_and_processes_1920, foundry_practice-a_treatise_on_molding_and_casting_1909,
+          a_treatise_on_moulding_sand_1904, foundry_sands_1908, the_cupola_furnace-a_practical_treatise_on_the_construction_and_management_1903,
+          elementary_wrought_iron_1930, wrought_iron-its_manufacture_characteristics_and_applications_1942, a_practical_treatise_of_foundry_irons_1911,
+          the_blast_furnace_and_the_manufacture_of_pig_iron_1909]
+
+  wood_carpentry:
+    tier: 3
+    books:
+      2: [farm_woodwork_1919, carpentry_1916, modern_carpentry-a_practical_manual_vol_1_1917, modern_carpentry-a_practical_manual_vol_2_1917,
+          rustic_carpentry_1908, light_and_heavy_timber_framing_made_easy_1909, tool_processes_in_woodworking_1919, agricultural_woodworking_1916]
+      4: [national_coopers_journal_vol_37_1921, national_coopers_journal_vol_40_1924, national_coopers_journal_vol_41_1925,
+          national_coopers_journal_vol_42_1926, national_coopers_journal_vol_43_1927, national_coopers_journal_vol_44_1928,
+          national_coopers_journal_vol_45_1929, illustrated_descriptive_catalogue_patent_labor-saving_wood-working_machinery_1910,
+          american_woodworking_machinery_for_vocational_training_1920, a_treatise_on_the_construction_and_operation_of_wood-working_machines_1872,
+          on_the_arrangement_care_and_operation_of_wood-working_factories_and_machinery_1873, wood_conversion_by_machinery_1876,
+          english_church_woodwork_1919, robert_adam_and_his_brothers_1915, craftsman_homes_1909, more_craftsman_homes_1912,
+          manual_training_in_education_1896, architectural_wood_carving_1902, descriptive_catalogue_of_the_woods_1843, douglas_fir_ship_1917,
+          machine_molder_practice_1919, pattern_making_1908, pattern-making_1910, pattern-making_1914, patternmaking-a_treatise_1920,
+          wood_pattern_making_1906, "wood_working_wood_turning_&_patternmaking_1905"]
+
+  stone_and_masonry:
+    tier: 3
+    books:
+      2: [masonry_mortar_1934, concrete_1909, clay_masonry_family_fallout_shelters_1960]
+      4: [the_art_of_masonry_in_britain_1904, stresses_in_masonry_1909, stereotomy-problems_in_stone_cutting_1875,
+          operative_masonry_or_a_theoretical_and_practical_treatise_of_building_1832, a_popular_and_practical_treatise_on_masonry_and_stone_cutting_1828,
+          a_rudimentary_treatise_on_masonry_and_stonecutting_1849]
+
+  soap:  # mostly 600-850 page factory treatises
+    tier: 4
+    books:
+      2: [the_art_of_soap-making_1918]
+      3: [a_treatise_on_soap-making_1810, handbook_of_soap_manufacture_1908, soaps_and_candles_1888, the_soap_makers_handbook_1912]
+
+  leather:
+    tier: 3
+    books:
+      2: [bushcraft_leather_work_pdf, practical_tanning_1916, the_art_of_tanning_leather_1857, leather_work-a_practical_manual_for_learners_1892,
+          leather_working_1904, leather_work_1915]
+      4: [the_journal_of_the_american_leather_chemists_association_vol_01_1906, the_journal_of_the_american_leather_chemists_association_vol_02_1907,
+          the_journal_of_the_american_leather_chemists_association_vol_03_1908, the_journal_of_the_american_leather_chemists_association_vol_04_1909,
+          the_journal_of_the_american_leather_chemists_association_vol_05_1910, the_journal_of_the_american_leather_chemists_association_vol_06_1911,
+          the_journal_of_the_american_leather_chemists_association_vol_07_1912, the_journal_of_the_american_leather_chemists_association_vol_08_1913,
+          the_journal_of_the_american_leather_chemists_association_vol_09_1914, the_journal_of_the_american_leather_chemists_association_vol_10_1915,
+          the_journal_of_the_american_leather_chemists_association_vol_11_1916, the_journal_of_the_american_leather_chemists_association_vol_12_1917,
+          the_journal_of_the_american_leather_chemists_association_vol_13_1918, the_journal_of_the_american_leather_chemists_association_vol_14_1919,
+          the_journal_of_the_american_leather_chemists_association_vol_15_1920, the_journal_of_the_american_leather_chemists_association_vol_16_1921,
+          the_journal_of_the_american_leather_chemists_association_vol_17_1922, new_england_shoe_and_leather_industry_vol_1-2_1903,
+          new_england_shoe_and_leather_industry_vol_3-4_1905, report_on_leather_and_shoe_industries_1919,
+          summary_of_report_of_the_federal_trade_commission_on_shoe_and_leather_costs_1921, shoe_and_leather_trade_of_the_last_hundred_years_1891,
+          the_worlds_trade_in_hides_skins_and_leather_1918, the_tanning_industry_1917, the_shoe_industry_1922, leather_for_libraries_1905,
+          report_of_the_committee_on_leather_for_bookbinding_1905, leather_chemists_pocket-book-a_short_compendium_of_analytical_methods_1912,
+          leather_industries_laboratory_book_on_analytical_and_experimental_methods_1908,
+          leather_trades_chemistry-a_practical_manual_on_the_analysis_of_materials_and_finished_products_1908,
+          a_study_of_the_changes_in_skins_during_their_conversion_into_leather_1915, nature_and_control_of_tannery_processes_1922,
+          application_of_dyestuffs_to_textiles_paper_leather_1920, leather_and_metal_work_designing_1916, p_stephensons_lightning_tanning_process_1879,
+          practical_tanning_1922, a_complete_guide_to_ornamental_leather_work]
+
+  weaving:
+    tier: 3
+    books:
+      2: [hand-loom_weaving-a_manual_for_school_and_home_1914, foot-power_loom_weaving_1918, hand_loom_weaving_1920, indian_basket_weaving_1903,
+          inexpensive_basketry_1912]
+      4: [jacquard_machines_instruction_paper_1909, jacquard_weaving_and_designing_1895, the_jacquard_machine_analyzed_and_explained_1887,
+          correspondence_relating_to_the_invention_of_the_jacquard_brussels_carpet_power_loom_1868, ideal_automatic_loom_1912, labor-savings_looms_1904,
+          tappet_and_dobby_looms_1912, woolen_and_worsted_cam-looms_1906, woolen_and_worsted_loom_fixing_1900, weave_room_management_1910,
+          speed_warping_1900, warp_stop-motion_for_looms-united_states_patent_600_008, silk_throwing_1918,
+          a_manual_of_the_processes_of_winding_warping_and_quilling_of_silk_1918, yarns_cloth_rooms_mill_engineering_reeling_and_baling_winding_1906,
+          weaving_machinery_for_cotton_silk_woolen_worsted_and_special_fabrics_1919,
+          kinks_for_boss_weavers_from_the_questions_and_answers_department_of_the_textile_world_record_1910, practical_loom_fixing_1917,
+          loom-fixing_and_weaving-a_book_for_all_who_are_interested_in_such_matters_1896,
+          practice_in_weaving_and_loom-fixing-a_complete_manual_for_the_weave_room_1887, the_mechanism_of_weaving_1900, deflected_warps_and_wefts_1900,
+          tapestries_and_carpets_from_the_palace_of_the_pardo_woven_at_the_royal_manufactory_of_madrid_1917,
+          hosiery_and_knit_goods_dyeing_bleaching_finishing_1913, fabrics_we_are_printing_and_how_we_do_it_1920,
+          a_dictionary_of_calico_printing_and_dyeing_with_practical_receipts_and_scientific_information_1862, a_treatise_on_calico_printing_1792,
+          bleaching_and_calico-printing-a_practical_manual_1896, bleaching_dyeing_and_calico-printing_with_formulae_1884,
+          the_printing_of_cotton_fabrics-comprising_calico_bleaching-printing-dyeing_1887,
+          the_printing_of_textile_fabrics-a_practical_manual_on_the_printing_of_cotton_woollen_silk_and_half-silk_fabrics_1897,
+          the_principles_and_practice_of_textile_printing_1912, jute_and_linen_weaving_1914, arithmetical_calculations_for_weaving_students_1904,
+          fabric_analysis_1920, how_to_figure_out_and_arrange_pattern_work_for_weaving_colored_fabrics_1915,
+          mat_weaving_and_slat_weaving_in_primary_schools_1904]

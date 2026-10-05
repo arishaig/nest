@@ -533,7 +533,8 @@ def survivor_books(manifest, root):
                     meta = {"title": survivor_title(b["title"]), "author": "", "category": category,
                             "publisher": "Survivor Library", "priority": cfg["priority"],
                             "license": "Public domain (historical)",
-                            "description": f"survivorlibrary.com / {site_cat}", "scan": True}
+                            "description": f"survivorlibrary.com / {site_cat}", "scan": True,
+                            "site_category": site_cat}
                     yield f"survivor--{pdf.stem}", meta, [pdf]
 
 
@@ -643,6 +644,7 @@ def main():
             "title": meta["title"],
             "category": meta["category"],
             "priority": meta["priority"],
+            "site_category": meta.get("site_category"),  # triage.yaml key for survivor books
             "pages": pages,
             "missing_parts": sum(i["status"] != "ok" for i in infos),
             "chars_per_page": round(len(text) / max(pages, 1)),
