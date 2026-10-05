@@ -26,7 +26,7 @@
     prometheus_version: "3.15.0"
     alertmanager_version: "0.34.1"
     kubectl_version: "1.37.1"
-    kustomize_version: "5.8.1"
+    kustomize_version: "5.8.2"
     kubeconform_version: "0.8.0"
     # helm/talosctl/flux-local back the helm-render and talos-config-validate
     # lint jobs. helm stays on 3.x (Flux's helm-controller + flux-local are
