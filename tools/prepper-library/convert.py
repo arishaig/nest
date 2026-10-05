@@ -24,6 +24,7 @@ Layout under --root (default data/, gitignored; on the NAS: media/reference):
     extracted/<sha256>/               docling cache: book.md, img/, cover.jpg, info.json
     extracted/_bypath/<key>           relative path -> sha256 (saves re-hashing)
     extracted/_claims/<key>           worker claims (stale after CLAIM_TTL)
+    extracted/_attempts/<key>         one line per extraction try; delete to retry a skipped PDF
     ebooks/<category>/<id>.epub       output (+ original PDF for medical)
     qa.json                           per-book quality metrics
 """
@@ -50,6 +51,7 @@ HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 ROOT = DATA  # overridden by --root
 CLAIM_TTL = 3 * 3600  # seconds after which another worker may take over a claim
+MAX_ATTEMPTS = 3  # extraction tries per PDF (an OOM kill counts) before workers skip it
 CHUNK_PAGES = 100  # docling holds a whole document in memory; big PDFs go in chunks
 NAS = "root@192.168.1.16:/Tank/media_root/media/reference"
 SSH_KEY = Path.home() / ".ssh" / "ansible-on-nest"
@@ -194,6 +196,18 @@ def release(key):
         pass
 
 
+def attempt(key, tag):
+    """Record a try; False once MAX_ATTEMPTS are used up (e.g. a PDF that OOMs the worker)."""
+    path = ROOT / "extracted" / "_attempts" / key
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tries = len(path.read_text().splitlines()) if path.exists() else 0
+    if tries >= MAX_ATTEMPTS:
+        return False
+    with path.open("a") as f:
+        f.write(f"{tag} {time.time():.0f}\n")
+    return True
+
+
 def done(pdf):
     marker = ROOT / "extracted" / "_bypath" / path_key(pdf)
     return marker.exists() and (ROOT / "extracted" / marker.read_text().strip() / "info.json").exists()
@@ -226,6 +240,10 @@ def worker(n, ocr, only):
                 continue
             key = path_key(pdf)
             if not claim(key):
+                continue
+            if not attempt(key, tag):
+                print(f"[{tag}] skipped  {pdf.relative_to(ROOT)}: failed {MAX_ATTEMPTS} times", flush=True)
+                release(key)
                 continue
             try:
                 out, info = extract(pdf, ocr)
@@ -597,6 +615,8 @@ def main():
         if args.only and not any(book_id.startswith(o) for o in args.only):
             continue
         key = resolve(pdfs[0])
+        if seen.get(key) == book_id:
+            continue  # the same Survivor file listed under two site categories
         if key in seen:
             qa[book_id] = {"status": "duplicate", "of": seen[key]}
             continue

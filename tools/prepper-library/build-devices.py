@@ -109,9 +109,11 @@ def main():
     for bid, q in books:
         q["tier"], q["hazards"] = triage.classify(tiers, bid, q["priority"], q.get("site_category"))
     books.sort(key=lambda b: (b[1]["tier"], categories.index(b[1]["category"]), b[1]["epub_bytes"]))
-    seen = set()  # near-duplicate Survivor files ('the book 1886' vs 'the_book_1886'): keep the first
-    for bid, q in books:
-        key = triage.norm(bid)
+    # near-duplicate Survivor files ('the book 1886' vs 'the_book_1886', or a copy of a
+    # curated book): keyed by stem like triage.py, curated sources seen first
+    seen = set()
+    for bid, q in sorted(books, key=lambda b: b[0].startswith("survivor--")):
+        key = triage.norm(triage.split_id(bid, q.get("site_category"))[2])
         q["dup"] = bid.startswith("survivor--") and key in seen
         seen.add(key)
 

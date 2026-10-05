@@ -509,6 +509,8 @@ survivor:
       4: [history_of_the_duroc_1918, scientific_line_breeding_of_big_type_polands_1919, disposal_of_irrigated_crops_through_the_use_of_hogs_1917,
           pacific_northwest_swine_husbandry_1915, sal_vet_swine_book_1912, inoculation-a_preventive_of_swine_plague_1892,
           a_treatise_on_hog_cholera_and_chicken_cholera_1879, hog_cholera_and_how_to_prevent_it_1877, the_hog_and_hog_cholera_1900, remedies_for_hog_cholera_1914]
+    flag:
+      old-medicine: [swine_diseases_1914, swine_practice_1921, notes_on_diseases_of_swine_sheep_poultry_and_the_dog_1917]  # also in veterinary
 
   veterinary:
     tier: 3
@@ -592,7 +594,8 @@ survivor:
           practical_alloying-a_compendium_of_alloys_and_processes_1920, foundry_practice-a_treatise_on_molding_and_casting_1909,
           a_treatise_on_moulding_sand_1904, foundry_sands_1908, the_cupola_furnace-a_practical_treatise_on_the_construction_and_management_1903,
           elementary_wrought_iron_1930, wrought_iron-its_manufacture_characteristics_and_applications_1942, a_practical_treatise_of_foundry_irons_1911,
-          the_blast_furnace_and_the_manufacture_of_pig_iron_1909]
+          the_blast_furnace_and_the_manufacture_of_pig_iron_1909,
+          hand-forging_and_wrought-iron_ornamental_work_1911]  # also in smithing; keep tiers equal for shared files
 
   wood_carpentry:
     tier: 3
