@@ -45,7 +45,7 @@ spec:
         - name: extract
           image: ghcr.io/docling-project/docling-serve-cu128:v1.36.0
           command: ["python", "/scripts/convert.py", "extract",
-                    "--root", "/data", "--ocr", "--workers", "3"]
+                    "--root", "/data", "--ocr", "--workers", "2"]
           env:
             - name: HOME
               value: /tmp
