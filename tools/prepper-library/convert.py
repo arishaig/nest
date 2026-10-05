@@ -50,6 +50,7 @@ HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 ROOT = DATA  # overridden by --root
 CLAIM_TTL = 3 * 3600  # seconds after which another worker may take over a claim
+CHUNK_PAGES = 100  # docling holds a whole document in memory; big PDFs go in chunks
 NAS = "root@192.168.1.16:/Tank/media_root/media/reference"
 SSH_KEY = Path.home() / ".ssh" / "ansible-on-nest"
 MIN_CHARS_PER_PAGE = 100  # below this the PDF has no usable text layer
@@ -119,13 +120,24 @@ def extract(pdf, ocr_missing, digest=None):
         return None, info
     out.mkdir(parents=True, exist_ok=True)
     t = time.time()
+    chunks = []
     try:
-        doc = converter(ocr).convert(str(pdf)).document
+        # Page ranges bound memory: a 700-page book in one go OOM-killed the
+        # 3-worker omega pod at 20Gi.
+        for n, start in enumerate(range(1, pages + 1, CHUNK_PAGES)):
+            end = min(start + CHUNK_PAGES - 1, pages)
+            doc = converter(ocr).convert(str(pdf), page_range=(start, end)).document
+            part = out / f"chunk{n:03d}.md"
+            # artifacts_dir is resolved relative to the markdown file's directory
+            doc.save_as_markdown(part, image_mode=ImageRefMode.REFERENCED, artifacts_dir=Path("img"))
+            chunks.append(part)
+            del doc
     except Exception as e:  # corrupt/odd PDFs: record and move on
         info.update(status="error", error=str(e)[:300])  # not cached: retried next run
         return None, info
-    # artifacts_dir is resolved relative to the markdown file's directory
-    doc.save_as_markdown(out / "book.md", image_mode=ImageRefMode.REFERENCED, artifacts_dir=Path("img"))
+    (out / "book.md").write_text("\n\n".join(c.read_text() for c in chunks))
+    for c in chunks:
+        c.unlink()
     render_cover(pdf, out / "cover.jpg")  # here, so packaging doesn't need the PDF
     info.update(status="ok", seconds=round(time.time() - t), host=socket.gethostname())
     # info.json last: its presence marks the cache entry complete
@@ -185,6 +197,18 @@ def release(key):
 def done(pdf):
     marker = ROOT / "extracted" / "_bypath" / path_key(pdf)
     return marker.exists() and (ROOT / "extracted" / marker.read_text().strip() / "info.json").exists()
+
+
+def clear_own_claims():
+    """Drop claims left by a previous incarnation of this host/pod (a k8s
+    container restart keeps the pod name), so they needn't wait CLAIM_TTL."""
+    me = socket.gethostname()
+    for c in (ROOT / "extracted" / "_claims").glob("*"):
+        try:
+            if c.read_text().split()[0] == me:
+                c.unlink()
+        except (FileNotFoundError, IndexError):
+            pass
 
 
 def worker(n, ocr, only):
@@ -543,6 +567,7 @@ def main():
     ROOT = args.root
 
     if args.mode == "extract":
+        clear_own_claims()  # before any worker of this run claims anything
         if args.workers == 1:
             worker(0, args.ocr, args.only)
             return 0
