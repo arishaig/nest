@@ -31,7 +31,8 @@ import triage
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 GB = 1000**3
-CORE = ["medical", "water", "food", "shelter-survival", "preparedness", "agriculture", "tools-building"]
+CORE = ["medical", "water", "food", "foraging", "shelter-survival", "preparedness", "electricity-radio",
+        "agriculture", "tools-building"]
 DEVICES = {
     # budget = usable space we allow ourselves, leaving headroom for the OS
     # max_tier/topics: what goes on it (triage.yaml tiers, sources.yaml categories)
@@ -42,6 +43,7 @@ DEVICES = {
 }
 TOPICS = {  # label wording per sources.yaml category
     "medical": "Medicine & dental", "water": "Water & sanitation", "food": "Food & preserving",
+    "foraging": "Wild plants, mushrooms & shellfish (W. Washington)", "electricity-radio": "Electricity, radio & comms",
     "shelter-survival": "Survival, shelter & navigation", "preparedness": "Fallout & preparedness",
     "agriculture": "Gardening, livestock & vet", "tools-building": "Trades & building", "military": "Military",
 }
@@ -83,7 +85,8 @@ def label(name, dev):
     span = " + ".join(names[t] for t in range(1, dev["max_tier"] + 1))
     lines = [f"{name.upper()}: PREPPER LIBRARY", f"Tiers 1-{dev['max_tier']}: {span}"]
     lines += [f"  - {TOPICS.get(c, c)}" for c in topics]
-    lines.append("Tagged " + " ".join(HAZARD_TAGS.values()) + " = historical, double-check")
+    lines.append("[old medicine] [old canning] = historical, check modern guidance")
+    lines.append("[verify ID] = never eat a wild plant or mushroom on one book's ID")
     return "\n".join(lines)
 
 

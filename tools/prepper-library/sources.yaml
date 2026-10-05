@@ -15,7 +15,7 @@
 # priority: 1 = goes on every device first; higher numbers fill remaining space.
 # Prefer a born-digital EPUB/HTML edition over a PDF whenever one exists.
 
-categories: [medical, water, food, shelter-survival, agriculture, tools-building, preparedness, military]
+categories: [medical, water, food, foraging, shelter-survival, preparedness, electricity-radio, agriculture, tools-building, military]
 
 sources:
   # --- medical ---------------------------------------------------------------
@@ -98,6 +98,163 @@ sources:
     priority: 1
     license: US government work (public domain)
     url: https://www.ready.gov/sites/default/files/2021-11/are-you-ready-guide.pdf
+
+  # --- foraging: Western Washington -------------------------------------------
+  # Wild food and toxic-plant ID for where the library lives; generic and
+  # out-of-region foraging guides stay in the zimgit bundles.
+  # Sites that refuse scripted downloads: save the PDF by hand into
+  # reference/sources/foraging/<id>/ (type legacy = already on the NAS).
+  - id: pnw-ethnobotany-western-washington-1945
+    type: legacy  # by hand: https://babel.hathitrust.org/cgi/pt?id=osu.32435026092486 (public domain, full view)
+    title: Ethnobotany of Western Washington (1945)
+    author: Erna Gunther
+    publisher: University of Washington Publications in Anthropology 10(1)
+    category: foraging
+    priority: 2
+    license: Public domain (US)
+  - id: wsu-edible-wild-plants-73a
+    type: legacy  # by hand: https://s3.wp.wsu.edu/uploads/sites/2053/2015/09/73aEdibleWildPlants.pdf
+    title: Edible Wild Plants (WSU Community Horticulture Fact Sheet 73A)
+    publisher: WSU Extension
+    category: foraging
+    priority: 1
+    license: WSU Extension publication (free download)
+  - id: whatcom-livestock-poisoning-plants
+    type: legacy  # by hand: https://www.whatcomcounty.us/DocumentCenter/View/2489/Livestock-Poisoning-Plants-of-Whatcom-County-Pastures-PDF
+    title: Livestock Poisoning Plants of Whatcom County Pastures
+    publisher: Whatcom County Noxious Weed Control Board
+    category: foraging
+    priority: 2
+    license: County government publication (free)
+  - id: pnw-special-forest-products-species-guide
+    type: url
+    title: Special Forest Products Species Information Guide for the Pacific Northwest (PNW-GTR-513)
+    author: Nan C. Vance et al.
+    publisher: USDA Forest Service
+    category: foraging
+    priority: 2
+    license: US government work (public domain)
+    url: https://www.fs.usda.gov/pnw/pubs/pnw_gtr513.pdf
+  - id: pnw-wild-edible-mushrooms-gtr309
+    type: url
+    title: Biology, Ecology, and Social Aspects of Wild Edible Mushrooms in the Forests of the Pacific Northwest (PNW-GTR-309)
+    publisher: USDA Forest Service
+    category: foraging
+    priority: 3
+    license: US government work (public domain)
+    url: https://www.fs.usda.gov/pnw/pubs/pnw_gtr309.pdf
+  - id: pnw-olympic-edibles-handbook
+    type: url
+    title: Edible Plants and Wild Crafting Handbook (Olympic Peninsula)
+    publisher: Olympic Nature Experience
+    category: foraging
+    priority: 1
+    license: Free download from the publisher
+    url: https://www.olympicnatureexperience.org/wp-content/uploads/2013/09/Edibles-Handbook.pdf
+  - id: pnw-foraging-edible-fungi
+    type: url
+    title: Harvesting Edible Mushrooms in the Pacific Northwest
+    publisher: Drift Creek
+    category: foraging
+    priority: 2
+    license: Free download from the publisher
+    url: https://www.driftcreek.org/wp-content/uploads/2015/10/Foraging-for-Edible-Fungi.pdf
+  - id: wa-noxious-weeds-western-field-guide
+    type: url
+    title: Western Washington Field Guide to Noxious Weeds
+    publisher: Washington State Noxious Weed Control Board
+    category: foraging
+    priority: 1
+    license: Washington State government publication (free)
+    url: https://www.nwcb.wa.gov/pdfs/Western_WA_fieldguide.pdf
+  - id: wa-poison-hemlock
+    type: url
+    title: Poison Hemlock (Washington)
+    publisher: Washington State Noxious Weed Control Board
+    category: foraging
+    priority: 1
+    license: Washington State government publication (free)
+    url: https://www.nwcb.wa.gov/pdfs/poison_hemlock_2015.pdf
+  - id: wa-giant-hogweed
+    type: url
+    title: Giant Hogweed (Washington)
+    publisher: Washington State Noxious Weed Control Board
+    category: foraging
+    priority: 1
+    license: Washington State government publication (free)
+    url: https://www.nwcb.wa.gov/pdfs/giant_hogweed_brochure.pdf
+  - id: wa-doh-paralytic-shellfish-poisoning
+    type: url
+    title: Paralytic Shellfish Poisoning (Washington DOH 332-058)
+    publisher: Washington State Department of Health
+    category: foraging
+    priority: 1
+    license: Washington State government publication (free)
+    url: https://doh.wa.gov/sites/default/files/legacy/Documents/Pubs//332-058.pdf
+  - id: wsu-trees-of-washington
+    type: url
+    title: Trees of Washington (EB0440)
+    author: Milton Mosher, Knut Lunnum
+    publisher: WSU Extension
+    category: foraging
+    priority: 2
+    license: WSU Extension publication (free download)
+    url: https://wpcdn.web.wsu.edu/wp-extension/uploads/sites/2093/2023/04/eb0440.pdf
+  - id: wsu-native-trees-western-washington
+    type: url
+    title: Native Trees of Western Washington
+    publisher: WSU Extension
+    category: foraging
+    priority: 3
+    license: WSU Extension publication (free download)
+    url: https://wpcdn.web.wsu.edu/cahnrs/uploads/sites/10/Native_Trees_Handout.pdf
+  - id: wta-wildflowers-cascades-olympics
+    type: url
+    title: "Wildflowers: 57 Common Species in the Cascades and Olympics"
+    publisher: Washington Trails Association
+    category: foraging
+    priority: 2
+    license: Free download from the publisher
+    url: https://www.wta.org/news/magazine/magazine/WT-06-08-WILDFLOWERS.pdf
+
+  # --- electricity & radio ------------------------------------------------------
+  - id: neets
+    type: parts
+    title: Navy Electricity and Electronics Training Series (NEETS)
+    author: US Navy
+    publisher: Naval Education and Training Professional Development and Technology Center
+    category: electricity-radio
+    priority: 2
+    license: US government work (public domain)
+    url_template: https://archive.org/download/NEETSModule{part}/NEETSModule{part}.pdf
+    # 11 microwave, 14 microelectronics, 15 synchros, 18 radar, 22 computers,
+    # 23 magnetic recording, 24 fiber optics: not useful off-grid
+    parts: ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "12", "13", "16", "17", "19", "20", "21"]
+  - id: lessons-in-electric-circuits
+    type: parts
+    title: Lessons in Electric Circuits
+    author: Tony R. Kuphaldt
+    category: electricity-radio
+    priority: 2
+    license: Design Science License (free copying)
+    url_template: https://www.ibiblio.org/kuphaldt/electricCircuits/{part}.pdf
+    parts: [DC/DC, AC/AC, Semi/SEMI, Exper/EXP, Ref/REF]
+  - id: fm24-18-field-radio-techniques-1965
+    type: url
+    title: FM 24-18 Field Radio Techniques (1965)
+    author: US Army
+    category: electricity-radio
+    priority: 1
+    license: US government work (public domain)
+    url: https://archive.org/download/fm-24-18-field-radio-techniques-usarmy-1965/FM24-18_FieldRadioTechniques_USArmy_1965_text.pdf
+  - id: kb6nu-technician-study-guide-2026
+    type: url
+    title: No-Nonsense Technician Class License Study Guide (2026-2030)
+    author: Dan Romanchik, KB6NU
+    category: electricity-radio
+    priority: 2
+    license: Free PDF from the author
+    url: https://www.kb6nu.com/wp-content/uploads/2026/09/2026-no-nonsense-tech-study-guide-v2-pdf.pdf
 
   # --- legacy (migrated from reference/to_import on 2026-10-04) ---------------
   - id: legacy-fm21-76-survival
@@ -208,3 +365,4 @@ survivor_library:
   preparedness: {priority: 3, site: [nbc]}
   agriculture: {priority: 4, site: [farming, poultry, beekeeping, livestock_cattle, livestock_sheep, livestock_swine, veterinary, mushrooms, berries]}
   tools-building: {priority: 4, site: [smithing, forging_and_casting, wood_carpentry, stone_and_masonry, soap, leather, weaving]}
+  electricity-radio: {priority: 3, site: [radio, telegraph_and_telephone, engineering_electrical]}

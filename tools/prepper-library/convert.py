@@ -442,7 +442,29 @@ def render_cover(pdf, dest):
     import pypdfium2 as pdfium
 
     page = pdfium.PdfDocument(str(pdf))[0]
-    page.render(scale=1200 / page.get_height()).to_pil().convert("RGB").save(dest, quality=85)
+    page.render(scale=1200 / page.get_height()).to_pil().convert("L").save(dest, quality=85)
+
+
+EINK_MAX_PX = 1400  # long side; both readers are ~1264x1680 grayscale panels
+
+
+def eink_image(src, dest_dir):
+    """Grayscale, downscaled copy of an image for e-ink; keeps whichever of
+    JPEG (photos, scans) or PNG (line art) is smaller. Returns the new name."""
+    import io
+
+    from PIL import Image
+
+    im = Image.open(src).convert("L")
+    if max(im.size) > EINK_MAX_PX:
+        im.thumbnail((EINK_MAX_PX, EINK_MAX_PX))
+    jpg, png = io.BytesIO(), io.BytesIO()
+    im.save(jpg, "JPEG", quality=75, optimize=True)
+    im.save(png, "PNG", optimize=True)
+    ext, data = min((".jpg", jpg), (".png", png), key=lambda c: c[1].tell())
+    name = src.stem + ext
+    (dest_dir / name).write_bytes(data.getvalue())
+    return name
 
 
 def package(md_chunks, resource_dirs, meta, cover_pdf, dest):
@@ -453,17 +475,23 @@ def package(md_chunks, resource_dirs, meta, cover_pdf, dest):
     work = DATA / "work" / dest.stem
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
-    # Copy each chunk's images into one tree so relative paths resolve.
+    # Each chunk's images, made e-ink sized, go into one tree so relative
+    # paths resolve. Both target readers are grayscale: docling's full-colour
+    # PNGs are ~85% of an untouched book's size.
     body = []
     for n, (md, src) in enumerate(zip(md_chunks, resource_dirs)):
         if (src / "img").exists():
-            shutil.copytree(src / "img", work / f"img{n}")
+            (work / f"img{n}").mkdir()
+            for img in sorted((src / "img").iterdir()):
+                new = eink_image(img, work / f"img{n}")
+                if new != img.name:
+                    md = md.replace(f"](img/{img.name})", f"](img/{new})")
         body.append(md.replace("](img/", f"](img{n}/"))
     (work / "book.md").write_text("\n\n".join(body))
-    cover = work / "cover.jpg"
     if (resource_dirs[0] / "cover.jpg").exists():
-        shutil.copy2(resource_dirs[0] / "cover.jpg", cover)
+        cover = work / eink_image(resource_dirs[0] / "cover.jpg", work)
     else:
+        cover = work / "cover.jpg"
         render_cover(cover_pdf, cover)
     md_meta = {
         "title": meta["title"],

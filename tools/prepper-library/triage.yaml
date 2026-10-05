@@ -66,6 +66,7 @@ sources:
           AppNee_com_SAS_Survival_Handbook_2nd_Edition, USMC_Winter_Survival_Course, US_Marine_Corps_Summer_Survival_Course,
           Survival_Water_Purification, DOH_Pub_821_031_Purifying_Water_During_an_Emergency, Water_purification, Water_Treatment,
           Distillation_For_Home_Water_Treatment, Safe_Water_School, giardia_factsheet,
+          shellfish_foraging_guide_1_5_14_final,  # Port Susan / South Skagit Bay: home waters
           checklist_1_72_hr_kit, family_list1, 3_month_supply_of_food, Three_Days_Emergency_Preparedness, Survive_Unexpected_Emergency,
           FEMA_nuclear_survival, Nuclear_Survival_Skills, How_to_Build_a_Debris_Hut, How_to_Find_Your_Way, Traps,
           Emergency_War_Surgery, Medical_Survival_Wound_Closure_Manual, First_Aid_and_Medicine_midwife_2011_Full_Book,
@@ -78,16 +79,28 @@ sources:
           Boy_Scout_cookbook_PDF, Camping_Recipes, Dutch_Oven_Grill_Bar_BQ_recipes, Dutch_oven_cookbook_PDF,
           Knots_by_Andrew_Adamides, Knots_and_String, Knots_Splices_Attachments, Sea_Scout_Knots,
           Knots_for_Mountaineering_Camping_Climbing_Utility_Rescue_Etc, Tying_Farm_Knots, Essential_Fishing_knots,
-          Student_manual_2005, MP_15_fam_1959, "173165", wdfw01803, wdfw01807, wfsriverside10]
+          Student_manual_2005, MP_15_fam_1959, "173165", wdfw01803, wdfw01807, wfsriverside10,
+          # out-of-region foraging (Missouri, eastern US, UK, Colorado, Ontario): the
+          # Western Washington guides under foraging come first
+          Mushroom_Guide, Field_Guide_to_Mushrooms, Pocket_Guide_to_Urban_Foraging, 2011_wild_edible_directory,
+          foraging_guide, Urban_Foraging]
       4: [Where_there_is_no_Doctor_book, Where_There_is_No_Dentist_Murray_Dickson, Under_The_Tongue_Diagnosis_2009,
           FEMA_REP_Program_Manual_Dec_2019, fema_emergency_preparedness_guidelines_for_levees_2018,
           Worm_Factory_360_Manual, The_SAS_Self_Defense_Handbook, How_to_make_Black_Powder, trapping_history,
           1971_31_4_colonial_garden_plants, gift_mixes_jar_recipes, nordic_ware_unusual_old_world_and_american_recipes_1972,
-          Famous_Recipes_from_Old_Virginia, Colonial_New_England_Recipes]
+          Famous_Recipes_from_Old_Virginia, Colonial_New_England_Recipes,
+          forage_guide]  # Colorado livestock forage, not people food
     flag:
       id-caution: [2011_wild_edible_directory, Pocket_Guide_to_Urban_Foraging, Urban_Foraging, forage_guide, foraging_guide,
                    Field_Guide_to_Mushrooms, Mushroom_Guide, Mushroom_from_Forest_to_Plate, shellfish_foraging_guide_1_5_14_final,
                    Ontario_Nature_Forest_Foraging_Guide_official]
+
+  # Western Washington plant/mushroom/shellfish ID (sources.yaml priority gives the tier)
+  pnw-olympic-edibles-handbook: {hazard: id-caution}
+  pnw-special-forest-products-species-guide: {hazard: id-caution}
+  pnw-foraging-edible-fungi: {hazard: id-caution}
+  pnw-ethnobotany-western-washington-1945: {hazard: id-caution}
+  wsu-edible-wild-plants-73a: {hazard: id-caution}
 
   legacy-fm21-76-survival: {tier: 2}                 # older edition of the 2002 FM 21-76 in post-disaster
   legacy-army-survival-evasion-recovery: {tier: 2}
@@ -673,3 +686,33 @@ survivor:
           the_principles_and_practice_of_textile_printing_1912, jute_and_linen_weaving_1914, arithmetical_calculations_for_weaving_students_1904,
           fabric_analysis_1920, how_to_figure_out_and_arrange_pattern_work_for_weaving_colored_fabrics_1915,
           mat_weaving_and_slat_weaving_in_primary_schools_1904]
+
+  # --- electricity & radio (1880s-1940s: principles, crystal sets, wiring, dynamos) ---
+  radio:
+    tier: 3
+    books:
+      2: [radio_for_beginners-1922, the_radio_amateurs_hand_book_1922, radio_simplified-how_to_build_and_operate_the_apparatus_1923,
+          elements_of_radio_servicing-first_edition_1947, radio-monitoring-a-how-to-guide,
+          practical_radio_including_the_testing_of_radio_receiving_sets-1924, the_principles_underlying_radio_communication-1922]
+      4: [radio_broadcast_vol_1-1922, the_principles_underlying_radio_communication-1919, wireless_telegraphy_and_telephony-1906]
+
+  telegraph_and_telephone:  # mostly exchange engineering and history
+    tier: 4
+    books:
+      3: [abc_of_the_telephone_1901, the_practical_telephone_handbook_and_guide_to_the_telephonic_exchange_1906, the_telegraph_instructor_1870,
+          twentieth_century_manual_of_railway_and_commercial_telegraphy_1902, the_a-b-c_of_wireless_telegraphy_1907, telephones_and_telegraphs_1902,
+          american_telephone_practice_1905]
+
+  engineering_electrical:
+    tier: 3
+    books:
+      2: [american_boys_book_of_electricity_1916, easy_electrical_experiments_and_how_to_make_them_1918, designs_for_small_dynamos_and_motors_1906,
+          electric_wiring_and_lighting_1913, modern_electrical_construction-a_guide_for_the_beginner_1916, electricity_for_everybody_1907,
+          swoopes_lessons_in_practical_electricity_1920]
+      4: [electric_railways_vol_1_1905, electric_railways_vol_2_1905, power_distribution_for_electric_railroads_1900, electricity_as_applied_to_mining_1903,
+          the_electric_range_handbook_1919, electrical_aids_to_greater_production_1919, a_dictionary_of_electrical_words_1889,
+          the_story_of_electricity_1913, electricity_in_the_service_of_man_1886, the_modern_application_of_electricity_vol_1_1883,
+          the_modern_application_of_electricity_vol_2_1883, electric_transmission_of_power_1879, electric_transmission_hand_book_1891,
+          theory_and_calculation_of_alternating_current_phenomena_1900, high_speed_dynamo_electric_machinery_1908, electro_dynamics_1898,
+          the_induction_motor-its_theory_and_design_1903, electric_heating_1895,
+          telegraph_engineering-a_manual_for_telegraph_engineers_snd_engineering_students_1915]
