@@ -15,7 +15,9 @@ metadata:
   name: prepper-extract
   namespace: media
 spec:
-  backoffLimit: 10
+  # container restarts (slow docling memory growth → OOM) resume from the NAS
+  # cache and cost one in-flight PDF each, so allow plenty of them
+  backoffLimit: 40
   ttlSecondsAfterFinished: 86400
   template:
     spec:
