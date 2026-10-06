@@ -188,7 +188,7 @@ def claim(key):
                     return False
                 path.unlink()  # stale: its worker died (e.g. omega rebooted)
             except FileNotFoundError:
-                pass
+                pass  # another worker removed or released it first: just retry
     return False
 
 
@@ -196,7 +196,7 @@ def release(key):
     try:
         (ROOT / "extracted" / "_claims" / key).unlink()
     except FileNotFoundError:
-        pass
+        pass  # already gone (cleared as ours after a restart): nothing to release
 
 
 def attempt(key, tag):
@@ -225,7 +225,7 @@ def clear_own_claims():
             if c.read_text().split()[0] == me:
                 c.unlink()
         except (FileNotFoundError, IndexError):
-            pass
+            pass  # released meanwhile, or half-written by another worker: not ours to clear
 
 
 def worker(n, ocr, only):
