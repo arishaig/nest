@@ -15,7 +15,8 @@
 # priority: 1 = goes on every device first; higher numbers fill remaining space.
 # Prefer a born-digital EPUB/HTML edition over a PDF whenever one exists.
 
-categories: [medical, water, food, foraging, shelter-survival, preparedness, electricity-radio, agriculture, tools-building, military]
+categories: [medical, water, food, foraging, shelter-survival, preparedness, electricity-radio, agriculture, tools-building,
+             education, civics-history, science, reproductive-health, gender-lgbtq, books-religion, military]
 
 sources:
   # --- medical ---------------------------------------------------------------
@@ -256,6 +257,381 @@ sources:
     license: Free PDF from the author
     url: https://www.kb6nu.com/wp-content/uploads/2026/09/2026-no-nonsense-tech-study-guide-v2-pdf.pdf
 
+  # ===================================================================
+  # Contested topics: material at risk of being removed, restricted or
+  # rewritten. Kept as dated copies; old editions stay alongside new ones.
+  # ===================================================================
+
+  # --- civics, law & history ---------------------------------------------------
+  - id: openstax-american-government-4e
+    type: url
+    title: "American Government (4th ed)"
+    publisher: "OpenStax"
+    category: civics-history
+    priority: 2
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/American_Government_4e_-_WEB_eM2Tuqh.pdf"
+  - id: openstax-american-government-3e
+    type: url
+    title: "American Government (3rd ed)"
+    publisher: "OpenStax"
+    category: civics-history
+    priority: 3
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/AmericanGovernment3e-WEB.pdf"
+  - id: openstax-us-history
+    type: url
+    title: "U.S. History"
+    publisher: "OpenStax"
+    category: civics-history
+    priority: 2
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/US_History_-_WEB.pdf"
+  - id: openstax-political-science
+    type: url
+    title: "Introduction to Political Science"
+    publisher: "OpenStax"
+    category: civics-history
+    priority: 3
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/Introduction_to_Political_Science_-_WEB.pdf"
+  - id: openstax-world-history-1
+    type: url
+    title: "World History, Volume 1: to 1500"
+    publisher: "OpenStax"
+    category: civics-history
+    priority: 3
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/World_History_Volume_1-WEB.pdf"
+  - id: openstax-world-history-2
+    type: url
+    title: "World History, Volume 2: from 1400"
+    publisher: "OpenStax"
+    category: civics-history
+    priority: 3
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/World_History_Volume_2-WEB.pdf"
+  - id: openstax-sociology-3e
+    type: url
+    title: "Introduction to Sociology (3rd ed)"
+    publisher: "OpenStax"
+    category: civics-history
+    priority: 2
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/introduction-sociology-3e_-_WEB.pdf"
+  - id: openstax-philosophy
+    type: url
+    title: "Introduction to Philosophy"
+    publisher: "OpenStax"
+    category: civics-history
+    priority: 3
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/Introduction_to_Philosophy-WEB.pdf"
+  - id: openstax-economics-3e
+    type: url
+    title: "Principles of Economics (3rd ed)"
+    publisher: "OpenStax"
+    category: civics-history
+    priority: 3
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/principles-economics-3e_-_WEB.pdf"
+  - id: uscis-civics-100-questions
+    type: url
+    title: "Civics (History and Government) Questions for the Naturalization Test"
+    publisher: "USCIS"
+    category: civics-history
+    priority: 3
+    license: "US government work (public domain)"
+    url: "https://www.uscis.gov/sites/default/files/document/questions-and-answers/100q.pdf"
+  - id: gutenberg-founding-documents
+    type: gutenberg
+    category: civics-history
+    priority: 2
+    publisher: Project Gutenberg
+    license: Public domain (US)
+    ebooks:
+      1: "The Declaration of Independence"
+      5: "The United States Constitution"
+      2: "The United States Bill of Rights"
+      1404: "The Federalist Papers"
+      147: "Common Sense"
+      3742: "The Writings of Thomas Paine, Vol. 2: Rights of Man"
+      4: "Lincoln's Gettysburg Address"
+      9: "Lincoln's First Inaugural Address"
+      8: "Lincoln's Second Inaugural Address"
+      22082: "The Emancipation Proclamation"
+      815: "Democracy in America, Vol. 1"
+      816: "Democracy in America, Vol. 2"
+  - id: gutenberg-political-philosophy
+    type: gutenberg
+    category: civics-history
+    priority: 3
+    publisher: Project Gutenberg
+    license: Public domain (US)
+    ebooks:
+      34901: "On Liberty"
+      7370: "Second Treatise of Government"
+      46333: "The Social Contract & Discourses"
+      1232: "The Prince"
+      61: "The Communist Manifesto"
+      71: "On the Duty of Civil Disobedience"
+  - id: gutenberg-slavery-and-civil-rights
+    type: gutenberg
+    category: civics-history
+    priority: 2
+    publisher: Project Gutenberg
+    license: Public domain (US)
+    ebooks:
+      23: "Narrative of the Life of Frederick Douglass"
+      202: "My Bondage and My Freedom"
+      11030: "Incidents in the Life of a Slave Girl"
+      45631: "Twelve Years a Slave"
+      1674: "The Narrative of Sojourner Truth"
+      408: "The Souls of Black Folk"
+      2376: "Up from Slavery"
+      14975: "Southern Horrors: Lynch Law in All Its Phases"
+      14977: "The Red Record"
+      11255: "Slave Narratives (WPA), Arkansas Part 1"
+      11422: "Slave Narratives (WPA), volume 2"
+      11485: "Slave Narratives (WPA), volume 3"
+      11544: "Slave Narratives (WPA), volume 4"
+      11552: "Slave Narratives (WPA), volume 5"
+      11709: "Slave Narratives (WPA), volume 6"
+  - id: gutenberg-native-american-history
+    type: gutenberg
+    category: civics-history
+    priority: 3
+    publisher: Project Gutenberg
+    license: Public domain (US)
+    ebooks:
+      50560: "A Century of Dishonor"
+      7097: "Autobiography of Black Hawk"
+      8567: "The Iroquois Book of Rites"
+      7978: "Legends, Traditions, and Laws of the Iroquois"
+  - id: gutenberg-women-and-labor
+    type: gutenberg
+    category: civics-history
+    priority: 3
+    publisher: Project Gutenberg
+    license: Public domain (US)
+    ebooks:
+      3420: "A Vindication of the Rights of Woman"
+      27083: "The Subjection of Women"
+      28020: "History of Woman Suffrage, Vol. I"
+      28039: "History of Woman Suffrage, Vol. II"
+      28556: "History of Woman Suffrage, Vol. III"
+      57913: "Women and Economics"
+      65079: "Autobiography of Mother Jones"
+      140: "The Jungle"
+      45502: "How the Other Half Lives"
+      57125: "The Bitter Cry of the Children"
+
+  # --- science: evolution, climate, vaccines ---------------------------------
+  - id: openstax-biology-2e
+    type: url
+    title: "Biology (2nd ed)"
+    publisher: "OpenStax"
+    category: science
+    priority: 2
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/Biology-2e_-_WEB.pdf"
+  - id: openstax-concepts-of-biology
+    type: url
+    title: "Concepts of Biology"
+    publisher: "OpenStax"
+    category: science
+    priority: 3
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/Concepts-Biology_-_WEB.pdf"
+  - id: openstax-psychology-2e
+    type: url
+    title: "Psychology (2nd ed)"
+    publisher: "OpenStax"
+    category: science
+    priority: 3
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/Psychology2e_WEB.pdf"
+  - id: openstax-lifespan-development
+    type: url
+    title: "Lifespan Development"
+    publisher: "OpenStax"
+    category: science
+    priority: 3
+    license: "CC BY 4.0 (OpenStax)"
+    url: "https://assets.openstax.org/oscms-prodcms/media/documents/Lifespan_Development_-_WEB.pdf"
+  - id: ipcc-ar6-synthesis-spm
+    type: url
+    title: "IPCC AR6 Synthesis Report: Summary for Policymakers"
+    publisher: "IPCC"
+    category: science
+    priority: 2
+    license: "IPCC (free distribution)"
+    url: "https://www.ipcc.ch/report/ar6/syr/downloads/report/IPCC_AR6_SYR_SPM.pdf"
+  - id: ipcc-ar6-synthesis-full
+    type: url
+    title: "IPCC AR6 Synthesis Report: Climate Change 2023 (full volume)"
+    publisher: "IPCC"
+    category: science
+    priority: 3
+    license: "IPCC (free distribution)"
+    url: "https://www.ipcc.ch/report/ar6/syr/downloads/report/IPCC_AR6_SYR_FullVolume.pdf"
+  - id: usgcrp-nca5
+    type: legacy  # by hand: https://repository.library.noaa.gov/view/noaa/61592 (or https://nca5.climate.us/downloads/)
+    title: "Fifth National Climate Assessment (2023)"
+    publisher: "U.S. Global Change Research Program"
+    category: science
+    priority: 3
+    license: "US government work (public domain)"
+  - id: cdc-pink-book-14e
+    type: legacy  # by hand: https://stacks.cdc.gov/view/cdc/252997
+    title: "Epidemiology and Prevention of Vaccine-Preventable Diseases (Pink Book, 14th ed, 2021)"
+    publisher: "CDC"
+    category: science
+    priority: 2
+    license: "US government work (public domain)"
+  - id: gutenberg-science-classics
+    type: gutenberg
+    category: science
+    priority: 3
+    publisher: Project Gutenberg
+    license: Public domain (US)
+    ebooks:
+      1228: "On the Origin of Species"
+
+  # --- reproductive & sexual health ------------------------------------------
+  - id: hesperian-where-women-have-no-doctor-2020
+    type: parts
+    title: Where Women Have No Doctor (2020)
+    author: A. August Burns, Ronnie Lovich, Jane Maxwell, Katharine Shapiro
+    publisher: Hesperian Health Guides
+    category: reproductive-health
+    priority: 1
+    license: Hesperian open copyright (free non-commercial copying)
+    url_template: https://hesperian.org/wp-content/uploads/pdf/en_wwhnd_2020/en_wwhnd_2020_{part}.pdf
+    parts: [fm, "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", gp]
+  - id: who-family-planning-handbook-2022
+    type: url
+    title: "Family Planning: A Global Handbook for Providers (2022)"
+    publisher: "WHO / Johns Hopkins CCP"
+    category: reproductive-health
+    priority: 1
+    license: "CC BY-NC-SA 3.0 IGO"
+    url: "https://cdn.who.int/media/docs/default-source/reproductive-health/contraception-family-planning/family-planning-a-global-handbook-for-providers-2022.pdf"
+  - id: who-abortion-care-guideline-2022
+    type: url
+    title: "Abortion Care Guideline (2022)"
+    publisher: "WHO"
+    category: reproductive-health
+    priority: 2
+    license: "CC BY-NC-SA 3.0 IGO"
+    url: "https://iris.who.int/server/api/core/bitstreams/59a704cc-4024-412a-97d9-55d86d139602/content"
+  - id: who-clinical-handbook-abortion-care
+    type: url
+    title: "Clinical Practice Handbook for Quality Abortion Care (2023)"
+    publisher: "WHO"
+    category: reproductive-health
+    priority: 1
+    license: "CC BY-NC-SA 3.0 IGO"
+    url: "https://cdn.who.int/media/docs/default-source/reproductive-health/clinical-practice-handbook-for-quality-abortion-care.pdf"
+  - id: cdc-us-mec-2024
+    type: legacy  # by hand: https://www.cdc.gov/mmwr/volumes/73/rr/pdfs/rr7304a1-H.pdf
+    title: "U.S. Medical Eligibility Criteria for Contraceptive Use, 2024"
+    publisher: "CDC"
+    category: reproductive-health
+    priority: 2
+    license: "US government work (public domain)"
+  - id: cdc-us-spr-2024
+    type: legacy  # by hand: https://www.cdc.gov/mmwr/volumes/73/rr/pdfs/rr7303a1-H.pdf
+    title: "U.S. Selected Practice Recommendations for Contraceptive Use, 2024"
+    publisher: "CDC"
+    category: reproductive-health
+    priority: 2
+    license: "US government work (public domain)"
+  - id: cdc-sti-treatment-2021
+    type: legacy  # by hand: https://www.cdc.gov/mmwr/volumes/70/rr/pdfs/rr7004a1-H.pdf
+    title: "Sexually Transmitted Infections Treatment Guidelines, 2021"
+    publisher: "CDC"
+    category: reproductive-health
+    priority: 1
+    license: "US government work (public domain)"
+  - id: cdc-hiv-prep-2021
+    type: legacy  # by hand: https://www.cdc.gov/hiv/pdf/risk/prep/cdc-hiv-prep-guidelines-2021.pdf
+    title: "Preexposure Prophylaxis for the Prevention of HIV Infection in the United States (2021 update)"
+    publisher: "CDC"
+    category: reproductive-health
+    priority: 2
+    license: "US government work (public domain)"
+
+  # --- gender & LGBTQ+ -----------------------------------------------------------
+  - id: wpath-soc8
+    type: legacy  # by hand: https://www.tandfonline.com/doi/pdf/10.1080/26895269.2022.2100644 (open access)
+    title: "Standards of Care for the Health of Transgender and Gender Diverse People, Version 8"
+    publisher: "WPATH / International Journal of Transgender Health"
+    category: gender-lgbtq
+    priority: 1
+    license: "Open access"
+  - id: ucsf-gender-affirming-care-guidelines
+    type: url
+    title: "Guidelines for the Primary and Gender-Affirming Care of Transgender and Gender Nonbinary People"
+    publisher: "UCSF Gender Affirming Health Program"
+    category: gender-lgbtq
+    priority: 1
+    license: "Free from the publisher"
+    url: "https://www.reproductiveaccess.org/wp-content/uploads/2025/09/2025-UCSF-Guidelines-for-the-Primary-and-Gender-Affirming-Care-of-Transgender-and-Gender-Nonbinary-People.pdf"
+  - id: intro-women-gender-sexuality-studies
+    type: legacy  # fetched once by hand (site rejects scripted user agents): https://openbooks.library.umass.edu/introwgss/open/download?type=pdf
+    title: "Introduction to Women, Gender, Sexuality Studies"
+    author: "Miliann Kang, Donovan Lessard, Laura Heston, Sonny Nordmarken"
+    publisher: "UMass Amherst Libraries"
+    category: gender-lgbtq
+    priority: 2
+    license: "CC BY 4.0"
+  - id: gutenberg-lgbtq-history
+    type: gutenberg
+    category: gender-lgbtq
+    priority: 3
+    publisher: Project Gutenberg
+    license: Public domain (US)
+    ebooks:
+      53763: "The Intermediate Sex"
+      79477: "Towards Democracy"
+      13611: "Studies in the Psychology of Sex, Vol. 2: Sexual Inversion"
+      32022: "A Problem in Greek Ethics"
+      32588: "A Problem in Modern Ethics"
+      921: "De Profundis"
+      73042: "The Well of Loneliness"
+
+  # --- banned books, philosophy & religious texts --------------------------------
+  - id: gutenberg-banned-classics
+    type: gutenberg
+    category: books-religion
+    priority: 2
+    publisher: Project Gutenberg
+    license: Public domain (US)
+    ebooks:
+      76: "Adventures of Huckleberry Finn"
+      203: "Uncle Tom's Cabin"
+      1322: "Leaves of Grass"
+      160: "The Awakening, and Selected Short Stories"
+      1952: "The Yellow Wallpaper"
+      32: "Herland"
+      205: "Walden, and On the Duty of Civil Disobedience"
+      2397: "The Story of My Life (Helen Keller)"
+  - id: gutenberg-religious-texts
+    type: gutenberg
+    category: books-religion
+    priority: 3
+    publisher: Project Gutenberg
+    license: Public domain (US)
+    ebooks:
+      10: "The King James Version of the Bible"
+      3434: "The Koran (Rodwell)"
+      2388: "The Bhagavad-Gita (Arnold)"
+      2017: "The Dhammapada (Müller)"
+      216: "Tao Te Ching (Legge)"
+      17: "The Book of Mormon"
+      919: "Ethics, Part 1 (Spinoza)"
+
   # --- legacy (migrated from reference/to_import on 2026-10-04) ---------------
   - id: legacy-fm21-76-survival
     type: legacy
@@ -358,11 +734,18 @@ sources:
 # NB: historical — e.g. 1890s canning advice predates modern food-safety
 # guidance (the USDA guide above is the reference for that).
 survivor_library:
-  medical: {priority: 3, site: [medical_emergency, medical_nursing, medical_courses_us_army, dentistry, herbalism]}
-  water: {priority: 3, site: [sanitation, sewage]}
-  food: {priority: 3, site: [canning, food, butchering, cheese_and_butter, baking]}
-  shelter-survival: {priority: 3, site: [survival_individual, shelter, trapping_hunting, fishing, boy_scout_manuals]}
+  medical: {priority: 3, site: [medical_emergency, medical_nursing, medical_courses_us_army, dentistry, herbalism,
+                                medical_obstetrics_1900-1922, medical_anesthesia, medical_surgery_1900-1922, optometry]}
+  water: {priority: 3, site: [sanitation, sewage, drilling, engineering_hydraulics, wind_and_water, rat_control]}
+  food: {priority: 3, site: [canning, food, butchering, cheese_and_butter, baking, brewing_and_distilling]}
+  shelter-survival: {priority: 3, site: [survival_individual, shelter, trapping_hunting, fishing, boy_scout_manuals,
+                                         navigation, surveying, meteorology]}
   preparedness: {priority: 3, site: [nbc]}
-  agriculture: {priority: 4, site: [farming, poultry, beekeeping, livestock_cattle, livestock_sheep, livestock_swine, veterinary, mushrooms, berries]}
-  tools-building: {priority: 4, site: [smithing, forging_and_casting, wood_carpentry, stone_and_masonry, soap, leather, weaving]}
+  agriculture: {priority: 4, site: [farming, poultry, beekeeping, livestock_cattle, livestock_sheep, livestock_swine, veterinary,
+                                    mushrooms, berries, livestock_rabbits_and_cavies, horses, dogs, farming_potato_and_sweet_potato,
+                                    farming_corn, grapes_wine_raisins, forestry]}
+  tools-building: {priority: 4, site: [smithing, forging_and_casting, wood_carpentry, stone_and_masonry, soap, leather, weaving,
+                                       shoemaking, hemp_flax, pottery, basketry, knitting_lace_needlepoint, sewing, glassmaking,
+                                       papermaking, machine_tools, welding, chemistry, formulas, fuels]}
   electricity-radio: {priority: 3, site: [radio, telegraph_and_telephone, engineering_electrical]}
+  education: {priority: 3, site: [primers, teaching_readers_mcguffey, teaching_phonics, teaching_arithmetic, mathematics]}

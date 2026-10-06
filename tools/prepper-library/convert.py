@@ -236,7 +236,7 @@ def worker(n, ocr, only):
         random.Random(f"{tag}{time.time()}").shuffle(pdfs)  # spread workers apart
         worked = 0
         for pdf in pdfs:
-            if done(pdf):
+            if pdf.suffix != ".pdf" or done(pdf):  # EPUB sources are passed through
                 continue
             key = path_key(pdf)
             if not claim(key):
@@ -467,6 +467,37 @@ def eink_image(src, dest_dir):
     return name
 
 
+def eink_epub(src, dest):
+    """Copy a ready-made EPUB with its raster images made grayscale and e-ink
+    sized; names and formats are kept so the manifest stays valid."""
+    import io
+    import zipfile
+
+    from PIL import Image
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_name(dest.name + ".tmp")
+    with zipfile.ZipFile(src) as zin, zipfile.ZipFile(tmp, "w") as zout:
+        for item in zin.infolist():
+            data = zin.read(item)
+            fmt = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG"}.get(Path(item.filename).suffix.lower())
+            if fmt:
+                try:
+                    im = Image.open(io.BytesIO(data)).convert("L")
+                    if max(im.size) > EINK_MAX_PX:
+                        im.thumbnail((EINK_MAX_PX, EINK_MAX_PX))
+                    out = io.BytesIO()
+                    im.save(out, fmt, **({"quality": 75, "optimize": True} if fmt == "JPEG" else {"optimize": True}))
+                    if out.tell() < len(data):
+                        data = out.getvalue()
+                except OSError:
+                    pass  # leave anything PIL can't read untouched
+            # mimetype must stay first and uncompressed (EPUB OCF)
+            ztype = zipfile.ZIP_STORED if item.filename == "mimetype" else zipfile.ZIP_DEFLATED
+            zout.writestr(item, data, compress_type=ztype)
+    tmp.replace(dest)
+
+
 def package(md_chunks, resource_dirs, meta, cover_pdf, dest):
     """Join Markdown chunks and build an EPUB3 with pandoc."""
     import pypandoc
@@ -536,6 +567,11 @@ def books(manifest, src_root):
             pdfs = sorted(d.glob("*.pdf"))
             if pdfs:
                 yield s["id"], base, pdfs[:1]
+        elif s["type"] == "gutenberg":
+            for n, title in s["ebooks"].items():
+                epub = d / f"pg{n}.epub"
+                if epub.exists():
+                    yield f"{s['id']}--pg{n}", dict(base, title=title), [epub]
         elif s["type"] == "zimgit":
             for m in json.loads((d / "meta.json").read_text()):
                 if m["mimetype"] != "application/pdf":
@@ -641,6 +677,14 @@ def main():
 
     for book_id, meta, pdfs in all_books(manifest):
         if args.only and not any(book_id.startswith(o) for o in args.only):
+            continue
+        if pdfs[0].suffix == ".epub":
+            dest = ROOT / "ebooks" / meta["category"] / f"{book_id}.epub"
+            if not dest.exists() or args.force:
+                eink_epub(pdfs[0], dest)
+            qa[book_id] = {"status": "ok", "title": meta["title"], "category": meta["category"],
+                           "priority": meta["priority"], "site_category": None, "pages": 0,
+                           "suspicious_words": 0.0, "text_retained": 1.0, "epub_bytes": dest.stat().st_size}
             continue
         key = resolve(pdfs[0])
         if seen.get(key) == book_id:

@@ -121,6 +121,11 @@ def fetch(src, dest, zim_cache):
         zim = zim_cache / Path(url).name
         download(url, zim)
         unpack_zimgit(zim, d)
+    elif kind == "gutenberg":
+        # Project Gutenberg's own EPUB3 (with images): no PDF extraction needed
+        for n in src["ebooks"]:
+            download(f"https://www.gutenberg.org/cache/epub/{n}/pg{n}-images-3.epub", d / f"pg{n}.epub")
+            time.sleep(DELAY)
     elif kind == "legacy":
         return  # lives on the NAS already; see README
     else:

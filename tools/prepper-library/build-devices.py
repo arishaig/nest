@@ -32,7 +32,8 @@ HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 GB = 1000**3
 CORE = ["medical", "water", "food", "foraging", "shelter-survival", "preparedness", "electricity-radio",
-        "agriculture", "tools-building"]
+        "agriculture", "tools-building", "education", "civics-history", "science", "reproductive-health",
+        "gender-lgbtq", "books-religion"]
 DEVICES = {
     # budget = usable space we allow ourselves, leaving headroom for the OS
     # max_tier/topics: what goes on it (triage.yaml tiers, sources.yaml categories)
@@ -44,6 +45,9 @@ DEVICES = {
 TOPICS = {  # label wording per sources.yaml category
     "medical": "Medicine & dental", "water": "Water & sanitation", "food": "Food & preserving",
     "foraging": "Wild plants, mushrooms & shellfish (W. Washington)", "electricity-radio": "Electricity, radio & comms",
+    "education": "Teaching children: reading & arithmetic", "civics-history": "Civics, law & history",
+    "science": "Science: evolution, climate, vaccines", "reproductive-health": "Reproductive & sexual health",
+    "gender-lgbtq": "Gender & LGBTQ+", "books-religion": "Banned books, philosophy & religious texts",
     "shelter-survival": "Survival, shelter & navigation", "preparedness": "Fallout & preparedness",
     "agriculture": "Gardening, livestock & vet", "tools-building": "Trades & building", "military": "Military",
 }

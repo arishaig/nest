@@ -118,6 +118,9 @@ def main():
         pdf_bytes = sum(p.stat().st_size for p in pdfs)
         size, extracted = 0, True
         for pdf in pdfs:
+            if pdf.suffix == ".epub":  # passed through as-is
+                size += pdf.stat().st_size
+                continue
             marker = args.root / "extracted" / "_bypath" / convert.path_key(pdf)
             d = args.root / "extracted" / marker.read_text().strip() if marker.exists() else None
             if d and (d / "info.json").exists():

@@ -716,3 +716,699 @@ survivor:
           theory_and_calculation_of_alternating_current_phenomena_1900, high_speed_dynamo_electric_machinery_1908, electro_dynamics_1898,
           the_induction_motor-its_theory_and_design_1903, electric_heating_1895,
           telegraph_engineering-a_manual_for_telegraph_engineers_snd_engineering_students_1915]
+
+  # --- added 2026-10-05: trades, teaching, water, livestock, medicine (triaged by title) ---
+  livestock_rabbits_and_cavies:
+    tier: 2
+    books:
+      3:
+      - cavies_for_pleasure_and_profit_1917
+      - cavies-how_to_feed_breed_condition_and_market_them_1918
+      - profit_in_guinea_pigs_1922
+      - the_first_belgian_hare_course_of_instruction_1900
+      - the_breeding_rearing_feeding_and_general_management_of_rabbits_1857
+      4:
+      - standard_of_perfection_for_cavies_1922
+      - standard_of_perfection_for_rabbits_and_fur_bearing_animals_1920
+      - standard_of_perfection_for_rabbits_cavies_mice_rats_and_skunks_1915
+      - the_rabbit_fancier_1855
+      - rabbits_and_dollars-the_book_that_teaches_coined_rabbitology_1920
+  drilling:
+    tier: 3
+    books:
+      2:
+      - water_systems_for_farm_homes_1918
+      - well_and_spring_protection_1922
+      - rudimentary_treatise_on_well-digging_boring_and_pump-work_1860
+      - water_supply-the_present_practice_of_sinking_and_boring_wells_1885
+      - methods_of_pumping_water_from_deep_wells_1903
+      4:
+      - diamond_drilling_for_gold_and_other_minerals_1900
+      - deep_hole_drilling_1910
+      - rock_boring_rock_drilling_explosives_and_blasting_1907
+      - rock_drilling_1911
+      - soil_drilling_by_vibration_1961
+  engineering_hydraulics:
+    tier: 4
+    books:
+      3:
+      - hydraulics_with_working_tables_1903
+      - hydro_electric_practice-a_manual_of_the_development_of_water_power_1911
+  rat_control:
+    tier: 3
+    books:
+      2:
+      - rat_control_1941
+      - rat_proofing_buildings_and_premises_1942
+      - control_of_insects_rodents_and_other_vermin_1943
+      - rodent_pests_of_the_farm_1918
+      - the_rat_and_its_relation_to_the_public_health_1910
+      - protecting_victory_gardens_from_animal_pests_1943
+      4:
+      - the_compleat_vermin-killer_1777
+      - the_new_and_complete_vermin-killer_1825
+      - the_universal_directory_for_taking_alive_and_destroying_rats_1812
+      - the_vermin_destroyer_1821
+      - the_rat-its_history_and_destructive_character_1858
+      - rat_proofing_buildings_and_premises_1930
+      - rats_and_rat_killing_1873
+      - practical_thoughts_on_the_vermin_1879
+  shoemaking:
+    tier: 4
+    books:
+      2:
+      - how_to_repair_shoes_1912
+      - home_book_to_learn_expert_shoe_repairing
+      - how_to_make_a_shoe_1882
+      - how_to_bottom_a_welted_shoe_by_hand_1912
+      - the_soldiers_manual_of_foot_care_and_foot_wear_1916
+      3:
+      - shoes_and_shoemaking_illustrated_1897
+      - the_boot_and_shoe-makers_assistant_1853
+      - a_manual_of_shoemaking_and_leather_and_rubber_products_1912
+      - designing_cutting_and_grading_boot_and_shoe_patterns_1899
+      - the_soldiers_foot_and_the_military_shoe_1917
+      - a_manual_on_foot_care_and_shoe_fitting_for_officers_of_the_us_navy_and_us_marine_corps_1920
+      - shoe_making_old_and_new_1911
+      - the_finishers_manual_1891
+  hemp_flax:
+    tier: 4
+    books:
+      2:
+      - a_manual_of_flax_culture_and_manufacture_1863
+      3:
+      - rope_and_twine_information_1917
+      - flax_and_hemp-their_culture_and_manipulation_1854
+      - hemp-a_practical_treatise_on_the_culture_of_hemp_for_seed_and_fiber_1900
+      - cordage_and_cordage_hemp_and_fibres_1919
+      - hemp_1943
+      - the_cultivation_of_hemp_in_the_united_states_1910
+  primers:
+    tier: 4
+    books:
+      2:
+      - the_howell_primer_1912
+      - how_to_teach_reading-a_revised_manual_for_teachers_of_the_new_howell_primer_1919
+      - primer_first-fifth_reader_1908
+      3:
+      - a_primer_of_health-practical_hygiene_for_pupils_1906
+      - a_child_primer_of_natural_history_1899
+      - the_garden_prime-a_practical_handbook_on_gardening_for_beginners_1910
+      - a_primer_on_ground_water_1963
+      - soil_culture_primer_1914
+  teaching_readers_mcguffey:
+    tier: 3
+    books:
+      2:
+      - mcguffeys_eclectic_primer_1920
+      - mcguffeys_1st_eclectic_reader_1920
+      - mcguffeys_2nd_eclectic_reader_1920
+      - mcguffeys_3rd_eclectic_reader_1920
+      - mcguffeys_4th_eclectic_reader_1920
+      - mcguffeys_5th_eclectic_reader_1920
+      - mcguffeys_6th_eclectic_reader_1921
+      - mcguffeys_eclectic_spelling-book_1896
+      4:
+      - a_history_of_the_mcguffey_readers_1911
+      - william_holmes_mcguffey_and_his_readers_1936
+      - old_favorites_from_the_mcguffey_readers_1936
+      - mcguffeys_newly_revised_eclectic_1st_reader_1853
+      - mcguffeys_newly_revised_eclectic_2nd_reader_1848
+      - mcguffeys_newly_revised_eclectic_3rd_reader_1853
+      - mcguffeys_newly_revised_eclectic_4th_reader_1849
+      - mcguffeys_newly_revised_eclectic_4th_reader1853
+      - mcguffeys_eclectic_2nd_reader_1836
+      - mcguffeys_eclectic_4th_reader_1838
+      - mcguffeys_3rd_eclectic_reader_1896
+      - mcguffeys_4th_eclectic_reader_1879
+      - mcguffeys_4th_reader-alternate_1887
+      - mcguffeys_5th_eclectic_reader_1896
+      - mcguffeys_5th_eclectic_reader-alternate_1896
+      - mcguffeys_6th_eclectic_reader_1879
+      - mcguffeys_eclectic_primer_1909
+  teaching_phonics:
+    tier: 3
+    books:
+      2:
+      - phonics_made_easy_for_primary_teachers_and_mothers_1917
+      - word_mastery-phonics_for_the_first_three_grades_1913
+      - a_first_book_in_phonics_1908
+  teaching_arithmetic:
+    tier: 4
+    books:
+      2:
+      - rays_01-new-primary-arithmetic-k-2
+      - rays_02-intellectual-arithmetic-3-4
+      - rays_03-intellectual-arithmetic-3-4-answer-key
+      - rays_04-practical-arithmetic-5-6
+      - rays_05-practical-arithmetic-5-6-answer-key
+      - rays_06-higher-arithmetic-7-8
+      - rays_07-higher-arithmetic-7-8-answer-key
+      3:
+      - rays_08-geometry-and-trigonometry-9-10
+      - rays_09-elementary-algebra-9-10
+      - rays_10-higher-algebra-11
+      - elementary_arithmetic_and_how_to_teach_it_1879
+      - the_art_of_teaching_arithmetic_1921
+      - how_to_teach_elementary_arithmetic_1878
+      - household_arithmetic_1920
+      - shop_mathematics_1912
+      - rural_arithmetic_1916
+      - practical_arithmetic-an_introduction_to_elementary_mathematics_1905
+      - easy_mathematics_1905
+      - mental_arithmetic_1903
+  mathematics:
+    tier: 4
+    books:
+      3:
+      - calculus_made_easy_1914
+      - a_vest-pocket_handbook_of_mathematics_for_engineers_1915
+      - plane_geometry_1913
+      - high_school_algebra_1915
+      - fundamentals_of_high_school_mathematics_1918
+      - mathematics_for_engineering_students_1908
+  pottery:
+    tier: 4
+    books:
+      2:
+      - how_to_make_pottery-1904
+      - backyard_kilns-steve_mills
+      - the_potters_craft_a_practical_guide_for_the_studio_and_workshop-1922
+      - a_pottery_primer-1911
+      3:
+      - pottery_for_artists_craftsmen_and_teachers_illustrated-1914
+      - the_useful_properties_of_clays-1904
+      - the_chemistry_of_pottery-1895
+      - notes_on_the_manufacture_of_earthenware_with_numerous_illustrations-1917
+      - pottery-how_it_is_made_1878
+  brewing_and_distilling:
+    tier: 4
+    books:
+      2:
+      - a_practical_handbook_on_the_distillation_of_alcohol_from_farm_products_1918
+      3:
+      - the_complete_practical_brewer-1852
+      - the_art_of_brewing-1829
+      - the_complete_practical_distiller-1880
+      - alcohol-its_production_and_properties-1919
+      - a_practical_treatise_on_brewing_and_storing_beer-1835
+      - a_practical_treatise_on_breeding_domestic_poultry_with_instructions_for_the_private_brewery_on_cider_perry_and_british_wine_making-1842
+      - practical_notes_on_wine-1868
+  basketry:
+    tier: 3
+    books:
+      2:
+      - practical_basket_making_1914
+      - how_to_make_indian_and_other_baskets_1903
+      - basket_making_1902
+      - fine_willow_basketry_1929
+      - the_basketry_book-twelve_lessons_in_reed_weaving_1914
+      - indian_basket_weaving_1903
+      - inexpensive_basketry_1912
+      4:
+      - the_basket_or_the_journal_of_the_basket_fraternity_jan_1904
+      - the_basket_or_the_journal_of_the_basket_fraternity_jul_1903
+      - designs_of_rattan_furniture_1875
+      - a_portfolio_of_designs_for_raffia_basketry_1918
+      - full_instructions_in_the_art_of_crepe_paper_rope_basket_weaving_1922
+      - the_ancient_basket_makers_of_southeastern_utah_1909
+      - mrs_leachs_fancy_work_basket_1887
+      - raffia_basketry_as_an_art_1921
+  knitting_lace_needlepoint:
+    tier: 4
+    books:
+      2:
+      - the_priscilla_knitting_book_1912
+      - knitting_and_sewing_1918
+      3:
+      - knitting_and_crocheting_1885
+      - the_mary_frances_knitting_and_crocheting_book_1918
+      - the_science_of_knitting_1914
+      - the_sunlight_book_of_knitting_and_crocheting_1915
+      - cro_knitting_1914
+  optometry:
+    tier: 3
+    books:
+      2:
+      - refraction_and_how_to_refract-the_fitting_of_spectacles_and_eyeglasses_1909
+      - the_trial_case_and_how_to_use_it-a_practical_treatise_for_optometrists_1904
+      - eye_defects-how_to_detect_and_correct_them_1898
+      4:
+      - the_art_of_preserving_the_sight_unimpaired_to_an_extreme_old_age_1824
+      - the_economy_of_the_eyes_1824
+      - spectacles-their_uses_and_abuses_in_long_and_short_sightedness_1850
+      - spectacles-why_and_when_to_use_them_1856
+      - practical_remarks_on_near_sight_aged_sight_and_impaired_vision_1847
+      - on_long_short_and_weak_sight_and_their_treatment_1864
+      - the_human_eye-its_use_and_abuse_1866
+      - dioptric_formulae_for_combined_cylindrical_lenses_1888
+  medical_obstetrics_1900-1922:
+    tier: 3
+    hazard: old-medicine
+    books:
+      2:
+      - the_technic_of_the_chicago_lying_in_hospital_and_dispensary_1921
+      - a_short_practice_of_midwifery_in_the_rotunda_hospital_dublin_1908
+      - a_manual_of_midwifery-thomas_eden_1915
+      4:
+      - osteopathic_gynecology_1912
+      - a_compend_of_operative_gynecology_1906
+      - atlas_and_epitome_of_gynecology_1900
+      - medical_gynecology_1909
+      - practical_gynecology-a_comprehensive_text_book_1912
+      - a_text_book_of_gynecology_1901
+      - maternity_without_suffering_1902
+      - illustrated_edition_of_painless_childbirth_1912
+      - american_association_of_obstetricians_vol_12_1900
+      - american_association_of_obstetricians_vol_13_1901
+      - american_association_of_obstetricians_vol_14_1902
+      - american_association_of_obstetricians_vol_15_1903
+      - american_association_of_obstetricians_vol_16_1904
+      - american_association_of_obstetricians_vol_17_1905
+      - american_association_of_obstetricians_vol_18_1906
+      - american_association_of_obstetricians_vol_19_1907
+      - american_association_of_obstetricians_vol_20_1908
+      - american_association_of_obstetricians_vol_21_1909
+      - american_association_of_obstetricians_vol_22_1910
+      - american_association_of_obstetricians_vol_23_1911
+      - american_association_of_obstetricians_vol_24_1912
+      - american_association_of_obstetricians_vol_26_1914
+      - american_association_of_obstetricians_vol_27_1915
+      - american_association_of_obstetricians_vol_28_1916
+      - american_association_of_obstetricians_vol_29_1917
+      - american_association_of_obstetricians_vol_30_1918
+      - american_association_of_obstetricians_vol_31_1919
+      - american_association_of_obstetricians_vol_32_1920
+      - american_association_of_obstetricians_vol_33_1921
+      - american_association_of_obstetricians_vol_34_1922
+      - transactions_of_the_obstetrical_society_vol_42_1901
+      - transactions_of_the_obstetrical_society_vol_43_1902
+      - transactions_of_the_obstetrical_society_vol_44_1903
+      - transactions_of_the_obstetrical_society_vol_46_1905
+      - transactions_of_the_obstetrical_society_vol_47_1906
+      - transactions_of_the_obstetrical_society_vol_48_1907
+      - transactions_of_the_obstetrical_society_vol_49_1908
+      - transactions_of_the_section_on_obstetrics_of_the_ama_1915
+      - transactions_of_the_section_on_obstetrics_of_the_ama_1919
+      - transactions_of_the_section_on_obstetrics_of_the_ama_1921
+  medical_anesthesia:
+    tier: 4
+    hazard: old-medicine
+    books:
+      3:
+      - a_manual_of_surgical_anesthesia_1916
+      - local_anesthesia-its_scientific_basis_and_practical_use_1914
+      - ether_anesthesia-clinical_notes_on_three_hundred_cases_1894
+      - anesthetics_and_their_administration_for_medical_and_dental_practitioners_1912
+      - practical_points_in_anesthesia_1908
+      - the_art_of_anesthesia_1916
+      - merck_manual_1901
+      - surgical_operations_with_local_anesthesia_1912
+      - regional_anesthesia-its_technic_and_clinical_application_1922
+  medical_surgery_1900-1922:
+    tier: 3
+    hazard: old-medicine
+    books:
+      2:
+      - emergency_surgery_1915
+      - minor_surgery_including_bandaging_1922
+      - surgical_asepsis_adapted_to_operations_in_the_home_of_the_patient_1903
+      - plaster_of_paris_and_how_to_use_it_1906
+      - clinical_talks_on_minor_surgery_1903
+      - emergency_surgery_for_the_general_practitioner_1908
+      4:
+      - doctors_versus_folks_1915
+      - evolutionary_practice_of_medicine_and_surgery_1914
+      - psycho_therapy_in_the_practice_of_medicine_and_surgery_1903
+      - report_on_the_russian_medical_and_sanitary_features_of_the_russo_japanese_war_1906
+      - interrogatory_surgery_for_students_of_veterinary_science_1904
+      - surgical_and_obstetrical_operations_for_veterinary_students_and_practitioners_1903
+    safe:
+    - plaster_of_paris_and_how_to_use_it_1906
+  wind_and_water:
+    tier: 3
+    books:
+      2:
+      - small_water_supplies_1911
+      - windmills_and_wind_motors_-_how_to_build_and_run_them_1910
+      - how_to_use_water_power_1907
+      4:
+      - conveyance_and_distribution_of_water_for_water_supply_1918
+      - filtration_of_river_waters_1869
+      - flow_of_water-flynn_1911
+      - flow_of_water-prince_1916
+      - flow_of_water-schmeer_1909
+      - history_of_corn_milling_vol_1_1898
+      - history_of_corn_milling_vol_2_1898
+      - history_of_corn_milling_vol_4_1898
+      - industrial_uses_of_water_1903
+      - investigations_into_the_purification_of_the_ohio_river_1898
+      - irrigation_practice_and_engineering_vol_1_1915
+      - irrigation_practice_and_engineering_vol_2_1915
+      - irrigation_practice_and_engineering_vol_3_1915
+      - irrigation_works_1906
+      - irrigation-principles_and_practice_as_a_branch_of_engineering_1920
+      - irrigation_engineering_1919
+      - loss_of_head_due_to_friction_of_water_in_pipes_1898
+      - mineral_and_aerated_waters_1913
+      - notes_on_irrigation_works_1910
+      - the_control_of_water_1904
+      - the_practical_design_of_irrigation_works_1910
+      - the_purification_of_public_water_supplies_1898
+      - water_meters_1885
+      - waterworks_distribution_1900
+      - water-its_purification_and_use_in_the_industries_1912
+      - water_softening_and_treatment_1920
+      - water_analysis_1868
+      - the_microscopical_examination_of_potable_water_1900
+  surveying:
+    tier: 4
+    books:
+      3:
+      - surveying_for_beginners_1909
+      - elementary_surveying_1916
+      - chain_surveying_and_the_use_of_surveying_instruments_1855
+      - land_surveying_and_levelling_1900
+      - agricultural_surveying_1884
+      - chain-compass-transit_surveying_1906
+      - topographical_surveying_and_sketching_1908
+      - military_surveying_and_field_sketching_1875
+      - surveying_manual_-_a_manual_of_field_and_office_methods_1915
+  navigation:
+    tier: 4
+    books:
+      2:
+      - fm_3-25_map_reading_and_land_navigation_2001
+      - small_boat_navigation_1942
+      3:
+      - primer_of_celestial_navigation_1944
+      - american_practical_navigator_1910
+      - stars_and_sextants_1904
+      - simple_elements_of_navigation_1890
+      - self_instruction_in_navigation_1916
+      - blue_jackets_manual_2002
+  meteorology:
+    tier: 4
+    books:
+      2:
+      - weather_folk-lore_and_local_weather_signs_1903
+      - how_to_use_the_aneroid_barometer_1891
+      - reading_the_weather_1915
+      3:
+      - weather_and_weather_instruments_for_the_amateur_1912
+      - weather_science-an_elementary_introduction_to_meteorology_1911
+      - meteorology_for_all-being_some_weather_problems_explained_1919
+      - barometer_and_weather_guide_1859
+      - agricultural_meteorology_1920
+      - why_the_weather_1924
+      - weather_elements-fouth_edition_1957
+      - tm_3-240_meteorology_1942
+      - a_barometer_manual_for_the_use_of_seamen_1884
+      - the_seamans_handbook_of_meteorology_1918
+  formulas:
+    tier: 3
+    books:
+      2:
+      - henleys_twentieth_century_formulas-1914
+      - standard_cyclopedia_of_recipes-1901
+      - the_techno-chemical_receipt_book-1919
+      - machinerys_shop_receipts_and_formulas-1911
+      4:
+      - captive_secrets-1895
+      - secrets_of_wise_men_chemists-1889
+      - the_book_of_knowledge_and_guide_to_rapid_wealth-1890
+      - six_hundred_receipts_worth_their_weight_in_gold
+      - old_doctor_carlins_recipes_1881
+      - one_thousand_secrets-1898
+      - the_laboratory-vol_1-1799
+      - the_laboratory-vol_2-1799
+      - valuable_secrets_concerning_arts_and_trades_1795
+      - manual_for_the_essence_industry_1916
+      - the_druggists_general_receipt_book-1878
+    flag:
+      old-medicine:
+      - pharmaceutical_formulas_the_chemist_and_druggists_book_of_recipes_1921
+      - pharmeceutical_formulas_1921
+      - the_dispensatory_of_the_united_states_of_america_1833
+      - the_druggists_general_receipt_book_1878
+  glassmaking:
+    tier: 4
+    books:
+      3:
+      - a_handbook_of_laboratory_glass-blowing_1921
+      - laboratory_manual_of_glass-blowing_1914
+      - the_methods_of_glass_blowing_1889
+      - experimental_glass_blowing_for_boys_1920
+      - elements_of_glass_and_glass_making_1899
+      - glass_manufacture_1908
+      - recipes_for_flint_glass_making_1907
+      - sands_suitable_for_glass-making_1916
+  papermaking:
+    tier: 4
+    books:
+      3:
+      - the_art_of_paper-making_1907
+      - the_art_of_making_paper_1905
+      - the_aztec_and_maya_papermakers_1944
+  machine_tools:
+    tier: 3
+    books:
+      2:
+      - machine_shop_primer_1910
+      - shop_practice_for_home_mechanics_1920
+      4:
+      - machine_building_for_profit_and_the_hartness_flat_turret_lathe_1909
+      - electric_motor_drive_for_machine_tools_1913
+      - machine_tool_drives_1910
+      - principles_of_interchangeable_manufacturing_1921
+      - safeguards_for_machine_tools_and_power_presses_1914
+      - jig_and_fixture_design_1920
+      - jig_and_fixture_kinks_1908
+      - jigs_and_fixtures-a_reference_book_1913
+      - tool_engineering-jigs_and_fixtures_1922
+      - machine_stops-trips_and_locking_devices_1913
+      - details_of_machine_tool_design_1910
+      - the_testing_of_machine_tools_1915
+      - applebys_illustrated_handbook_of_machinery_1877
+      - description_of_improved_machine_tools_for_working_metal_1899
+      - descriptions_of_the_gauging_and_measuring_instruments_1874
+  welding:
+    tier: 3
+    books:
+      2:
+      - tm_9-237_welding_theory_and_application_1967
+      - soldering_brazing_and_welding_1918
+      4:
+      - an_investigation_of_electric_welding_1911
+      - an_investigation_of_oxyacetylene_welding_and_cutting_blowpipes_1922
+      - automobile_welding_with_the_oxy-acetylene_flame_1916
+      - electric_slag_welding_1958
+      - arc_welding_structural_steel_1930
+      - welding_aluminum_and_strength_of_aluminum_welds_1914
+      - imperial_welding_and_cutting_hand_book_1916
+  farming_corn:
+    tier: 4
+    books:
+      2:
+      - how_to_grow_an_acre_of_corn_1922
+      - sweet_corn_1915
+      3:
+      - corn_meal_for_breakfast_dinner_supper_1920
+      - the_abc_of_corn_culture_1906
+      - corn_growing-a_manual_for_corn_clubs_1917
+      - practical_corn_culture_written_especially_for_the_corn_belt_farmers_1914
+      - indian_corn-its_value_culture_and_uses_1866
+      - the_book_of_corn_1903
+      - the_testing_of_corn_for_seed_1904
+      - crossed_sweet_corn_1934
+      - broom-corn_culture_1912
+  grapes_wine_raisins:
+    tier: 4
+    books:
+      2:
+      - grape_growing_for_amateurs_1922
+      - grape_propagation_pruning_and_training_1917
+      - the_home_vineyard_with_special_reference_to_northern_conditions_1902
+      - productive_small_fruit_culture_1920
+      3:
+      - home_manufacturer_and_use_of_unfermented_grape_juice_1903
+      - manual_of_american_grape-growing_1919
+      - american_grape_growing_and_wine_making_1883
+      - grape_diseases_on_the_pacific_coast_1895
+      - our_hardy_grapes-what_to_plant_how_to_plant_train_and_manage_them_1863
+      - dehydration_of_grapes_1930
+      - supports_for_vines_1922
+      - the_grafting_of_american_grapes_1924
+  chemistry:
+    tier: 4
+    books:
+      3:
+      - everymans_chemistry_1917
+      - the_chemistry_of_common_life_1891
+      - chemistry_of_the_household_1910
+      - golden_book_of_chemistry_experiments_1960
+      - first_course_in_chemistry_1915
+      - applied_chemistry-elementary_text_book_for_secondary_schools_1922
+      - chemistry_inorganic_with_experiments_1923
+      - sanitary_chemistry_and_water_analysis_1896
+      - the_chemistry_of_cooking_and_cleaning_1897
+      - chemistry_applied_to_practical_farming_and_home_mixing_fertilizers_1913
+      - legal_chemistry-a_guide_to_the_detection_of_poisons_1884
+      - electro_plating_and_analysis_of_solutions_1913
+  dogs:
+    tier: 4
+    books:
+      2:
+      - the_farmers_dog_1922
+      - training_the_dog_1914
+      - things_every_dog_owner_should_know_1932
+      3:
+      - practical_training_of_the_shepherd_dog_1891
+      - dogs-how_to_care_for_them_in_health_and_treat_them_when_ill_1903
+      - diseases_of_the_dog_and_their_treatment_1911
+      - fm_25-6_dog_team_transportation_1941
+      - the_shepherd_or_police_dog_1924
+      - practical_dog_training_1887
+      - the_art_of_dog_training_1932
+      - training_the_hunting_dog_for_the_field_1901
+      - the_american_hunting_dog_1919
+      - hunting_dogs_1909
+      - nursing_vs_dosing-a_treatise_on_the_care_of_dogs_1897
+    flag:
+      old-medicine:
+      - dogs-how_to_care_for_them_in_health_and_treat_them_when_ill_1903
+      - diseases_of_the_dog_and_their_treatment_1911
+  horses:
+    tier: 4
+    books:
+      2:
+      - the_horse_and_how_to_care_for_him_1911
+      - a_handbook_of_horse-shoeing_1898
+      - horse_packing-a_manual_of_pack_transportation_1914
+      - breaking_and_training_horses_1903
+      - farm_animals-horses_1906
+      - productive_horse_husbandry_1920
+      - special_report_on_diseases_of_the_horse_1896
+      3:
+      - diseases_of_the_horses_foot_1918
+      - the_art_of_horse-shoeing_a_manual_for_farriers_1898
+      - rational_horse-shoeing_1873
+      - a_plain_treatise_on_horse-shoeing_with_illustrations_1856
+      - an_essay_on_the_breeding_and_management_of_draught_horses_1882
+      - management_and_breeding_of_horses_1915
+      - modern_horse_management_1915
+      - principles_of_horse_feeding_1903
+      - the_horse-his_breeding_care_and_treatment_1917
+      - the_horse_his_breeding_care_and_use_1911
+      - humane_horse-training_1922
+      - horse_training_by_modern_methods_1912
+      - driving_lessons_1894
+      - the_harness_horse_1898
+      - stable_building_and_stable_fitting_1891
+      - the_farmers_practical_horse_farriery_1858
+      - manual_for_stable_sergeants_1917
+      - horse_truck_and_tractor_1913
+    flag:
+      old-medicine:
+      - special_report_on_diseases_of_the_horse_1896
+      - diseases_of_the_horses_foot_1918
+      - the_farmers_practical_horse_farriery_1858
+  sewing:
+    tier: 4
+    books:
+      2:
+      - how_to_sew_1904
+      - a_handbook_of_elementary_sewing_1915
+      - complete_sewing_instructions_1917
+      - home_dressmaking-a_complete_guide_to_household_sewing_1892
+      - how_to_alter_ill_fitting_garments_1919
+      - how_to_make_over_old_dresses_1892
+      - practical_sewing_and_dressmaking_1913
+      3:
+      - sewing_1919
+      - home_and_school_sewing_1901
+      - household_sewing_with_home_dressmaking_1898
+      - garment_drafting_by_simple_rule_method_1907
+      - simplified_pattern_cutting-a_new_and_easy_method_1918
+      - mechanics_of_the_sewing_machine_1914
+      - drafting_cotton_garments_and_mackinaws_1918
+      - textiles_and_clothing_1910
+      - sewing_and_textiles_1921
+      - the_little_girls_sewing_book_1915
+      - school_sewing_based_on_home_problems_1916
+      - the_dress_you_wear_and_how_to_make_it_1918
+      - a_complete_handbook_of_tailoring_and_shop_management_1920
+  fuels:
+    tier: 4
+    books:
+      2:
+      - emergency_fuel_from_the_farm_woodland_1917
+      - wood_fuel_and_wood_stoves_1942
+      - wood_fuel_in_wartime_1942
+      - firewoods-their_production_and_fuel_values_1919
+      - the_use_of_wood_for_fuel_1919
+      - a_portable_charcoal_kiln_using_the_chimney_principle_1941
+      - thrift_in_the_use_of_fuel_for_cooking_1919
+      3:
+      - american_charcoal_making_1941
+      - charcoal_kiln_made_of_cinder-concrete_blocks_1946
+      - connecticut_charcoal_kiln_1948
+      - hand-book_for_charcoal_burners_1875
+      - production_of_charcoal_in_the_ordinary_pit-kiln_1932
+      - a_treatise_on_producer-gas_and_gas-producers_1907
+      - modern_power_gas_producers_1908
+      - design_and_construction_of_a_soft_coal_gas_producer_1908
+      - peat_fuel_1903
+      - facts_about_peat_peat_fuel_and_peat_coke_1904
+      - the_uses_of_peat_for_fuel_and_other_purposes_1911
+      - the_technology_of_wood_distillation_1925
+      - the_manufacture_of_ethyl_alcohol_from_wood_waste_1922
+      - industrial_alcohol-the_production_and_use_1923
+      - an_introduction_to_the_study_of_fuel_1920
+  forestry:
+    tier: 4
+    books:
+      2:
+      - the_farm_and_the_woodlot_1919
+      - forestry_for_the_private_owner_1920
+      - lumbermans_and_loggers_guide-uses_of_douglas_fir_1919
+      3:
+      - tm_5-631_installations-general_woodland_management_1963
+      - seasoning_of_wood-a_treatise_on_natural_and_artificial_processes_1917
+      - seasoning_of_timber_1903
+      - practical_tree_repair-the_physical_repair_of_trees_1916
+      - the_tree_planter_and_plant_propagator_1880
+      - forest_fire_manual_1912
+      - fire_wardens_handbook_1916
+      - a_handbook_of_forest_protection_1914
+      - hand_book_of_timber_preservation_1904
+      - getting_acquainted_with_the_trees_1904
+      - trees_of_the_united_states_important_in_forestry_1898
+      - the_fruits_and_fruit-trees_of_america_1857
+      - the_illustrated_pear_culturist_1857
+      - the_orchard_lawn_and_garden_guide_1921
+      - applied_forestry_written_particularly_for_owners_and_managers_1912
+      - forestry_for_profit_1922
+      - guide_to_forestry_1922
+  farming_potato_and_sweet_potato:
+    tier: 4
+    books:
+      2:
+      - practical_potato_culture_1913
+      - the_abc_of_potato_culture_1893
+      - potato_storage_houses_1933
+      - the_potato_in_farm_and_garden_1883
+      - late-blight_tuber_rot_of_the_potato_1922
+      - potato_production_in_the_far_western_states
+      - the_potato_in_british_columbia_1921
+      3:
+      - potato_cookery-300_ways_of_preparing_and_cooking_potatoes_1907
+      - the_book_of_potato_cookery_1918
+      - potato_diseases_and_their_treatment_1899
+      - recipes_for_potato_starch_and_potato_flour_1939
+      - potato_culture_1940
+      - scientific_potato_culture_1918
+      - the_potato_1917
+      - the_book_of_the_potato_1905
+      - the_potato-its_culture_uses_history_and_classification_1923
+      - the_sweet_potato-how_to_grow_and_keep_it_1912
