@@ -82,15 +82,44 @@ uv run triage.py --root /mnt/fileserver/media/reference --list data/triage-list.
 
 ```sh
 uv run build-devices.py --labels                          # what each device holds, for its label
-uv run build-devices.py                                   # data/devices/{kobo,kindle}/prepper/<category>/
+uv run build-devices.py                                   # data/devices/{kobo,kindle}/prepper/
 uv run build-devices.py --device kobo --copy-to /run/media/$USER/KOBOeReader
-uv run build-devices.py --device kindle --copy-to /run/media/$USER/Kindle
+uv run build-devices.py --device kindle --copy-to <MTP mount>   # or copy the folder with a file manager
 ```
 
-Each device takes whole tiers of a fixed list of topics (`DEVICES` in `build-devices.py`). That way its label is accurate. Kobo gets tiers 1–2 as KEPUB and Kindle gets tiers 1–3 as AZW3, both converted with Calibre's `ebook-convert`. If a selection exceeds the budget (13 / 28 GB), the build fails for that device rather than dropping part of a topic.
+The Kobo runs **KOReader** and gets plain EPUBs. The Kindle is a Paperwhite 5 on firmware 5.19.x, which has no jailbreak yet. It stays on its stock software and gets AZW3, converted with Calibre. Both get the same layout:
+- `00 START HERE.epub`: generated from `start-here.md` plus the device's label. It explains how to open a book, what is on the reader, and what the hazard tags mean.
+- `NN Topic/` folders, numbered in label order, e.g. `01 Medicine & dental/`.
+- On the Kindle, which shows no folders, every title also starts with its topic number (`title_prefix`). Sorting the library by title then groups books by topic.
+- Hazard-flagged books carry their tag in the title, set with Calibre's `ebook-meta`.
+- Medical and health books also get an `(original PDF)` copy next to them.
+
+Each device takes whole tiers of a fixed list of topics (`DEVICES` in `build-devices.py`), so its label is accurate. The Kobo gets tiers 1–2 and the Kindle tiers 1–3. If a selection exceeds the budget (13 / 28 GB), the build fails for that device rather than dropping part of a topic. A device's `format` is `epub` for KOReader, `kepub` for a stock Kobo, or `azw3` for a stock Kindle. Its `reader` setting picks which "open a book" text the start-here book gets.
 
 A book is flagged and left out unless `--include-flagged` is given if either:
 - `suspicious_words` > 8%, or
 - `text_retained` < 50%.
 
-`--copy-to` rsyncs into a `prepper/` folder on the device (on the Kindle, `documents/prepper/`), and `--delete` only applies within that folder.
+**Syncing:**
+- `--copy-to` rsyncs into a `prepper/` folder on a USB-mounted device (on the Kindle, `documents/prepper/`). `--delete` only applies within that folder.
+- A Kindle on recent firmware mounts over MTP, which rsync can't write to, so use `--ssh` instead. It uses rsync if the device has it, otherwise it replaces the folder with a tar stream. It also works with KOReader's built-in SSH server on either reader.
+
+## Reader setup (once per device)
+
+**Kindle Paperwhite 5:** it is on 5.19.x, so for now it runs the stock software (above), with Wi-Fi left off. Firmware can't be downgraded without a jailbreak. If a 5.19 jailbreak appears, switch the device to `format: "epub"` and `reader: "koreader"`, drop `title_prefix`, and then:
+1. Keep it in airplane mode until it is jailbroken.
+2. Jailbreak it. Use the [kindlemodding.org](https://kindlemodding.org/jailbreaking/) wizard to pick the method for the exact firmware (Settings → Device Options → Device Info):
+   - below 5.18.1: WinterBreak
+   - 5.16.4–5.18.6: Nosebleed
+   - 5.18.1–5.18.5: AdBreak (ad-supported only)
+3. Follow the site's post-jailbreak steps:
+   - remove the filler files and any `.bin` update files
+   - install the hotfix, KUAL and MRPI
+   - install KOReader's `kindlehf` build
+   - optionally install USBNetLite, for `--ssh`
+
+**Kobo:** install KOReader with the one-click package from [koreader.rocks](https://koreader.rocks). The stock Kobo software stays available.
+
+**KOReader, on both:**
+- Set the home folder to `prepper`.
+- Pick the same font and refresh settings on both, so anyone handed either reader sees the same thing.
