@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Open each by-hand source (a `legacy` entry in sources.yaml whose comment says
 # "by hand: <url>") that isn't on the NAS yet, wait while you save the PDF in
-# the browser, then move the newest PDF from the downloads folder into place.
+# the browser, then push the newest PDF from the downloads folder to the NAS
+# (rsync over ssh as root on the PVE host, like fetch.py --push: the SMB mount
+# is read-only for new folders).
 #
 #   tools/prepper-library/manual-downloads.sh
 #   REF=/mnt/fileserver/media/reference DOWNLOADS=~/Downloads tools/prepper-library/manual-downloads.sh
@@ -10,6 +12,9 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 REF=${REF:-/mnt/fileserver/media/reference}   # NAS media/reference, mounted
 DOWNLOADS=${DOWNLOADS:-$HOME/Downloads}
+NAS=root@192.168.1.16
+NAS_REF=/Tank/media_root/media/reference
+SSH_KEY=${SSH_KEY:-$HOME/.ssh/ansible-on-nest}
 
 [ -d "$REF/sources" ] || { echo "NAS not mounted at $REF" >&2; exit 1; }
 
@@ -48,8 +53,10 @@ for row in "${todo[@]}"; do
   pages=$(pdfinfo "$pdf" 2>/dev/null | awk '/^Pages/{print $2}')
   read -rp "   Use $(basename "$pdf") (${pages:-?} pages)? [Y/n] " ok
   [ "${ok:-y}" = n ] && continue
-  mkdir -p "$dest"
-  mv "$pdf" "$dest/"
+  target="$NAS_REF/sources/$category/$id"
+  ssh -i "$SSH_KEY" "$NAS" "mkdir -p '$target' && chown 1000:1000 '$target'"
+  rsync -a --chown=1000:1000 -e "ssh -i $SSH_KEY" "$pdf" "$NAS:$target/"
+  rm -f "$pdf"
   echo "   -> $dest/"
 done
 
