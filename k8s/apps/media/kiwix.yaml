@@ -129,8 +129,8 @@ spec:
             set -u
             cd /data
             base=https://download.kiwix.org/zim
-            rm -f ./*.zim.tmp
             keep=""
+            inflight=""
             fail=0
             for entry in $ZIMS; do
               dir=${entry%/*}
@@ -148,21 +148,27 @@ spec:
               fi
               if [ ! -f "$latest" ]; then
                 echo "downloading $latest"
-                # Kiwix publishes a .sha256 next to every build; a truncated
-                # or corrupted download is discarded, never served or frozen.
-                if wget -q -O "$latest.tmp" "$base/$dir/$latest" \
-                   && want=$(wget -qO- "$base/$dir/$latest.sha256" | cut -d' ' -f1) \
-                   && [ -n "$want" ] \
-                   && [ "$(sha256sum "$latest.tmp" | cut -d' ' -f1)" = "$want" ]; then
-                  mv "$latest.tmp" "$latest"
-                else
-                  echo "download failed: $latest" >&2
-                  rm -f "$latest.tmp"
+                current=$(ls "${name}"_*.zim 2>/dev/null | sort | tail -n1)
+                # -c resumes a partial .tmp left by an interrupted run (a
+                # 119 GB Wikipedia download shouldn't restart from zero).
+                if ! wget -q -c -O "$latest.tmp" "$base/$dir/$latest"; then
+                  echo "download interrupted: $latest (resumes next run)" >&2
+                  inflight="$inflight $latest.tmp"
                   fail=1
-                  current=$(ls "${name}"_*.zim 2>/dev/null | sort | tail -n1)
                   [ -n "$current" ] && keep="$keep $current"
                   continue
                 fi
+                # Kiwix publishes a .sha256 next to every build; a corrupted
+                # download is discarded, never served or frozen.
+                want=$(wget -qO- "$base/$dir/$latest.sha256" | cut -d' ' -f1)
+                if [ -z "$want" ] || [ "$(sha256sum "$latest.tmp" | cut -d' ' -f1)" != "$want" ]; then
+                  echo "checksum mismatch or missing: $latest" >&2
+                  rm -f "$latest.tmp"
+                  fail=1
+                  [ -n "$current" ] && keep="$keep $current"
+                  continue
+                fi
+                mv "$latest.tmp" "$latest"
               fi
               keep="$keep $latest"
               case " $FREEZE " in
@@ -195,6 +201,15 @@ spec:
               exit 1
             fi
             mv library.xml.tmp library.xml
+            # Partial downloads of builds no longer wanted are dropped; the
+            # ones still in flight are kept to resume.
+            for tmp in *.zim.tmp; do
+              [ -e "$tmp" ] || continue
+              case " $inflight " in
+                *" $tmp "*) ;;
+                *) rm -f "$tmp" ;;
+              esac
+            done
             # Prune only superseded builds of the names managed here.
             for entry in $ZIMS; do
               name=${entry#*/}

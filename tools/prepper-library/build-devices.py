@@ -27,6 +27,7 @@ from pathlib import Path
 import yaml
 
 import triage
+from convert import KEEP_PDF
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
@@ -139,7 +140,7 @@ def main():
             if dest in kept:  # two books with the same title: disambiguate
                 dest = dest.with_name(safe_name(f"{title} ({bid})") + dev["ext"])
             original = epub.with_suffix(".pdf")
-            extras = [original] if q["category"] == "medical" and original.exists() else []
+            extras = [original] if q["category"] in KEEP_PDF and original.exists() else []
             convert(epub, dest, dev["format"], title if q["hazards"] else None)
             kept.add(dest)
             for pdf in extras:

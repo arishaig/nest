@@ -51,6 +51,9 @@ HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 ROOT = DATA  # overridden by --root
 CLAIM_TTL = 3 * 3600  # seconds after which another worker may take over a claim
+# Categories whose books ship with the original PDF next to the EPUB: dosage
+# and icon tables don't survive conversion (also read by build-devices.py)
+KEEP_PDF = {"medical", "reproductive-health", "gender-lgbtq"}
 MAX_ATTEMPTS = 3  # extraction tries per PDF (an OOM kill counts) before workers skip it
 CHUNK_PAGES = 100  # docling holds a whole document in memory; big PDFs go in chunks
 NAS = "root@192.168.1.16:/Tank/media_root/media/reference"
@@ -725,7 +728,7 @@ def main():
             qa[book_id] = {"status": "package-error", "title": meta["title"], "error": str(e)[:300]}
             print(f"  package error: {str(e)[:200]}", flush=True)
             continue
-        if meta["category"] == "medical":
+        if meta["category"] in KEEP_PDF:
             # Icon-drawn table columns don't survive conversion; ship the
             # original alongside so dosage tables can be checked.
             merge_pdfs(pdfs, dest.with_suffix(".pdf"))
