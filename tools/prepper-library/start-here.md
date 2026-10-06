@@ -5,11 +5,7 @@ radio, history and more. It needs no internet. Everything is already on it.
 
 ## Open a book
 
-1. Open **KOReader** (on a Kobo: the KOReader entry in the menu; on a Kindle: KUAL, then KOReader).
-2. Tap the **folder icon** at the top left and go to the **prepper** folder.
-3. Pick a topic folder, then tap a book.
-
-Tap the **top** of the page for menus, the **bottom** for page and font settings.
+{open}
 **Pinch** or use the font menu to make text bigger. Tap the right side of the
 page to go forward, the left side to go back.
 

@@ -44,10 +44,28 @@ DEVICES = {
     # format: "epub" is copied as-is (KOReader on both readers); "kepub"/"azw3"
     # go through ebook-convert, for a reader on its stock software
     # subdir: under the USB mount (--copy-to); ssh_dir: absolute, for --ssh
+    # reader: which "open a book" text the start-here book gets (START_OPEN)
+    # title_prefix: start titles with the topic number, for a reader that shows
+    # no folders (stock Kindle): sorting by title then groups books by topic
     "kobo": {"format": "epub", "ext": ".epub", "budget": 13 * GB, "subdir": "prepper",
-             "ssh_dir": "/mnt/onboard/prepper", "max_tier": 2, "topics": CORE},
-    "kindle": {"format": "epub", "ext": ".epub", "budget": 28 * GB, "subdir": "documents/prepper",
-               "ssh_dir": "/mnt/us/documents/prepper", "max_tier": 3, "topics": CORE},
+             "ssh_dir": "/mnt/onboard/prepper", "reader": "koreader", "max_tier": 2, "topics": CORE},
+    # PW5 on firmware 5.19.x: no jailbreak, so stock software and AZW3
+    "kindle": {"format": "azw3", "ext": ".azw3", "budget": 28 * GB, "subdir": "documents/prepper",
+               "ssh_dir": "/mnt/us/documents/prepper", "reader": "kindle", "title_prefix": True,
+               "max_tier": 3, "topics": CORE},
+}
+START_OPEN = {
+    "koreader": """1. Open **KOReader** (on a Kobo: the KOReader entry in the menu; on a Kindle: KUAL, then KOReader).
+2. Tap the **folder icon** at the top left and go to the **prepper** folder.
+3. Pick a topic folder, then tap a book.
+
+Tap the **top** of the page for menus, the **bottom** for page and font settings.""",
+    "kindle": """1. Go to the **Library** (home screen, then *Library*).
+2. Tap the sort menu and choose **Title**. Every book's title starts with its topic number
+   (for example *01 Where There Is No Doctor* is in Medicine & dental), so books are grouped by topic.
+3. Tap a book. Use the search box on the home screen to find a book by title.
+
+Tap the **top** of the page for menus and **Aa** for text size.""",
 }
 TOPICS = {  # label wording per sources.yaml category
     "medical": "Medicine & dental", "water": "Water & sanitation", "food": "Food & preserving",
@@ -127,7 +145,8 @@ def start_here(name, dev, dest):
         return
     topics = "\n".join(f"- **{topic_dir(dev, c)}**" for c in dev["topics"])
     text = (HERE / "start-here.md").read_text().format(device=name.capitalize(), topics=topics,
-                                                       tiers=label(name, dev).splitlines()[1])
+                                                       tiers=label(name, dev).splitlines()[1],
+                                                       open=START_OPEN[dev["reader"]])
     dest.parent.mkdir(parents=True, exist_ok=True)
     src = dest.with_suffix(".md.txt")
     src.write_text(text)
@@ -190,21 +209,24 @@ def main():
                   if q["tier"] <= dev["max_tier"] and q["category"] in topics and not q["dup"]]
         root = DATA / "devices" / name / "prepper"
         used, kept = 0, set()
-        guide = root / "00 START HERE.epub"
+        guide = root / ("00 START HERE" + dev["ext"])
         start_here(name, dev, guide)
         kept.add(guide)
         for bid, q in chosen:
             epub = DATA / "ebooks" / q["category"] / f"{bid}.epub"
             title = " ".join([q["title"]] + [HAZARD_TAGS[h] for h in q["hazards"]])
+            if dev.get("title_prefix"):
+                title = f"{dev['topics'].index(q['category']) + 1:02d} {title}"
             dest = root / topic_dir(dev, q["category"]) / (safe_name(title) + dev["ext"])
             if dest in kept:  # two books with the same title: disambiguate
                 dest = dest.with_name(safe_name(f"{title} ({bid})") + dev["ext"])
             original = epub.with_suffix(".pdf")
             extras = [original] if q["category"] in KEEP_PDF and original.exists() else []
-            convert(epub, dest, dev["format"], title if q["hazards"] else None)
+            convert(epub, dest, dev["format"], title if q["hazards"] or dev.get("title_prefix") else None)
             kept.add(dest)
             for pdf in extras:
-                target = dest.parent / (safe_name(q["title"]) + " (original PDF).pdf")
+                prefix = f"{dev['topics'].index(q['category']) + 1:02d} " if dev.get("title_prefix") else ""
+                target = dest.parent / (safe_name(prefix + q["title"]) + " (original PDF).pdf")
                 if not target.exists():
                     shutil.copy2(pdf, target)
                 kept.add(target)
