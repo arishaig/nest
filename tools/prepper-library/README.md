@@ -21,23 +21,76 @@ uv run fetch.py --push          # then rsync to the NAS (uid/gid 1000)
 - Idempotent: files already present are skipped.
 - Each source is recorded in `sources.lock.json` with a sha256 for every file. If an upstream file changes, the run prints a warning and the lockfile diff shows it.
 - `zimgit` sources: the latest ZIM is downloaded, then every embedded PDF is unpacked, named by its real title. The titles and authors come from the ZIM's own `database.js`, and the metadata goes to `meta.json`.
-- `legacy` sources already exist on the NAS and are never fetched.
+- `gutenberg` sources list Project Gutenberg ebook numbers. Gutenberg's own EPUB3 files are downloaded and passed through with grayscale images, with no PDF extraction.
+- `legacy` sources already exist on the NAS and are never fetched. They are also used for sites that refuse scripted downloads: the comment gives the URL to save the file from by hand.
+- Some sites block scripts (cdc.gov, NOAA, HathiTrust). Where an exact copy is published elsewhere, the source points there and a comment says why: PubMed Central's open-data bucket for MMWR and journal articles, the Internet Archive, or the Wayback Machine. Before switching, check the copy against the original's size or PDF metadata.
 
 Adding a source: add an entry to `sources.yaml`. If a born-digital EPUB or HTML edition exists, use it instead of a PDF. Keep to free or public-domain material.
 
-## Conversion (in progress)
+## Survivor Library
 
-Tested 2026-10-04 on FM 21-76, *Where There Is No Doctor*, and an 1893 Survivor Library scan, using docling 2.x on CPU then pandoc:
+```sh
+uv run survivor.py --push              # categories mapped in sources.yaml -> NAS reference/survivor-library/
+uv run survivor.py --all --push        # every category (~200 GB)
+```
 
-- **Speed:** about 1 s/page on CPU with OCR off.
-- **Born-digital PDFs:** good text, tables and figures. docling emits every heading as `##`, so a post-pass rebuilds the hierarchy:
-  - `CHAPTER`/`PART`/`APPENDIX`, or a numbered title → h1
-  - ALL-CAPS → h2
-  - everything else → h3
-  - the printed table of contents is dropped
-- **Multi-part books:** each part becomes one chapter. This is why the 2025 Hesperian per-chapter PDFs are preferred over the older single-file edition.
-- **Scans (Survivor Library):** the 1893 test scan already had a text layer of decent quality. Its old-OCR errors (`tlie`→`the`) are mostly in headings, and a dictionary-checked correction pass should fix them. A forced full-page RapidOCR run returned very little text. That run looks misconfigured rather than conclusive, so OCR is still an open question until we know how many Survivor Library PDFs lack a text layer.
-- **Medical tables:** table columns drawn as icons are lost (for example, STI protection in the family-planning table). Medical EPUBs therefore always ship with the original PDF alongside, and get a manual table review before going on a device.
-- **Device formats:** Calibre `ebook-convert` turns the EPUBs into AZW3 for the Kindle; kepubify produces kepub for the Kobo.
+The mirror goes one file at a time with a 2 s delay. It can be resumed, and downloads are atomic. Each category's book list is saved as `index.json`. `sources.yaml` → `survivor_library` maps site categories onto our categories and priorities. These are historical books: for example, 1890s canning advice predates modern food-safety guidance.
 
-Still to come: `convert.py`, `build-devices.py`, `survivor.py`, and the omega GPU extraction Job.
+## Converting to EPUB
+
+```sh
+uv sync --extra convert
+uv run --extra convert convert.py --pull        # pull sources from the NAS, convert everything
+uv run --extra convert convert.py --only fema   # source-id prefix
+uv run --extra convert convert.py --ocr         # also OCR text-less PDFs (tesseract, slow)
+uv run --extra convert convert.py --push        # push data/ebooks to NAS reference/ebooks/
+```
+
+How each book is built:
+
+1. **Extract.** docling converts the PDF to Markdown plus images. The result is cached under `data/extracted/<sha256>/`, so a rerun or a tweak to the post-pass costs seconds.
+2. **Normalize.** docling emits every heading as `##`, so the post-pass rebuilds a hierarchy:
+   - `CHAPTER`/`PART`/numbered titles become h1, ALL-CAPS becomes h2, everything else h3.
+   - Levels are shifted so each book's top heading level becomes h1.
+   - Bare "CHAPTER 4" labels are merged into the next title, or dropped in multi-part books, where each part becomes one chapter.
+   - The printed table of contents is removed. Removal stops at the next heading of any level.
+   - docling's placeholder alt text "Image" is emptied, so uncaptioned images get no caption.
+   - Common old-OCR errors are fixed (`tlie`→`the`, `witli`→`with`), but only when the fix produces a dictionary word.
+3. **Package.** pandoc builds an EPUB3 with title, author, publisher and rights, the category as the series, a cover rendered from page 1, and a two-level table of contents. Duplicate PDFs across bundles are skipped by hash.
+4. **Medical books** ship with the original PDF alongside, concatenated into one file for multi-part books. Table columns drawn as icons don't survive conversion.
+5. **QA.** Each book's metrics go into `data/qa.json`:
+   - `text_retained`: converted text ÷ the PDF's own text layer
+   - `suspicious_words`: share of lowercase words that aren't in the dictionary
+   - `chars_per_page`, `headings`, `images`, `ocr_fixes`
+
+PDFs with no text layer (fewer than 100 characters per page) are skipped unless `--ocr` is given.
+
+Speed is about 1 s/page on CPU. Survivor Library scans almost all have a text layer (16/16 sampled), so no GPU or OCR is needed for them.
+
+## Triage
+
+`triage.yaml` gives every book a tier: 1 Survive, 2 Sustain, 3 Rebuild, 4 Archive (NAS/Kiwix only). Each source or Survivor category has a default tier, and individual books are listed where they differ. Books are judged by subject, not age. An 1880s camp-sanitation manual stays; municipal sewer tables, periodical runs, memoirs and scout novels go to tier 4. Files that differ only in spaces versus underscores are near-duplicates and also drop to tier 4.
+
+Three hazard flags mark books worth keeping but not to follow blindly: `old-medicine`, `old-food-safety` (pre-USDA canning) and `id-caution` (wild plant and mushroom identification). Flagged books carry a tag in their title on the device.
+
+```sh
+uv run triage.py --root /mnt/fileserver/media/reference                       # check names, size per tier
+uv run triage.py --root /mnt/fileserver/media/reference --list data/triage-list.tsv
+```
+
+## Building device libraries
+
+```sh
+uv run build-devices.py --labels                          # what each device holds, for its label
+uv run build-devices.py                                   # data/devices/{kobo,kindle}/prepper/<category>/
+uv run build-devices.py --device kobo --copy-to /run/media/$USER/KOBOeReader
+uv run build-devices.py --device kindle --copy-to /run/media/$USER/Kindle
+```
+
+Each device takes whole tiers of a fixed list of topics (`DEVICES` in `build-devices.py`). That way its label is accurate. Kobo gets tiers 1–2 as KEPUB and Kindle gets tiers 1–3 as AZW3, both converted with Calibre's `ebook-convert`. If a selection exceeds the budget (13 / 28 GB), the build fails for that device rather than dropping part of a topic.
+
+A book is flagged and left out unless `--include-flagged` is given if either:
+- `suspicious_words` > 8%, or
+- `text_retained` < 50%.
+
+`--copy-to` rsyncs into a `prepper/` folder on the device (on the Kindle, `documents/prepper/`), and `--delete` only applies within that folder.
