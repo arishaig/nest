@@ -114,12 +114,13 @@ sources:
     priority: 2
     license: Public domain (US)
   - id: wsu-edible-wild-plants-73a
-    type: legacy  # by hand: https://s3.wp.wsu.edu/uploads/sites/2053/2015/09/73aEdibleWildPlants.pdf
+    type: url  # Wayback copy (WSU's S3 bucket refuses scripts)
     title: Edible Wild Plants (WSU Community Horticulture Fact Sheet 73A)
     publisher: WSU Extension
     category: foraging
     priority: 1
     license: WSU Extension publication (free download)
+    url: "https://web.archive.org/web/20240528030804id_/https://s3.wp.wsu.edu/uploads/sites/2053/2015/09/73aEdibleWildPlants.pdf"
   - id: whatcom-livestock-poisoning-plants
     type: legacy  # by hand: https://www.whatcomcounty.us/DocumentCenter/View/2489/Livestock-Poisoning-Plants-of-Whatcom-County-Pastures-PDF
     title: Livestock Poisoning Plants of Whatcom County Pastures
@@ -476,19 +477,21 @@ sources:
     license: "IPCC (free distribution)"
     url: "https://www.ipcc.ch/report/ar6/syr/downloads/report/IPCC_AR6_SYR_FullVolume.pdf"
   - id: usgcrp-nca5
-    type: legacy  # by hand: https://repository.library.noaa.gov/view/noaa/61592 (or https://nca5.climate.us/downloads/)
+    type: url  # Internet Archive copy; 219,876,258 bytes = NOAA repository's 209.69 MiB
     title: "Fifth National Climate Assessment (2023)"
     publisher: "U.S. Global Change Research Program"
     category: science
     priority: 3
     license: "US government work (public domain)"
+    url: "https://archive.org/download/fed-archive-nca5-climate-2026/NCA5_Full_Report.pdf"
   - id: cdc-pink-book-14e
-    type: legacy  # by hand: https://stacks.cdc.gov/view/cdc/252997
+    type: url  # third-party mirror; PDF metadata Author: CDC/NCIRD, 444 pp
     title: "Epidemiology and Prevention of Vaccine-Preventable Diseases (Pink Book, 14th ed, 2021)"
     publisher: "CDC"
     category: science
     priority: 2
     license: "US government work (public domain)"
+    url: "https://www.merle-arbeitsmedizin.de/wp-content/uploads/2022/02/CDC-Pink-Book-Version-14th-Edition.pdf"
   - id: gutenberg-science-classics
     type: gutenberg
     category: science
@@ -534,42 +537,47 @@ sources:
     license: "CC BY-NC-SA 3.0 IGO"
     url: "https://cdn.who.int/media/docs/default-source/reproductive-health/clinical-practice-handbook-for-quality-abortion-care.pdf"
   - id: cdc-us-mec-2024
-    type: legacy  # by hand: https://www.cdc.gov/mmwr/volumes/73/rr/pdfs/rr7304a1-H.pdf
+    type: url  # PMC open-data copy of MMWR Recomm Rep 73(4) (cdc.gov blocks scripts)
     title: "U.S. Medical Eligibility Criteria for Contraceptive Use, 2024"
     publisher: "CDC"
     category: reproductive-health
     priority: 2
     license: "US government work (public domain)"
+    url: "https://pmc-oa-opendata.s3.amazonaws.com/PMC11315372.1/PMC11315372.1.pdf"
   - id: cdc-us-spr-2024
-    type: legacy  # by hand: https://www.cdc.gov/mmwr/volumes/73/rr/pdfs/rr7303a1-H.pdf
+    type: url  # PMC open-data copy of MMWR Recomm Rep 73(3)
     title: "U.S. Selected Practice Recommendations for Contraceptive Use, 2024"
     publisher: "CDC"
     category: reproductive-health
     priority: 2
     license: "US government work (public domain)"
+    url: "https://pmc-oa-opendata.s3.amazonaws.com/PMC11340200.1/PMC11340200.1.pdf"
   - id: cdc-sti-treatment-2021
-    type: legacy  # by hand: https://www.cdc.gov/mmwr/volumes/70/rr/pdfs/rr7004a1-H.pdf
+    type: url  # PMC open-data copy of MMWR Recomm Rep 70(4)
     title: "Sexually Transmitted Infections Treatment Guidelines, 2021"
     publisher: "CDC"
     category: reproductive-health
     priority: 1
     license: "US government work (public domain)"
+    url: "https://pmc-oa-opendata.s3.amazonaws.com/PMC8344968.1/PMC8344968.1.pdf"
   - id: cdc-hiv-prep-2021
-    type: legacy  # by hand: https://www.cdc.gov/hiv/pdf/risk/prep/cdc-hiv-prep-guidelines-2021.pdf
+    type: url  # restoredcdc.org archive copy; PDF metadata Author: CDC
     title: "Preexposure Prophylaxis for the Prevention of HIV Infection in the United States (2021 update)"
     publisher: "CDC"
     category: reproductive-health
     priority: 2
     license: "US government work (public domain)"
+    url: "https://restoredcdc.org/www.cdc.gov/hiv/pdf/risk/prep/cdc-hiv-prep-guidelines-2021.pdf"
 
   # --- gender & LGBTQ+ -----------------------------------------------------------
   - id: wpath-soc8
-    type: legacy  # by hand: https://www.tandfonline.com/doi/pdf/10.1080/26895269.2022.2100644 (open access)
+    type: url  # PMC open-data copy (open access, Int J Transgend Health 23(S1))
     title: "Standards of Care for the Health of Transgender and Gender Diverse People, Version 8"
     publisher: "WPATH / International Journal of Transgender Health"
     category: gender-lgbtq
     priority: 1
     license: "Open access"
+    url: "https://pmc-oa-opendata.s3.amazonaws.com/PMC9553112.1/PMC9553112.1.pdf"
   - id: ucsf-gender-affirming-care-guidelines
     type: url
     title: "Guidelines for the Primary and Gender-Affirming Care of Transgender and Gender Nonbinary People"

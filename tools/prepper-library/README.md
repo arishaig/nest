@@ -21,7 +21,9 @@ uv run fetch.py --push          # then rsync to the NAS (uid/gid 1000)
 - Idempotent: files already present are skipped.
 - Each source is recorded in `sources.lock.json` with a sha256 for every file. If an upstream file changes, the run prints a warning and the lockfile diff shows it.
 - `zimgit` sources: the latest ZIM is downloaded, then every embedded PDF is unpacked, named by its real title. The titles and authors come from the ZIM's own `database.js`, and the metadata goes to `meta.json`.
-- `legacy` sources already exist on the NAS and are never fetched.
+- `gutenberg` sources list Project Gutenberg ebook numbers. Gutenberg's own EPUB3 files are downloaded and passed through with grayscale images, with no PDF extraction.
+- `legacy` sources already exist on the NAS and are never fetched. They are also used for sites that refuse scripted downloads: the comment gives the URL to save the file from by hand.
+- Some sites block scripts (cdc.gov, NOAA, HathiTrust). Where an exact copy is published elsewhere, the source points there and a comment says why: PubMed Central's open-data bucket for MMWR and journal articles, the Internet Archive, or the Wayback Machine. Before switching, check the copy against the original's size or PDF metadata.
 
 Adding a source: add an entry to `sources.yaml`. If a born-digital EPUB or HTML edition exists, use it instead of a PDF. Keep to free or public-domain material.
 

@@ -1155,6 +1155,7 @@ survivor:
     tier: 4
     books:
       3:
+      - the_amateurs_handbook_of_practical_information_for_the_workshop_and_the_laboratory_1879
       - a_handbook_of_laboratory_glass-blowing_1921
       - laboratory_manual_of_glass-blowing_1914
       - the_methods_of_glass_blowing_1889
@@ -1290,6 +1291,7 @@ survivor:
       - productive_horse_husbandry_1920
       - special_report_on_diseases_of_the_horse_1896
       3:
+      - the_american_farmers_horse_book_1867
       - diseases_of_the_horses_foot_1918
       - the_art_of_horse-shoeing_a_manual_for_farriers_1898
       - rational_horse-shoeing_1873
@@ -1310,6 +1312,7 @@ survivor:
       - horse_truck_and_tractor_1913
     flag:
       old-medicine:
+      - the_american_farmers_horse_book_1867
       - special_report_on_diseases_of_the_horse_1896
       - diseases_of_the_horses_foot_1918
       - the_farmers_practical_horse_farriery_1858
