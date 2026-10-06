@@ -82,15 +82,43 @@ uv run triage.py --root /mnt/fileserver/media/reference --list data/triage-list.
 
 ```sh
 uv run build-devices.py --labels                          # what each device holds, for its label
-uv run build-devices.py                                   # data/devices/{kobo,kindle}/prepper/<category>/
+uv run build-devices.py                                   # data/devices/{kobo,kindle}/prepper/
 uv run build-devices.py --device kobo --copy-to /run/media/$USER/KOBOeReader
-uv run build-devices.py --device kindle --copy-to /run/media/$USER/Kindle
+uv run build-devices.py --device kindle --ssh root@192.168.15.244   # jailbroken Kindle, USBNetLite
 ```
 
-Each device takes whole tiers of a fixed list of topics (`DEVICES` in `build-devices.py`). That way its label is accurate. Kobo gets tiers 1–2 as KEPUB and Kindle gets tiers 1–3 as AZW3, both converted with Calibre's `ebook-convert`. If a selection exceeds the budget (13 / 28 GB), the build fails for that device rather than dropping part of a topic.
+Both readers run **KOReader** (see below). They get the same plain EPUBs in the same layout:
+- `00 START HERE.epub`: generated from `start-here.md` plus the device's label. It explains how to open a book, what is on the reader, and what the hazard tags mean.
+- `NN Topic/` folders, numbered in label order, e.g. `01 Medicine & dental/`.
+- Hazard-flagged books carry their tag in the title, set with Calibre's `ebook-meta`.
+- Medical and health books also get an `(original PDF)` copy next to them.
+
+Each device takes whole tiers of a fixed list of topics (`DEVICES` in `build-devices.py`), so its label is accurate. The Kobo gets tiers 1–2 and the Kindle tiers 1–3. If a selection exceeds the budget (13 / 28 GB), the build fails for that device rather than dropping part of a topic. To build for a reader on its stock software instead, set that device's `format` to `kepub` (Kobo) or `azw3` (Kindle).
 
 A book is flagged and left out unless `--include-flagged` is given if either:
 - `suspicious_words` > 8%, or
 - `text_retained` < 50%.
 
-`--copy-to` rsyncs into a `prepper/` folder on the device (on the Kindle, `documents/prepper/`), and `--delete` only applies within that folder.
+**Syncing:**
+- `--copy-to` rsyncs into a `prepper/` folder on a USB-mounted device (on the Kindle, `documents/prepper/`). `--delete` only applies within that folder.
+- A Kindle on recent firmware mounts over MTP, which rsync can't write to, so use `--ssh` instead. It uses rsync if the device has it, otherwise it replaces the folder with a tar stream. It also works with KOReader's built-in SSH server on either reader.
+
+## Reader setup (once per device)
+
+**Kindle Paperwhite 5:**
+1. Keep it in airplane mode until it is jailbroken. An automatic update to 5.19.x leaves no public jailbreak.
+2. Jailbreak it. Use the [kindlemodding.org](https://kindlemodding.org/jailbreaking/) wizard to pick the method for the exact firmware (Settings → Device Options → Device Info):
+   - below 5.18.1: WinterBreak
+   - 5.16.4–5.18.6: Nosebleed
+   - 5.18.1–5.18.5: AdBreak (ad-supported only)
+3. Follow the site's post-jailbreak steps:
+   - remove the filler files and any `.bin` update files
+   - install the hotfix, KUAL and MRPI
+   - install KOReader's `kindlehf` build
+   - optionally install USBNetLite, for `--ssh`
+
+**Kobo:** install KOReader with the one-click package from [koreader.rocks](https://koreader.rocks). The stock Kobo software stays available.
+
+**KOReader, on both:**
+- Set the home folder to `prepper`.
+- Pick the same font and refresh settings on both, so anyone handed either reader sees the same thing.
