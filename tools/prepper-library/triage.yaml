@@ -25,6 +25,7 @@ hazards:
   old-medicine: "Pre-modern medicine: doses and remedies may be useless or poisonous; check against Where There Is No Doctor"
   old-food-safety: "Pre-USDA canning/preserving: use the USDA guide's methods and times"
   id-caution: "Wild food ID: never eat a plant or mushroom on one book's identification; taxonomy and lookalikes have changed"
+  dated-views: "Pre-1950 history or school reader: colonial, racial, gender and religious views of its time; read alongside a modern history"
 
 # --------------------------------------------------------- curated sources
 
@@ -101,6 +102,9 @@ sources:
   pnw-foraging-edible-fungi: {hazard: id-caution}
   pnw-ethnobotany-western-washington-1945: {hazard: id-caution}
   wsu-edible-wild-plants-73a: {hazard: id-caution}
+
+  # pre-1950 children's histories (Hillyer 1924, Marshall, Guerber, Eggleston, Dickens, van Loon)
+  gutenberg-childrens-histories: {hazard: dated-views}
 
   legacy-fm21-76-survival: {tier: 2}                 # older edition of the 2002 FM 21-76 in post-disaster
   legacy-army-survival-evasion-recovery: {tier: 2}
@@ -805,6 +809,8 @@ survivor:
       - the_cultivation_of_hemp_in_the_united_states_1910
   primers:
     tier: 4
+    flag:
+      dated-views: [the_howell_primer_1912, primer_first-fifth_reader_1908]
     books:
       2:
       - the_howell_primer_1912
@@ -818,6 +824,7 @@ survivor:
       - soil_culture_primer_1914
   teaching_readers_mcguffey:
     tier: 3
+    hazard: dated-views
     books:
       2:
       - mcguffeys_eclectic_primer_1920

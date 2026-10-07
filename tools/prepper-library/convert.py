@@ -587,6 +587,11 @@ def books(manifest, src_root):
             pdfs = sorted(d.glob("*.pdf"))
             if pdfs:
                 yield s["id"], base, pdfs[:1]
+        elif s["type"] == "files":
+            for url, title in s["files"].items():
+                pdf = d / Path(url).name
+                if pdf.exists():
+                    yield f"{s['id']}--{pdf.stem}", dict(base, title=title), [pdf]
         elif s["type"] == "gutenberg":
             for n, title in s["ebooks"].items():
                 epub = d / f"pg{n}.epub"

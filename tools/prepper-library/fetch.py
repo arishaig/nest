@@ -112,6 +112,9 @@ def fetch(src, dest, zim_cache):
     kind = src["type"]
     if kind == "url":
         download(src["url"], d / Path(src["url"]).name)
+    elif kind == "files":
+        for url in src["files"]:
+            download(url, d / Path(url).name)
     elif kind == "parts":
         for part in src["parts"]:
             url = src["url_template"].format(part=part)

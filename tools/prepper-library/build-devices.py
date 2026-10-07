@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Assemble per-device libraries from the converted EPUBs.
 
-Each device takes whole tiers of whole topics (triage.yaml), so its contents
-can be written on a label; the storage budget is a check, not a selector.
-Both readers run KOReader, so both get the same plain EPUBs in the same
-numbered topic folders, plus a generated "00 START HERE" book for whoever is
-handed the reader. Medical/health books carry their original PDF alongside.
+The two readers split the library by role: the Kobo is the practical
+reference (medicine, water, food, farming, trades), the Kindle the learning
+library (teaching children, history, science, contested topics). Each holds
+every topic's tier 1, so whichever reader is grabbed covers the first days.
+Each device takes whole tiers per topic (triage.yaml), so its contents can be
+written on a label; the storage budget is a check, not a selector. Books go
+in numbered topic folders, plus a generated "00 START HERE" book for whoever
+is handed the reader. Medical/health books carry their original PDF alongside.
 Hazard-flagged books get a short tag in their title (set with Calibre's
 ebook-meta). Books whose QA flags them (too many unrecognised words, e.g. bad
 OCR) are left out unless --include-flagged.
@@ -35,12 +38,22 @@ from convert import KEEP_PDF
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 GB = 1000**3
-CORE = ["medical", "water", "food", "foraging", "shelter-survival", "preparedness", "electricity-radio",
-        "agriculture", "tools-building", "education", "civics-history", "science", "reproductive-health",
-        "gender-lgbtq", "books-religion"]
+# working the problem (Kobo) vs teaching and keeping the record (Kindle)
+PRACTICAL = ["medical", "reproductive-health", "water", "food", "foraging", "shelter-survival", "preparedness",
+             "electricity-radio", "agriculture", "tools-building"]
+LEARNING = ["education", "civics-history", "science", "gender-lgbtq", "books-religion"]
+
+
+def depth(deep, shallow):
+    """Topic -> max tier, in label order: the device's own role in full (tiers
+    1-3), the other role's essentials (tier 1) after it."""
+    return {**{c: 3 for c in deep}, **{c: 1 for c in shallow}}
+
+
 DEVICES = {
     # budget = usable space we allow ourselves, leaving headroom for the OS
-    # max_tier/topics: what goes on it (triage.yaml tiers, sources.yaml categories)
+    # topics: sources.yaml category -> max triage.yaml tier, in label order
+    # role/other: the start-here book's description of this reader and the other
     # format: "epub" is copied as-is (KOReader on both readers); "kepub"/"azw3"
     # go through ebook-convert, for a reader on its stock software
     # subdir: under the USB mount (--copy-to); ssh_dir: absolute, for --ssh
@@ -48,11 +61,21 @@ DEVICES = {
     # title_prefix: start titles with the topic number, for a reader that shows
     # no folders (stock Kindle): sorting by title then groups books by topic
     "kobo": {"format": "epub", "ext": ".epub", "budget": 13 * GB, "subdir": "prepper",
-             "ssh_dir": "/mnt/onboard/prepper", "reader": "koreader", "max_tier": 2, "topics": CORE},
+             "ssh_dir": "/mnt/onboard/prepper", "reader": "koreader",
+             "topics": depth(PRACTICAL, LEARNING), "role": "PRACTICAL REFERENCE",
+             "about": "medicine, water, food, wild plants, shelter, radio, farming and trades, in depth",
+             "other": "The **Kindle** is the learning library: teaching children to read and count, "
+                      "maths and science textbooks, history, civics and banned books. "
+                      "It has the first-days basics of this reader too."},
     # PW5 on firmware 5.19.x: no jailbreak, so stock software and AZW3
     "kindle": {"format": "azw3", "ext": ".azw3", "budget": 28 * GB, "subdir": "documents/prepper",
                "ssh_dir": "/mnt/us/documents/prepper", "reader": "kindle", "title_prefix": True,
-               "max_tier": 3, "topics": CORE},
+               "topics": depth(LEARNING, PRACTICAL), "role": "LEARNING & HISTORY",
+               "about": "teaching children to read and count, maths and science textbooks, history, "
+                        "civics, gender and banned books, in depth",
+               "other": "The **Kobo** is the practical reference: medicine, childbirth, water, food, "
+                        "farming, livestock and trades in depth. "
+                        "The first-days basics of those are on this reader too."},
 }
 START_OPEN = {
     "koreader": """1. Open **KOReader** (on a Kobo: the KOReader entry in the menu; on a Kindle: KUAL, then KOReader).
@@ -62,7 +85,7 @@ START_OPEN = {
 Tap the **top** of the page for menus, the **bottom** for page and font settings.""",
     "kindle": """1. Go to the **Library** (home screen, then *Library*).
 2. Tap the sort menu and choose **Title**. Every book's title starts with its topic number
-   (for example *01 Where There Is No Doctor* is in Medicine & dental), so books are grouped by topic.
+   (for example *06 Where There Is No Doctor* is in Medicine & dental), so books are grouped by topic.
 3. Tap a book. Use the search box on the home screen to find a book by title.
 
 Tap the **top** of the page for menus and **Aa** for text size.""",
@@ -70,13 +93,14 @@ Tap the **top** of the page for menus and **Aa** for text size.""",
 TOPICS = {  # label wording per sources.yaml category
     "medical": "Medicine & dental", "water": "Water & sanitation", "food": "Food & preserving",
     "foraging": "Wild plants, mushrooms & shellfish (W. Washington)", "electricity-radio": "Electricity, radio & comms",
-    "education": "Teaching children: reading & arithmetic", "civics-history": "Civics, law & history",
+    "education": "Teaching & learning: reading, maths, science basics", "civics-history": "Civics, law & history",
     "science": "Science: evolution, climate, vaccines", "reproductive-health": "Reproductive & sexual health",
     "gender-lgbtq": "Gender & LGBTQ+", "books-religion": "Banned books, philosophy & religious texts",
     "shelter-survival": "Survival, shelter & navigation", "preparedness": "Fallout & preparedness",
     "agriculture": "Gardening, livestock & vet", "tools-building": "Trades & building", "military": "Military",
 }
-HAZARD_TAGS = {"old-medicine": "[old medicine]", "old-food-safety": "[old canning]", "id-caution": "[verify ID]"}
+HAZARD_TAGS = {"old-medicine": "[old medicine]", "old-food-safety": "[old canning]", "id-caution": "[verify ID]",
+               "dated-views": "[dated views]"}
 MAX_SUSPICIOUS = 0.08  # share of unknown lowercase words above which a book is flagged
 MIN_RETAINED = 0.5  # converted text / PDF text layer below which content was likely lost
 
@@ -133,9 +157,13 @@ def sync_ssh(root, host, remote_dir):
         raise RuntimeError("tar failed")
 
 
+def topic_num(dev, category):
+    return f"{list(dev['topics']).index(category) + 1:02d}"
+
+
 def topic_dir(dev, category):
     """'03 Food & preserving': numbered like the label so folders list in label order."""
-    return f"{dev['topics'].index(category) + 1:02d} {safe_name(TOPICS.get(category, category))}"
+    return f"{topic_num(dev, category)} {safe_name(TOPICS.get(category, category))}"
 
 
 def start_here(name, dev, dest):
@@ -143,9 +171,10 @@ def start_here(name, dev, dest):
     if dest.exists() and dest.stat().st_mtime >= max((HERE / "start-here.md").stat().st_mtime,
                                                      Path(__file__).stat().st_mtime):
         return
-    topics = "\n".join(f"- **{topic_dir(dev, c)}**" for c in dev["topics"])
+    topics = "\n".join(f"- **{topic_dir(dev, c)}**{'' if t > 1 else ': first-days basics'}"
+                       for c, t in dev["topics"].items())
     text = (HERE / "start-here.md").read_text().format(device=name.capitalize(), topics=topics,
-                                                       tiers=label(name, dev).splitlines()[1],
+                                                       about=dev["about"], other=dev["other"],
                                                        open=START_OPEN[dev["reader"]])
     dest.parent.mkdir(parents=True, exist_ok=True)
     src = dest.with_suffix(".md.txt")
@@ -159,13 +188,13 @@ def start_here(name, dev, dest):
 
 
 def label(name, dev):
-    topics = dev["topics"]
-    names = {1: "Survive", 2: "Sustain", 3: "Rebuild", 4: "Archive"}
-    span = " + ".join(names[t] for t in range(1, dev["max_tier"] + 1))
-    lines = [f"{name.upper()}: PREPPER LIBRARY", f"Tiers 1-{dev['max_tier']}: {span}"]
-    lines += [f"  - {TOPICS.get(c, c)}" for c in topics]
+    lines = [f"{name.upper()}: PREPPER LIBRARY, {dev['role']}"]
+    for c, t in dev["topics"].items():
+        span = "essentials only" if t == 1 else "in depth"
+        lines.append(f"  {topic_num(dev, c)} {TOPICS.get(c, c)} ({span})")
     lines.append("[old medicine] [old canning] = historical, check modern guidance")
     lines.append("[verify ID] = never eat a wild plant or mushroom on one book's ID")
+    lines.append("[dated views] = old history/readers, views of their time")
     return "\n".join(lines)
 
 
@@ -204,9 +233,8 @@ def main():
     over = False
     for name in args.device:
         dev = DEVICES[name]
-        topics = dev["topics"]
         chosen = [(bid, q) for bid, q in books
-                  if q["tier"] <= dev["max_tier"] and q["category"] in topics and not q["dup"]]
+                  if q["tier"] <= dev["topics"].get(q["category"], 0) and not q["dup"]]
         root = DATA / "devices" / name / "prepper"
         used, kept = 0, set()
         guide = root / ("00 START HERE" + dev["ext"])
@@ -216,7 +244,7 @@ def main():
             epub = DATA / "ebooks" / q["category"] / f"{bid}.epub"
             title = " ".join([q["title"]] + [HAZARD_TAGS[h] for h in q["hazards"]])
             if dev.get("title_prefix"):
-                title = f"{dev['topics'].index(q['category']) + 1:02d} {title}"
+                title = f"{topic_num(dev, q['category'])} {title}"
             dest = root / topic_dir(dev, q["category"]) / (safe_name(title) + dev["ext"])
             if dest in kept:  # two books with the same title: disambiguate
                 dest = dest.with_name(safe_name(f"{title} ({bid})") + dev["ext"])
@@ -225,7 +253,7 @@ def main():
             convert(epub, dest, dev["format"], title if q["hazards"] or dev.get("title_prefix") else None)
             kept.add(dest)
             for pdf in extras:
-                prefix = f"{dev['topics'].index(q['category']) + 1:02d} " if dev.get("title_prefix") else ""
+                prefix = f"{topic_num(dev, q['category'])} " if dev.get("title_prefix") else ""
                 target = dest.parent / (safe_name(prefix + q["title"]) + " (original PDF).pdf")
                 if not target.exists():
                     shutil.copy2(pdf, target)
@@ -237,11 +265,11 @@ def main():
         for d in sorted((d for d in root.rglob("*") if d.is_dir()), reverse=True):
             if not any(d.iterdir()):
                 d.rmdir()  # e.g. old per-category folders from before the numbered names
-        print(f"{name}: tiers 1-{dev['max_tier']}, {len(chosen)} books, "
+        print(f"{name}: {dev['role'].lower()}, {len(chosen)} books, "
               f"{used / GB:.2f} GB of {dev['budget'] / GB:.0f} GB budget")
         if used > dev["budget"]:
             # never silently drop part of a topic: the label would lie
-            print(f"  OVER BUDGET: lower max_tier or drop a topic for {name}", file=sys.stderr)
+            print(f"  OVER BUDGET: lower a topic's tier or drop a topic for {name}", file=sys.stderr)
             over = True
             continue
         if args.copy_to:

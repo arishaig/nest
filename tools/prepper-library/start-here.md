@@ -1,7 +1,7 @@
 # Start here
 
-This {device} is an **offline library**: survival, medical, food, farming, trades,
-radio, history and more. It needs no internet. Everything is already on it.
+This {device} is an **offline library**: {about}. It needs no internet.
+Everything is already on it.
 
 ## Open a book
 
@@ -11,12 +11,17 @@ page to go forward, the left side to go back.
 
 ## What's on this reader
 
-{tiers}. Books are grouped by topic:
+Books are grouped by topic. Topics marked *first-days basics* hold only the
+essentials; the other reader has them in depth.
 
 {topics}
 
 Start with **Medicine & dental** (*Where There Is No Doctor*) and **Water & sanitation**
 if you don't know where to begin.
+
+## The other reader
+
+This library comes as a pair of readers. {other}
 
 ## Tags in book titles
 
@@ -26,6 +31,8 @@ if you don't know where to begin.
   *Complete Guide to Home Canning* for times and methods.
 - **[verify ID]**: wild plant or mushroom identification. Never eat anything on
   the word of a single book; lookalikes kill.
+- **[dated views]**: an old history book or school reader. It carries the views of
+  its time on race, colonies, women and religion. Read it alongside a modern history.
 
 Some medical books also come with an **(original PDF)** copy next to them. Use it
 when a table or dosage chart looks broken in the book version.
