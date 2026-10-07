@@ -228,15 +228,32 @@ def clear_own_claims():
             pass  # released meanwhile, or half-written by another worker: not ours to clear
 
 
+_triage = None
+
+
+def book_tier(book_id, meta):
+    """triage.yaml tier, so tier-1 books (on every device) are extracted first.
+    Falls back to the sources.yaml priority if triage isn't shipped alongside."""
+    global _triage
+    try:
+        import triage
+    except ImportError:
+        return min(meta.get("priority", 4), 4)
+    if _triage is None:
+        _triage = triage.load()
+    return triage.classify(_triage, book_id, meta["priority"], meta.get("site_category"))[0]
+
+
 def worker(n, ocr, only):
     """Extract every PDF not yet in the cache; exit when a pass finds nothing."""
     manifest = yaml.safe_load((HERE / "sources.yaml").read_text())
     tag = f"{socket.gethostname()}/{n}"
     while True:
-        pdfs = list(dict.fromkeys(
-            pdf for book_id, _, parts in all_books(manifest)
-            if not only or any(book_id.startswith(o) for o in only) for pdf in parts))
-        random.Random(f"{tag}{time.time()}").shuffle(pdfs)  # spread workers apart
+        books = [(book_id, meta, parts) for book_id, meta, parts in all_books(manifest)
+                 if not only or any(book_id.startswith(o) for o in only)]
+        random.Random(f"{tag}{time.time()}").shuffle(books)  # spread workers apart
+        books.sort(key=lambda b: book_tier(b[0], b[1]))  # stable: random within a tier
+        pdfs = list(dict.fromkeys(pdf for _, _, parts in books for pdf in parts))
         worked = 0
         for pdf in pdfs:
             if pdf.suffix != ".pdf" or done(pdf):  # EPUB sources are passed through
@@ -645,6 +662,7 @@ def main():
     ap.add_argument("--workers", type=int, default=1, help="extract: parallel worker processes")
     ap.add_argument("--pull-cache", action="store_true", help="package: rsync the NAS extraction cache first")
     ap.add_argument("--only", nargs="*", help="source ids (prefix match) to convert")
+    ap.add_argument("--max-tier", type=int, help="package: only books up to this triage tier (devices use 1-3)")
     ap.add_argument("--ocr", action="store_true", help="also OCR PDFs with no text layer (slow)")
     ap.add_argument("--force", action="store_true", help="rebuild EPUBs that already exist")
     ap.add_argument("--pull", action="store_true", help="rsync sources from the NAS first")
@@ -680,6 +698,8 @@ def main():
 
     for book_id, meta, pdfs in all_books(manifest):
         if args.only and not any(book_id.startswith(o) for o in args.only):
+            continue
+        if args.max_tier and book_tier(book_id, meta) > args.max_tier:
             continue
         if pdfs[0].suffix == ".epub":
             dest = ROOT / "ebooks" / meta["category"] / f"{book_id}.epub"

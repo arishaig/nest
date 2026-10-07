@@ -9,5 +9,7 @@ configMapGenerator:
     files:
       - convert.py
       - sources.yaml
+      - triage.py  # extraction order by tier
+      - triage.yaml
 generatorOptions:
   disableNameSuffixHash: true
