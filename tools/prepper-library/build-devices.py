@@ -85,7 +85,7 @@ START_OPEN = {
 Tap the **top** of the page for menus, the **bottom** for page and font settings.""",
     "kindle": """1. Go to the **Library** (home screen, then *Library*).
 2. Tap the sort menu and choose **Title**. Every book's title starts with its topic number
-   (for example *06 Where There Is No Doctor* is in Medicine & dental), so books are grouped by topic.
+   from the list below, so books are grouped by topic.
 3. Tap a book. Use the search box on the home screen to find a book by title.
 
 Tap the **top** of the page for menus and **Aa** for text size.""",
@@ -94,7 +94,7 @@ TOPICS = {  # label wording per sources.yaml category
     "medical": "Medicine & dental", "water": "Water & sanitation", "food": "Food & preserving",
     "foraging": "Wild plants, mushrooms & shellfish (W. Washington)", "electricity-radio": "Electricity, radio & comms",
     "education": "Teaching & learning: reading, maths, science basics", "civics-history": "Civics, law & history",
-    "science": "Science: evolution, climate, vaccines", "reproductive-health": "Reproductive & sexual health",
+    "science": "Science: chemistry, physics, evolution, climate, vaccines", "reproductive-health": "Reproductive & sexual health",
     "gender-lgbtq": "Gender & LGBTQ+", "books-religion": "Banned books, philosophy & religious texts",
     "shelter-survival": "Survival, shelter & navigation", "preparedness": "Fallout & preparedness",
     "agriculture": "Gardening, livestock & vet", "tools-building": "Trades & building", "military": "Military",
@@ -157,8 +157,14 @@ def sync_ssh(root, host, remote_dir):
         raise RuntimeError("tar failed")
 
 
+def shown(dev):
+    """Topics actually on the device, in label order: a topic with no book at
+    its tier depth (e.g. no tier-1 history yet) gets no folder, label line or number."""
+    return dev.get("present", list(dev["topics"]))
+
+
 def topic_num(dev, category):
-    return f"{list(dev['topics']).index(category) + 1:02d}"
+    return f"{shown(dev).index(category) + 1:02d}"
 
 
 def topic_dir(dev, category):
@@ -171,8 +177,8 @@ def start_here(name, dev, dest):
     if dest.exists() and dest.stat().st_mtime >= max((HERE / "start-here.md").stat().st_mtime,
                                                      Path(__file__).stat().st_mtime):
         return
-    topics = "\n".join(f"- **{topic_dir(dev, c)}**{'' if t > 1 else ': first-days basics'}"
-                       for c, t in dev["topics"].items())
+    topics = "\n".join(f"- **{topic_num(dev, c)} {TOPICS.get(c, c)}**"
+                       f"{'' if dev['topics'][c] > 1 else ': first-days basics'}" for c in shown(dev))
     text = (HERE / "start-here.md").read_text().format(device=name.capitalize(), topics=topics,
                                                        about=dev["about"], other=dev["other"],
                                                        open=START_OPEN[dev["reader"]])
@@ -189,8 +195,8 @@ def start_here(name, dev, dest):
 
 def label(name, dev):
     lines = [f"{name.upper()}: PREPPER LIBRARY, {dev['role']}"]
-    for c, t in dev["topics"].items():
-        span = "essentials only" if t == 1 else "in depth"
+    for c in shown(dev):
+        span = "essentials only" if dev["topics"][c] == 1 else "in depth"
         lines.append(f"  {topic_num(dev, c)} {TOPICS.get(c, c)} ({span})")
     lines.append("[old medicine] [old canning] = historical, check modern guidance")
     lines.append("[verify ID] = never eat a wild plant or mushroom on one book's ID")
@@ -210,9 +216,6 @@ def main():
 
     categories = yaml.safe_load((HERE / "sources.yaml").read_text())["categories"]
     tiers = triage.load()
-    if args.labels:
-        print("\n\n".join(label(n, DEVICES[n]) for n in args.device))
-        return 0
     qa = json.loads((DATA / "qa.json").read_text())
     books = [(bid, q) for bid, q in qa.items() if q.get("status") == "ok"]
     flagged = [bid for bid, q in books
@@ -230,11 +233,20 @@ def main():
         q["dup"] = bid.startswith("survivor--") and key in seen
         seen.add(key)
 
+    selection = {}
+    for name in args.device:
+        dev = DEVICES[name]
+        selection[name] = [(bid, q) for bid, q in books
+                           if q["tier"] <= dev["topics"].get(q["category"], 0) and not q["dup"]]
+        dev["present"] = [c for c in dev["topics"] if any(q["category"] == c for _, q in selection[name])]
+    if args.labels:
+        print("\n\n".join(label(n, DEVICES[n]) for n in args.device))
+        return 0
+
     over = False
     for name in args.device:
         dev = DEVICES[name]
-        chosen = [(bid, q) for bid, q in books
-                  if q["tier"] <= dev["topics"].get(q["category"], 0) and not q["dup"]]
+        chosen = selection[name]
         root = DATA / "devices" / name / "prepper"
         used, kept = 0, set()
         guide = root / ("00 START HERE" + dev["ext"])
