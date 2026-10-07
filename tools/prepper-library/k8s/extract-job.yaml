@@ -2,7 +2,8 @@
 # see k8s/infrastructure/nvidia-gpu-operator/helmrelease.yaml). NOT part of
 # the Flux tree: apply by hand, it TTL-cleans itself a day after finishing.
 #
-#   kubectl apply -k tools/prepper-library    # (re)creates ConfigMap + Job
+#   kubectl apply --server-side -k tools/prepper-library   # (re)creates ConfigMap + Job
+#     (server-side: the ConfigMap is too big for client-side apply's annotation)
 #   kubectl -n media logs -f job/prepper-extract
 #   kubectl -n media delete job prepper-extract    # stop early (e.g. to game)
 #

@@ -22,6 +22,7 @@ uv run fetch.py --push          # then rsync to the NAS (uid/gid 1000)
 - Each source is recorded in `sources.lock.json` with a sha256 for every file. If an upstream file changes, the run prints a warning and the lockfile diff shows it.
 - `zimgit` sources: the latest ZIM is downloaded, then every embedded PDF is unpacked, named by its real title. The titles and authors come from the ZIM's own `database.js`, and the metadata goes to `meta.json`.
 - `gutenberg` sources list Project Gutenberg ebook numbers. Gutenberg's own EPUB3 files are downloaded and passed through with grayscale images, with no PDF extraction.
+- `files` sources list several separate PDFs from one publisher, as `{url: title}`. Each file becomes its own book, for example one per Core Knowledge unit.
 - `legacy` sources already exist on the NAS and are never fetched. They are also used for sites that refuse scripted downloads: the comment gives the URL to save the file from by hand.
 - Some sites block scripts (cdc.gov, NOAA, HathiTrust). Where an exact copy is published elsewhere, the source points there and a comment says why: PubMed Central's open-data bucket for MMWR and journal articles, the Internet Archive, or the Wayback Machine. Before switching, check the copy against the original's size or PDF metadata.
 
@@ -71,7 +72,7 @@ Speed is about 1 s/page on CPU. Survivor Library scans almost all have a text la
 
 `triage.yaml` gives every book a tier: 1 Survive, 2 Sustain, 3 Rebuild, 4 Archive (NAS/Kiwix only). Each source or Survivor category has a default tier, and individual books are listed where they differ. Books are judged by subject, not age. An 1880s camp-sanitation manual stays; municipal sewer tables, periodical runs, memoirs and scout novels go to tier 4. Files that differ only in spaces versus underscores are near-duplicates and also drop to tier 4.
 
-Three hazard flags mark books worth keeping but not to follow blindly: `old-medicine`, `old-food-safety` (pre-USDA canning) and `id-caution` (wild plant and mushroom identification). Flagged books carry a tag in their title on the device.
+Four hazard flags mark books worth keeping but not to follow blindly: `old-medicine`, `old-food-safety` (pre-USDA canning), `id-caution` (wild plant and mushroom identification) and `dated-views` (pre-1950 histories and school readers). Flagged books carry a tag in their title on the device.
 
 ```sh
 uv run triage.py --root /mnt/fileserver/media/reference                       # check names, size per tier
@@ -87,6 +88,11 @@ uv run build-devices.py --device kobo --copy-to /run/media/$USER/KOBOeReader
 uv run build-devices.py --device kindle --copy-to <MTP mount>   # or copy the folder with a file manager
 ```
 
+The two readers split the library by role, for a household where two people use them at once:
+- **Kobo: practical reference.** Medicine, reproductive health, water, food, foraging, shelter, preparedness, radio, farming and trades, in depth (tiers 1–3). KOReader's folders, search and PDF handling suit diagrams and the original medical PDFs.
+- **Kindle: learning and history.** Teaching children (Core Knowledge, McGuffey, phonics), OpenStax maths and science, history, civics, gender and banned books, in depth (tiers 1–3). The stock software is simple for a child or a stranger, and it has a built-in dictionary.
+- **Both** carry tier 1 of every topic, so whichever reader is grabbed covers the first days. Each start-here book says what the other reader holds.
+
 The Kobo runs **KOReader** and gets plain EPUBs. The Kindle is a Paperwhite 5 on firmware 5.19.x, which has no jailbreak yet. It stays on its stock software and gets AZW3, converted with Calibre. Both get the same layout:
 - `00 START HERE.epub`: generated from `start-here.md` plus the device's label. It explains how to open a book, what is on the reader, and what the hazard tags mean.
 - `NN Topic/` folders, numbered in label order, e.g. `01 Medicine & dental/`.
@@ -94,7 +100,7 @@ The Kobo runs **KOReader** and gets plain EPUBs. The Kindle is a Paperwhite 5 on
 - Hazard-flagged books carry their tag in the title, set with Calibre's `ebook-meta`.
 - Medical and health books also get an `(original PDF)` copy next to them.
 
-Each device takes whole tiers of a fixed list of topics (`DEVICES` in `build-devices.py`), so its label is accurate. The Kobo gets tiers 1–2 and the Kindle tiers 1–3. If a selection exceeds the budget (13 / 28 GB), the build fails for that device rather than dropping part of a topic. A device's `format` is `epub` for KOReader, `kepub` for a stock Kobo, or `azw3` for a stock Kindle. Its `reader` setting picks which "open a book" text the start-here book gets.
+Each device takes whole tiers per topic (`topics` in `DEVICES` in `build-devices.py`, a map of category to max tier), so its label is accurate. If a selection exceeds the budget (13 / 28 GB), the build fails for that device rather than dropping part of a topic. A device's `format` is `epub` for KOReader, `kepub` for a stock Kobo, or `azw3` for a stock Kindle. Its `reader` setting picks which "open a book" text the start-here book gets.
 
 A book is flagged and left out unless `--include-flagged` is given if either:
 - `suspicious_words` > 8%, or
@@ -117,6 +123,8 @@ A book is flagged and left out unless `--include-flagged` is given if either:
    - install the hotfix, KUAL and MRPI
    - install KOReader's `kindlehf` build
    - optionally install USBNetLite, for `--ssh`
+
+**Kindle dictionary:** in airplane mode, long-press a word. If no definition appears, the dictionary isn't on the device yet. Connect once to download it before Wi-Fi goes off for good.
 
 **Kobo:** install KOReader with the one-click package from [koreader.rocks](https://koreader.rocks). The stock Kobo software stays available.
 
