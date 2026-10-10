@@ -47,7 +47,16 @@ spec:
             # subqueries) and cross jit_above_cost, so each backend compiles
             # them with LLVM, which is pure overhead for OLTP and allocates
             # outside Postgres's memory contexts.
-            args: ["-c", "jit=off"]
+            # max_connections/shared_buffers: headroom for the *arrs moving
+            # here from SQLite (docs/media-postgres-migration.md); each holds
+            # pools for a main and a log DB.
+            args:
+              - "-c"
+              - "jit=off"
+              - "-c"
+              - "max_connections=200"
+              - "-c"
+              - "shared_buffers=512MB"
             env:
               POSTGRES_USER:
                 valueFrom:
@@ -93,12 +102,13 @@ spec:
             resources:
               # Jellyfin backends peak at ~250MB anon each on its big
               # library queries (kernel OOM report, 2026-10-09); 1Gi was
-              # exhausted with a handful running concurrently.
+              # exhausted with a handful running concurrently. 4Gi adds room
+              # for shared_buffers=512MB and the *arr connections.
               requests:
                 cpu: 100m
-                memory: 512Mi
+                memory: 1Gi
               limits:
-                memory: 3Gi
+                memory: 4Gi
     service:
       app:
         controller: postgres

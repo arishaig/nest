@@ -70,6 +70,7 @@ resources:
   # --- mealie + database ---
   - postgres-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - postgres.yaml  # HelmRelease (app-template) — replaces deployment+service
+  - postgres-backup.yaml  # HelmRelease (app-template) — nightly pg_dump into postgres-data
   - postgres-exporter.yaml  # HelmRelease (app-template) — replaces deployment+service
   - mealie-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - mealie.yaml  # HelmRelease (app-template) — replaces deployment+service
