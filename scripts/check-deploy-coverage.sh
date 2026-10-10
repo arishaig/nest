@@ -40,6 +40,7 @@ declare -A not_deployed=(
   [alloy.yml]="multi-host log shipper, converged by site.yml only"
   [common.yml]="base config for lxcs:dns, converged by site.yml only"
   [docker-host.yml]="LXC 100 is decommissioned (architecture-review F6)"
+  [k8s-secrets.yml]="render-only spec for scripts/render-k8s-secrets.sh; Flux applies the output, lint.yml checks it"
   [nftables.yml]="LXC firewall, converged by site.yml only"
   [pve-passthrough.yml]="parametrized per-LXC, invoked by OpenTofu"
   [runner.yml]="provisions the CI runner itself; running it from CI is circular"

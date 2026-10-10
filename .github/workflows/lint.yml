@@ -66,6 +66,13 @@ jobs:
           # the read-only system venv; it falls back to .ansible/ in the project dir.
           unset VIRTUAL_ENV
           ansible-lint playbooks/
+      - name: Check generated k8s Secrets are current
+        # k8s/**/*.sops.yaml are generated from playbooks/provision/k8s-secrets.yml
+        # and group_vars/all.sops.yaml (docs/secrets.md). Fails if any is
+        # missing, stale, orphaned, or not listed in its kustomization.
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          ./scripts/render-k8s-secrets.sh --check
 
   yamllint:
     runs-on: ubuntu-latest
@@ -223,7 +230,11 @@ jobs:
           fail=0
           for root in k8s/apps k8s/infrastructure; do
             echo "=== kustomize build ${root} ==="
+            # SOPS-encrypted Secrets (docs/secrets.md) carry a top-level
+            # `sops:` metadata block that Flux strips when it decrypts; strip
+            # it here too, so the Secrets are still validated strictly.
             if ! kustomize build "${root}" \
+                | awk '/^sops:/ {skip=1; next} skip && /^(---|[^ ])/ {skip=0} !skip' \
                 | kubeconform \
                     -strict \
                     -ignore-missing-schemas \
