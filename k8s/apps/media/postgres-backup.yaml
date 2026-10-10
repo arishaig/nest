@@ -1,0 +1,101 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: postgres-backup
+  namespace: media
+spec:
+  interval: 1h
+  # Explicit so kustomize-controller owns this field: a stray
+  # `flux suspend` is reverted on the next apps reconcile instead of
+  # silently freezing the release (25 media HRs sat suspended
+  # 2026-08-02..09-24). For break-glass, suspend the `apps` Kustomization.
+  suspend: false
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    # Logical dumps of the shared postgres. pbs-k8s-configs-backup
+    # (playbooks/provision/pbs.yml) copies rpool/data/k8s-configs file by file
+    # at 03:00 with no snapshot, so its copy of the live PGDATA isn't
+    # guaranteed to restore. These dumps land in the same PVC (outside
+    # PGDATA) at 02:30, so that run picks up a consistent copy.
+    # Pinned to alpha alongside postgres: postgres-data is RWO.
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
+    controllers:
+      postgres-backup:
+        type: cronjob
+        cronjob:
+          schedule: "30 2 * * *"
+          timeZone: America/Los_Angeles
+          concurrencyPolicy: Forbid
+          successfulJobsHistory: 3
+          failedJobsHistory: 3
+        pod:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+        containers:
+          app:
+            image:
+              # Same image as postgres.yaml so pg_dump matches the server major.
+              # renovate: datasource=docker depName=postgres
+              repository: postgres
+              tag: "18.6"
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eu
+                root=/backup/backups
+                dir="$root/$(date +%Y%m%d-%H%M%S)"
+                mkdir -p "$dir"
+                pg_dumpall --globals-only > "$dir/globals.sql"
+                for db in $(psql -d postgres -Atc "SELECT datname FROM pg_database WHERE NOT datistemplate AND datname <> 'postgres' ORDER BY 1"); do
+                  pg_dump -Fc -d "$db" -f "$dir/$db.dump"
+                  # Fails the job if the archive is unreadable.
+                  pg_restore -l "$dir/$db.dump" > /dev/null
+                done
+                touch "$dir/COMPLETE"
+                find "$root" -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} +
+                ls -la "$dir"
+            env:
+              PGHOST: postgres
+              PGUSER:
+                valueFrom:
+                  secretKeyRef:
+                    name: postgres-secret
+                    key: POSTGRES_USER
+              PGPASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: postgres-secret
+                    key: POSTGRES_PASSWORD
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                memory: 512Mi
+    service:
+      app:
+        enabled: false
+    persistence:
+      backup:
+        existingClaim: postgres-data
+        advancedMounts:
+          postgres-backup:
+            app:
+              - path: /backup
