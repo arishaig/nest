@@ -221,6 +221,24 @@
     },
     {
       "customType": "regex",
+      "description": "sops version pin (CI secrets) in runner.yml",
+      "managerFilePatterns": ["/playbooks/provision/runner\\.yml/"],
+      "matchStrings": ["sops_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "getsops/sops",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "age version pin (CI secrets) in runner.yml",
+      "managerFilePatterns": ["/playbooks/provision/runner\\.yml/"],
+      "matchStrings": ["age_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "FiloSottile/age",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
       "description": "kubectl version pin (CI) in runner.yml",
       "managerFilePatterns": ["/playbooks/provision/runner\\.yml/"],
       "matchStrings": ["kubectl_version:\\s*\"(?<currentValue>[^\"]+)\""],

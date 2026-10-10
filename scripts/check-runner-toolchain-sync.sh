@@ -25,6 +25,8 @@ declare -A pins=(
   [talosctl]="TALOSCTL_VERSION:talosctl_version"
   [flux_local]="FLUX_LOCAL_VERSION:flux_local_version"
   [flux]="FLUX_VERSION:flux_version"
+  [sops]="SOPS_VERSION:sops_version"
+  [age]="AGE_VERSION:age_version"
 )
 
 for dep in "${!pins[@]}"; do

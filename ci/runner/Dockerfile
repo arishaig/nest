@@ -42,6 +42,11 @@ ARG FLUX_LOCAL_VERSION=7.11.0
 # flux CLI — flux-local 7.x shells out to `flux build ks` to build Flux
 # Kustomizations. Pinned to the version the cluster bootstraps. renovate: datasource=github-releases depName=fluxcd/flux2
 ARG FLUX_VERSION=2.9.6
+# sops + age decrypt the SOPS-encrypted secrets (docs/secrets.md) for the
+# ansible/tofu jobs. renovate: datasource=github-releases depName=getsops/sops
+ARG SOPS_VERSION=3.13.3
+# renovate: datasource=github-releases depName=FiloSottile/age
+ARG AGE_VERSION=1.3.2
 
 USER root
 
@@ -95,6 +100,11 @@ RUN set -eux; \
     # flux CLI
     curl -fsSL -o flux.tar.gz "https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSION}/flux_${FLUX_VERSION}_linux_amd64.tar.gz"; \
     tar -xzf flux.tar.gz flux; install -m 0755 flux /usr/local/bin/flux; \
+    # sops + age
+    curl -fsSL -o sops "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64"; \
+    install -m 0755 sops /usr/local/bin/sops; \
+    curl -fsSL -o age.tar.gz "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-amd64.tar.gz"; \
+    tar -xzf age.tar.gz; install -m 0755 age/age age/age-keygen /usr/local/bin/; \
     cd /; rm -rf "$tmp"
 
 # flux-local in its own venv, entrypoint symlinked onto PATH. Kept out of the
