@@ -16,10 +16,10 @@ resource "null_resource" "foundry_mount" {
       ssh -i ~/.ssh/ansible-on-nest root@192.168.1.16 \
         'chown 100000:100000 /Tank/foundry && pct set 111 -mp0 /Tank/foundry,mp=/mnt/foundry && pct reboot 111'
       until ssh -i ~/.ssh/ansible-on-nest -o StrictHostKeyChecking=no -o ConnectTimeout=5 root@192.168.1.21 exit 2>/dev/null; do sleep 3; done
-      ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../inventory/hosts.yml \
+      ANSIBLE_HOST_KEY_CHECKING=False ANSIBLE_VARS_ENABLED=host_group_vars,community.sops.sops \
+        ansible-playbook -i ../inventory/hosts.yml \
         ../playbooks/provision/common.yml \
         ../playbooks/provision/foundry.yml \
-        --vault-password-file ~/.config/ansible-on-nest/vault-pass \
         --limit foundry
     EOT
   }

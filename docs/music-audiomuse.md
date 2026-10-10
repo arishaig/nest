@@ -44,8 +44,8 @@ controllers (`flask`, `worker`, `postgres:15`), Postgres data on the raw
 
 `deploy-k8s` reruns `playbooks/provision/k8s.yml` when it changes. If these
 vars are missing it fails on an undefined variable, **and no other secret
-gets pushed either**. Add them first (`ansible-vault edit
-inventory/group_vars/all/vault.yml`) and commit the vault change on this
+gets pushed either**. Add them first (`sops edit
+inventory/group_vars/all.sops.yaml`) and commit the secrets change on this
 branch:
 
 ```yaml

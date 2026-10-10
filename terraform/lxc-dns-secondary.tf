@@ -62,7 +62,7 @@ resource "proxmox_virtual_environment_container" "dns_secondary" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/adguard.yml --vault-password-file ~/.config/ansible-on-nest/vault-pass --limit dns-secondary"
+    command = "ANSIBLE_VARS_ENABLED=host_group_vars,community.sops.sops ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/adguard.yml --limit dns-secondary"
   }
 
   lifecycle {

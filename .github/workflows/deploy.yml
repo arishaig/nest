@@ -14,7 +14,7 @@ on:
         type: boolean
         default: false
       # k8s.yml pushes every k8s Secret out-of-band. It now also runs on
-      # vault.yml changes, but a run can still be skipped or fail, and a
+      # all.sops.yaml changes, but a run can still be skipped or fail, and a
       # Secret can sit undeployed (anagnorisis-hf-secret, missing from the
       # cluster 2026-08-21..09-23). This forces a re-push.
       force_k8s:
@@ -99,17 +99,17 @@ jobs:
               - 'playbooks/provision/pve.yml'
               - 'playbooks/provision/templates/pve/**'
               - 'playbooks/provision/files/pve/**'
-              # pve.yml reads vault vars (e.g. vault_pve_heartbeat_url).
-              - 'inventory/group_vars/all/vault.yml'
+              # pve.yml reads secrets (e.g. vault_pve_heartbeat_url).
+              - 'inventory/group_vars/all.sops.yaml'
             pbs:
               - 'playbooks/provision/pbs.yml'
               - 'playbooks/provision/files/pbs/**'
             k8s:
               - 'playbooks/provision/k8s.yml'
               - 'playbooks/provision/templates/k8s/**'
-              # Every k8s Secret value comes from the vault, and authelia-config
+              # Every k8s Secret value comes from the secrets file, and authelia-config
               # renders this template too.
-              - 'inventory/group_vars/all/vault.yml'
+              - 'inventory/group_vars/all.sops.yaml'
               - 'playbooks/provision/templates/docker/authelia-users.yml.j2'
             tofu:
               - 'terraform/**'
@@ -152,10 +152,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Run adguard playbook
         run: |
@@ -163,7 +164,6 @@ jobs:
           ansible-playbook \
             -i inventory/hosts.yml \
             playbooks/provision/adguard.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit 'adguard,dns-secondary'
@@ -181,10 +181,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       # The play's own host pattern already excludes the VPS; no --limit.
       - name: Run update-metrics playbook
@@ -193,7 +194,6 @@ jobs:
           ansible-playbook \
             -i inventory/hosts.yml \
             playbooks/provision/update-metrics.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no"
 
@@ -210,10 +210,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       # The play's own host pattern already excludes the VPS; no --limit.
       - name: Run unattended-upgrades playbook
@@ -222,7 +223,6 @@ jobs:
           ansible-playbook \
             -i inventory/hosts.yml \
             playbooks/provision/unattended-upgrades.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no"
 
@@ -239,12 +239,13 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      # Needed even though pikvm.yml uses no vault vars: the encrypted
-      # group_vars/all/vault.yml is loaded for every host.
-      - name: Write vault password
+      # Needed even though pikvm.yml uses no secrets: the encrypted
+      # group_vars/all.sops.yaml is loaded for every host.
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Run pikvm playbook
         run: |
@@ -252,7 +253,6 @@ jobs:
           ansible-playbook \
             -i inventory/hosts.yml \
             playbooks/provision/pikvm.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit pikvm
@@ -270,10 +270,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Run foundry playbook
         run: |
@@ -281,7 +282,6 @@ jobs:
           ansible-playbook \
             -i inventory/hosts.yml \
             playbooks/provision/foundry.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit foundry
@@ -299,10 +299,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Run fileserver playbook
         run: |
@@ -310,7 +311,6 @@ jobs:
           ansible-playbook \
             -i inventory/hosts.yml \
             playbooks/provision/fileserver.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit fileserver
@@ -328,10 +328,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Run update_docker playbook
         run: |
@@ -339,7 +340,6 @@ jobs:
           ansible-playbook \
             -i inventory/hosts.yml \
             playbooks/update_docker.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no"
 
@@ -356,10 +356,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Run monitoring playbook
         run: |
@@ -367,7 +368,6 @@ jobs:
           ansible-playbook \
             -i inventory/hosts.yml \
             playbooks/provision/monitoring.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit monitoring
@@ -385,10 +385,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Run vps playbook
         run: |
@@ -396,7 +397,6 @@ jobs:
           ansible-playbook \
             -i inventory/hosts.yml \
             playbooks/provision/vps.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit vps-proxy
@@ -414,10 +414,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Run pve playbook
         run: |
@@ -425,7 +426,6 @@ jobs:
           ansible-playbook \
             -i inventory/hosts.yml \
             playbooks/provision/pve.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
             --limit pve
@@ -447,10 +447,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Run pbs playbook
         # No --limit: the play runs against pbs but delegates the client,
@@ -460,7 +461,6 @@ jobs:
           ansible-playbook \
             -i inventory/hosts.yml \
             playbooks/provision/pbs.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no"
 
@@ -480,10 +480,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Write secrets.tfvars
         env:
@@ -646,10 +647,8 @@ jobs:
             echo "wg0 missing on alpha — reapplying the WireGuard patch"
             trap 'rm -f "$RUNNER_TEMP/wireguard-alpha.yaml"' EXIT
             source /opt/ansible-runner/venv/bin/activate
-            WG_KEY=$(ansible-vault view inventory/group_vars/all/vault.yml \
-              --vault-password-file "$RUNNER_TEMP/vault-pass" \
-              | grep '^talos_wg_private_key:' \
-              | sed -E 's/^talos_wg_private_key: *"?([^"]*)"?$/\1/')
+            WG_KEY=$(sops decrypt --extract '["talos_wg_private_key"]' \
+              inventory/group_vars/all.sops.yaml)
             echo "::add-mask::$WG_KEY"
             sed "s#<TALOS_WG_PRIVATE_KEY>#$WG_KEY#" \
               talos/patches/wireguard-alpha.yaml.example > "$RUNNER_TEMP/wireguard-alpha.yaml"
@@ -679,10 +678,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Write kubeconfig
         run: |
@@ -697,8 +697,7 @@ jobs:
           source /opt/ansible-runner/venv/bin/activate
           ansible-playbook \
             -i inventory/hosts.yml \
-            playbooks/provision/k8s.yml \
-            --vault-password-file "$RUNNER_TEMP/vault-pass"
+            playbooks/provision/k8s.yml
 
   build-mcp:
     needs: changes

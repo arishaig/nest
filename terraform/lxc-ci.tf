@@ -66,7 +66,7 @@ resource "proxmox_virtual_environment_container" "ci" {
   provisioner "local-exec" {
     command = <<-EOF
       timeout 180 sh -c 'until ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -i ~/.ssh/ansible-on-nest root@192.168.1.18 true 2>/dev/null; do sleep 5; done'
-      ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/runner.yml --vault-password-file ~/.config/ansible-on-nest/vault-pass --ssh-extra-args '-o StrictHostKeyChecking=no' --limit ci
+      ANSIBLE_VARS_ENABLED=host_group_vars,community.sops.sops ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/runner.yml --ssh-extra-args '-o StrictHostKeyChecking=no' --limit ci
     EOF
   }
 

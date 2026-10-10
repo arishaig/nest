@@ -105,7 +105,8 @@ blocks the next.
 
 `talosctl`, `kubectl`, `flux`, `gh`, `tofu`, `ansible`, plus:
 
-- the **ansible-vault password** (`~/.config/ansible-on-nest/vault-pass`)
+- the **SOPS age key** (`~/.config/sops/age/keys.txt`), or the SSH recovery key
+  from Bitwarden (docs/secrets.md)
 - the **OpenTofu state** — see step 1
 - a **GITHUB_TOKEN** with repo scope for `flux bootstrap`
 - `~/.ssh/ansible-on-nest`
@@ -178,11 +179,12 @@ ansible-playbook -i inventory/hosts.yml playbooks/provision/k8s.yml
 This creates `postgres-secret`, `authelia-config`, `authelia-env-secret`,
 `cloudflare-api-token`, `subgen-secrets`, `nest-mcp-secrets`,
 `nest-mcp-ssh-key`, `arc-github-secret` and the `*-api-key` set from
-ansible-vault.
+`inventory/group_vars/all.sops.yaml`.
 
 This is a **push step inside a pull-based reconciliation loop** (finding C2).
-There is no SOPS, no sealed-secrets and no External Secrets Operator, and nothing
-in `k8s/` declares the ordering. On a fresh cluster Flux will reconcile happily
+The secrets themselves are SOPS-encrypted, but k8s Secrets aren't in `k8s/` yet
+(phase 2 of docs/secrets.md moves them into Flux), and nothing in `k8s/`
+declares the ordering. On a fresh cluster Flux will reconcile happily
 while every HelmRelease referencing `existingSecret` blocks indefinitely — with
 no error that points at the real cause. **Run this before Flux, or expect a
 confusing debugging session.**

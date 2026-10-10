@@ -1,7 +1,7 @@
 ---
 # Provision the Vultr VPS proxy (Debian 13 trixie)
 # Runs Traefik (native binary) + WireGuard tunnel to Nest docker LXC
-# WireGuard: private keys in vault.yml, public keys in group_vars/all/vars.yml
+# WireGuard: private keys in group_vars/all.sops.yaml, public keys in group_vars/all/vars.yml
 
 - name: VPS proxy provisioning
   hosts: vps-proxy

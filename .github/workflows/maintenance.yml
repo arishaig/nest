@@ -54,10 +54,11 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Run maintenance playbook
         env:
@@ -82,6 +83,5 @@ jobs:
             -i inventory/hosts.yml \
             "$playbook" \
             "${extra[@]}" \
-            --vault-password-file "$RUNNER_TEMP/vault-pass" \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no"

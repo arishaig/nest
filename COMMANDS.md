@@ -4,18 +4,18 @@
 
 ```bash
 # Run everything (apt updates, Docker, Proxmox)
-ansible-playbook playbooks/site.yml --ask-vault-pass
+ansible-playbook playbooks/site.yml
 
 # Individual update playbooks
-ansible-playbook playbooks/update_apt.yml --ask-vault-pass
-ansible-playbook playbooks/update_docker.yml --ask-vault-pass
-ansible-playbook playbooks/update_proxmox.yml --ask-vault-pass
+ansible-playbook playbooks/update_apt.yml
+ansible-playbook playbooks/update_docker.yml
+ansible-playbook playbooks/update_proxmox.yml
 
 # Provision / configure a specific host
-ansible-playbook playbooks/provision/site.yml --ask-vault-pass --limit docker
+ansible-playbook playbooks/provision/site.yml --limit docker
 
 # Dry run (check mode)
-ansible-playbook playbooks/site.yml --ask-vault-pass --check
+ansible-playbook playbooks/site.yml --check
 ```
 
 ## OpenTofu
@@ -57,17 +57,15 @@ talosctl --nodes 192.168.1.110 health
 kubectl get nodes -o wide   # confirm VERSION/OS-IMAGE updated, STATUS Ready
 ```
 
-## Vault
+## Secrets (SOPS, see docs/secrets.md)
 
 ```bash
-# Encrypt vault file (after editing in plaintext)
-ansible-vault encrypt inventory/group_vars/all/vault.yml
+# Edit in $EDITOR (decrypts to a temp file, re-encrypts on save)
+sops edit inventory/group_vars/all.sops.yaml
 
-# Decrypt to plaintext (for editing)
-ansible-vault decrypt inventory/group_vars/all/vault.yml
-
-# Edit in-place without decrypting to disk
-ansible-vault edit inventory/group_vars/all/vault.yml
+# Read or set one key
+sops decrypt --extract '["some_key"]' inventory/group_vars/all.sops.yaml
+sops set inventory/group_vars/all.sops.yaml '["some_key"]' '"value"'
 
 # Re-pull secrets from live infrastructure
 ./scripts/pull-secrets.sh

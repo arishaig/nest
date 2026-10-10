@@ -53,9 +53,9 @@ Authelia `two_factor` with no API bypass, so API-key calls get the login page.
 
 ```bash
 # The key never goes on the command line history in plaintext if you read it
-# like this (prompts for the vault password):
-export LIDARR_API_KEY="$(ansible-vault view inventory/group_vars/all/vault.yml \
-  | awk '/^lidarr_api_key:/ {gsub(/"/,"",$2); print $2}')"
+# like this (decrypts with your age key):
+export LIDARR_API_KEY="$(sops decrypt --extract '["lidarr_api_key"]' \
+  inventory/group_vars/all.sops.yaml)"
 LIDARR=http://192.168.1.116:8686
 
 # 1. Trigger a backup (POST /api/v1/command, CommandResource)

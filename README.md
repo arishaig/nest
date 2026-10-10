@@ -46,7 +46,7 @@ docs/               Design, dependencies, runbooks, generated diagrams
 tofu -chdir=terraform apply -var-file=secrets.tfvars
 
 # Run all playbooks
-ansible-playbook playbooks/site.yml --ask-vault-pass
+ansible-playbook playbooks/site.yml
 
 # Regenerate diagrams
 python3 scripts/generate_diagram.py

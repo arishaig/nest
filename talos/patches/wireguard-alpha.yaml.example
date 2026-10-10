@@ -15,8 +15,8 @@
 #
 # To do it by hand (e.g. investigating outside that pipeline):
 #   1. Copy this file, substitute <TALOS_WG_PRIVATE_KEY> with the real value
-#      (ansible-vault view inventory/group_vars/all/vault.yml, key
-#      talos_wg_private_key) — do this in a scratch file, never in git.
+#      (sops decrypt --extract '["talos_wg_private_key"]'
+#      inventory/group_vars/all.sops.yaml) — do this in a scratch file, never in git.
 #   2. Validate: talosctl gen config test-cluster https://192.168.1.115:6443
 #      --with-secrets <(talosctl gen secrets -o /dev/stdout)
 #      --config-patch-worker @talos/patches/worker-alpha.yaml

@@ -55,11 +55,13 @@ resource "null_resource" "vps_provision" {
         -i ../inventory/hosts.yml \
         ../playbooks/provision/vps.yml \
         -e "ansible_host=${vultr_instance.vps_proxy.main_ip} vps_public_ip=${vultr_instance.vps_proxy.main_ip}" \
-        --vault-password-file ~/.config/ansible-on-nest/vault-pass \
         --limit vps-proxy
     EOT
     environment = {
       ANSIBLE_HOST_KEY_CHECKING = "False"
+      # Secrets come from group_vars/all/secrets.sops.yaml; this runs from
+      # terraform/, so the repo ansible.cfg (which enables the plugin) isn't read.
+      ANSIBLE_VARS_ENABLED = "host_group_vars,community.sops.sops"
     }
   }
 }
