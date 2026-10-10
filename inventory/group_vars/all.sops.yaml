@@ -114,6 +114,7 @@ seerr_postgres_user: ENC[AES256_GCM,data:gzJUjnc=,iv:b31d6jV/RQqtUArAaXu3HxQha9E
 seerr_postgres_password: ENC[AES256_GCM,data:R/T8VkjWzRJZZH77MhSODUbgBfyrZeiFyiMn6MuN8rsRu/EnNeTaDeksuT8RBOOe,iv:XW8rCJpskyaZm3wAUkqdpdLFm/3WwBq5wd0TccxJXO4=,tag:VmnHBRUd2HcFNWIifJz9IA==,type:str]
 lidarr_postgres_user: ENC[AES256_GCM,data:rmefCdZW,iv:1nrARxdVXJ6/TGUXGqKhym0P+5LG5jkUlCqSPhGQ47o=,tag:WSN/Z/m4wSl8Pi20lYKNag==,type:str]
 lidarr_postgres_password: ENC[AES256_GCM,data:637tWZd0PHy78WbG77ep9fdugu2aYlD/AAC5ervv1TExGj/0m4fAzAMxbKUn0sjZ,iv:J7BMB8MsuycLlZQ3Y8EEchD8VvmyRfC7b3vN+vtk+Ho=,tag:G+O21OCuZ9XImTDFOXyyKA==,type:str]
+sops_age_key: ENC[AES256_GCM,data:oGI65gZ0yXlqKpYi3M9m8QyHFZO0f9Z/FgZh4D/LmWSg8nobTUpDlbccrkhKisF+DBIIPuWqqzMXpbiHmVluxlh+5PxCJujcpA0C,iv:UNKoG4GIuYsCnc4sTXprPgaHPVUcz6vCDFqwnrFcBSo=,tag:Rb3/P7/l3EvyANHcu8hIAA==,type:str]
 sops:
     age:
         - enc: |
@@ -135,7 +136,7 @@ sops:
             2jPOjg==
             -----END AGE ENCRYPTED FILE-----
           recipient: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpbfa/Dw9jY/uvl6k549/LREsabJ21/rM52NGuofFCN
-    lastmodified: "2026-10-10T01:37:31Z"
-    mac: ENC[AES256_GCM,data:G/JnNNHxhq0KdMttfXfkar1p5TWzntOOQM71UytQgtcxCPoBSrqgNyOAfnxMyPolfSEkJtIf+vfGrV/a6pyGR+ir+z33YqmlronnSNUehGOi5jYKI/qVpfO8d5PozQXv5zleHQhSFzOwNgiIeeWBA+hwwYahjpZadPaUejTvTKw=,iv:Z64jjerS3rb6opygWNFiw7ytKNjVRuuz7Q1GABIBpng=,tag:SVdfcfPQcNUTwCku7OSrkA==,type:str]
+    lastmodified: "2026-10-10T05:10:30Z"
+    mac: ENC[AES256_GCM,data:moKxUpjXcSmTegkX/55ublzcQlsGVZ9LcK6TEWV/ajto7Pg6mlfD0MHsepTpznaWCaRzy58Tzaioerypaq1bq7frcbfshhAwTVbHFqQZFTFbjEAQCct1cTnIIJsgntdrPAaCtmAgWyZRLLPbJp9Q7gq1L+4EU+kLp8jDfXck4IE=,iv:1HXBeHSPQTvhthsFUZV8SNqyVk1npkNwXMdOlgO2lD8=,tag:wvBUOoTqZuFqu6cpToTp+g==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.3
