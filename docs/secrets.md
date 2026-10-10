@@ -7,7 +7,7 @@ reference for the key and the rules. It's updated as each phase lands.
 |---|---|---|
 | 0 | sops/age on both CI runners (#696), age + SSH recovery keys, `.sops.yaml`, this doc | done |
 | 1 | `vault.yml` → `inventory/group_vars/all.sops.yaml` (`community.sops` vars plugin); scripts and CI move to sops | done |
-| 2 | k8s Secrets generated into `k8s/**/*.sops.yaml`, decrypted by Flux (closes architecture-review C2) | in progress: `media` done; authelia, cert-manager, nest-mcp next |
+| 2 | k8s Secrets generated into `k8s/**/*.sops.yaml`, decrypted by Flux (closes architecture-review C2) | done |
 | 3 | `terraform/secrets.tfvars` → `terraform/secrets.sops.json` | — |
 
 The source of truth is `inventory/group_vars/all.sops.yaml`.
@@ -105,8 +105,13 @@ Flux reconciles k8s Secrets from SOPS-encrypted files. Nothing pushes them.
   It rewrites a file only when the decrypted content would change, so
   re-running it never creates noise diffs.
 - **Flux:** the `apps` and `infrastructure` Kustomizations decrypt with
-  `flux-system/sops-age`. That's the one Secret `k8s.yml` still pushes,
-  because Flux can't decrypt the key it needs to decrypt.
+  `flux-system/sops-age`. That's the only Secret `k8s.yml` pushes, because
+  Flux can't decrypt the key it needs to decrypt. Namespaces come from git
+  too.
+- **Covered:** all 22 objects, i.e. the `media` Secrets, `cloudflare-api-token`
+  (cert-manager), `authelia-env-secret`, `authelia-config` and the
+  `authelia-users` ConfigMap (rendered from templates), plus `nest-mcp-secrets`
+  and `nest-mcp-ssh-key`.
 - **CI:** `lint.yml` runs `render-k8s-secrets.sh --check`. It fails if a
   generated file is missing, stale, orphaned or not listed. The k8s-validate
   job strips the `sops:` metadata block before strict kubeconform, so the

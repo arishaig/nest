@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: nest-mcp-ssh-key
+    namespace: nest-mcp
+type: Opaque
+stringData:
+    ansible-on-nest: ENC[AES256_GCM,data:Q4/j1POVHM044PQ8Dw/Hn9dBKht7QGl+IeJC+tFJ6L1dSi++0SbY/8vJcLBIqJlgl4nsE0K013/58RWycJ0rkXHxoij+XHYrIrfoYQ4/hU3uVHl3CJWXKsNtSB7e9d+Kcdt/t+MgaiVoCd01X2FiyC6aYr6teZDTUDJMd9Thvcmd3h0hKWMAeFCUuVi1bK7NW0vpFd1Wcl73z7pHgAfz2vaqf15JoUDszEM7rtze/3u+Jgi+xaSmnwPHq+STuCJzZ/Rj1hAWqgPlJP/LlRJ/Yvq1+ueE07zcGBhe4nzxKBydFz5Aw5vdSWqXpCwlHLWyM+5KaL/SP2djcABnX/yz0+JpYSW749evTPtpteCl5ntsDfwxSZ5/W8YV2bo/GDP4T1YMMQ2I5z15w/RQLAYHKP1AKCEWhH9C+abjMSRbk2HPXSMCSYM/UqQDNatlrleirH5cMNSfuyiWwkM0Swsr65S1mAuFnICFjcyMvA3CjslLv3aMrCbkr2vMEUTVpg7hn/FDw+n/ek+s3vnHaaAT1nx/EqoKCqlIoG7Y,iv:082x4yr/5le9w/zSgSzuDhUSg95vvT4dVRht6ksje/k=,tag:Pju7c7ofw1Nn5ygX9aF5CQ==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBZQ1NqVkh4RGZqYUhvTGhy
+            a3ZmRWowTHo1dlkvV0M4TGlaUDFoS3AxT2g0Ck1aSHRGeXdIRkVCWUlhUC9IU0pW
+            UGFmZkIzZzBSNHIwQzJxV1dxeGlEWGsKLS0tIDM5TnZ2MnVYcEZNM1hVbjc1TkNq
+            OWx4OURreUhmcERhUzlDaHEreHhzRmcKu5Ifg1NlqAk/tHfadGZ6VjAbBEhjc0mw
+            iBYTzX3+vZI9Y45u/GIJHj+swCi2zwJOq9A+UkfNInA/5/s9sOJ78A==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age17pgmpmdrwrdxtw3rxlyumtcl78nwv4d3errll2u687uvhkxmzg4qefuw95
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHNzaC1lZDI1NTE5IFByN0NRUSBNSEZ2
+            SVlGSmdqRG53cG5OYUVkVllpVVhkaUYxeVBhbWk3WW5OTENVSVNJCjRTRllNU3Y4
+            UlFQQllQR3N1T3EyZFhwdlFNSEE4VVoxelhKejE2MHp3clEKLS0tIHVPZUVncUhr
+            bHF4VHJZTllSdGVZb3RyelhPb2RXMDRDKzBLR3pDS0dXQXcKcJ2jpWp1A7gXPchM
+            fnof6uk/8a2O8xYwq/kMTD4aXQitgmBUO/4vOcI8NHfjDDVWT9/HlWeeiNtsad42
+            elDmvw==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpbfa/Dw9jY/uvl6k549/LREsabJ21/rM52NGuofFCN
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-10T05:35:59Z"
+    mac: ENC[AES256_GCM,data:9MLtOkTPX+UmfvGPE6Cy6+6Z/2lMB0uIMAB+fu832fRMHa6tZLQMlMTHEAXQyUyWfnbi71CHuJkkumRvgO9+1QCRbSJ06cv1kCzujeEVyNaNG0iEBGzW8OAmKRs/RmE4zxQvHOHJRpI7GRujei+KXKeQRoNgNGYaYX+YHyGUNKQ=,iv:/2R6vl2jFHPJps2ec2pKZYqzdVTr4TZ0lgcLRMDFId4=,tag:eafJeT+XnSFMliCaNHbFFg==,type:str]
+    version: 3.13.3

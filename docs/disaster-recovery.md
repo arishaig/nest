@@ -170,24 +170,24 @@ reconciliation loop. On a true cold bootstrap that's moot (step 2's
 that flow, check `talosctl get link wg0 --nodes 192.168.1.110` yourself or
 push any `terraform/**` change to force the check.
 
-### 6. Push the k8s Secrets — Flux cannot proceed without them
+### 6. Load the Flux SOPS key — Flux cannot decrypt anything without it
 
 ```bash
 ansible-playbook -i inventory/hosts.yml playbooks/provision/k8s.yml
 ```
 
-This creates `postgres-secret`, `authelia-config`, `authelia-env-secret`,
-`cloudflare-api-token`, `subgen-secrets`, `nest-mcp-secrets`,
-`nest-mcp-ssh-key`, `arc-github-secret` and the `*-api-key` set from
-`inventory/group_vars/all.sops.yaml`.
+This creates the one Secret Flux can't create itself: `flux-system/sops-age`,
+the age key the `apps` and `infrastructure` Kustomizations decrypt every
+`k8s/**/*.sops.yaml` with (docs/secrets.md). Every other k8s Secret lives in
+git as SOPS-encrypted manifests, which Flux reconciles in step 7 like
+everything else.
 
-This is a **push step inside a pull-based reconciliation loop** (finding C2).
-The secrets themselves are SOPS-encrypted, but k8s Secrets aren't in `k8s/` yet
-(phase 2 of docs/secrets.md moves them into Flux), and nothing in `k8s/`
-declares the ordering. On a fresh cluster Flux will reconcile happily
-while every HelmRelease referencing `existingSecret` blocks indefinitely — with
-no error that points at the real cause. **Run this before Flux, or expect a
-confusing debugging session.**
+It needs the age key on the workstation (`~/.config/sops/age/keys.txt`), or the
+Bitwarden SSH recovery key via `SOPS_AGE_SSH_PRIVATE_KEY_FILE`.
+
+If step 6 is skipped, the `apps` and `infrastructure` Kustomizations report
+the missing `sops-age` Secret. That's a clear error, not a silent hang, and it
+clears as soon as the Secret exists.
 
 ### 7. Bootstrap Flux
 
@@ -245,7 +245,7 @@ still covers.
 | Gap | Finding | Consequence |
 |---|---|---|
 | WireGuard config is not in git | C1 | Key lives in vault, not git; `deploy-tofu` reconciles it automatically once alpha is reachable, but a true cold bootstrap still needs step 4 done first |
-| Secrets are pushed, not reconciled | C2 | Step 6 must precede Flux, and nothing enforces it |
+| Flux's own decryption key is pushed, not reconciled | C2 (resolved; residual) | Step 6 must precede Flux, but missing it fails loudly on the Kustomizations |
 | No state locking between CI and a workstation apply | C3 | CI-to-CI applies are already serialized (`deploy.yml` concurrency group) and `tofu-plan` never writes state back; a workstation apply racing CI is the one unmitigated case, and needs a real locking backend to close |
 | `talos/clusterconfig/` backup unverified | C5 | Cluster CA loss means rebuilding the cluster, not restoring it |
 | Nothing survives host loss | A1 (accepted) | Every backup is on-site; a fire or theft is total |
