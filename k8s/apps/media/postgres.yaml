@@ -19,29 +19,21 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
-    # Prefer alpha (nest.arishaig.site/workloads=general): stateful DB backing
-    # the *arr/mealie stack. Soft so it can still reschedule if alpha is
-    # unavailable.
-    # Hard exclusion from omega (the dual-boot gaming PC): Jellyfin, Mealie and
-    # the *arrs all depend on this DB, so it landing on omega (it did, via the
-    # soft preference alone, 2026-09) took them all down whenever omega booted
-    # into Windows — defeating Jellyfin's own omega exclusion.
+    # Pinned to alpha (nest.arishaig.site/workloads=general). The soft
+    # preference let it land on gamma-rpi5, where the 1Gi limit OOMKilled it
+    # 17x in 6 days (2026-10-09) and the Pi had no headroom to raise it.
+    # Jellyfin (amd64, not omega) can only run on alpha anyway, so pinning its
+    # DB there adds no new failure domain. Also keeps it off omega (the
+    # dual-boot gaming PC), which took Jellyfin/Mealie down in 2026-09.
     defaultPodOptions:
       affinity:
         nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
-                  - key: nest.arishaig.site/workloads
-                    operator: In
-                    values: [general]
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
                   - key: nest.arishaig.site/workloads
-                    operator: NotIn
-                    values: [omega]
+                    operator: In
+                    values: [general]
     controllers:
       postgres:
         strategy: Recreate
@@ -51,6 +43,11 @@ spec:
               # renovate: datasource=docker depName=postgres
               repository: postgres
               tag: "18.6"
+            # JIT off: Jellyfin's EF-generated queries are huge (dozens of
+            # subqueries) and cross jit_above_cost, so each backend compiles
+            # them with LLVM, which is pure overhead for OLTP and allocates
+            # outside Postgres's memory contexts.
+            args: ["-c", "jit=off"]
             env:
               POSTGRES_USER:
                 valueFrom:
@@ -94,11 +91,14 @@ spec:
               startup:
                 enabled: false
             resources:
+              # Jellyfin backends peak at ~250MB anon each on its big
+              # library queries (kernel OOM report, 2026-10-09); 1Gi was
+              # exhausted with a handful running concurrently.
               requests:
                 cpu: 100m
-                memory: 256Mi
+                memory: 512Mi
               limits:
-                memory: 1Gi
+                memory: 3Gi
     service:
       app:
         controller: postgres
