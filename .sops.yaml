@@ -1,15 +1,21 @@
-# SOPS encryption rules (docs/secrets.md). One age recipient; the private key
-# lives in ~/.config/sops/age/keys.txt, the SOPS_AGE_KEY GitHub secret, the
-# flux-system/sops-age Secret, and offline custody copies.
+# SOPS encryption rules (docs/secrets.md). Every file is encrypted to two
+# recipients, and either one alone decrypts it:
+#   - the working age key: ~/.config/sops/age/keys.txt, the SOPS_AGE_KEY
+#     GitHub secret, flux-system/sops-age (Flux only reads native age keys);
+#   - an ed25519 SSH recovery key held in Bitwarden (SSH key item). Used only
+#     to recover: SOPS_AGE_SSH_PRIVATE_KEY_FILE=<key> sops decrypt <file>.
+recipients: &recipients >-
+  age17pgmpmdrwrdxtw3rxlyumtcl78nwv4d3errll2u687uvhkxmzg4qefuw95,
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpbfa/Dw9jY/uvl6k549/LREsabJ21/rM52NGuofFCN
 creation_rules:
   # k8s Secrets reconciled by Flux: encrypt only the payload, so kind/metadata
   # stay readable for kustomize and review.
   - path_regex: ^k8s/.*\.sops\.yaml$
     encrypted_regex: ^(data|stringData)$
-    age: age17pgmpmdrwrdxtw3rxlyumtcl78nwv4d3errll2u687uvhkxmzg4qefuw95
+    age: *recipients
   # Ansible vars (community.sops vars plugin): every value.
   - path_regex: ^inventory/.*\.sops\.ya?ml$
-    age: age17pgmpmdrwrdxtw3rxlyumtcl78nwv4d3errll2u687uvhkxmzg4qefuw95
+    age: *recipients
   # OpenTofu variables, decrypted to a tfvars.json in CI.
   - path_regex: ^terraform/.*\.sops\.json$
-    age: age17pgmpmdrwrdxtw3rxlyumtcl78nwv4d3errll2u687uvhkxmzg4qefuw95
+    age: *recipients
