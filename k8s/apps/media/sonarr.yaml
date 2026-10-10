@@ -19,16 +19,17 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
-    # Prefer alpha (nest.arishaig.site/workloads=general): alpha has the most
-    # headroom of the workers. Soft so it can still reschedule elsewhere if
-    # alpha is unavailable.
+    # Pinned to alpha (nest.arishaig.site/workloads=general). The soft
+    # preference let it land on beta-rpi5, where /ping stalled 20s+ under
+    # SQLite-on-NFS lock contention (~2200 readiness failures in 6d,
+    # 2026-10-09). Hard pin is interim relief; the real fix is moving the
+    # DB off SQLite-on-NFS.
     defaultPodOptions:
       affinity:
         nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
                   - key: nest.arishaig.site/workloads
                     operator: In
                     values: [general]
@@ -70,8 +71,10 @@ spec:
                     port: 8989
                   initialDelaySeconds: 10
                   periodSeconds: 10
-                  timeoutSeconds: 5
-                  failureThreshold: 3
+                  # Tolerate short DB-lock stalls without dropping out of
+                  # the Service (was 5s x3).
+                  timeoutSeconds: 10
+                  failureThreshold: 6
               startup:
                 enabled: false
             resources:
