@@ -13,16 +13,16 @@ on:
         description: 'Force rebuild/deploy subgen-ui'
         type: boolean
         default: false
-      # k8s.yml pushes every k8s Secret out-of-band, but only runs when the
-      # playbook itself changes. A Secret added to it can therefore sit
-      # undeployed until some unrelated edit touches the file (e.g.
-      # anagnorisis-hf-secret, missing from the cluster 2026-08-21..09-23).
+      # k8s.yml pushes every k8s Secret out-of-band. It now also runs on
+      # vault.yml changes, but a run can still be skipped or fail, and a
+      # Secret can sit undeployed (anagnorisis-hf-secret, missing from the
+      # cluster 2026-08-21..09-23). This forces a re-push.
       force_k8s:
         description: 'Force re-run the k8s playbook (pushes k8s Secrets)'
         type: boolean
         default: false
-      # Same gap for vault-only changes to pve.yml's inputs (e.g.
-      # vault_pve_heartbeat_url): the path filter doesn't watch vault.yml.
+      # Same for pve.yml, whose vault inputs (e.g. vault_pve_heartbeat_url)
+      # now trigger it through the path filter.
       force_pve:
         description: 'Force re-run the pve playbook (applies vault-only changes)'
         type: boolean
@@ -99,12 +99,18 @@ jobs:
               - 'playbooks/provision/pve.yml'
               - 'playbooks/provision/templates/pve/**'
               - 'playbooks/provision/files/pve/**'
+              # pve.yml reads vault vars (e.g. vault_pve_heartbeat_url).
+              - 'inventory/group_vars/all/vault.yml'
             pbs:
               - 'playbooks/provision/pbs.yml'
               - 'playbooks/provision/files/pbs/**'
             k8s:
               - 'playbooks/provision/k8s.yml'
               - 'playbooks/provision/templates/k8s/**'
+              # Every k8s Secret value comes from the vault, and authelia-config
+              # renders this template too.
+              - 'inventory/group_vars/all/vault.yml'
+              - 'playbooks/provision/templates/docker/authelia-users.yml.j2'
             tofu:
               - 'terraform/**'
             mcp:
