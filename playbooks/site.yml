@@ -5,7 +5,7 @@
 # packages, services, compose stacks, Traefik, monitoring rules, firewall),
 # then refreshes OS packages, container images, and the Proxmox host.
 #
-# Usage:  ansible-playbook playbooks/site.yml --ask-vault-pass
+# Usage:  ansible-playbook playbooks/site.yml
 #
 # Not covered here — run separately:
 #   - OpenTofu (LXC/VM definitions, AdGuard DNS rewrites): `tofu apply`
@@ -24,7 +24,7 @@
 # provision/docker-host.yml (LXC 100) intentionally not run here — the host
 # is powered off since the k8s migration. Run it manually if the LXC is ever
 # reactivated: ansible-playbook -i inventory/hosts.yml
-# playbooks/provision/docker-host.yml --limit docker --ask-vault-pass
+# playbooks/provision/docker-host.yml --limit docker
 - name: "Provision: VPS proxy"
   import_playbook: provision/vps.yml
 - name: "Provision: file server"

@@ -1,6 +1,0 @@
-# Readable local diffs of the ansible-vault file. One-time setup per clone:
-#   git config diff.ansible-vault.textconv "ansible-vault view"
-#   git config diff.ansible-vault.cachetextconv false
-# git diff / git log -p then show the decrypted key changes locally.
-# GitHub's PR view stays encrypted.
-inventory/group_vars/all/vault.yml diff=ansible-vault

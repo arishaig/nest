@@ -5,7 +5,7 @@
 # (already on Trixie), HAOS VM (self-managed), or PBS VM (separate path).
 #
 # Usage:
-#   ansible-playbook playbooks/upgrade-debian.yml --ask-vault-pass
+#   ansible-playbook playbooks/upgrade-debian.yml
 #
 # Safe to run on already-upgraded hosts — skips if already on Trixie.
 

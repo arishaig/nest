@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
-# gen-mcp-secrets.sh — Generate ~/.config/nest-mcp/secrets.env from the ansible vault.
+# gen-mcp-secrets.sh — Generate ~/.config/nest-mcp/secrets.env from the
+# SOPS-encrypted inventory/group_vars/all.sops.yaml (docs/secrets.md).
 #
-# All credentials live in the vault. Run pull-secrets.sh first to ensure
-# the vault is up to date, then run this script.
-#
-# Vault password (in order of precedence):
-#   ANSIBLE_VAULT_PASSWORD_FILE  — env var pointing to password file
-#   ~/.config/ansible-on-nest/vault-pass  — default location
+# Decrypts with the age key in ~/.config/sops/age/keys.txt (or SOPS_AGE_KEY /
+# SOPS_AGE_KEY_FILE).
 #
 # Usage:
 #   ./scripts/gen-mcp-secrets.sh
@@ -15,26 +12,20 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
-VAULT_FILE="$REPO_DIR/inventory/group_vars/all/vault.yml"
+VAULT_FILE="$REPO_DIR/inventory/group_vars/all.sops.yaml"
 SECRETS_FILE="${HOME}/.config/nest-mcp/secrets.env"
-VAULT_PASS_FILE="${ANSIBLE_VAULT_PASSWORD_FILE:-$HOME/.config/ansible-on-nest/vault-pass}"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; NC='\033[0m'
 info()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 fail()  { echo -e "${RED}[-]${NC} $*" >&2; exit 1; }
 
-for cmd in ansible-vault yq; do
+for cmd in sops yq; do
     command -v "$cmd" &>/dev/null || fail "required tool not found: $cmd"
 done
 
-[[ -f "$VAULT_PASS_FILE" ]] || fail "vault password file not found: $VAULT_PASS_FILE
-Create it with:
-  printf '%s' 'YOUR_VAULT_PASSWORD' > $VAULT_PASS_FILE
-  chmod 600 $VAULT_PASS_FILE"
-
-info "Decrypting ansible vault..."
-VAULT_PLAIN=$(ansible-vault decrypt --vault-password-file "$VAULT_PASS_FILE" --output=- "$VAULT_FILE")
+info "Decrypting secrets..."
+VAULT_PLAIN=$(sops decrypt "$VAULT_FILE") || fail "sops decrypt failed (age key missing?)"
 
 vaultkey() {
     local key="$1"

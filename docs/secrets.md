@@ -5,13 +5,26 @@ reference for the key and the rules. It's updated as each phase lands.
 
 | Phase | What | Status |
 |---|---|---|
-| 0 | sops/age on both CI runners (#696), age + SSH recovery keys, `.sops.yaml`, this doc | in progress |
-| 1 | `vault.yml` → `inventory/group_vars/all/secrets.sops.yaml` (`community.sops` vars plugin); scripts and CI move to sops | — |
+| 0 | sops/age on both CI runners (#696), age + SSH recovery keys, `.sops.yaml`, this doc | done |
+| 1 | `vault.yml` → `inventory/group_vars/all.sops.yaml` (`community.sops` vars plugin); scripts and CI move to sops | done |
 | 2 | k8s Secrets generated into `k8s/**/*.sops.yaml`, decrypted by Flux (closes architecture-review C2) | — |
 | 3 | `terraform/secrets.tfvars` → `terraform/secrets.sops.json` | — |
 
-Until phase 1 lands, `inventory/group_vars/all/vault.yml` (ansible-vault) is
-still the source of truth.
+The source of truth is `inventory/group_vars/all.sops.yaml`.
+
+**Why `group_vars/all.sops.yaml` and not `group_vars/all/…`:** Ansible's
+default vars loader reads every YAML file *inside* `group_vars/all/`, so an
+encrypted file there would also be loaded raw. Without the SOPS plugin that
+silently yields ciphertext as the value (tested: a 151-char `ENC[…]` string
+instead of a 32-char API key). As a sibling file, only the
+`community.sops.sops` vars plugin loads it, and a run without the plugin fails
+loudly on an undefined variable instead.
+
+**Enabling the plugin:**
+- The repo's `ansible.cfg` sets `vars_plugins_enabled = host_group_vars,community.sops.sops`.
+- Anything that runs Ansible from another directory (the `terraform/`
+  provisioners) sets `ANSIBLE_VARS_ENABLED=host_group_vars,community.sops.sops`.
+- CI writes `SOPS_AGE_KEY` to a file and exports `SOPS_AGE_KEY_FILE`.
 
 ## Why
 - **Reviewable diffs.** SOPS encrypts values, not keys, so a diff shows which
@@ -74,9 +87,9 @@ some).
 
 ## Everyday use
 ```sh
-sops edit inventory/group_vars/all/secrets.sops.yaml        # edit in $EDITOR
-sops set inventory/group_vars/all/secrets.sops.yaml '["new_key"]' '"value"'
-sops decrypt --extract '["some_key"]' inventory/group_vars/all/secrets.sops.yaml
+sops edit inventory/group_vars/all.sops.yaml        # edit in $EDITOR
+sops set inventory/group_vars/all.sops.yaml '["new_key"]' '"value"'
+sops decrypt --extract '["some_key"]' inventory/group_vars/all.sops.yaml
 ```
 
 ## Rotating the age key
@@ -91,5 +104,8 @@ sops decrypt --extract '["some_key"]' inventory/group_vars/all/secrets.sops.yaml
 
 ## History note
 Pre-migration `vault.yml` revisions stay in git history, encrypted with the
-ansible-vault password. Keep that password secured after phase 1, or rotate the
-secrets it covered.
+ansible-vault password, and so do the `terraform.tfstate.*.vault` copies on the
+NAS (`scripts/backup-state.sh` writes `*.age` from now on). Keep that password
+secured, or rotate the secrets it covered. Nothing current uses it: the
+`ANSIBLE_VAULT_PASS` GitHub secret and `~/.config/ansible-on-nest/vault-pass`
+can be deleted once phase 1 has had a clean deploy.

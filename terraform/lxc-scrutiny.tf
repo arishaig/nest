@@ -86,7 +86,7 @@ resource "null_resource" "scrutiny_passthrough" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/pve-passthrough.yml --vault-password-file ~/.config/ansible-on-nest/vault-pass -e lxc_id=103 -e @../playbooks/provision/files/scrutiny/passthrough.yml"
+    command = "ANSIBLE_VARS_ENABLED=host_group_vars,community.sops.sops ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/pve-passthrough.yml -e lxc_id=103 -e @../playbooks/provision/files/scrutiny/passthrough.yml"
   }
 }
 
@@ -98,6 +98,6 @@ resource "null_resource" "scrutiny_provision" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/scrutiny.yml --vault-password-file ~/.config/ansible-on-nest/vault-pass --limit scrutiny"
+    command = "ANSIBLE_VARS_ENABLED=host_group_vars,community.sops.sops ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/scrutiny.yml --limit scrutiny"
   }
 }

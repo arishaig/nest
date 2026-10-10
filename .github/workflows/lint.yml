@@ -54,17 +54,18 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
-      - name: Write vault password
+      - name: Write SOPS age key
         run: |
-          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASS }}" > "$RUNNER_TEMP/vault-pass"
-          chmod 600 "$RUNNER_TEMP/vault-pass"
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
       - name: Run ansible-lint
         run: |
           source /opt/ansible-runner/venv/bin/activate
           # Unset VIRTUAL_ENV so ansible-compat doesn't attempt to cache into
           # the read-only system venv; it falls back to .ansible/ in the project dir.
           unset VIRTUAL_ENV
-          ANSIBLE_VAULT_PASSWORD_FILE="$RUNNER_TEMP/vault-pass" ansible-lint playbooks/
+          ansible-lint playbooks/
 
   yamllint:
     runs-on: ubuntu-latest

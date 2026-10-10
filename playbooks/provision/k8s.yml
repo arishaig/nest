@@ -3,7 +3,7 @@
 # Idempotent: uses kubectl apply with --dry-run=client to detect drift,
 # then applies only if the secret would change.
 #
-# Requires: vault.yml (--ask-vault-pass or --vault-password-file)
+# Requires: inventory/group_vars/all.sops.yaml + the age key (docs/secrets.md)
 # Requires: kubectl configured and pointing at the Talos cluster
 
 - name: K8s secrets provisioning

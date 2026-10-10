@@ -33,7 +33,7 @@ Sources: [About](https://listenbrainz.org/about/),
    username is public and ends up in the dumps; pick accordingly.
 2. Settings → **User token** → copy it.
 3. Record it in vault as the canonical copy:
-   `ansible-vault edit inventory/group_vars/all/vault.yml` →
+   `sops edit inventory/group_vars/all.sops.yaml` →
    `listenbrainz_user_token: "<token>"`. No k8s Secret consumes it: the Jellyfin
    plugin and Digarr keep their own copies in their own config stores. The vault
    entry is where you look it up or rotate it from.

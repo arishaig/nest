@@ -88,7 +88,7 @@ resource "proxmox_virtual_environment_container" "docker" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/docker-host.yml --vault-password-file ~/.config/ansible-on-nest/vault-pass --skip-tags wireguard --limit docker"
+    command = "ANSIBLE_VARS_ENABLED=host_group_vars,community.sops.sops ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/docker-host.yml --skip-tags wireguard --limit docker"
   }
 
   lifecycle {

@@ -64,7 +64,7 @@ resource "proxmox_virtual_environment_container" "fileserver" {
   }
 
   provisioner "local-exec" {
-    command = "ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/fileserver.yml --vault-password-file ~/.config/ansible-on-nest/vault-pass --limit fileserver"
+    command = "ANSIBLE_VARS_ENABLED=host_group_vars,community.sops.sops ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/common.yml ../playbooks/provision/fileserver.yml --limit fileserver"
   }
 
   lifecycle {

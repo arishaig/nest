@@ -52,10 +52,9 @@ drifting. The UPS has no USB link to the host, so the host never sees the event.
 1. **Heartbeat URL.** Create a check at healthchecks.io (free tier) with period 1 min and
    grace 10 min, and connect the notification method you want (e.g. the mobile app or
    email). Add the ping URL to vault:
-   `ansible-vault edit inventory/group_vars/all/vault.yml` →
-   `vault_pve_heartbeat_url: "https://hc-ping.com/<uuid>"`. Push, then run
-   `gh workflow run deploy.yml -f force_pve=true`: the deploy's path filter doesn't
-   watch `vault.yml`, so the push alone applies nothing.
+   `sops edit inventory/group_vars/all.sops.yaml` →
+   `vault_pve_heartbeat_url: "https://hc-ping.com/<uuid>"`. Push: the `pve` deploy
+   job's path filter watches the secrets file, so the push applies it.
    An unclean boot also posts to `<url>/fail`, so you'll get a "down" notice with the
    timing in the body, followed by "up" a minute later.
    The host heartbeat can't see a dead alerting pipeline on a healthy host (monitoring

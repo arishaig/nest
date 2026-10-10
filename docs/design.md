@@ -163,7 +163,7 @@ needs an explicit `routes:` entry for `10.10.0.1/32 via wg0` — Talos does not
 auto-install a route from the peer's `allowedIPs` the way `wg-quick` does.
 Docker LXC side: `10.10.0.2/24`, MTU 1420
 
-Keys: public keys stored in `inventory/group_vars/all/vars.yml`; private keys in `vault.yml` (`talos_wg_private_key` for alpha's wg0).
+Keys: public keys stored in `inventory/group_vars/all/vars.yml`; private keys in `all.sops.yaml` (`talos_wg_private_key` for alpha's wg0).
 
 ### k8s Traefik (MetalLB LoadBalancer 192.168.1.117)
 
@@ -450,8 +450,8 @@ GitHub Actions runs on two runner pools, split by blast radius:
   Stateless PR lint/validate jobs run here. See [arc-runners.md](arc-runners.md).
 - **LXC 108 `ci` (`192.168.1.18`), `self-hosted`** — the recovery-critical deploy jobs that
   hold OpenTofu state, secrets, and the kubeconfig deliberately stay on the dedicated LXC, so
-  the cluster's deploys never depend on the cluster being up. Has no Docker daemon; ansible
-  vault password is on the runner for `--ask-vault-pass`-free runs.
+  the cluster's deploys never depend on the cluster being up. Has no Docker daemon; jobs
+  decrypt secrets with the `SOPS_AGE_KEY` GitHub secret (docs/secrets.md).
 
 ### Workflows
 
@@ -493,7 +493,7 @@ Secrets in `terraform/secrets.tfvars` (gitignored).
 ### Ansible
 
 Inventory: `inventory/hosts.yml`. All hosts use `~/.ssh/ansible-on-nest` key, root user.
-Secrets: `inventory/group_vars/all/vault.yml` (ansible-vault, password in `~/.config/ansible-on-nest/vault-pass`).
+Secrets: `inventory/group_vars/all.sops.yaml` (SOPS + age, loaded by the `community.sops` vars plugin; see [secrets.md](secrets.md)).
 
 `playbooks/site.yml` runs the full converge:
 1. `provision/common.yml` — node_exporter, BBR sysctl (all LXCs + VPS)
@@ -523,7 +523,7 @@ tofu apply -var-file=secrets.tfvars   # creates infra + triggers Ansible
 **Day-to-day:**
 ```bash
 # Config changes
-ansible-playbook playbooks/site.yml --ask-vault-pass
+ansible-playbook playbooks/site.yml
 
 # Infrastructure changes
 tofu -chdir=terraform apply -var-file=secrets.tfvars
@@ -532,9 +532,9 @@ tofu -chdir=terraform apply -var-file=secrets.tfvars
 python3 scripts/generate_diagram.py
 ```
 
-**Vault operations:**
+**Secrets:**
 ```bash
-ansible-vault edit inventory/group_vars/all/vault.yml
+sops edit inventory/group_vars/all.sops.yaml
 ```
 
 ---

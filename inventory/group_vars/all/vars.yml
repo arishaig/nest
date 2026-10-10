@@ -1,5 +1,5 @@
 # --- WireGuard (VPS proxy tunnel) ---
-# Public keys are non-sensitive; private keys live in vault.yml.
+# Public keys are non-sensitive; private keys live in ../all.sops.yaml.
 vps_wg_public_key: "0hhiYuAcp7f0eka44vO9lNF48vgtjF4E1o4IUzJjMlc="
 nest_wg_public_key: "F7nQWaV8PFtqrmlcPcs55OXYmctBBVZTPPxqltJ8yVU="
 
