@@ -46,6 +46,12 @@ spec:
               # renovate: datasource=docker depName=ghcr.io/linuxserver-labs/prarr versioning=regex:^lidarr-plugins-(?<major>\d+)\.(?<minor>\d+)\.\d+\.(?<patch>\d+)$
               repository: ghcr.io/linuxserver-labs/prarr
               tag: lidarr-plugins
+              # Pinned while Lidarr moves from SQLite to Postgres
+              # (docs/media-postgres-migration.md): the rehearsal and the
+              # cutover must run the exact build that last wrote lidarr.db,
+              # and the floating tag could move between them. Lidarr
+              # 3.1.2.4913. Unpin after cutover.
+              digest: sha256:106b3bec92f4372d123b437cc8d9115375eaba2d9974756ef83ca569952f1ac0
             env:
               PUID: "0"
               PGID: "0"
