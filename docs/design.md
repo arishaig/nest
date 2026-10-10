@@ -268,7 +268,7 @@ truth with continuous reconciliation.
 
 Workloads are deployed as Flux `HelmRelease`s using the [bjw-s `app-template`](https://github.com/bjw-s-labs/helm-charts)
 chart (one app = one HelmRelease values block, the k8s analogue of a single compose
-service); cluster primitives (Traefik, cert-manager, MetalLB, ARC, kube-state-metrics)
+service); cluster primitives (Traefik, cert-manager, MetalLB, kube-state-metrics)
 use their official upstream charts. See [k8s-helm-migration.md](k8s-helm-migration.md).
 
 Storage classes:
@@ -445,9 +445,9 @@ live snapshot of the homelab in one call.
 
 GitHub Actions runs on two runner pools, split by blast radius:
 
-- **`arc-lint`** — ephemeral Kubernetes pods via Actions Runner Controller (ARC) in the
-  `arc-runners` namespace (image `ghcr.io/arishaig/nest-ci-runner:latest`, `minRunners: 0`).
-  Stateless PR lint/validate jobs run here. See [arc-runners.md](arc-runners.md).
+- **GitHub-hosted `ubuntu-latest`** — stateless PR lint/validate jobs, most in the
+  `ghcr.io/arishaig/nest-ci-runner:latest` container. (These ran on in-cluster ARC
+  runners until #460, 2026-08-15; ARC was removed then.)
 - **LXC 108 `ci` (`192.168.1.18`), `self-hosted`** — the recovery-critical deploy jobs that
   hold OpenTofu state, secrets, and the kubeconfig deliberately stay on the dedicated LXC, so
   the cluster's deploys never depend on the cluster being up. Has no Docker daemon; jobs
@@ -457,7 +457,7 @@ GitHub Actions runs on two runner pools, split by blast radius:
 
 | Workflow | Trigger | Runs on | What it does |
 |---|---|---|---|
-| `lint.yml` | every push / PR | `arc-lint` | `tofu validate`, `ansible-lint`, `yamllint`, `shellcheck` 0.10.0, `promtool`/`amtool` rule checks, `kubeconform` (k8s-validate), **helm-render** (flux-local renders every HelmRelease → kubeconform + `check-helm-pvc-safety.sh`), **talos-config-validate** (`talosctl gen config`/`validate -m metal` over `talos/patches/`), deploy-coverage + RPi5 overlay checks |
+| `lint.yml` | every push / PR | `ubuntu-latest` (nest-ci-runner container) | `tofu validate`, `ansible-lint`, `yamllint`, `shellcheck` 0.10.0, `promtool`/`amtool` rule checks, `kubeconform` (k8s-validate), **helm-render** (flux-local renders every HelmRelease → kubeconform + `check-helm-pvc-safety.sh`), **talos-config-validate** (`talosctl gen config`/`validate -m metal` over `talos/patches/`), deploy-coverage + RPi5 overlay checks |
 | `integration.yml` | PR/push touching `talos/**`, `k8s/**`, tfvars | `ubuntu-latest` | Boots a **Talos-in-Docker** cluster (`talosctl cluster create docker`), waits for nodes `Ready`, then server-side dry-run applies the rendered manifests against the ephemeral API |
 | `mcp-tests.yml` | PR touching `mcp/**` | `ubuntu-latest` | `pytest` for `nest_mcp` (86 tests, ~92% coverage, `--cov-fail-under=85`) + commits a regenerated `assets/coverage.svg` badge to the PR branch if the percentage changed |
 | `deploy.yml` | push to `main` | `self-hosted` (+ `ubuntu-latest` image builds) | `deploy-tofu`, `deploy-k8s` (Flux reconcile), per-host ansible deploys, and image builds (`build-mcp`, `build-lidarr-ui`, `build-ci-runner`) |
@@ -468,7 +468,7 @@ well-formed; the Docker integration tier proves a cluster actually forms and a n
 QEMU-only multi-control-plane etcd quorum rehearsal is out of scope for CI (the talosctl docker
 provisioner is single-control-plane) and stays a manual runbook step.
 
-> New tooling baked into the `arc-lint` image (`ci/runner/Dockerfile`) requires a merge-first
+> New tooling baked into the lint image (`ci/runner/Dockerfile`) requires a merge-first
 > image-rebuild PR, because `build-ci-runner` only runs on push to `main`. Keep
 > `ci/runner/Dockerfile` and `playbooks/provision/runner.yml` in sync (LXC-runner parity).
 
