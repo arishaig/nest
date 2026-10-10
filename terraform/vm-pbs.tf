@@ -62,8 +62,9 @@ resource "proxmox_virtual_environment_vm" "backup" {
   # pbs.yml). Decommissioned the same day scsi0 moved: with both disks on
   # Tank, the mirror no longer protected against pool loss, defeating its
   # purpose. Removed rather than relocated back to local-zfs — accepted as a
-  # deliberate single-copy tradeoff; second-copy/offsite redundancy is
-  # handled manually (flash drive) instead.
+  # deliberate single-copy tradeoff. There is currently NO second or offsite
+  # copy of the PBS datastore (an earlier note claimed a manual flash-drive
+  # copy; none exists).
   disk {
     datastore_id = "local-zfs"
     interface    = "scsi0"
