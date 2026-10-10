@@ -34,7 +34,7 @@ inventory/          hosts.yml
 k8s/                Flux GitOps tree — infrastructure/ + apps/ (Talos cluster)
 talos/              Talos machine configs + control-plane patches
 mcp/                Nest MCP server (homelab tools for Claude Code) + tests
-ci/                 arc-lint runner image (ghcr.io/arishaig/nest-ci-runner)
+ci/                 CI lint image (ghcr.io/arishaig/nest-ci-runner)
 scripts/            Tooling — diagram generation + CI check/bootstrap scripts
 docs/               Design, dependencies, runbooks, generated diagrams
 ```

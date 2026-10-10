@@ -300,7 +300,7 @@ Proxmox VE (192.168.1.16)
 │   │   ├── MetalLB (traefik-pool .117, metrics-pool .116)
 │   │   ├── Authelia + Valkey (SSO/2FA)
 │   │   ├── Alloy DaemonSet → Loki · nfs-subdir-provisioner (nfs-nvme)
-│   │   └── ARC (arc-lint ephemeral CI runners) · kube-state-metrics · Headlamp
+│   │   └── kube-state-metrics · Headlamp
 │   └── apps (bjw-s app-template HelmReleases):
 │       ├── Media: sonarr · radarr · lidarr · bazarr · prowlarr (+ exportarr ×5)
 │       ├── Streaming: jellyfin · tunarr · seerr · tdarr(+node) · subgen
