@@ -111,6 +111,9 @@ deleted row, a changed text value, a flipped boolean, a timestamp moved
 | 2026-10-10 | Prowlarr | `linuxserver/prowlarr@sha256:f2b26429…` (2.6.5) | PASS: main 20 tables / 37,164 rows, log 3 / 8,242; 41,371 timestamps lost their 7th digit; API counts (indexers 5, apps 4, tags 2, history 36,791) equal SQLite; Housekeeping OK as owner role |
 | 2026-10-10 | Radarr | `linuxserver/radarr@sha256:adb6c09d…` (6.4.4) | PASS: main 41 tables / 7,839 rows, log 3 / 4,021; API counts (movies 41, quality profiles 7, indexers 4, download clients 1, history 190) equal SQLite |
 | 2026-10-10 | Sonarr | `linuxserver/sonarr@sha256:a5c1a5fe…` (4.0.20) | PASS: main 38 tables / 97,168 rows, log 3 / 19,218; API counts (series 114, quality profiles 7, indexers 3, download clients 2, history 31,741) equal SQLite; EpisodeFiles 107 = 107 |
+| 2026-10-10 | Lidarr | `linuxserver-labs/prarr:lidarr-plugins@sha256:106b3bec…` (3.1.2.4913) | PASS: main 40 tables / 646,233 rows, log 3 / 23,214; API counts (artists 371, albums 8,660, history 23,553, quality profiles 3, indexers 4, root folders 1) equal SQLite. First run hit the pgloader heap limit; see gotchas |
+| 2026-10-10 | Bazarr | `linuxserver/bazarr@sha256:8b30e81c…` (1.6.2) | PASS: 17 tables / 912 rows, 0 values lost precision; API series 114, movies 37 equal SQLite |
+| 2026-10-10 | Seerr | `seerr-team/seerr@sha256:c92d2dc1…` (3.3.0) | PASS: 14 tables / 760 rows (`migrations` kept as Postgres created it; see gotchas); API users 1, requests 0 equal SQLite. The official pgloader image worked; the community `ralgar/pgloader` build the Seerr docs recommend wasn't needed |
 
 ## Prod cutover (per app)
 
@@ -158,3 +161,17 @@ runs, as with the Jellyfin repair.
 - **The rehearsal app generates a new API key** in its throwaway
   `config.xml`. Prod keeps its own `config.xml` and key; the DB doesn't
   store it.
+- **pgloader heap.** The pgloader image's Lisp runtime has a fixed 1GB heap.
+  Lidarr's 437MB DB exhausted it with the default prefetch, and the run
+  failed cleanly. The script now always uses `prefetch rows = 100` and
+  `batch size = 1MB` (Servarr wiki tip).
+- **Seerr keeps separate migration histories per database.** TypeORM ships 52
+  SQLite and 18 Postgres migrations at v3.3.0. Seerr's own guide copies the
+  `migrations` table anyway; we don't. `migrations` is a `KEEP_TABLES` entry:
+  - not truncated, not loaded, and skipped by `verify.py --skip-tables`
+  - "schema ready" means Postgres has recorded every Postgres migration the
+    image ships (`/app/dist/migration/postgres`)
+- **Bazarr and Seerr use one DB each,** named `bazarr` and `seerr`. The *arrs
+  use two: `<app>-main` and `<app>-log`.
+- **Seerr's old `jellyseerr/db/db.sqlite3`** is a leftover from the Jellyseerr
+  rename, untouched since May. The live DB is `/app/config/db/db.sqlite3`.
