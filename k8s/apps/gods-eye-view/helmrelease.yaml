@@ -19,11 +19,19 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
-    # Multi-arch image, so any worker will do — but never omega, which goes
-    # offline whenever the gaming PC boots Windows.
+    # Multi-arch image; prefer alpha (only amd64 has been exercised so far),
+    # Pis as fallback — but never omega, which goes offline whenever the
+    # gaming PC boots Windows.
     defaultPodOptions:
       affinity:
         nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
