@@ -19,7 +19,8 @@
 # also shares local-zfs. That move put pbs-local and the would-be archive on
 # the same vdev, defeating the point of a separate copy, so the archive was
 # removed rather than relocated — accepted as a deliberate single-copy
-# tradeoff; offsite/second-copy redundancy is handled manually (flash drive).
+# tradeoff. There is currently NO second or offsite copy of pbs-local (an
+# earlier note here claimed a manual flash-drive copy; none exists).
 #
 # Note this protects against pool loss, not against loss of the machine — see
 # the RTO note in docs/design.md. Tank/media_root stays deliberately
