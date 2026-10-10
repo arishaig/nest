@@ -1,0 +1,120 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: gods-eye-view
+  namespace: gods-eye-view
+spec:
+  interval: 1h
+  # Explicit so kustomize-controller owns this field: a stray
+  # `flux suspend` is reverted on the next apps reconcile instead of
+  # silently freezing the release (25 media HRs sat suspended
+  # 2026-08-02..09-24). For break-glass, suspend the `apps` Kustomization.
+  suspend: false
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    # Multi-arch image; prefer alpha (only amd64 has been exercised so far),
+    # Pis as fallback — but never omega, which goes offline whenever the
+    # gaming PC boots Windows.
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: NotIn
+                    values: [omega]
+    controllers:
+      gods-eye-view:
+        strategy: Recreate
+        pod:
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+        containers:
+          app:
+            # Own fork with the trusted-proxy + runtime-config patch
+            # (github.com/arishaig/gods-eye-view, branch feat/trusted-proxy),
+            # built by the fork's image workflow. Bump to the new sha-* tag
+            # after syncing the fork with upstream.
+            image:
+              repository: ghcr.io/arishaig/gods-eye-view
+              tag: sha-2f894dd
+            env:
+              HOST: 0.0.0.0
+              PORT: "4173"
+              GEV_ALLOWED_HOSTS: globe.arishaig.site
+              # Cluster pod network: Traefik reaches the pod from here. Only
+              # these peers get X-Forwarded-* believed (origin check and
+              # per-client rate limits); external clients' real IPs already
+              # arrive via PROXY protocol from the VPS.
+              GEV_TRUSTED_PROXIES: 10.244.0.0/16
+              # OAuth when OPENSKY_CLIENT_ID/SECRET are set, else anonymous.
+              OPENSKY_AUTH_MODE: auto
+            envFrom:
+              - secretRef:
+                  name: gods-eye-view-secrets
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 4173
+                  initialDelaySeconds: 15
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 4173
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+    service:
+      app:
+        controller: gods-eye-view
+        ports:
+          http:
+            port: 4173
+            targetPort: 4173
+    persistence:
+      cache:
+        existingClaim: gods-eye-view-cache
+        globalMounts:
+          - path: /app/.gev-cache
+      logs:
+        type: emptyDir
+        globalMounts:
+          - path: /app/.gev-logs

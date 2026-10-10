@@ -39,6 +39,7 @@ check = mode == "--check"
 DIRS = {
     "media": "k8s/apps/media",
     "nest-mcp": "k8s/apps/nest-mcp",
+    "gods-eye-view": "k8s/apps/gods-eye-view",
     "authelia": "k8s/infrastructure/authelia",
     "cert-manager": "k8s/infrastructure/cert-manager",
 }
