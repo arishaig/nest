@@ -12,5 +12,11 @@ spec:
     name: flux-system
   path: ./k8s/apps
   prune: true
+  # SOPS-encrypted *.sops.yaml manifests are decrypted with the age key in
+  # flux-system/sops-age (pushed by playbooks/provision/k8s.yml; docs/secrets.md).
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
   wait: true
   timeout: 5m

@@ -7,7 +7,7 @@ reference for the key and the rules. It's updated as each phase lands.
 |---|---|---|
 | 0 | sops/age on both CI runners (#696), age + SSH recovery keys, `.sops.yaml`, this doc | done |
 | 1 | `vault.yml` → `inventory/group_vars/all.sops.yaml` (`community.sops` vars plugin); scripts and CI move to sops | done |
-| 2 | k8s Secrets generated into `k8s/**/*.sops.yaml`, decrypted by Flux (closes architecture-review C2) | — |
+| 2 | k8s Secrets generated into `k8s/**/*.sops.yaml`, decrypted by Flux (closes architecture-review C2) | in progress: `media` done; authelia, cert-manager, nest-mcp next |
 | 3 | `terraform/secrets.tfvars` → `terraform/secrets.sops.json` | — |
 
 The source of truth is `inventory/group_vars/all.sops.yaml`.
@@ -91,6 +91,32 @@ sops edit inventory/group_vars/all.sops.yaml        # edit in $EDITOR
 sops set inventory/group_vars/all.sops.yaml '["new_key"]' '"value"'
 sops decrypt --extract '["some_key"]' inventory/group_vars/all.sops.yaml
 ```
+
+## k8s Secrets (phase 2)
+
+Flux reconciles k8s Secrets from SOPS-encrypted files. Nothing pushes them.
+
+- **Spec:** `playbooks/provision/k8s-secrets.yml` lists each Secret (name,
+  namespace, data). Values reference the same vars as everything else, so
+  `group_vars/all.sops.yaml` stays the single copy.
+- **Generated files:** `scripts/render-k8s-secrets.sh` renders the spec through
+  Ansible and writes `k8s/<dir>/<name>.sops.yaml`. Only `stringData`/`data` is
+  encrypted. It also adds the file to that directory's `kustomization.yaml`.
+  It rewrites a file only when the decrypted content would change, so
+  re-running it never creates noise diffs.
+- **Flux:** the `apps` and `infrastructure` Kustomizations decrypt with
+  `flux-system/sops-age`. That's the one Secret `k8s.yml` still pushes,
+  because Flux can't decrypt the key it needs to decrypt.
+- **CI:** `lint.yml` runs `render-k8s-secrets.sh --check`. It fails if a
+  generated file is missing, stale, orphaned or not listed. The k8s-validate
+  job strips the `sops:` metadata block before strict kubeconform, so the
+  Secrets themselves are still schema-checked.
+
+To add or change a k8s Secret:
+1. Edit the entry in `k8s-secrets.yml`, and the value in `all.sops.yaml`
+   (`sops edit` / `sops set`) if needed.
+2. Run `./scripts/render-k8s-secrets.sh`.
+3. Commit both. Flux applies it on merge.
 
 ## Rotating the age key
 1. `age-keygen -o new.txt`. Add the new public key to the `recipients`

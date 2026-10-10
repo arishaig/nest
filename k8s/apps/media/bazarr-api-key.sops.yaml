@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: bazarr-api-key
+    namespace: media
+type: Opaque
+stringData:
+    APIKEY: ENC[AES256_GCM,data:+BvufWRztaJswqlx0UHnIMTp/9lpJLF1liVOBx1VUNg=,iv:NolC+T7IMpCmlopGyvja6dOc9Wk+UN8hbBTfGCjVwT4=,tag:XiQlqgakSyBxf4d/K5/QIg==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAvbUE3OW1HaXA3VzVnbEZO
+            b0IxQllaWVhGNHh2bFlabHZoRi8ySDhnQjBRCmVNd0NSQkNZWEZBak9mLzZSTGRH
+            a2Z1YmdWaDFhWHBYcmNCbTBud3VOVjgKLS0tIDQybnQ2TTI2UXBaOTAyYjE2amRF
+            UkpvdWl4QVFKUHQ5T0hwYjd0SnpyRlkKKa67us9mYebnJGYkPNxsYo4DC500Fflt
+            J+vWCF1Wbx2yHL5msrvvZWYhvhCjTJoGKQNM2KZE14Cl89sPeDoYnQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age17pgmpmdrwrdxtw3rxlyumtcl78nwv4d3errll2u687uvhkxmzg4qefuw95
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHNzaC1lZDI1NTE5IFByN0NRUSBGSWFt
+            Q3pETlVGWEx5K1Z0UmVocFk5b2Nvb2dyRG5wWktOQ3AvQkJXd1ZzCjR2NzdqVk12
+            Y2dhaGcrWkhveWZiMmNYUjcvTjZVZjN4ekR3OXZxc0E4SmsKLS0tIE5HTlRwUStG
+            VFpMemJmSjJ2TDRRejVGbDBZc0RsdXdyNTQ3eGRKdTdpSWcKhro6pWEQHoO80mr3
+            gPoZOtqBcspRp2sbBHZw2I9CPwXWpF4XGSJBGfRevR6BpN70ZK6j8wkhIthTEAXP
+            HENcYQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpbfa/Dw9jY/uvl6k549/LREsabJ21/rM52NGuofFCN
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-10T05:12:12Z"
+    mac: ENC[AES256_GCM,data:E8ibHLiz59s+no3HW+9xdfaxjwepcuJpNYFbc8TtsrxoD6SMr39j3W+DSabtNXlbXdaKASTwMTuTe/myk9KGjDDLkAcqVwU0O39SnhfVJYxWfh/f2/ZZ86tSgebBhG8FHOTEvAm7t3sRrJeNlRz29dcWo2v0OHjO+Hcdc1c1BUs=,iv:XPIGaP4RhTn2M6sAzXuVS+oVhpguIrFCbsgXmdZGa7I=,tag:YOx4/i73CFzXTlrJFyy2/g==,type:str]
+    version: 3.13.3

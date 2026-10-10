@@ -10,6 +10,12 @@ spec:
     name: flux-system
   path: ./k8s/infrastructure
   prune: true
+  # SOPS-encrypted *.sops.yaml manifests are decrypted with the age key in
+  # flux-system/sops-age (pushed by playbooks/provision/k8s.yml; docs/secrets.md).
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
   # wait: false (was true). With wait: true, this Kustomization only reports
   # Ready once EVERY reconciled object is healthy — including every infra
   # HelmRelease. `apps` dependsOn: infrastructure, so a single wedged infra
