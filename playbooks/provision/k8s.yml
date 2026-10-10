@@ -226,3 +226,21 @@
           stringData:
             ansible-on-nest: "{{ nest_mcp_ssh_private_key }}"
       no_log: true
+
+    # The age key Flux's kustomize-controller decrypts SOPS-encrypted
+    # manifests with (docs/secrets.md, phase 2). This is meant to become the
+    # only Secret this playbook pushes: everything else moves into k8s/ as
+    # *.sops.yaml. The `.agekey` suffix is how Flux recognises an age key.
+    - name: Create Flux SOPS age key secret
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: sops-age
+            namespace: flux-system
+          type: Opaque
+          stringData:
+            age.agekey: "{{ sops_age_key }}"
+      no_log: true
