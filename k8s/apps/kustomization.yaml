@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - cloudflare-ddns/
   - media/
+  - gods-eye-view/
   - headlamp/
   - mcp-rbac/
   - nest-mcp/

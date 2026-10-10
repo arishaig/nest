@@ -1,0 +1,14 @@
+# Provider caches and the TomTom daily request budget (/app/.gev-cache).
+# Light, infrequent writes — safe on the NVMe NFS share.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gods-eye-view-cache
+  namespace: gods-eye-view
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-nvme
+  resources:
+    requests:
+      storage: 2Gi

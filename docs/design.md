@@ -295,6 +295,7 @@ Storage classes:
 | `media` | sonarr+exportarr, radarr+exportarr, lidarr+exportarr, bazarr+exportarr, prowlarr+exportarr, flaresolverr, sabnzbd, seerr, tunarr, watcharr, watchback, homepage, copyparty, medialyze, metube, recommendarr, storyteller, subgen, tdarr+node, mealie+postgres (postgres-exporter hostPort 9187), recyclarr (CronJob), jellyfin |
 | `cloudflare-ddns` | cloudflare-ddns — keeps `vpn.arishaig.site` current |
 | `headlamp` | Headlamp — Kubernetes UI |
+| `gods-eye-view` | God's Eye View — 3D globe of live public feeds, at `globe.arishaig.site` behind Authelia. Image from the fork `arishaig/gods-eye-view` (trusted-proxy + runtime-key patch); provider keys in `gods-eye-view-secrets` (`gev_*` SOPS vars) |
 
 All media app configs use `nfs-nvme` PVCs; media files via `media-nfs` PVC.
 

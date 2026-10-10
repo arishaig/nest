@@ -1,0 +1,19 @@
+# Authelia in front is mandatory: the app brokers every configured provider
+# key (OpenAI, Google, ...) to anyone who can reach it.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: gods-eye-view
+  namespace: gods-eye-view
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`globe.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: gods-eye-view
+          port: 4173
+  tls: {}
