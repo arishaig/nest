@@ -42,7 +42,6 @@ age17pgmpmdrwrdxtw3rxlyumtcl78nwv4d3errll2u687uvhkxmzg4qefuw95
 | `~/.config/sops/age/keys.txt` (0600) on the workstation | sops, Ansible, scripts |
 | GitHub secret `SOPS_AGE_KEY` | CI jobs |
 | k8s Secret `flux-system/sops-age` (phase 2) | Flux kustomize-controller |
-| Flash drive | custody |
 
 **Recovery key: ed25519 SSH, held in Bitwarden** as an SSH key item, so
 Bitwarden imports it natively. Nothing automated uses it. It exists so that
