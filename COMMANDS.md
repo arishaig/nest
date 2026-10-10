@@ -24,13 +24,13 @@ ansible-playbook playbooks/site.yml --check
 cd terraform
 
 # Plan changes
-tofu plan -var-file=secrets.tfvars
+tofu plan -var-file=<(../scripts/tofu-secrets.sh)
 
 # Apply changes
-tofu apply -var-file=secrets.tfvars
+tofu apply -var-file=<(../scripts/tofu-secrets.sh)
 
 # Target a specific resource (e.g. AdGuard rewrites)
-tofu apply -var-file=secrets.tfvars -target=adguard_rewrite_rule.rewrites
+tofu apply -var-file=<(../scripts/tofu-secrets.sh) -target=adguard_rewrite_rule.rewrites
 ```
 
 ## Kubernetes

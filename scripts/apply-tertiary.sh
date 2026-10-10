@@ -23,5 +23,7 @@ for _ in $(seq 1 10); do
   sleep 1
 done
 
+# Secret variables come from group_vars/all.sops.yaml (docs/secrets.md) via a
+# pipe; no plaintext tfvars file is written.
 cd "$(dirname "$0")/../terraform"
-tofu apply --var-file=secrets.tfvars "$@"
+tofu apply -var-file=<(../scripts/tofu-secrets.sh) "$@"

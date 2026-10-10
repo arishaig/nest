@@ -347,6 +347,8 @@ jobs:
           filters: |
             tofu:
               - 'terraform/**'
+              - 'inventory/group_vars/all.sops.yaml'
+              - 'scripts/tofu-secrets.sh'
 
       - name: Write SSH key
         if: steps.filter.outputs.tofu == 'true'
@@ -355,13 +357,21 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
-      - name: Write secrets.tfvars
+      - name: Write SOPS age key
         if: steps.filter.outputs.tofu == 'true'
-        env:
-          TF_SECRETS: ${{ secrets.TF_SECRETS_TFVARS }}
         run: |
-          printf '%s' "$TF_SECRETS" > terraform/secrets.tfvars
-          chmod 600 terraform/secrets.tfvars
+          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
+          chmod 600 "$RUNNER_TEMP/age.key"
+          echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
+
+      - name: Write secrets.tfvars
+        # Generated from group_vars/all.sops.yaml (scripts/tofu-secrets.sh,
+        # docs/secrets.md); the ansible venv provides PyYAML.
+        if: steps.filter.outputs.tofu == 'true'
+        run: |
+          source /opt/ansible-runner/venv/bin/activate
+          umask 077
+          scripts/tofu-secrets.sh > terraform/secrets.tfvars
 
       - name: Restore OpenTofu state
         if: steps.filter.outputs.tofu == 'true'
