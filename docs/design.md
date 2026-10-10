@@ -486,9 +486,10 @@ provisioner is single-control-plane) and stays a manual runbook step.
 | cloudflare/cloudflare | = 5.19.1 | External DNS A records |
 | hashicorp/null | = 3.3.0 | VPS Ansible provisioning trigger |
 
-State: local (`terraform/terraform.tfstate`), backed up to NAS via rclone (encrypted).
-The state filename is unchanged under OpenTofu (`tofu` defaults to `terraform.tfstate`).
-Secrets in `terraform/secrets.tfvars` (gitignored).
+State: local (`terraform/terraform.tfstate`), backed up to the NAS age-encrypted
+(`scripts/backup-state.sh`). The state filename is unchanged under OpenTofu.
+Secret variables come from `inventory/group_vars/all.sops.yaml` through
+`scripts/tofu-secrets.sh` (see [secrets.md](secrets.md)); there is no tofu secrets file.
 
 ### Ansible
 
@@ -517,7 +518,7 @@ Talos cluster config lives in `talos/`. Bootstrap: `scripts/bootstrap-talos.sh` 
 **First-time provisioning:**
 ```bash
 cd terraform
-tofu apply -var-file=secrets.tfvars   # creates infra + triggers Ansible
+tofu apply -var-file=<(../scripts/tofu-secrets.sh)   # creates infra + triggers Ansible
 ```
 
 **Day-to-day:**
@@ -526,7 +527,7 @@ tofu apply -var-file=secrets.tfvars   # creates infra + triggers Ansible
 ansible-playbook playbooks/site.yml
 
 # Infrastructure changes
-tofu -chdir=terraform apply -var-file=secrets.tfvars
+tofu -chdir=terraform apply -var-file=<(scripts/tofu-secrets.sh)
 
 # Diagrams
 python3 scripts/generate_diagram.py

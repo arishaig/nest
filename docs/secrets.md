@@ -8,7 +8,7 @@ reference for the key and the rules. It's updated as each phase lands.
 | 0 | sops/age on both CI runners (#696), age + SSH recovery keys, `.sops.yaml`, this doc | done |
 | 1 | `vault.yml` → `inventory/group_vars/all.sops.yaml` (`community.sops` vars plugin); scripts and CI move to sops | done |
 | 2 | k8s Secrets generated into `k8s/**/*.sops.yaml`, decrypted by Flux (closes architecture-review C2) | done |
-| 3 | `terraform/secrets.tfvars` → `terraform/secrets.sops.json` | — |
+| 3 | `terraform/secrets.tfvars` → generated from `all.sops.yaml` by `scripts/tofu-secrets.sh` | done |
 
 The source of truth is `inventory/group_vars/all.sops.yaml`.
 
@@ -81,7 +81,7 @@ some).
 |---|---|
 | `k8s/**/*.sops.yaml` | only `data`/`stringData`, so kind and metadata stay readable |
 | `inventory/**/*.sops.yaml` | every value |
-| `terraform/*.sops.json` | every value |
+| `terraform/*.sops.json` | every value (rule kept; phase 3 ended up needing no tofu file) |
 
 `sops` refuses files matching no rule (`no matching creation rules found`).
 
@@ -122,6 +122,31 @@ To add or change a k8s Secret:
    (`sops edit` / `sops set`) if needed.
 2. Run `./scripts/render-k8s-secrets.sh`.
 3. Commit both. Flux applies it on merge.
+
+## OpenTofu secrets (phase 3)
+
+There's no tofu secrets file. `scripts/tofu-secrets.sh` prints the six secret
+variables as tfvars, read from `all.sops.yaml` through a variable → key map in
+the script:
+
+| tofu variable | SOPS key |
+|---|---|
+| `pve_api_token` | `tofu_pve_api_token` (`terraform@pam!terraform`) |
+| `adguard_username` / `adguard_password` | `adguard_admin_username` / `adguard_admin_password` |
+| `pbs_password` | `pbs_password` |
+| `cf_api_token` | `traefik_cf_dns_api_token`. That's the DNS-edit token; the SOPS `cf_api_token` is a different one. |
+| `vultr_api_key` | `vultr_api_key` |
+
+Four of these were stored twice before (in the vault and in the untracked
+`terraform/secrets.tfvars` / the `TF_SECRETS_TFVARS` GitHub secret). Now each
+is stored once.
+
+- **Workstation:** `tofu -chdir=terraform plan -var-file=<(scripts/tofu-secrets.sh)`.
+  That's a pipe, so no plaintext file. `scripts/apply-tertiary.sh` and
+  `terraform/import.sh` do the same.
+- **CI:** `deploy-tofu` and `tofu-plan` write the output to
+  `terraform/secrets.tfvars` (0600) for the run. Both also trigger on changes to
+  `all.sops.yaml` or the script.
 
 ## Rotating the age key
 1. `age-keygen -o new.txt`. Add the new public key to the `recipients`

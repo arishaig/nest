@@ -49,10 +49,10 @@ cat > "$SECRETS_FILE" <<EOF
 # Proxmox (vault: nest_mcp_pve_token — populated by pull-secrets.sh after tofu apply)
 NEST_PROXMOX_TOKEN=$(vaultkey "nest_mcp_pve_token")
 
-# VPS / Vultr (vault: vultr_api_key — same value as secrets.tfvars)
+# VPS / Vultr (vault: vultr_api_key — also tofu's vultr_api_key)
 NEST_VPS_VULTR_API_KEY=$(vaultkey "vultr_api_key")
 
-# Proxmox Backup Server (vault: pbs_password — same value as secrets.tfvars)
+# Proxmox Backup Server (vault: pbs_password — also tofu's pbs_password)
 NEST_PBS_PASSWORD=$(vaultkey "pbs_password")
 
 # UniFi (vault: unpoller_unifi_user / unpoller_unifi_pass)

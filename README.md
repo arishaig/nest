@@ -43,7 +43,7 @@ docs/               Design, dependencies, runbooks, generated diagrams
 
 ```bash
 # Apply infra
-tofu -chdir=terraform apply -var-file=secrets.tfvars
+tofu -chdir=terraform apply -var-file=<(scripts/tofu-secrets.sh)
 
 # Run all playbooks
 ansible-playbook playbooks/site.yml

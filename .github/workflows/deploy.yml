@@ -110,6 +110,9 @@ jobs:
               - 'inventory/group_vars/all.sops.yaml'
             tofu:
               - 'terraform/**'
+              # tofu's secret variables come from here (scripts/tofu-secrets.sh).
+              - 'inventory/group_vars/all.sops.yaml'
+              - 'scripts/tofu-secrets.sh'
             mcp:
               - 'mcp/**'
             lidarr_ui:
@@ -484,11 +487,12 @@ jobs:
           echo "SOPS_AGE_KEY_FILE=$RUNNER_TEMP/age.key" >> "$GITHUB_ENV"
 
       - name: Write secrets.tfvars
-        env:
-          TF_SECRETS: ${{ secrets.TF_SECRETS_TFVARS }}
+        # Generated from group_vars/all.sops.yaml (scripts/tofu-secrets.sh,
+        # docs/secrets.md); the ansible venv provides PyYAML.
         run: |
-          printf '%s' "$TF_SECRETS" > terraform/secrets.tfvars
-          chmod 600 terraform/secrets.tfvars
+          source /opt/ansible-runner/venv/bin/activate
+          umask 077
+          scripts/tofu-secrets.sh > terraform/secrets.tfvars
 
       - name: Restore OpenTofu state
         # Fail hard if the state is missing: applying with an empty state

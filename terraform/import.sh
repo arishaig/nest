@@ -7,11 +7,17 @@ set -uo pipefail
 #
 # Safe to re-run — already-imported resources will print a warning and continue.
 
-OPTS="-var-file=secrets.tfvars"
+# Secret variables come from group_vars/all.sops.yaml (docs/secrets.md),
+# written once to a private temp file removed on exit.
+TFVARS=$(mktemp)
+trap 'rm -f "$TFVARS"' EXIT
+chmod 600 "$TFVARS"
+../scripts/tofu-secrets.sh > "$TFVARS" || { echo "could not generate secret tfvars" >&2; exit 1; }
+OPTS=(-var-file="$TFVARS")
 
 import() {
   echo "  Importing $1..."
-  tofu import $OPTS "$1" "$2" 2>&1 || echo "  (skipped — may already be imported)"
+  tofu import "${OPTS[@]}" "$1" "$2" 2>&1 || echo "  (skipped — may already be imported)"
 }
 
 echo "=== Importing PVE Users ==="
@@ -88,4 +94,4 @@ import adguard_list_filter.hagezi_threat_intel 1771729535
 
 echo ""
 echo "=== Import complete ==="
-echo "Run 'tofu plan -var-file=secrets.tfvars' to check for drift."
+echo "Run 'tofu plan -var-file=<(../scripts/tofu-secrets.sh)' to check for drift."

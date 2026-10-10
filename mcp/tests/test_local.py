@@ -1,4 +1,5 @@
 import json
+import os
 from types import SimpleNamespace
 
 from nest_mcp.tools import local
@@ -33,11 +34,34 @@ async def test_terraform_state_propagates_failure(monkeypatch):
 
 
 async def test_terraform_plan(monkeypatch):
+    seen = {}
+
     async def fake_run(cmd, cwd=None, timeout=None):
+        if cmd[0].endswith("tofu-secrets.sh"):
+            return {"ok": True, "output": 'pbs_password = "x"'}
+        var_file = next(a for a in cmd if a.startswith("-var-file="))[len("-var-file="):]
+        seen["path"] = var_file
+        seen["content"] = open(var_file).read()
+        seen["mode"] = os.stat(var_file).st_mode & 0o777
         return {"ok": True, "output": "No changes"}
     monkeypatch.setattr(local, "_run", fake_run)
     out = await load_tools(local)["terraform_plan"]()
     assert out["output"] == "No changes"
+    assert seen["content"] == 'pbs_password = "x"\n'
+    assert seen["mode"] == 0o600
+    assert not os.path.exists(seen["path"])  # removed after the plan
+
+
+async def test_terraform_plan_secret_generation_failure(monkeypatch):
+    calls = []
+
+    async def fake_run(cmd, cwd=None, timeout=None):
+        calls.append(cmd[0])
+        return {"ok": False, "output": "sops: no key"}
+    monkeypatch.setattr(local, "_run", fake_run)
+    out = await load_tools(local)["terraform_plan"]()
+    assert out["ok"] is False and "sops: no key" in out["output"]
+    assert calls == [calls[0]] and calls[0].endswith("tofu-secrets.sh")  # tofu never ran
 
 
 async def test_lint_check_returns_run_url(monkeypatch):

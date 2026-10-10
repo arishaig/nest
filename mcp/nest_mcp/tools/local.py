@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import subprocess
+import tempfile
 
 from mcp.server.mcpserver import MCPServer
 
@@ -99,10 +100,19 @@ def register(mcp: MCPServer) -> None:
     async def terraform_plan() -> dict:
         """Run an OpenTofu plan (read-only) against the live infrastructure and return the proposed changes. Calls provider APIs so may take 30-60s."""
         terraform_dir = os.path.join(REPO_ROOT, "terraform")
-        secrets = os.path.join(terraform_dir, "secrets.tfvars")
-        result = await _run(
-            ["tofu", "plan", f"-var-file={secrets}", "-no-color", "-compact-warnings"],
-            cwd=terraform_dir,
-            timeout=120,
-        )
-        return result
+        # Secret variables are generated from group_vars/all.sops.yaml
+        # (docs/secrets.md) into a private temp file, removed after the plan.
+        gen = await _run([os.path.join(REPO_ROOT, "scripts", "tofu-secrets.sh")], timeout=60)
+        if not gen["ok"]:
+            return {"ok": False, "output": "could not generate tofu secret vars: " + gen["output"][-500:]}
+        fd, tfvars = tempfile.mkstemp(suffix=".tfvars")  # mode 0600
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(gen["output"] + "\n")
+            return await _run(
+                ["tofu", "plan", f"-var-file={tfvars}", "-no-color", "-compact-warnings"],
+                cwd=terraform_dir,
+                timeout=120,
+            )
+        finally:
+            os.unlink(tfvars)
