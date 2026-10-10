@@ -9,8 +9,15 @@ shows here:
 - Lidarr has a 0-byte `lidarr-recovered.db`.
 
 This doc moves each app that supports Postgres onto the shared `postgres`
-service (18.6, alpha). The rule is zero rows lost, proven by a checker that
-doesn't trust the copy tool.
+service (18.6, alpha; operations in [postgres.md](postgres.md)). The rule is
+zero rows lost, proven by a checker that doesn't trust the copy tool.
+
+**Status (2026-10-10):**
+- All six apps pass a rehearsal on PG18 (rehearsal log below).
+- Credentials are generated and Flux-managed.
+- Prod cutovers wait for the 72h gate: the shared Postgres has run clean on
+  alpha since 2026-10-10 01:04 UTC, so the gate ends ~2026-10-13 01:04 UTC.
+- Order: Prowlarr → Radarr → Sonarr → Bazarr → Seerr → Lidarr.
 
 ## Scope
 
@@ -30,7 +37,16 @@ is how we find out whether it works on 18 for each app. Prowlarr: it does.
 ## Shared host, one role per app
 
 Each app gets a non-superuser login role that owns `<app>-main` and
-`<app>-log`, like `jellyfin` (`playbooks/provision/k8s.yml`).
+`<app>-log` (Bazarr and Seerr: one DB each, `bazarr` and `seerr`), like
+`jellyfin`.
+
+Credentials already exist:
+- `scripts/gen-pg-app-secrets.sh` generated `<app>_postgres_user` and
+  `<app>_postgres_password` in `group_vars/all.sops.yaml` (#694).
+- Flux applies them as `<app>-postgres-secret` from
+  `k8s/apps/media/<app>-postgres-secret.sops.yaml` (docs/secrets.md).
+
+The role and DBs on the server are created by hand at cutover.
 
 The wiki says Prowlarr needs superuser for Housekeeping's VACUUM. Rehearsed
 2026-10-10: Housekeeping completes as the owner role. Postgres only skips the
