@@ -1,6 +1,7 @@
 # Placement (A3 in architecture-review.md): sabnzbd/subgen/
-# tdarr-node are hard-pinned to alpha for memory; jellyfin/tunarr/watchback
-# carry amd64 nodeSelectors they genuinely need; the *arr stack + postgres +
+# tdarr-node are hard-pinned to alpha for memory, sonarr for SQLite-on-NFS
+# stalls on the RPi5s; jellyfin/tunarr/watchback
+# carry amd64 nodeSelectors they genuinely need; the other *arrs + postgres +
 # mealie + postgres-exporter carry a soft nest.arishaig.site/workloads=general
 # preference toward alpha. Everything else here (copyparty, flaresolverr,
 # homepage, lidarr-ui, medialyze, metube, recyclarr, watcharr, recommendarr,
