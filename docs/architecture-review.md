@@ -129,7 +129,7 @@ accounts for most of the Medium findings.
 | # | Disposition | Reason |
 |---|---|---|
 | A2 | Accepted, folds into A3 | The overpacking mechanism is real (41.6% requested vs ~90% actual on alpha) but has no separate fix beyond the placement work A3 already covers — see the 2026-07-30 correction above. |
-| C2 | Accepted as documented | User decision: the Ansible-push flow stays; `disaster-recovery.md` step 6 makes the ordering explicit. SOPS migration (age key management, re-encrypting every secret, updating every HelmRelease) is real work, out of scope for this pass. |
+| C2 | **Resolved 2026-10** | Migrated to SOPS + age (docs/secrets.md). Every k8s Secret is a SOPS-encrypted manifest in `k8s/` that Flux decrypts and reconciles. `k8s.yml` only pushes `flux-system/sops-age`, the key Flux can't create itself, and a missing key fails loudly. |
 | C3 | Partially mitigated, rest deferred | `deploy.yml`'s existing `concurrency: group: deploy-${{ github.ref }}` already serializes CI-to-CI applies — the actual historical incident (duplicated AdGuard rewrites, orphaned VM) was a same-workflow race, already closed. `lint.yml`'s `tofu-plan` only ever reads state, never writes it back, so a plan/apply overlap can't corrupt it either. The one remaining gap — a workstation apply racing a CI apply — needs a real locking backend; migrating state storage safely (verify a zero-diff plan post-migration) is a dedicated task, not a same-night fix. |
 | F5 | Deferred to Helm migration phase 4 | cert-manager and MetalLB both have official charts; this is already the plan of record in the Helm migration doc, not a new decision. |
 

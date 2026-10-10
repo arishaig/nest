@@ -1,7 +1,8 @@
 ---
-# Provision k8s cluster state that cannot live in git (secrets).
-# Idempotent: uses kubectl apply with --dry-run=client to detect drift,
-# then applies only if the secret would change.
+# Push the one k8s Secret that can't live in git as a SOPS manifest: Flux's
+# own decryption key (flux-system/sops-age). Every other Secret is generated
+# into k8s/**/*.sops.yaml from k8s-secrets.yml and reconciled by Flux
+# (docs/secrets.md).
 #
 # Requires: inventory/group_vars/all.sops.yaml + the age key (docs/secrets.md)
 # Requires: kubectl configured and pointing at the Talos cluster
@@ -12,140 +13,12 @@
   gather_facts: false
 
   tasks:
-    - name: Create cert-manager namespace
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Namespace
-          metadata:
-            name: cert-manager
-
-    - name: Create cert-manager cloudflare API token secret
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: cloudflare-api-token
-            namespace: cert-manager
-          type: Opaque
-          stringData:
-            api-token: "{{ traefik_cf_dns_api_token }}"
-      no_log: true
-
-    - name: Create authelia namespace
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Namespace
-          metadata:
-            name: authelia
-
-    - name: Create authelia env secret
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: authelia-env-secret
-            namespace: authelia
-          type: Opaque
-          stringData:
-            AUTHELIA_SESSION_SECRET: "{{ authelia_session_secret }}"
-            AUTHELIA_STORAGE_ENCRYPTION_KEY: "{{ authelia_storage_encryption_key }}"
-            AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: "{{ authelia_jwt_secret }}"
-      no_log: true
-
-    - name: Create authelia config secret (rendered configuration.yml)
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: authelia-config
-            namespace: authelia
-          type: Opaque
-          stringData:
-            configuration.yml: "{{ lookup('template', 'templates/k8s/authelia-configuration.yml.j2') }}"
-      no_log: true
-
-    - name: Create authelia users ConfigMap
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: ConfigMap
-          metadata:
-            name: authelia-users
-            namespace: authelia
-          data:
-            users_database.yml: "{{ lookup('template', 'templates/docker/authelia-users.yml.j2') }}"
-
-    - name: Create nest-mcp namespace
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Namespace
-          metadata:
-            name: nest-mcp
-
-    - name: Create nest-mcp app secrets
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: nest-mcp-secrets
-            namespace: nest-mcp
-          type: Opaque
-          stringData:
-            NEST_PROXMOX_TOKEN: "{{ nest_mcp_pve_token }}"
-            NEST_VPS_VULTR_API_KEY: "{{ vultr_api_key }}"
-            NEST_PBS_PASSWORD: "{{ pbs_password }}"
-            NEST_UNIFI_USERNAME: "{{ unpoller_unifi_user }}"
-            NEST_UNIFI_PASSWORD: "{{ unpoller_unifi_pass }}"
-            NEST_ADGUARD_PASSWORD: "{{ adguard_admin_password }}"
-            NEST_HA_TOKEN: "{{ homeassistant_bearer_token }}"
-            NEST_GRAFANA_PASSWORD: "{{ grafana_admin_password }}"
-            NEST_SONARR_KEY: "{{ sonarr_api_key }}"
-            NEST_RADARR_KEY: "{{ radarr_api_key }}"
-            NEST_LIDARR_KEY: "{{ lidarr_api_key }}"
-            NEST_PROWLARR_KEY: "{{ prowlarr_api_key }}"
-            NEST_JELLYSEERR_KEY: "{{ jellyseerr_api_key }}"
-            NEST_JELLYFIN_KEY: "{{ jellyfin_api_key }}"
-            NEST_MEALIE_KEY: "{{ nest_mcp_mealie_token }}"
-            NEST_K8S_TOKEN: "{{ k8s_mcp_sa_token }}"
-            MCP_PORT: "8765"
-            MCP_AUTHELIA_ISSUER: "https://auth.arishaig.site"
-            MCP_CLIENT_ID: "nest-mcp"
-            MCP_CLIENT_SECRET: "{{ authelia_oidc_client_secret_nest_mcp }}"
-      no_log: true
-
-    - name: Create nest-mcp SSH key secret
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: nest-mcp-ssh-key
-            namespace: nest-mcp
-          type: Opaque
-          stringData:
-            ansible-on-nest: "{{ nest_mcp_ssh_private_key }}"
-      no_log: true
 
     # The age key Flux's kustomize-controller decrypts SOPS-encrypted
-    # manifests with (docs/secrets.md, phase 2). This is meant to become the
-    # only Secret this playbook pushes: everything else moves into k8s/ as
-    # *.sops.yaml. The `.agekey` suffix is how Flux recognises an age key.
+    # manifests with (docs/secrets.md). The only Secret this playbook pushes:
+    # every other k8s Secret is a *.sops.yaml in k8s/, reconciled by Flux
+    # (spec: k8s-secrets.yml). The `.agekey` suffix is how Flux recognises an
+    # age key.
     - name: Create Flux SOPS age key secret
       kubernetes.core.k8s:
         state: present

@@ -265,12 +265,15 @@ jobs:
         run: |
           flux-local test --enable-helm --path k8s/flux-system --kube-version 1.32.0
           flux-local build all --enable-helm --output-file "$RUNNER_TEMP/rendered.yaml" k8s/flux-system
-          kubeconform \
-            -strict \
-            -ignore-missing-schemas \
-            -kubernetes-version 1.32.0 \
-            -summary \
-            "$RUNNER_TEMP/rendered.yaml"
+          # flux-local drops Secrets but keeps other SOPS-encrypted kinds (the
+          # authelia-users ConfigMap); strip their `sops:` block as k8s-validate does.
+          awk '/^sops:/ {skip=1; next} skip && /^(---|[^ ])/ {skip=0} !skip' \
+            "$RUNNER_TEMP/rendered.yaml" \
+            | kubeconform \
+              -strict \
+              -ignore-missing-schemas \
+              -kubernetes-version 1.32.0 \
+              -summary
       - name: Check no workload owns its own PVC
         # Data-safety contract: every config/state PVC must be a raw, Flux-owned
         # manifest bound via existingClaim, never created by the app-template

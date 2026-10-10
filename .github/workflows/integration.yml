@@ -123,6 +123,13 @@ jobs:
             --skip-kinds Certificate,ClusterIssuer,IPAddressPool,L2Advertisement,AutoscalingRunnerSet,ClusterPolicy \
             --output-file "$RUNNER_TEMP/rendered.yaml" \
             k8s/flux-system
+          # SOPS-encrypted manifests (docs/secrets.md) carry a top-level `sops:`
+          # block that Flux strips when it decrypts; a real API server rejects it
+          # as an unknown field. flux-local drops Secrets but keeps other kinds
+          # (the authelia-users ConfigMap), so strip it here, as lint.yml does.
+          awk '/^sops:/ {skip=1; next} skip && /^(---|[^ ])/ {skip=0} !skip' \
+            "$RUNNER_TEMP/rendered.yaml" > "$RUNNER_TEMP/rendered.clean.yaml"
+          mv "$RUNNER_TEMP/rendered.clean.yaml" "$RUNNER_TEMP/rendered.yaml"
           # Every namespace a resource lives in must exist for a namespaced
           # server dry-run to resolve (dry-run never creates the namespace
           # itself). Create each referenced namespace up front; create-or-noop.

@@ -13,10 +13,9 @@ on:
         description: 'Force rebuild/deploy subgen-ui'
         type: boolean
         default: false
-      # k8s.yml pushes every k8s Secret out-of-band. It now also runs on
-      # all.sops.yaml changes, but a run can still be skipped or fail, and a
-      # Secret can sit undeployed (anagnorisis-hf-secret, missing from the
-      # cluster 2026-08-21..09-23). This forces a re-push.
+      # k8s.yml now pushes only flux-system/sops-age (every other Secret is
+      # reconciled by Flux from k8s/**/*.sops.yaml). This forces a re-push,
+      # e.g. after rotating the age key.
       force_k8s:
         description: 'Force re-run the k8s playbook (pushes k8s Secrets)'
         type: boolean
@@ -107,10 +106,8 @@ jobs:
             k8s:
               - 'playbooks/provision/k8s.yml'
               - 'playbooks/provision/templates/k8s/**'
-              # Every k8s Secret value comes from the secrets file, and authelia-config
-              # renders this template too.
+              # sops_age_key lives in the secrets file.
               - 'inventory/group_vars/all.sops.yaml'
-              - 'playbooks/provision/templates/docker/authelia-users.yml.j2'
             tofu:
               - 'terraform/**'
             mcp:
