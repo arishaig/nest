@@ -298,6 +298,11 @@ Storage classes:
 
 All media app configs use `nfs-nvme` PVCs; media files via `media-nfs` PVC.
 
+The shared `postgres` (18.6, pinned to alpha) holds Jellyfin and Mealie today.
+The *arrs, Bazarr and Seerr are moving onto it from SQLite-on-NFS. See
+[postgres.md](postgres.md) for operations, tuning, backups and restore, and
+[media-postgres-migration.md](media-postgres-migration.md) for the migration.
+
 ### Exportarr metrics (hostPort on Talos)
 
 Prometheus scrapes exportarr sidecars directly via hostPort on the Talos node:
