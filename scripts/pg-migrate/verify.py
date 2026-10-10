@@ -16,7 +16,9 @@ itself.
 Also checks: same table and column sets, schema-version table equal, and every
 identity/serial sequence at or past max(id).
 
-Usage: verify.py <clean.db> <postgres dsn> [--show-values]
+Usage: verify.py <clean.db> <postgres dsn> [--show-values] [--skip-tables a,b]
+--skip-tables names app-owned tables that legitimately differ between the two
+databases (Seerr's per-dialect TypeORM `migrations`); they are not compared.
 Failure output names differing columns only; --show-values prints the values
 too (they can include API keys, so only on a trusted terminal).
 Exit 0 only if every check passes.
@@ -36,6 +38,11 @@ SAMPLE = 5
 SHOW_VALUES = "--show-values" in sys.argv
 if SHOW_VALUES:
     sys.argv.remove("--show-values")
+SKIP_TABLES = set()
+if "--skip-tables" in sys.argv:
+    i = sys.argv.index("--skip-tables")
+    SKIP_TABLES = {t for t in sys.argv[i + 1].split(",") if t}
+    del sys.argv[i:i + 2]
 TS_RE = re.compile(
     r"^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:?\d{2})?$"
 )
@@ -208,10 +215,12 @@ def main():
     failures, lossy_total, rows_total = [], 0, 0
 
     s_tables = {r[0] for r in lite.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")} - SKIP_TABLES
     p_tables = {r[0] for r in pg.execute(
         "SELECT table_name FROM information_schema.tables "
-        "WHERE table_schema='public' AND table_type='BASE TABLE'")}
+        "WHERE table_schema='public' AND table_type='BASE TABLE'")} - SKIP_TABLES
+    if SKIP_TABLES:
+        print(f"skipping app-owned tables: {', '.join(sorted(SKIP_TABLES))}")
     for name in sorted(p_tables - s_tables):
         n = pg.execute(f'SELECT count(*) FROM public."{name}"').fetchone()[0]
         if n:
