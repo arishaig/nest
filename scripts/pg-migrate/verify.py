@@ -5,10 +5,13 @@ Independent of pgloader: reads every table on both sides, normalises each
 value by the Postgres column type, and compares the multiset of row digests
 per table (order-independent, so collation differences can't matter).
 
-The only lossy match allowed is the 7th fractional digit of a timestamp:
-.NET writes 100ns ticks and Postgres stores microseconds, rounding exactly as
-pg_round_us() does. Every such value is counted and reported. Anything else
-that differs fails, including a timestamp off by the rounding itself.
+Lossy matches allowed, each counted and reported per column:
+- the 7th fractional digit of a timestamp: .NET writes 100ns ticks and
+  Postgres stores microseconds, rounding exactly as pg_round_us() does;
+- a SQLite double in a column the app's own Postgres schema declares `real`,
+  compared at float32.
+Anything else that differs fails, including a timestamp off by the rounding
+itself.
 
 Also checks: same table and column sets, schema-version table equal, and every
 identity/serial sequence at or past max(id).
@@ -24,6 +27,7 @@ import decimal
 import hashlib
 import re
 import sqlite3
+import struct
 import sys
 
 import psycopg
@@ -166,7 +170,15 @@ def norm_side(t, col, ty, v, side):
                 return ("i", int(v))
             raise Fail(f"{t.name}.{col}: non-integer {v!r} in integer column")
         return ("i", int(v))
-    if ty in ("real", "double precision"):
+    if ty == "real":
+        # float4. Postgres sends the shortest text that round-trips at single
+        # precision ("10.86"), so compare both sides as float32. A SQLite
+        # double that float32 can't hold exactly is counted as lossy.
+        f = struct.unpack("f", struct.pack("f", float(v)))[0]
+        if side == "s" and f != float(v):
+            t.lossy[col] += 1
+        return ("f4", f)
+    if ty == "double precision":
         return ("f", float(v))
     if ty == "numeric":
         return ("n", decimal.Decimal(str(v)).normalize())
@@ -225,7 +237,7 @@ def main():
             status = f"ok   {name}: {n} rows"
             if t.lossy:
                 lossy_total += sum(t.lossy.values())
-                status += "  (sub-us timestamps rounded: " + ", ".join(
+                status += "  (precision lost: " + ", ".join(
                     f"{c}={k}" for c, k in sorted(t.lossy.items())) + ")"
             print(status)
         except Fail as e:
@@ -249,7 +261,7 @@ def main():
             failures.append(f"sequence {seq}: next value {nxt} <= max({tbl}.{col}) {mx}")
 
     print(f"\n{len(s_tables & p_tables)} tables, {rows_total} rows compared, "
-          f"{lossy_total} sub-microsecond timestamps rounded, "
+          f"{lossy_total} values lost precision (7th timestamp digit or float4), "
           f"{len(seqs)} sequences checked")
     if failures:
         print("\nFAILED:")

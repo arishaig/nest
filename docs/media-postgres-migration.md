@@ -82,7 +82,13 @@ After each app joins, watch peak memory and connection count.
   checks exact count and content, independent of order or collation.
 - **Normalisations:**
   - lossless: 0/1 ↔ bool, TEXT exact, BLOB ↔ bytea, NULL ≠ `''`, int ↔ bigint
-  - lossy, the one exception: the 7th fractional digit of a timestamp
+  - `real` (float4) columns are compared at float32. Postgres sends
+    `real` as its shortest text (`10.86`), and a naive double compare
+    fails. Radarr's `MovieMetadata.Popularity` matched exactly: Radarr
+    already stores it as a C# `float`. A SQLite double that float32 can't
+    hold would be counted as lossy.
+  - lossy, the one exception seen so far: the 7th fractional digit of a
+    timestamp
 - **Timestamps.** .NET writes 100ns ticks (`…:57.3697383Z`) and Postgres
   stores microseconds. Postgres derives the µs as `rint(strtod(frac) * 1e6)`,
   which is binary floating point, not decimal rounding: `.5054715 → .505471`,
@@ -103,6 +109,8 @@ deleted row, a changed text value, a flipped boolean, a timestamp moved
 | Date | App | Image | Result |
 |---|---|---|---|
 | 2026-10-10 | Prowlarr | `linuxserver/prowlarr@sha256:f2b26429…` (2.6.5) | PASS: main 20 tables / 37,164 rows, log 3 / 8,242; 41,371 timestamps lost their 7th digit; API counts (indexers 5, apps 4, tags 2, history 36,791) equal SQLite; Housekeeping OK as owner role |
+| 2026-10-10 | Radarr | `linuxserver/radarr@sha256:adb6c09d…` (6.4.4) | PASS: main 41 tables / 7,839 rows, log 3 / 4,021; API counts (movies 41, quality profiles 7, indexers 4, download clients 1, history 190) equal SQLite |
+| 2026-10-10 | Sonarr | `linuxserver/sonarr@sha256:a5c1a5fe…` (4.0.20) | PASS: main 38 tables / 97,168 rows, log 3 / 19,218; API counts (series 114, quality profiles 7, indexers 3, download clients 2, history 31,741) equal SQLite; EpisodeFiles 107 = 107 |
 
 ## Prod cutover (per app)
 
