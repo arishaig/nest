@@ -117,16 +117,16 @@ lidarr_postgres_password: ENC[AES256_GCM,data:637tWZd0PHy78WbG77ep9fdugu2aYlD/AA
 sops_age_key: ENC[AES256_GCM,data:oGI65gZ0yXlqKpYi3M9m8QyHFZO0f9Z/FgZh4D/LmWSg8nobTUpDlbccrkhKisF+DBIIPuWqqzMXpbiHmVluxlh+5PxCJujcpA0C,iv:UNKoG4GIuYsCnc4sTXprPgaHPVUcz6vCDFqwnrFcBSo=,tag:Rb3/P7/l3EvyANHcu8hIAA==,type:str]
 tofu_pve_api_token: ENC[AES256_GCM,data:Hnz1mKWuW2GqC4lBvN2u/rVApw5DAjfUs+LnyJ+Yed45p8p0qVU37pLPfLNz5QI89beFynNRti2wQGC6,iv:fuGgnoOloXh5uGYvdZW8/2wlECuMKJZn+tuWf5sGqgM=,tag:VDAvoCiyq1PG+ysWtkhnjg==,type:str]
 adguard_admin_username: ENC[AES256_GCM,data:VW6EiJhzYg==,iv:VFaUgypXKWrZRrU39FAQWXusaC3JoDN7LV4GnJzc02w=,tag:R7PpOoKegzpfloHsUYXm8w==,type:str]
-gev_openai_api_key: ""
+gev_openai_api_key: ENC[AES256_GCM,data:ikwBoIRBv5h/gou3xC8Jp2aMjBiEKl74X/vzpdyj2USzFg8QL6h+0V5iQwBiNj/3hIQjh9RUhPHl03XMbV5PEJDJ/j58G4NUmkEeW22I+VcAsERCHvycZhRPibR9nRFs+3wCCgAOUw0ZJa8SogNhVxcc4T3PoV9tDdesLZz8Jk8OO0GP4JODCCkevSuCDDmZjx5rS02Mc2fEZ8WKSjHqrGA1dqw=,iv:wML+Nt5stioWbtv+U7EMVToBqgFQSje+WPvyrnGBsHY=,tag:g9ohpGwBdIQhAnKO1uADhQ==,type:str]
 gev_google_maps_api_key: ""
 gev_google_maps_server_api_key: ""
-gev_cesium_ion_token: ""
-gev_mapillary_client_token: ""
-gev_aisstream_api_key: ""
-gev_opensky_client_id: ""
-gev_opensky_client_secret: ""
-gev_firms_map_key: ""
-gev_tomtom_api_key: ""
+gev_cesium_ion_token: ENC[AES256_GCM,data:TPrQY7OKrlGZMltD30phfh1dHp99brwQFD9/rG72VjgerLR/P00/STdO+9oWcYIhJYHvmbtPBIHEW000Ks7acp1jtO4nn8Dy+fKGg/BWZeFuvyfiIoaGcNQmvjDNIgA80mGDTjGueKDWqf/9hzzggED8pF3BHTQDHGL25g4beMsO7X2QqJQOPhRonqvViiEbxoOlvs5OTVPDJaxZkLDTNAHzVhbgwBVzHEnpt5t4hnXre5Zg9oyRj+IXwE5IaVXxqT8AaZYgFQuZTioYQEm+6HxGYBfzv8ap9ZWVUdE230ehUchfRUV4gfw13Fdmp/6ondirJz5mc8zuV34BSClfKNwMaeMPRhTNhFi3cSPqg0HvmXJ9mslYcuaX3MQZYHvMgeuw8SM6+RgsQeRnqHjvGo9AncvBx+kz,iv:jSJ9xA+7AriodYPc857OIOf7N7C6jDmWlNHAX490OrA=,tag:jp2n3c2c1vjJ8q4Bcz/2iQ==,type:str]
+gev_mapillary_client_token: ENC[AES256_GCM,data:wLDZflk/a3RZmCmdncrwMK9eQaw6eZq1otimV1CcKvT826palhcFyv8DBzRsJZ7uGaXzmoer,iv:Dk+Ksvofm3uTcrqwe5CNwivCXcwNHF1sse8pObt0Ccw=,tag:W3k6Y2hgJzEUBJiZV6uQzQ==,type:str]
+gev_aisstream_api_key: ENC[AES256_GCM,data:ine7ddTFFebykQ4E4d7KKju040XEa+/9fQX0xl/xKwHP3JZQ8tDH2g==,iv:+ewWlFRueOb5OvZYMGQSDbcFErr92reGM+/452HRgL4=,tag:A9l/HuiBqZZIIScjeQGtNw==,type:str]
+gev_opensky_client_id: ENC[AES256_GCM,data:rirUbybBLufXFrbXiJgRAcLXow==,iv:EuNr9YYvsX5tml8FGOstkxOa9lvewc638VFBMQ0iUtI=,tag:nk2QXTExu6kcAr1R6R87+w==,type:str]
+gev_opensky_client_secret: ENC[AES256_GCM,data:TAe4AtZ7vwglxJd37QPzfwDjfGGVgOn8R1R8hWBzHCQ=,iv:9rzjAufTAcrxyJ8fk+chY5gU2vPavBbCv/HZZisVRro=,tag:Etr6jkLpzA5lL/dworav5w==,type:str]
+gev_firms_map_key: ENC[AES256_GCM,data:83EMXvTf9J/fsvbm+nqKFJ1jZb1R1XGdbBHdqEGMgWc=,iv:Vl5PhafZrXj7jixFWk55dC3TjKN+rjdg4fVQ0SjamIY=,tag:bukmIwganzAfkUTdx3msHQ==,type:str]
+gev_tomtom_api_key: ENC[AES256_GCM,data:G+1JMm3mykiYFwyznam+K271P855VhPMh7WIm8Zxsb4=,iv:potjOIEwCmxu+ZYQdLfnTIc2Se9wvNsPQ/D7rmu6ecA=,tag:ZX0gZ7+ZtbnFnGUocGFGow==,type:str]
 authelia_oidc_client_secret_gev_mcp: ENC[AES256_GCM,data:k5OlWIGacfde3HgdS1wWxyREdQqMJryRRupr1aX1MvGQectKUTjKP/hXzLQu/sUS02HDZQrKXx+iQYXgugebRA==,iv:dvFeWTe43mtUPXpQLfoQmwb14ZVpgOF/4tDNnqf48hY=,tag:jxEWdIyb7Z73VrgSLnfN6g==,type:str]
 authelia_oidc_client_secret_gev_mcp_hash: ENC[AES256_GCM,data:93wesUy1MTGM6VhHF5jtvYAOImZFB8/brEuNBUGtbo4rcVHqB3y4lMDO26ywJAbpK/uzzrCGLZrmD4NcpKRyH6txi4yBHCCD88jBSM5OiRJSc9SkW+tXmsOW6CCuDHnjVs1HrkFJaiMZkbxKkUlgS2o7shqdLrtzQVflZU7uU4k24Fk=,iv:1OI4rf65FIaHhCXkE2lPjvmZamMvv70E4UjXO/C+dkc=,tag:wiXgzBuIOgnic5VXz8R/5w==,type:str]
 sops:
@@ -150,7 +150,7 @@ sops:
             2jPOjg==
             -----END AGE ENCRYPTED FILE-----
           recipient: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpbfa/Dw9jY/uvl6k549/LREsabJ21/rM52NGuofFCN
-    lastmodified: "2026-10-11T05:59:45Z"
-    mac: ENC[AES256_GCM,data:WmaW9c3E9EUZrnmQ7Uww8x5M8bEn5nmtBZYne+K/f7NJY48rRC1Y7gQ9mmppdUgXY75GajhH3WvO2g1tVVTIHIpEKgcOJ+Mowz6CoBDV+ZNpXMYyoxDYVGPigiJis8tXvz3qwOGqqNuzF597VJKFtiaj9LdVbch7iRJEuphnXNE=,iv:k2P7QT3qY4CHnYx7ca+wllHwMpoEoMi5bvlIaGSKFnY=,tag:pYy+KFIp9o37wqwHHFBzyQ==,type:str]
+    lastmodified: "2026-10-11T07:20:40Z"
+    mac: ENC[AES256_GCM,data:Xo/kDT+wHumOP7zQ07sQc7pIkO8MdCIq0+dJJ5cxSlU8DOijABvV+8R/WrokT0B0lhmeH6VlrJh8L7VVa3BIkc8rlaNyBi2e55c/3qShWhPbq5kIFMVWD5mObqNbmehtC1ij6vVdIx/YaVnB9Ci+T/DmnY2YkZlOSiYR0m9PhMg=,iv:r5z/Hrq+9C0aMLqi6pEHttY8h4LvvLxjQsfWaxEKmJk=,tag:ygSK5IIafsxmInNkq1dpGA==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.3
