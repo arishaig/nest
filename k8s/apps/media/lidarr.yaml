@@ -34,9 +34,7 @@ spec:
                     values: [general]
     controllers:
       lidarr:
-        # Frozen for the SQLite -> Postgres cutover
-        # (docs/media-postgres-migration.md); the cutover PR restores 1.
-        replicas: 0
+        replicas: 1
         strategy: Recreate
         pod:
           securityContext:
@@ -59,6 +57,23 @@ spec:
               PUID: "0"
               PGID: "0"
               TZ: America/Los_Angeles
+              # On the shared media Postgres since 2026-10-11
+              # (docs/media-postgres-migration.md). Rollback: revert this
+              # block and Lidarr reopens its untouched SQLite in /config.
+              LIDARR__POSTGRES__HOST: postgres
+              LIDARR__POSTGRES__PORT: "5432"
+              LIDARR__POSTGRES__MAINDB: lidarr-main
+              LIDARR__POSTGRES__LOGDB: lidarr-log
+              LIDARR__POSTGRES__USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: lidarr-postgres-secret
+                    key: POSTGRES_USER
+              LIDARR__POSTGRES__PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: lidarr-postgres-secret
+                    key: POSTGRES_PASSWORD
             probes:
               liveness:
                 enabled: true
