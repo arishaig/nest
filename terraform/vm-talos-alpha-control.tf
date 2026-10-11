@@ -23,9 +23,23 @@ resource "proxmox_virtual_environment_vm" "talos_alpha_control" {
 
   bios = "ovmf"
 
+  # The installed Talos image has no qemu-guest-agent extension (unlike alpha:
+  # `talosctl get extensions` is empty), so nothing ever answers the agent.
+  # Without this, every refresh waited bpg's 15m default for IPs that never
+  # come — the whole of deploy-tofu's runtime. Nothing reads this VM's
+  # agent-reported addresses. Drop the skip once the node runs the schematic
+  # installer with the agent.
   agent {
     enabled = true
+    wait_for_ip {
+      disabled = true
+    }
   }
+
+  # Any agent-block change is reboot-required in bpg, and this is the sole
+  # control plane: never let an apply reboot it. Reboot-requiring changes now
+  # wait (with a provider warning) for a deliberate restart.
+  reboot_after_update = false
 
   cpu {
     # Bumped from 2 (2026-08-28): 2 vCPU is under-provisioned for a sole
