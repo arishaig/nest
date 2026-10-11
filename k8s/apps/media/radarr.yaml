@@ -34,9 +34,7 @@ spec:
                     values: [general]
     controllers:
       radarr:
-        # Frozen for the SQLite -> Postgres cutover
-        # (docs/media-postgres-migration.md); the cutover PR restores 1.
-        replicas: 0
+        replicas: 1
         strategy: Recreate
         pod:
           securityContext:
@@ -53,6 +51,23 @@ spec:
               PUID: "0"
               PGID: "0"
               TZ: America/Los_Angeles
+              # On the shared media Postgres since 2026-10-11
+              # (docs/media-postgres-migration.md). Rollback: revert this
+              # block and Radarr reopens its untouched SQLite in /config.
+              RADARR__POSTGRES__HOST: postgres
+              RADARR__POSTGRES__PORT: "5432"
+              RADARR__POSTGRES__MAINDB: radarr-main
+              RADARR__POSTGRES__LOGDB: radarr-log
+              RADARR__POSTGRES__USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: radarr-postgres-secret
+                    key: POSTGRES_USER
+              RADARR__POSTGRES__PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: radarr-postgres-secret
+                    key: POSTGRES_PASSWORD
             probes:
               liveness:
                 enabled: true
