@@ -65,7 +65,8 @@ report on a dead cluster — but not *host* loss. It is not a second site.
 | Guest disks (LXCs, VMs) | — | PBS guest jobs → `pbs-local`, synced to `tank-archive` | **yes** (via Tank) | no |
 | `rpool/data/k8s-configs` | 32 GB | PBS host backup daily 03:00, synced to Tank 05:00 | **yes** | no |
 | `Tank/media_root` | 17.8 TB | **none — deliberate** | n/a | no |
-| OpenTofu state | small | `scripts/backup-state.sh` → vault-encrypted copy on the NAS | partly | no |
+| Shared Postgres (Jellyfin, Mealie, migrated media apps) | small | nightly `pg_dump` into the `postgres-data` PVC at 02:30, then the k8s-configs PBS run ([postgres.md](postgres.md)) | **yes** | no |
+| OpenTofu state | small | `scripts/backup-state.sh` → age-encrypted copy on the NAS (`*.age`; older `*.vault` copies need the old ansible-vault password) | partly | no |
 | Talos cluster CA (`talos/clusterconfig/`) | small | **gitignored; backup unverified** | unknown | unknown |
 
 ### `Tank/media_root` is deliberately unprotected
@@ -115,7 +116,8 @@ blocks the next.
 
 There is no backend and no locking; state exists as three uncoordinated copies
 (finding C3): the workstation, the CI runner at `/opt/terraform-state/nest/`, and
-a vault-encrypted copy on the NAS from `scripts/backup-state.sh`.
+an age-encrypted copy on the NAS from `scripts/backup-state.sh` (decrypt with the
+age key or the Bitwarden SSH recovery key; see that script's header).
 
 **Applying against empty or stale state is the single most damaging mistake
 available here.** It has already happened once: it duplicated every AdGuard
@@ -203,6 +205,10 @@ Restore `rpool/data/k8s-configs` from the PBS `host/k8s-configs` group before
 scaling workloads up. When restoring any SQLite-backed app, follow the WAL
 checkpoint rule in [`k8s-migration.md`](k8s-migration.md) — copying a `.db`
 without checkpointing has already corrupted a Sonarr database once.
+
+For the shared Postgres, don't trust the restored PGDATA: PBS copied it live
+with no snapshot. Restore from the newest `backups/<ts>/` dump with a
+`COMPLETE` marker instead ([postgres.md](postgres.md#restore)).
 
 ### 9. Reconverge everything else
 
