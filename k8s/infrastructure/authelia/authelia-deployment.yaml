@@ -14,6 +14,11 @@ spec:
     metadata:
       labels:
         app: authelia
+      annotations:
+        # configuration.yml is mounted by subPath, so Authelia never sees a
+        # changed Secret on its own. Bump this when authelia-config changes
+        # (e.g. a new OIDC client) to roll the pod through GitOps.
+        nest.arishaig.site/config-rev: "2026-10-10-gev-mcp"
     spec:
       enableServiceLinks: false
       containers:

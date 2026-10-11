@@ -82,6 +82,29 @@ identity_providers:
         audience:
           - 'https://mcp.arishaig.site'
           - 'https://mcp.arishaig.site/'
+      # God's Eye View as a claude.ai custom connector: the mcp-auth sidecar
+      # in k8s/apps/gods-eye-view introspects tokens issued to this client.
+      - client_id: 'gods-eye-view-mcp'
+        client_name: "God's Eye View"
+        client_secret: '{{ authelia_oidc_client_secret_gev_mcp_hash }}'
+        redirect_uris:
+          - 'https://claude.ai/api/mcp/auth_callback'
+        scopes:
+          - openid
+          - profile
+          - email
+          - offline_access
+        grant_types:
+          - authorization_code
+          - refresh_token
+        response_types:
+          - code
+        pkce_challenge_method: S256
+        authorization_policy: one_factor
+        token_endpoint_auth_method: client_secret_post
+        audience:
+          - 'https://globe-mcp.arishaig.site'
+          - 'https://globe-mcp.arishaig.site/'
       - client_id: 'mealie'
         client_name: 'Mealie'
         client_secret: '{{ authelia_oidc_client_secret_mealie_hash }}'
