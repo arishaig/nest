@@ -34,6 +34,9 @@ spec:
                     values: [general]
     controllers:
       seerr:
+        # Frozen while Radarr moves to Postgres, so requests aren't sent
+        # to a missing app (docs/media-postgres-migration.md).
+        replicas: 0
         strategy: Recreate
         containers:
           app:
