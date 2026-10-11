@@ -38,6 +38,10 @@ spec:
         replicas: 1
         strategy: Recreate
         pod:
+          annotations:
+            # Bump to restart onto a rotated sonarr-postgres-secret (env is
+            # read only at pod start).
+            nest.arishaig.site/pg-secret-rev: "2026-10-11"
           securityContext:
             runAsUser: 0
             runAsGroup: 0
