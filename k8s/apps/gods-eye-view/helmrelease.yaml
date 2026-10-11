@@ -42,6 +42,10 @@ spec:
       gods-eye-view:
         strategy: Recreate
         pod:
+          annotations:
+            # Bump to restart onto changed gods-eye-view-secrets (env is
+            # read only at pod start).
+            nest.arishaig.site/secret-rev: "2026-10-11"
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
