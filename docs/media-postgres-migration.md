@@ -12,12 +12,13 @@ This doc moves each app that supports Postgres onto the shared `postgres`
 service (18.6, alpha; operations in [postgres.md](postgres.md)). The rule is
 zero rows lost, proven by a checker that doesn't trust the copy tool.
 
-**Status (2026-10-10):**
-- All six apps pass a rehearsal on PG18 (rehearsal log below).
-- Credentials are generated and Flux-managed.
-- Prod cutovers wait for the 72h gate: the shared Postgres has run clean on
-  alpha since 2026-10-10 01:04 UTC, so the gate ends ~2026-10-13 01:04 UTC.
-- Order: Prowlarr → Radarr → Sonarr → Bazarr → Seerr → Lidarr.
+**Status (2026-10-11): all six apps run on Postgres** (cutover log below).
+- The 72h gate was waived at 28h clean (0 restarts) by the owner.
+- After all six: 31 of 200 connections, 786 MiB of the 4 GiB limit.
+- **Rollback window ends 2026-10-13 ~07:00 UTC.** After it, per app:
+  - destroy the `pre-pg-<app>-20261011` snapshot;
+  - rename the old `.db` files to `*.pre-pg`;
+  - unpin Lidarr's digest (#705).
 
 ## Scope
 
@@ -131,6 +132,23 @@ deleted row, a changed text value, a flipped boolean, a timestamp moved
 | 2026-10-10 | Bazarr | `linuxserver/bazarr@sha256:8b30e81c…` (1.6.2) | PASS: 17 tables / 912 rows, 0 values lost precision; API series 114, movies 37 equal SQLite |
 | 2026-10-10 | Seerr | `seerr-team/seerr@sha256:c92d2dc1…` (3.3.0) | PASS: 14 tables / 760 rows (`migrations` kept as Postgres created it; see gotchas); API users 1, requests 0 equal SQLite. The official pgloader image worked; the community `ralgar/pgloader` build the Seerr docs recommend wasn't needed |
 
+## Cutover log
+
+All on 2026-10-11. In every case `verify.py` ran against **prod** after
+`pg_restore`, and every row was equal with every sequence ahead.
+
+| App | Snapshot | Rows verified on prod | Smoke test | PRs |
+|---|---|---|---|---|
+| Prowlarr | `pre-pg-prowlarr-20261011` | main 37,081 / log 8,617 | indexers 5/5 valid; search wrote history to PG | #711, #712 |
+| Radarr | `pre-pg-radarr-20261011` | main 8,157 / log 4,095 | movies 43; indexers 4/4; DL client 1/1; RssSync OK | #713, #714 |
+| Sonarr | `pre-pg-sonarr-20261011` | main 97,269 / log 18,749 | series 114; indexers 3/3; DL clients 2/2; RssSync OK | #715, #716, #718 |
+| Bazarr | `pre-pg-bazarr-20261011` | 912 | series 114, movies 37; 2 PG connections | #719, #720 |
+| Seerr | `pre-pg-seerr-20261011` | 768 (+ 18 PG migrations, 16 FKs) | Radarr/Sonarr tests 200; PG xacts rose on API calls | #721 |
+| Lidarr | `pre-pg-lidarr-20261011` | main 646,467 / log 25,022 | artists 371, albums 8,661; indexers 4/4; RssSync OK; etcd fine (max 182ms apply, no slow fdatasync) | #722, #723 |
+
+Seerr stayed frozen from the Radarr freeze through its own cutover, about
+50 minutes.
+
 ## Prod cutover (per app)
 
 Order: Prowlarr → Radarr → Sonarr → Bazarr → Seerr → Lidarr. While Radarr or
@@ -168,6 +186,18 @@ Steps 2–4 are data operations outside GitOps. Each one is approved when it
 runs, as with the Jellyfin repair.
 
 ## Gotchas found so far
+- **Sonarr 4 logs its database password.** Its startup line
+  `Migrating Database=…` prints the full Npgsql connection string; Prowlarr,
+  Radarr and Lidarr print `(removed)`.
+  - Alloy now redacts `password=…` before logs reach Loki (#717).
+  - The leaked password was rotated (#718).
+  - `kubectl logs` still shows it, but only to cluster admins.
+- **pgloader warns about dropping foreign keys that don't exist** (Seerr).
+  It tries SQLite-derived names first; the result had all 16 TypeORM FKs
+  and no duplicates.
+- **Bazarr and Seerr can hold no idle connection.** To confirm they're on
+  Postgres, check `pg_stat_database.xact_commit` before and after an API
+  call, not `pg_stat_activity`.
 - **PVE host reads of a live SQLite file can fail** with `Resource temporarily
   unavailable`, apparently because the NFS client holds a lease on it. For
   rehearsal, copy through the pod: `kubectl exec ... tar`. For cutover the
