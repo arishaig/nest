@@ -35,6 +35,9 @@ spec:
                     values: [general]
     controllers:
       sonarr:
+        # Frozen for the SQLite -> Postgres cutover
+        # (docs/media-postgres-migration.md); the cutover PR restores 1.
+        replicas: 0
         strategy: Recreate
         pod:
           securityContext:
