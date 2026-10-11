@@ -34,9 +34,7 @@ spec:
                     values: [general]
     controllers:
       seerr:
-        # Frozen while Radarr moves to Postgres, so requests aren't sent
-        # to a missing app (docs/media-postgres-migration.md).
-        replicas: 0
+        replicas: 1
         strategy: Recreate
         containers:
           app:
@@ -46,6 +44,23 @@ spec:
               tag: v3.3.0
             env:
               TZ: America/Los_Angeles
+              # On the shared media Postgres since 2026-10-11
+              # (docs/media-postgres-migration.md). Rollback: revert this
+              # block and Seerr reopens its untouched SQLite in /app/config/db.
+              DB_TYPE: postgres
+              DB_HOST: postgres
+              DB_PORT: "5432"
+              DB_NAME: seerr
+              DB_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: seerr-postgres-secret
+                    key: POSTGRES_USER
+              DB_PASS:
+                valueFrom:
+                  secretKeyRef:
+                    name: seerr-postgres-secret
+                    key: POSTGRES_PASSWORD
             probes:
               liveness:
                 enabled: true
