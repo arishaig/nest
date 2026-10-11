@@ -17,3 +17,21 @@ spec:
         - name: gods-eye-view
           port: 4173
   tls: {}
+---
+# claude.ai custom connector. No Authelia forward-auth middleware here: the
+# mcp-auth sidecar is the OAuth resource server (introspects Authelia tokens
+# for the gods-eye-view-mcp client) and is the only path to the app's /mcp.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: gods-eye-view-mcp
+  namespace: gods-eye-view
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`globe-mcp.arishaig.site`)"
+      kind: Rule
+      services:
+        - name: gods-eye-view
+          port: 8080
+  tls: {}

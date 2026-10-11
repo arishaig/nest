@@ -61,6 +61,7 @@ locals {
     "audiomuse.arishaig.site"    = "192.168.1.117"
     "kiwix.arishaig.site"        = "192.168.1.117"
     "globe.arishaig.site"        = "192.168.1.117"
+    "globe-mcp.arishaig.site"    = "192.168.1.117"
 
     # UDM VPN
     "vpn.arishaig.site" = "192.168.1.1"

@@ -56,7 +56,7 @@ spec:
             # after syncing the fork with upstream.
             image:
               repository: ghcr.io/arishaig/gods-eye-view
-              tag: sha-2f894dd
+              tag: sha-e72c9cb
             env:
               HOST: 0.0.0.0
               PORT: "4173"
@@ -68,6 +68,9 @@ spec:
               GEV_TRUSTED_PROXIES: 10.244.0.0/16
               # OAuth when OPENSKY_CLIENT_ID/SECRET are set, else anonymous.
               OPENSKY_AUTH_MODE: auto
+              # Links from MCP tools (reached via mcp-auth on localhost) name
+              # the public address instead of http://localhost:4173.
+              GEV_PUBLIC_URL: https://globe.arishaig.site
             envFrom:
               - secretRef:
                   name: gods-eye-view-secrets
@@ -102,6 +105,54 @@ spec:
                 memory: 256Mi
               limits:
                 memory: 1Gi
+          # OAuth front for the app's loopback-only /mcp (claude.ai custom
+          # connector at globe-mcp.arishaig.site). Same image for its node;
+          # the script is the mcp-auth ConfigMap below.
+          mcp-auth:
+            image:
+              repository: ghcr.io/arishaig/gods-eye-view
+              tag: sha-e72c9cb
+            command: [node, /opt/mcp-auth/proxy.mjs]
+            env:
+              MCP_AUTH_PORT: "8080"
+              GEV_MCP_RESOURCE: https://globe-mcp.arishaig.site
+              AUTHELIA_ISSUER: https://auth.arishaig.site
+              GEV_MCP_CLIENT_ID: gods-eye-view-mcp
+              GEV_MCP_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: gods-eye-view-secrets
+                    key: GEV_MCP_CLIENT_SECRET
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: 8080
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: 8080
+                  periodSeconds: 10
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
     service:
       app:
         controller: gods-eye-view
@@ -109,12 +160,227 @@ spec:
           http:
             port: 4173
             targetPort: 4173
+          mcp:
+            port: 8080
+            targetPort: 8080
     persistence:
       cache:
         existingClaim: gods-eye-view-cache
-        globalMounts:
-          - path: /app/.gev-cache
+        advancedMounts:
+          gods-eye-view:
+            app:
+              - path: /app/.gev-cache
       logs:
         type: emptyDir
-        globalMounts:
-          - path: /app/.gev-logs
+        advancedMounts:
+          gods-eye-view:
+            app:
+              - path: /app/.gev-logs
+      mcp-auth:
+        type: configMap
+        identifier: mcp-auth
+        advancedMounts:
+          gods-eye-view:
+            mcp-auth:
+              - path: /opt/mcp-auth
+                readOnly: true
+    configMaps:
+      mcp-auth:
+        data:
+          # Mirrors nest-mcp (mcp/nest_mcp/serve.py + auth.py), in Node so it
+          # runs on the app's own image.
+          proxy.mjs: |
+            // OAuth front for God's Eye View's /mcp, for claude.ai custom connectors.
+            // Mirrors nest-mcp (mcp/nest_mcp/serve.py + auth.py): advertise Authelia as
+            // the authorization server, introspect each bearer token, then forward to the
+            // app's loopback-only /mcp as a local client — a loopback Host, no Origin or
+            // X-Forwarded-* headers, so the app's local-request gate admits it.
+            import { createHash } from 'node:crypto';
+            import { createServer } from 'node:http';
+
+            const PORT = Number(process.env.MCP_AUTH_PORT || 8080);
+            const RESOURCE = process.env.GEV_MCP_RESOURCE;
+            const ISSUER = process.env.AUTHELIA_ISSUER || 'https://auth.arishaig.site';
+            const CLIENT_ID = process.env.GEV_MCP_CLIENT_ID;
+            const CLIENT_SECRET = process.env.GEV_MCP_CLIENT_SECRET;
+            const UPSTREAM = process.env.GEV_MCP_UPSTREAM || 'http://127.0.0.1:4173/mcp';
+            const MAX_BODY_BYTES = 1024 * 1024;
+            const CACHE_MS = 60_000;
+            const FORWARDED_HEADERS = [
+              'content-type',
+              'accept',
+              'mcp-protocol-version',
+              'mcp-session-id',
+            ];
+
+            if (!RESOURCE || !CLIENT_ID || !CLIENT_SECRET) {
+              console.error(
+                'GEV_MCP_RESOURCE, GEV_MCP_CLIENT_ID and GEV_MCP_CLIENT_SECRET are required',
+              );
+              process.exit(1);
+            }
+
+            const DISCOVERY = {
+              issuer: RESOURCE,
+              authorization_endpoint: `${ISSUER}/api/oidc/authorization`,
+              token_endpoint: `${ISSUER}/api/oidc/token`,
+              jwks_uri: `${ISSUER}/jwks.json`,
+              response_types_supported: ['code'],
+              grant_types_supported: ['authorization_code', 'refresh_token'],
+              code_challenge_methods_supported: ['S256'],
+            };
+            const PROTECTED_RESOURCE = {
+              resource: RESOURCE,
+              authorization_servers: [ISSUER],
+              bearer_methods_supported: ['header'],
+              resource_name: "God's Eye View",
+            };
+            const CHALLENGE = `Bearer realm="${RESOURCE}", resource_metadata="${RESOURCE}/.well-known/oauth-protected-resource"`;
+
+            let introspectionUri;
+            async function introspectionEndpoint() {
+              if (!introspectionUri) {
+                const r = await fetch(`${ISSUER}/.well-known/openid-configuration`);
+                if (!r.ok) throw new Error(`openid-configuration: ${r.status}`);
+                introspectionUri = (await r.json()).introspection_endpoint;
+              }
+              return introspectionUri;
+            }
+
+            // sha256(token) -> expiry (ms). Only accepted tokens are cached.
+            const accepted = new Map();
+
+            async function tokenAccepted(token) {
+              const key = createHash('sha256').update(token).digest('hex');
+              const until = accepted.get(key);
+              if (until && until > Date.now()) return true;
+              accepted.delete(key);
+              const r = await fetch(await introspectionEndpoint(), {
+                method: 'POST',
+                headers: {
+                  'content-type': 'application/x-www-form-urlencoded',
+                  authorization: `Basic ${Buffer.from(
+                    `${encodeURIComponent(CLIENT_ID)}:${encodeURIComponent(CLIENT_SECRET)}`,
+                  ).toString('base64')}`,
+                },
+                body: new URLSearchParams({ token }),
+              });
+              if (!r.ok) throw new Error(`introspection: ${r.status}`);
+              const data = await r.json();
+              // Only tokens issued to this connector's client: a nest-mcp token is
+              // valid at Authelia but must not open this server.
+              if (data.active !== true || data.client_id !== CLIENT_ID) return false;
+              const expiresAt =
+                typeof data.exp === 'number' ? data.exp * 1000 : Date.now() + CACHE_MS;
+              accepted.set(key, Math.min(Date.now() + CACHE_MS, expiresAt));
+              if (accepted.size > 1000) accepted.clear();
+              return true;
+            }
+
+            function sendJson(res, status, body, headers = {}) {
+              res.writeHead(status, {
+                'content-type': 'application/json',
+                'cache-control': 'no-store',
+                ...headers,
+              });
+              res.end(JSON.stringify(body));
+            }
+
+            function readBody(req) {
+              return new Promise((resolve, reject) => {
+                const chunks = [];
+                let size = 0;
+                req.on('data', (chunk) => {
+                  size += chunk.length;
+                  if (size > MAX_BODY_BYTES) {
+                    reject(Object.assign(new Error('too large'), { status: 413 }));
+                    req.destroy();
+                    return;
+                  }
+                  chunks.push(chunk);
+                });
+                req.on('end', () => resolve(Buffer.concat(chunks)));
+                req.on('error', reject);
+              });
+            }
+
+            async function handle(req, res) {
+              const { pathname } = new URL(req.url, 'http://local');
+              if (req.method === 'GET' && pathname === '/healthz')
+                return sendJson(res, 200, { ok: true });
+              if (pathname.startsWith('/.well-known/oauth-protected-resource'))
+                return sendJson(res, 200, PROTECTED_RESOURCE);
+              if (pathname === '/.well-known/oauth-authorization-server')
+                return sendJson(res, 200, DISCOVERY);
+
+              const auth = req.headers.authorization || '';
+              if (!auth.startsWith('Bearer '))
+                return sendJson(
+                  res,
+                  401,
+                  { error: 'unauthorized' },
+                  { 'www-authenticate': CHALLENGE },
+                );
+              let ok;
+              try {
+                ok = await tokenAccepted(auth.slice(7).trim());
+              } catch (error) {
+                console.error(`token check failed: ${error.message}`);
+                return sendJson(res, 503, { error: 'authorization server unavailable' });
+              }
+              if (!ok)
+                return sendJson(
+                  res,
+                  401,
+                  { error: 'invalid_token' },
+                  { 'www-authenticate': `${CHALLENGE}, error="invalid_token"` },
+                );
+
+              if (pathname !== '/' && pathname !== '/mcp')
+                return sendJson(res, 404, { error: 'not found' });
+              if (req.method !== 'POST')
+                return sendJson(res, 405, { error: 'method not allowed' }, { allow: 'POST' });
+
+              let body;
+              try {
+                body = await readBody(req);
+              } catch (error) {
+                return sendJson(res, error.status || 400, { error: 'bad request' });
+              }
+              const headers = {};
+              for (const name of FORWARDED_HEADERS)
+                if (req.headers[name]) headers[name] = req.headers[name];
+              const abort = new AbortController();
+              res.on('close', () => {
+                if (!res.writableFinished) abort.abort();
+              });
+              try {
+                const upstream = await fetch(UPSTREAM, {
+                  method: 'POST',
+                  headers,
+                  body,
+                  signal: abort.signal,
+                });
+                const out = {};
+                for (const name of ['content-type', 'mcp-session-id', 'cache-control']) {
+                  const value = upstream.headers.get(name);
+                  if (value) out[name] = value;
+                }
+                res.writeHead(upstream.status, out);
+                res.end(Buffer.from(await upstream.arrayBuffer()));
+              } catch (error) {
+                if (abort.signal.aborted) return;
+                console.error(`upstream failed: ${error.message}`);
+                if (!res.headersSent) sendJson(res, 502, { error: 'upstream unavailable' });
+                else res.destroy();
+              }
+            }
+
+            createServer((req, res) => {
+              handle(req, res).catch((error) => {
+                console.error(error);
+                if (!res.headersSent) sendJson(res, 500, { error: 'internal error' });
+              });
+            }).listen(PORT, () => {
+              console.error(`mcp-auth listening on :${PORT}, forwarding to ${UPSTREAM}`);
+            });
