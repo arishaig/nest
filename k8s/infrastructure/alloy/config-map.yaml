@@ -45,6 +45,14 @@ data:
       // Parse CRI log format: timestamp stream (stdout/stderr) flags message
       stage.cri {}
 
+      // Never ship credentials to Loki. Sonarr 4 logs its full Npgsql
+      // connection string (Password=...) at every startup, unlike Prowlarr
+      // and Radarr, which print "(removed)".
+      stage.replace {
+        expression = "(?i)password=([^;\\s\"']+)"
+        replace    = "<redacted>"
+      }
+
       // Tag traefik access logs with job="traefik-access" and parse JSON for router/status
       stage.match {
         selector = "{namespace=\"traefik\", container=\"traefik\"}"
