@@ -11,6 +11,10 @@ spec:
     metadata:
       labels:
         app: alloy
+      annotations:
+        # Alloy doesn't reload config.alloy on its own: bump this when the
+        # ConfigMap changes so the DaemonSet rolls through GitOps.
+        nest.arishaig.site/config-rev: "2026-10-11-redact-passwords"
     spec:
       serviceAccountName: alloy
       tolerations:
