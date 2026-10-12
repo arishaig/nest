@@ -60,7 +60,7 @@ spec:
             # after syncing the fork with upstream.
             image:
               repository: ghcr.io/arishaig/gods-eye-view
-              tag: sha-99a7962
+              tag: sha-0c71c63
             env:
               HOST: 0.0.0.0
               PORT: "4173"
@@ -115,7 +115,7 @@ spec:
           mcp-auth:
             image:
               repository: ghcr.io/arishaig/gods-eye-view
-              tag: sha-99a7962
+              tag: sha-0c71c63
             command: [node, /opt/mcp-auth/proxy.mjs]
             env:
               MCP_AUTH_PORT: "8080"
