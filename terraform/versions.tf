@@ -16,7 +16,7 @@ terraform {
     }
     vultr = {
       source  = "vultr/vultr"
-      version = "2.32.0"
+      version = "2.33.1"
     }
     cloudflare = {
       source  = "cloudflare/cloudflare"
