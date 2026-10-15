@@ -1,0 +1,84 @@
+# On-demand GPU re-encode of oversized 1080p-and-below SDR TV remuxes
+# (script: shrink-remux/shrink-remux.sh, mounted from the shrink-remux-script
+# ConfigMap generated in kustomization.yaml). HDR is never touched; originals
+# go to the arr Recycle Bin. See the script header for modes.
+#
+# Suspended on purpose: nothing runs on a schedule. Start a run with a mode
+# argument (scan | plan <list> | test <file> | run <list>), e.g.:
+#   kubectl -n media create job shrink-scan --from=cronjob/shrink-remux --dry-run=client -o json \
+#     | jq '.spec.template.spec.containers[0].args=["scan"]' | kubectl create -f -
+# Lists live under /data/media/.shrink/ (host: /Tank/media_root/media/.shrink/).
+#
+# Pinned to omega like tdarr-node (k8s/apps/media/tdarr-node.yaml): the image is
+# the same, because it already ships jellyfin-ffmpeg with hevc_nvenc, ffprobe
+# and jq. Unlike tdarr-node, media-nfs is mounted read-write here.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: shrink-remux
+  namespace: media
+spec:
+  suspend: true
+  schedule: "0 0 1 1 *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          restartPolicy: Never
+          runtimeClassName: nvidia
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          tolerations:
+            - key: nest.arishaig.site/workloads
+              operator: Equal
+              value: omega
+              effect: PreferNoSchedule
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: nest.arishaig.site/workloads
+                        operator: In
+                        values: [omega]
+          containers:
+            - name: shrink
+              # renovate: datasource=docker depName=ghcr.io/haveagitgat/tdarr_node
+              image: ghcr.io/haveagitgat/tdarr_node:2.77.01
+              command: ["bash", "/scripts/shrink-remux.sh"]
+              args: ["scan"]
+              env:
+                - name: TZ
+                  value: America/Los_Angeles
+                - name: NVIDIA_VISIBLE_DEVICES
+                  value: all
+                # "video" exposes NVENC to ffmpeg (see tdarr-node.yaml).
+                - name: NVIDIA_DRIVER_CAPABILITIES
+                  value: compute,utility,video
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: 1Gi
+                  nvidia.com/gpu: "1"
+                limits:
+                  memory: 4Gi
+                  nvidia.com/gpu: "1"
+              volumeMounts:
+                - name: media
+                  mountPath: /data
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: media
+              persistentVolumeClaim:
+                claimName: media-nfs
+            - name: script
+              configMap:
+                name: shrink-remux-script
