@@ -31,9 +31,12 @@ spec:
         spec:
           restartPolicy: Never
           runtimeClassName: nvidia
+          # Root, like sonarr/radarr: the library is owned by 101000 and
+          # .arr-recycle by root, so no single non-root uid can do both. The
+          # script chowns each new file to match the original it replaces.
           securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
+            runAsUser: 0
+            runAsGroup: 0
           tolerations:
             - key: nest.arishaig.site/workloads
               operator: Equal

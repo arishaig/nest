@@ -242,6 +242,8 @@ quality_metrics() { # src dst duration
 swap_in() { # original encoded -> moves original to recycle, encoded into place
     local src=$1 new=$2 rel dest
     rel=${src#"$ROOT"/}
+    chown --reference="$src" -- "$new"
+    chmod --reference="$src" -- "$new"
     dest=$RECYCLE/shrink-$(date +%Y%m%d)/$rel
     mkdir -p -- "$(dirname -- "$dest")"
     mv -- "$src" "$dest"
