@@ -38,6 +38,7 @@ resources:
   - sabnzbd-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - sabnzbd.yaml  # HelmRelease (app-template) — replaces deployment+service
   - recyclarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
+  - recyclarr-configmap.yaml  # kept raw — HelmRelease mounts it via persistence (config as code)
   - recyclarr.yaml  # HelmRelease (app-template) — replaces cronjob
   # --- request management ---
   - seerr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
