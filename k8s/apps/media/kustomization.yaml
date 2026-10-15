@@ -79,6 +79,7 @@ resources:
   - tdarr-pvc.yaml  # kept raw (data safety) — both HelmReleases bind via existingClaim (shared)
   - tdarr.yaml  # HelmRelease (app-template) — replaces tdarr-server deployment+service
   - tdarr-node.yaml  # HelmRelease (app-template) — replaces tdarr-node deployment (no service)
+  - shrink-remux.yaml  # suspended CronJob — on-demand GPU shrink of 1080p SDR TV remuxes (script via the generator below)
   # --- jellyfin (postgres backend; primary instance at jellyfin.arishaig.site) ---
   - jellyfin-pgsql-config-pvc.yaml  # kept raw (data safety) — PVC keeps legacy name, bound to live data
   - jellyfin.yaml  # HelmRelease (app-template) — renamed from jellyfin-pgsql (it's the Jellyfin server)
@@ -109,6 +110,12 @@ resources:
 # Self-heal transient install/upgrade failures (e.g. helm-controller client
 # rate-limiting during a large reconcile burst). Applies to every HelmRelease
 # in this kustomization so individual files stay clean.
+configMapGenerator:
+  - name: shrink-remux-script
+    files:
+      - shrink-remux/shrink-remux.sh
+generatorOptions:
+  disableNameSuffixHash: true
 patches:
   - target:
       kind: HelmRelease
