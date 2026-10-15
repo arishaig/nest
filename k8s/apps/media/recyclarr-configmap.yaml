@@ -1,0 +1,102 @@
+# Recyclarr v8 config, owned by git. Mounted over /config/configs/recyclarr.yml
+# (recyclarr.yaml); the API keys come from the sonarr-api-key / radarr-api-key
+# Secrets via env vars, so nothing secret lives here.
+#
+# One profile per app, both named "Max Quality" so every title can eventually
+# share it:
+#   Radarr (movies): TRaSH "Remux 2160p (Alternative)" - 4K remux first, falls
+#                    back through 4K/1080p/720p/SD.
+#   Sonarr (TV):     TRaSH "WEB 2160p (Alternative)" - 4K WEB first, no remux
+#                    tier (storage), with the SD tiers switched back on so
+#                    480p-only shows can still fill missing episodes.
+# The viewing setup is a Dolby Vision + Atmos 4K TV, so the "DV (w/o HDR
+# fallback)" penalty is intentionally left off. Language: Not Original (-10000)
+# is kept, matching the guard that was on the old profiles.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recyclarr-config-yml
+  namespace: media
+data:
+  recyclarr.yml: |
+    # yaml-language-server: $schema=https://schemas.recyclarr.dev/v8/config-schema.json
+    radarr:
+      radarr-main:
+        base_url: http://radarr:7878
+        api_key: !env_var RADARR_API_KEY
+
+        quality_definition:
+          type: movie
+          preferred_ratio: 1.0
+
+        quality_profiles:
+          - trash_id: dd3cd75deb9645bae838d1c5da6388d5  # Remux 2160p (Alternative)
+            name: Max Quality
+            reset_unmatched_scores:
+              enabled: true
+
+        custom_format_groups:
+          add:
+            - trash_id: ff204bbcecdd487d1cefcefdbf0c278d  # [Optional] Golden Rule UHD
+            - trash_id: a3ac6af01d78e4f21fcb75f601ac96df  # [Unwanted] Unwanted Formats
+            - trash_id: 1616617ab3a14397a2b2321bcbda44d1  # [HDR Formats] DV Boost
+            - trash_id: b29413a7487478fe98228ce79e5689e4  # [HDR Formats] HDR10+ Boost
+            - trash_id: 13856622cf7a6c9925d3a83f8812d679  # [Optional] Language Profiles
+              select:
+                - d6e9318c875905d6cfb5bee961afcea9  # Language: Not Original
+
+    sonarr:
+      sonarr-main:
+        base_url: http://sonarr:8989
+        api_key: !env_var SONARR_API_KEY
+
+        quality_definition:
+          type: series
+          preferred_ratio: 1.0
+
+        quality_profiles:
+          - trash_id: dfa5eaae7894077ad6449169b6eb03e0  # WEB-2160p (Alternative)
+            name: Max Quality
+            reset_unmatched_scores:
+              enabled: true
+            upgrade:
+              allowed: true
+              until_quality: WEB 2160p
+            # Guide order, then the SD tiers the guide leaves off so old
+            # 480p/DVD-only shows are still grabbable.
+            qualities:
+              - name: WEB 2160p
+                qualities:
+                  - WEBRip-2160p
+                  - WEBDL-2160p
+              - name: WEB 1080p
+                qualities:
+                  - WEBRip-1080p
+                  - WEBDL-1080p
+              - name: Bluray-2160p
+              - name: Bluray-1080p
+              - name: HDTV-1080p
+              - name: WEB 720p
+                qualities:
+                  - WEBRip-720p
+                  - WEBDL-720p
+              - name: Bluray-720p
+              - name: HDTV-720p
+              - name: Bluray-576p
+              - name: WEB 480p
+                qualities:
+                  - WEBRip-480p
+                  - WEBDL-480p
+              - name: Bluray-480p
+              - name: DVD
+              - name: SDTV
+
+        custom_format_groups:
+          add:
+            - trash_id: e3f37512790f00d0e89e54fe5e790d1c  # [Optional] Golden Rule UHD
+            - trash_id: 74aff4168620ed49dcc67e92b2c2a5b4  # [Optional] Language Profiles (Not Original on by default)
+            - trash_id: 85fae4a2294965b75710ef2989c850eb  # [Streaming Services] HD/UHD boost
+            - trash_id: 59c3af66780d08332fdc64e68297098f  # [Unwanted] Unwanted Formats
+            - trash_id: e0b2774083df4265f25c9e5bc6c80940  # [HDR Formats] DV Boost
+            - trash_id: 7d366c213e5c23a052b157356fac1921  # [HDR Formats] HDR10+ Boost
+            - trash_id: e9a1944a254e6f8a9da63083f7ae15cb  # [Audio] Audio Formats (Atmos etc.; off by default for Sonarr)

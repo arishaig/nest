@@ -36,10 +36,21 @@ spec:
             image:
               # renovate: datasource=docker depName=ghcr.io/recyclarr/recyclarr
               repository: ghcr.io/recyclarr/recyclarr
-              tag: 7.3.0
+              tag: 8.7.3
             args: ["sync"]
             env:
               TZ: America/Los_Angeles
+              # Read by !env_var in the ConfigMap (recyclarr-configmap.yaml).
+              SONARR_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: sonarr-api-key
+                    key: APIKEY
+              RADARR_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: radarr-api-key
+                    key: APIKEY
             resources:
               requests:
                 cpu: 50m
@@ -56,3 +67,14 @@ spec:
           recyclarr:
             app:
               - path: /config
+      # The config is owned by git. Mounted over the single file the old PVC
+      # copy lived at (the PVC stays for cache/state/repositories).
+      recyclarr-yml:
+        type: configMap
+        name: recyclarr-config-yml
+        advancedMounts:
+          recyclarr:
+            app:
+              - path: /config/configs/recyclarr.yml
+                subPath: recyclarr.yml
+                readOnly: true
