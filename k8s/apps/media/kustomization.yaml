@@ -112,6 +112,7 @@ resources:
 # in this kustomization so individual files stay clean.
 configMapGenerator:
   - name: shrink-remux-script
+    namespace: media
     files:
       - shrink-remux/shrink-remux.sh
 generatorOptions:
