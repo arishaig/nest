@@ -1,9 +1,11 @@
 import asyncio
+import contextlib
 import json
 import re
 import time
 
 from mcp.server.mcpserver import MCPServer
+from websockets.asyncio.client import connect
 from nest_mcp import config
 from nest_mcp.http_client import make_client
 
@@ -38,6 +40,39 @@ async def _post_config(client, path: str, config: dict) -> None:
         # HA's validation message says what's wrong with the config.
         raise ValueError(f"Home Assistant rejected the config: {resp.json().get('message', resp.text)}")
     resp.raise_for_status()
+
+
+# --- WebSocket API ----------------------------------------------------------
+# Helpers (input_boolean etc.) can only be created over HA's WebSocket API;
+# there is no REST endpoint for them. It needs an admin token.
+
+@contextlib.asynccontextmanager
+async def _ws_session():
+    """Open an authenticated HA WebSocket; yield ``call(payload) -> result``."""
+    url = config.homeassistant.url.rstrip("/").replace("http", "ws", 1) + "/api/websocket"
+    async with connect(url, open_timeout=10) as ws:
+        hello = json.loads(await ws.recv())
+        if hello.get("type") != "auth_required":
+            raise ValueError(f"unexpected greeting from Home Assistant: {hello}")
+        await ws.send(json.dumps({"type": "auth", "access_token": config.homeassistant.token}))
+        reply = json.loads(await ws.recv())
+        if reply.get("type") != "auth_ok":
+            raise ValueError(f"Home Assistant rejected the token: {reply.get('message', reply)}")
+        next_id = 0
+
+        async def call(payload: dict):
+            nonlocal next_id
+            next_id += 1
+            await ws.send(json.dumps({"id": next_id, **payload}))
+            while True:
+                msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
+                if msg.get("id") != next_id:
+                    continue
+                if not msg.get("success"):
+                    raise ValueError(f"Home Assistant rejected {payload['type']}: {msg.get('error', {}).get('message', msg)}")
+                return msg.get("result")
+
+        yield call
 
 
 def _as_list(value) -> list:
@@ -357,6 +392,24 @@ def register(mcp: MCPServer) -> None:
                 raise ValueError(f"no script {script_id} to replace; pass create=True to make a new one")
             await _post_config(client, f"/api/config/script/config/{script_id}", script)
         return {"script_id": script_id, "alias": script.get("alias", ""), "created": create}
+
+    # Helpers created here are stored in HA's .storage, so they show up and stay
+    # editable in the UI (Settings -> Devices & services -> Helpers).
+
+    @mcp.tool()
+    async def ha_create_input_boolean(name: str, icon: str = "", initial: bool = False) -> dict:
+        """[DESTRUCTIVE] Create a Home Assistant toggle helper (input_boolean), e.g. a manual-override flag for an automation. Its entity_id is derived from `name` (lowercased, spaces to underscores) and is returned. Refuses if a helper with that name already exists. `initial` sets the starting state; `icon` is an optional mdi: icon. Confirm the name with the user before calling."""
+        if not name.strip():
+            raise ValueError("helper needs a name")
+        async with _ws_session() as call:
+            existing = await call({"type": "input_boolean/list"})
+            if any(h.get("name", "").casefold() == name.strip().casefold() for h in existing):
+                raise ValueError(f"an input_boolean named {name!r} already exists")
+            payload = {"type": "input_boolean/create", "name": name.strip(), "initial": initial}
+            if icon:
+                payload["icon"] = icon
+            created = await call(payload)
+        return {"entity_id": f"input_boolean.{created['id']}", "name": created["name"], "created": True}
 
     async def _fetch_automations(client, automation_id: str = "") -> tuple[list[dict], dict, dict]:
         """(automation list, {id: config or None}, {entity_id: state}) in one pass."""

@@ -1,3 +1,4 @@
+import contextlib
 import json
 
 import pytest
@@ -325,3 +326,88 @@ async def test_export_returns_configs_and_skips_unloadable(monkeypatch):
     out = await load_tools(homeassistant)["ha_export_automations"]()
     assert out == {"count": 1, "automations": [{"id": "1", "alias": "A"}],
                    "skipped": [{"automation_id": "2", "alias": "B"}]}
+
+
+def _fake_ws(monkeypatch, existing, calls):
+    """Stub _ws_session so ha_create_input_boolean runs without a socket."""
+    @contextlib.asynccontextmanager
+    async def session():
+        async def call(payload):
+            calls.append(payload)
+            if payload["type"] == "input_boolean/list":
+                return existing
+            return {"id": payload["name"].lower().replace(" ", "_"), "name": payload["name"]}
+        yield call
+    monkeypatch.setattr(homeassistant, "_ws_session", session)
+
+
+async def test_create_input_boolean(monkeypatch):
+    calls = []
+    _fake_ws(monkeypatch, [{"id": "guest_mode", "name": "Guest Mode"}], calls)
+    out = await load_tools(homeassistant)["ha_create_input_boolean"](
+        name=" Manual Color Lamp ", icon="mdi:palette")
+    assert out == {"entity_id": "input_boolean.manual_color_lamp", "name": "Manual Color Lamp", "created": True}
+    assert calls[1] == {"type": "input_boolean/create", "name": "Manual Color Lamp",
+                        "initial": False, "icon": "mdi:palette"}
+
+
+async def test_create_input_boolean_refuses_duplicate_and_blank(monkeypatch):
+    calls = []
+    _fake_ws(monkeypatch, [{"id": "guest_mode", "name": "Guest Mode"}], calls)
+    tool = load_tools(homeassistant)["ha_create_input_boolean"]
+    with pytest.raises(ValueError, match="already exists"):
+        await tool(name="guest mode")
+    with pytest.raises(ValueError, match="needs a name"):
+        await tool(name="  ")
+    assert [c["type"] for c in calls] == ["input_boolean/list"]
+
+
+class _FakeSocket:
+    def __init__(self, replies):
+        self.replies, self.sent = list(replies), []
+
+    async def recv(self):
+        return json.dumps(self.replies.pop(0))
+
+    async def send(self, data):
+        self.sent.append(json.loads(data))
+
+
+def _patch_connect(monkeypatch, socket):
+    @contextlib.asynccontextmanager
+    async def connect(url, **kwargs):
+        socket.url = url
+        yield socket
+    monkeypatch.setattr(homeassistant, "connect", connect)
+    monkeypatch.setattr(homeassistant.config.homeassistant, "url", "https://ha.example/")
+    monkeypatch.setattr(homeassistant.config.homeassistant, "token", "tok")
+
+
+async def test_ws_session_authenticates_and_matches_reply_ids(monkeypatch):
+    sock = _FakeSocket([
+        {"type": "auth_required"}, {"type": "auth_ok"},
+        {"id": 99, "type": "result", "success": True, "result": "stray"},
+        {"id": 1, "type": "result", "success": True, "result": [1]},
+    ])
+    _patch_connect(monkeypatch, sock)
+    async with homeassistant._ws_session() as call:
+        assert await call({"type": "x/list"}) == [1]
+    assert sock.url == "wss://ha.example/api/websocket"
+    assert sock.sent == [{"type": "auth", "access_token": "tok"}, {"id": 1, "type": "x/list"}]
+
+
+async def test_ws_session_errors(monkeypatch):
+    _patch_connect(monkeypatch, _FakeSocket([{"type": "auth_required"}, {"type": "auth_invalid", "message": "bad"}]))
+    with pytest.raises(ValueError, match="rejected the token"):
+        async with homeassistant._ws_session():
+            pass
+    _patch_connect(monkeypatch, _FakeSocket([{"type": "hi"}]))
+    with pytest.raises(ValueError, match="unexpected greeting"):
+        async with homeassistant._ws_session():
+            pass
+    _patch_connect(monkeypatch, _FakeSocket([
+        {"type": "auth_required"}, {"type": "auth_ok"},
+        {"id": 1, "type": "result", "success": False, "error": {"message": "nope"}}]))
+    with pytest.raises(ValueError, match="rejected x/create: nope"):
+        async with homeassistant._ws_session() as call:
+            await call({"type": "x/create"})
