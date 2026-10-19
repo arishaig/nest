@@ -17,6 +17,7 @@ Tools (nest-mcp):
 | `ha_export_automations(automation_id="")` | Read-only. Full configs, in the shape `ha_save_automation` accepts |
 | `ha_get_automation` / `ha_save_automation` / `ha_delete_automation` | Read one, replace one (destructive), delete one (destructive) |
 | `ha_list_scripts` / `ha_get_script` / `ha_save_script` | Scripts the automations call: list, read one, create or replace one (destructive) |
+| `ha_create_input_boolean(name, icon="", initial=False)` | Create a toggle helper, e.g. a manual-override flag (destructive). Returns its entity_id; refuses duplicates. Helpers can only be created over HA's WebSocket API, so this is the one tool that doesn't use REST |
 
 Scripts (`script.*`) are keyed by their scripts.yaml key, which
 `ha_list_scripts` derives from the entity_id. A script edit changes every
