@@ -93,7 +93,7 @@ spec:
       scripts:
         type: configMap
         name: jellyfin-offload-scripts
-        defaultMode: 0755
+        defaultMode: 493  # 0755 (decimal: yamllint forbids implicit octal)
         advancedMounts:
           jellyfin-ffmpeg-runner:
             app:

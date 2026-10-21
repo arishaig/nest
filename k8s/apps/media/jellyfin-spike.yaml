@@ -107,7 +107,7 @@ spec:
         - name: offload-scripts
           configMap:
             name: jellyfin-offload-scripts
-            defaultMode: 0755
+            defaultMode: 493  # 0755 (decimal: yamllint forbids implicit octal)
         - name: offload-secret
           secret:
             secretName: jellyfin-ffmpeg-runner
