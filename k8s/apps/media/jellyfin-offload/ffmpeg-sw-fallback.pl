@@ -4,18 +4,21 @@
 # is unreachable: Jellyfin is configured for NVENC, so every command line it
 # builds assumes a GPU.
 #
-# Input : ffmpeg arguments (without the program name) as argv.
-# Output: the rewritten arguments, NUL-terminated, on stdout.
-# Exit 97 (message on stderr) if a hardware construct remains that this script
-# does not know how to translate. Failing loudly beats guessing: a wrong
+# Two ways to use it:
+#   CLI    : ffmpeg arguments (without the program name) as argv; the rewritten
+#            arguments, NUL-terminated, on stdout. Exit 97 (message on stderr)
+#            if a hardware construct remains that this script cannot translate.
+#   module : `require` it, then SwFallback::rewrite(@args) returns the CPU
+#            arguments (or dies "unsupported: ..."), SwFallback::needs_gpu(@args)
+#            says whether a command line needs a GPU at all. Failing loudly beats guessing: a wrong
 # rewrite produces a silently broken stream.
 #
 # Translations are derived from command lines captured from a real
 # Jellyfin 12.1 / jellyfin-ffmpeg 8.1.2 session (see test/fixtures).
+package SwFallback;
 use strict;
 use warnings;
 
-my @in = @ARGV;
 
 # Options that only exist to set up the GPU. Each takes one value.
 my %hw_opt = map { $_ => 1 }
@@ -31,12 +34,10 @@ my %encoder = (
 # tier Jellyfin picks for software transcodes ("auto" -> veryfast).
 my %preset = (libx264 => 'veryfast', libx265 => 'veryfast', libsvtav1 => '10');
 
-my $had_hw = grep { $hw_opt{$_} } @in;
 
 sub die_unsupported {
   my ($what) = @_;
-  print STDERR "ffmpeg-sw-fallback: unsupported hardware construct: $what\n";
-  exit 97;
+  die "unsupported: $what\n";
 }
 
 sub fix_filter {
@@ -66,74 +67,100 @@ sub still_hw {
   return $s =~ /cuda|nvenc|nvdec|cuvid|_npp\b|hwupload|hwdownload|hwmap/i;
 }
 
-my @filter_opt = qw(-vf -filter_complex -lavfi);
-my %is_filter_opt = map { $_ => 1 } @filter_opt;
-my @out;
-my $past_input = 0;
-my $nvenc_seen = 0;
-my $sw_encoder = '';
+sub rewrite {
+  my @in = @_;
+  my $had_hw = grep { $hw_opt{$_} } @in;
+  my @filter_opt = qw(-vf -filter_complex -lavfi);
+  my %is_filter_opt = map { $_ => 1 } @filter_opt;
+  my @out;
+  my $past_input = 0;
+  my $nvenc_seen = 0;
+  my $sw_encoder = '';
 
-for (my $i = 0; $i < @in; $i++) {
-  my $a = $in[$i];
+  for (my $i = 0; $i < @in; $i++) {
+    my $a = $in[$i];
 
-  if ($hw_opt{$a}) { $i++; next; }
+    if ($hw_opt{$a}) { $i++; next; }
 
-  # `-threads 1` before -i is the hardware-decode setting; software decode
-  # of 4K needs ffmpeg's default threading.
-  if (!$past_input && $had_hw && $a eq '-threads' && ($in[$i + 1] // '') eq '1') {
-    $i++;
-    next;
-  }
-  $past_input = 1 if $a eq '-i';
-
-  if ($a =~ /^-(?:c|codec|vcodec)(?::v(?::\d+)?)?$/ && defined $in[$i + 1]
-      && exists $encoder{ $in[$i + 1] }) {
-    $sw_encoder = $encoder{ $in[$i + 1] };
-    $nvenc_seen = 1;
-    push @out, $a, $sw_encoder;
-    $i++;
-    next;
-  }
-
-  if ($a eq '-preset' && defined $in[$i + 1] && $in[$i + 1] =~ /^p[1-7]$/) {
-    # The preset may precede the encoder option, so resolve it in a second pass.
-    push @out, $a, "\0PRESET\0";
-    $i++;
-    next;
-  }
-
-  if ($is_filter_opt{$a} || $a =~ /^-filter(?::[a-z](?::\d+)?)?$/) {
-    push @out, $a, fix_filter($in[$i + 1] // '');
-    $i++;
-    next;
-  }
-
-  push @out, $a;
-}
-
-# Resolve preset placeholders now that the encoder is known.
-my $p = $preset{$sw_encoder} // 'veryfast';
-for my $arg (@out) { $arg = $p if $arg eq "\0PRESET\0"; }
-
-# Anything GPU-flavoured still left is something we don't understand.
-# Check option names and filter strings only: file paths may legitimately
-# contain words like "cuda".
-my $skip_next = 0;
-for (my $i = 0; $i < @out; $i++) {
-  my $a = $out[$i];
-  if ($skip_next) { $skip_next = 0; next; }
-  if ($a eq '-i' || $a eq '-hls_segment_filename') { $skip_next = 1; next; }
-  if ($a =~ /^-/) {
-    die_unsupported($a) if still_hw($a);
-    if ($is_filter_opt{$a} || $a =~ /^-filter(?::[a-z](?::\d+)?)?$/) {
-      die_unsupported("$a $out[$i + 1]") if still_hw($out[$i + 1] // '');
-      $skip_next = 1;
+    # `-threads 1` before -i is the hardware-decode setting; software decode
+    # of 4K needs ffmpeg's default threading.
+    if (!$past_input && $had_hw && $a eq '-threads' && ($in[$i + 1] // '') eq '1') {
+      $i++;
       next;
     }
-    if ($a =~ /^-(?:c|codec|vcodec)(?::|$)/) {
-      die_unsupported("$a $out[$i + 1]") if still_hw($out[$i + 1] // '');
+    $past_input = 1 if $a eq '-i';
+
+    if ($a =~ /^-(?:c|codec|vcodec)(?::v(?::\d+)?)?$/ && defined $in[$i + 1]
+        && exists $encoder{ $in[$i + 1] }) {
+      $sw_encoder = $encoder{ $in[$i + 1] };
+      $nvenc_seen = 1;
+      push @out, $a, $sw_encoder;
+      $i++;
+      next;
+    }
+
+    if ($a eq '-preset' && defined $in[$i + 1] && $in[$i + 1] =~ /^p[1-7]$/) {
+      # The preset may precede the encoder option, so resolve it in a second pass.
+      push @out, $a, "\0PRESET\0";
+      $i++;
+      next;
+    }
+
+    if ($is_filter_opt{$a} || $a =~ /^-filter(?::[a-z](?::\d+)?)?$/) {
+      push @out, $a, fix_filter($in[$i + 1] // '');
+      $i++;
+      next;
+    }
+
+    push @out, $a;
+  }
+
+  # Resolve preset placeholders now that the encoder is known.
+  my $p = $preset{$sw_encoder} // 'veryfast';
+  for my $arg (@out) { $arg = $p if $arg eq "\0PRESET\0"; }
+
+  # Anything GPU-flavoured still left is something we don't understand.
+  # Check option names and filter strings only: file paths may legitimately
+  # contain words like "cuda".
+  my $skip_next = 0;
+  for (my $i = 0; $i < @out; $i++) {
+    my $a = $out[$i];
+    if ($skip_next) { $skip_next = 0; next; }
+    if ($a eq '-i' || $a eq '-hls_segment_filename') { $skip_next = 1; next; }
+    if ($a =~ /^-/) {
+      die_unsupported($a) if still_hw($a);
+      if ($is_filter_opt{$a} || $a =~ /^-filter(?::[a-z](?::\d+)?)?$/) {
+        die_unsupported("$a $out[$i + 1]") if still_hw($out[$i + 1] // '');
+        $skip_next = 1;
+        next;
+      }
+      if ($a =~ /^-(?:c|codec|vcodec)(?::|$)/) {
+        die_unsupported("$a $out[$i + 1]") if still_hw($out[$i + 1] // '');
+      }
     }
   }
+
+  return @out;
 }
 
-print join("\0", @out), "\0";
+# True if running these arguments needs a GPU: either something gets
+# rewritten, or it contains GPU constructs we cannot translate.
+sub needs_gpu {
+  my @a = @_;
+  my @o = eval { rewrite(@a) };
+  return 1 if $@;
+  return join("\0", @o) ne join("\0", @a);
+}
+
+sub main {
+  my @out = eval { rewrite(@ARGV) };
+  if ($@) {
+    print STDERR "ffmpeg-sw-fallback: $@";
+    exit 97;
+  }
+  print join("\0", @out), "\0";
+  return 0;
+}
+
+main() unless caller;
+1;
