@@ -1,0 +1,3 @@
+#!/bin/sh
+# Jellyfin looks for ffprobe next to the configured ffmpeg path.
+exec /usr/lib/jellyfin-ffmpeg/ffprobe "$@"

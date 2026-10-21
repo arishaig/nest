@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: jellyfin-ffmpeg-runner
+    namespace: media
+type: Opaque
+stringData:
+    token: ENC[AES256_GCM,data:TJ8lKhwJBlNH8Mu3JNtj7cvzGrRaOvg3EPY5eBx5dVOv8xIU4rusKg==,iv:SyILJH4PoGZDlfhM14X4meY0rW0ieR9y+u7tAG23Ews=,tag:URDEcRPIDrfc76gBJCMkTA==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSByOXorMlh1c2lYbzRwWkVy
+            cDJCN0Vwb3BocHZrOFZvMXZrN00xR3ZBM1JrClkvU2p6d014MXg2SjRPZE5ZdjRC
+            ZXFESHZkSzlleVdubnh6anhGemNBSzQKLS0tIFRhRXkzdzZJaTdjZUN0S2EvUXRn
+            dU5JdlA4bm9IaVdHSldkVnQyd2RlUWcK9pdBslhj0wy9MvNTtRrtu+qEH3NkaVAL
+            zTWFR5fUC7P7s7fB0P3b9JtcDcTVBL+4mT0AtopeeobM4IZAlKSGtw==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age17pgmpmdrwrdxtw3rxlyumtcl78nwv4d3errll2u687uvhkxmzg4qefuw95
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHNzaC1lZDI1NTE5IFByN0NRUSBsVFNw
+            b3plQlpVUjJTdVB6V2hCbEF4TmZWM1ZJbnBwVEZGb3ZIK1g3TWlVCk9KTlRDUSts
+            WEFaTDZveHpZM282cE95RnZRazdiK0RQcjhHQXR0dGtsZWcKLS0tIHBIRHBlREdT
+            ejBNYXhuNnA1b1cvMVlsY1dFdWVaY3hIWUMwZlF1dTUzeFkK0DSW376c1io7GDwK
+            ggaeBSNDxFJpXKtxHFXzn+yhGiBISgxTDl/OnSquH9+yjwrKyq0irjE3VgCx9Z/6
+            +CzC8g==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpbfa/Dw9jY/uvl6k549/LREsabJ21/rM52NGuofFCN
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-21T01:34:35Z"
+    mac: ENC[AES256_GCM,data:14lQx0rzXQBB5H4WHFKKFeS5nSGILfZI+T+QQxNv/MkKtGG+XICulVtdggJfSa5U+F2unjJCkx922DuIkEgt25h7mJhC7fK+UfjVwekOAaIAM8rDu7kCv/E9HqUcODcSb3bgxx+y0CRMy1e6DQJWQSXp5+5bRN+XiY30RvIPljQ=,iv:ZKan7plJyyodg2y5vCTKTIIoT4eNcVMN9TwtQ7INQ2A=,tag:0J5tiUVke3chUGBnzzBpVg==,type:str]
+    version: 3.13.3
