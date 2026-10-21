@@ -6,7 +6,8 @@
 #   FFMPEG=/usr/lib/jellyfin-ffmpeg/ffmpeg \
 #   MEDIA_FILE=/path/to/4k-hdr.mkv SUB_FILE=/path/to/en.srt \
 #     test-sw-fallback.sh                     also run each rewritten command
-#                                             for 5s against MEDIA_FILE
+#                                             for $DURATION s (default 5) from
+#                                             $SEEK s in, and report speed=
 #                                             (needs HEVC HDR video, audio at
 #                                             0:1 and 0:2, PGS at 0:8)
 set -euo pipefail
@@ -104,6 +105,7 @@ if [[ -n ${FFMPEG:-} && -n ${MEDIA_FILE:-} ]]; then
       a=${REWRITTEN[j]}
       if [[ $a == -f && ${REWRITTEN[j + 1]:-} == hls ]]; then break; fi
       case $a in
+        -i) run+=(-ss "${SEEK:-0}" -i) ;;
         file:*) run+=("file:$MEDIA_FILE") ;;
         *"$fixture_srt"*) run+=("${a//"$fixture_srt"/${SUB_FILE:-$fixture_srt}}") ;;
         -probesize) run+=("$a" 20M); j=$((j + 1)) ;;
@@ -111,8 +113,18 @@ if [[ -n ${FFMPEG:-} && -n ${MEDIA_FILE:-} ]]; then
         *) run+=("$a") ;;
       esac
     done
-    if "$FFMPEG" -hide_banner -nostdin -y "${run[@]}" -t 5 -f null - >"/tmp/sw-fallback-$name.log" 2>&1; then
-      echo "ok   - $name: rewritten command runs on CPU"
+    if "$FFMPEG" -hide_banner -nostdin -y "${run[@]}" -to "$(( ${SEEK:-0} + ${DURATION:-5} ))" -f null - >"/tmp/sw-fallback-$name.log" 2>&1; then
+      # Exit 0 is not enough: a bad time window also exits 0 having encoded
+      # nothing. Require frames, and report throughput.
+      stats=$(tr '\r' '\n' <"/tmp/sw-fallback-$name.log" | grep -a '^frame=' | tail -1)
+      frames=$(grep -a -o -E 'frame= *[0-9]+' <<<"$stats" | grep -o -E '[0-9]+' || true)
+      fps=$(grep -a -o -E 'fps= *[0-9.]+' <<<"$stats" | grep -o -E '[0-9.]+' || true)
+      if [[ ${frames:-0} -gt 0 ]]; then
+        echo "ok   - $name: rewritten command runs on CPU (frames=$frames fps=${fps:-?})"
+      else
+        echo "FAIL - $name: exited 0 but encoded no frames (see /tmp/sw-fallback-$name.log)"
+        fail=1
+      fi
     else
       echo "FAIL - $name: rewritten command failed (see /tmp/sw-fallback-$name.log)"
       tail -n 5 "/tmp/sw-fallback-$name.log"
