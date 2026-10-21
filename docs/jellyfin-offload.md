@@ -48,7 +48,7 @@ Jellyfin's per-transcode ffmpeg log (`/config/log/FFmpeg.Transcode-*.log`).
   CPU (`h264_nvenc`→`libx264`, `scale_cuda`→`scale`, `tonemap_cuda`→`tonemapx`,
   `overlay_cuda`→`overlay`, drops the `-hwaccel`/`hwupload` plumbing). Anything
   GPU-flavoured it does not recognise exits 97 instead of being guessed at.
-- `jellyfin-shared-pvc.yaml` – an RWX volume mounted at the same paths in both
+- `jellyfin-scratch-nfs.yaml` – a static RWX NFS volume (PV+PVC, `lookupcache=positive`) mounted at the same paths in both
   pods: `/config/cache/transcodes`, `/config/data/subtitles`,
   `/config/data/attachments`. Jellyfin writes absolute `/config/...` paths into
   ffmpeg command lines, so both sides must see them at identical paths.

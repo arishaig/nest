@@ -114,7 +114,9 @@ sub handle {
   setsockopt($c, IPPROTO_TCP, TCP_KEEPCNT, 3);
 
   my $hello = read_line($c);
-  my ($magic, $given) = split / /, ($hello // ''), 2;
+  # A bare TCP connect with no hello is the kubelet readiness probe; stay quiet.
+  return unless defined $hello && length $hello;
+  my ($magic, $given) = split / /, $hello, 2;
   unless (($magic // '') eq 'FFRUN1' && safe_eq($given // '', $token)) {
     syswrite($c, "ERR auth\n");
     logmsg("$peer: rejected (bad hello/token)");

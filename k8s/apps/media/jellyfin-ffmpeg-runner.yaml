@@ -106,7 +106,7 @@ spec:
               - path: /data
                 readOnly: true
       shared:
-        existingClaim: jellyfin-shared
+        existingClaim: jellyfin-scratch
         advancedMounts:
           jellyfin-ffmpeg-runner:
             app:
