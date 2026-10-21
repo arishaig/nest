@@ -1,13 +1,13 @@
-# TEMPORARY spike (remove after use): throwaway Jellyfin on omega with NVENC
+# TEMPORARY spike (remove after use): throwaway Jellyfin with NVENC
 # enabled, used only to capture real ffmpeg command lines for the
-# rffmpeg/arg-rewriter design (offload Jellyfin transcodes to omega with
-# software fallback on alpha). Not wired into ingress, so it is reachable
+# ffmpeg wrapper/arg-rewriter design (offload Jellyfin transcodes to omega
+# with software fallback on alpha). Not wired into ingress, so it is reachable
 # only via `kubectl port-forward`.
 #
 # Isolated from the real Jellyfin: official sqlite image (no POSTGRES_*
 # env, so it can never touch the shared `jellyfin` DB), config/cache on
-# emptyDir, media mounted read-only. The sole shared resource is the spare
-# GPU time-slice on omega.
+# emptyDir, media mounted read-only. It shares alpha's CPU with the live
+# Jellyfin, hence the CPU limit below.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -27,21 +27,18 @@ spec:
       labels:
         app.kubernetes.io/name: jellyfin-spike
     spec:
-      # CDI isn't the cluster default; without this the pod schedules but
-      # gets no GPU (see tdarr-node.yaml).
-      runtimeClassName: nvidia
-      tolerations:
-        - key: nest.arishaig.site/workloads
-          operator: Equal
-          value: omega
-          effect: PreferNoSchedule
+      # Runs on alpha, NOT omega: this reproduces what the live Jellyfin
+      # sees (NVENC configured, no GPU on the host) so the ffmpeg wrapper and
+      # CPU-fallback rewriter can be tested without touching production.
+      nodeSelector:
+        kubernetes.io/arch: amd64
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
                   - key: nest.arishaig.site/workloads
-                    operator: In
+                    operator: NotIn
                     values: [omega]
       containers:
         - name: jellyfin
@@ -52,11 +49,6 @@ spec:
           env:
             - name: TZ
               value: America/Los_Angeles
-            - name: NVIDIA_VISIBLE_DEVICES
-              value: all
-            # "video" is what exposes NVENC/NVDEC to ffmpeg.
-            - name: NVIDIA_DRIVER_CAPABILITIES
-              value: compute,utility,video
           ports:
             - name: http
               containerPort: 8096
@@ -64,10 +56,11 @@ spec:
             requests:
               cpu: 500m
               memory: 512Mi
-              nvidia.com/gpu: "1"
+            # CPU capped so a CPU-fallback transcode test can't starve the
+            # live Jellyfin that shares alpha.
             limits:
+              cpu: "4"
               memory: 4Gi
-              nvidia.com/gpu: "1"
           volumeMounts:
             - name: config
               mountPath: /config
