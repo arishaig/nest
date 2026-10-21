@@ -84,7 +84,7 @@ resources:
   - jellyfin-pgsql-config-pvc.yaml  # kept raw (data safety) — PVC keeps legacy name, bound to live data
   - jellyfin.yaml  # HelmRelease (app-template) — renamed from jellyfin-pgsql (it's the Jellyfin server)
   - jellyfin-spike.yaml  # TEMPORARY throwaway NVENC Jellyfin on omega (ffmpeg arg capture) — remove after spike
-  - jellyfin-shared-pvc.yaml  # RWX scratch shared by Jellyfin and the omega ffmpeg runner
+  - jellyfin-scratch-nfs.yaml  # static RWX PV+PVC shared by Jellyfin and the omega ffmpeg runner (NFS lookup-cache options)
   - jellyfin-ffmpeg-runner.yaml  # HelmRelease (app-template) — GPU ffmpeg runner on omega (docs/jellyfin-offload.md)
   # --- ollama (local LLM inference, GPU; backs CutScript's AI features) ---
   - ollama-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim

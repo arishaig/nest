@@ -1,0 +1,53 @@
+# RWX scratch shared between Jellyfin (alpha) and the omega ffmpeg runner, so
+# both see the same transcode output, extracted subtitles and fonts at the
+# same paths (Jellyfin builds ffmpeg command lines with absolute /config/...
+# paths). Mounted by subPath over:
+#   /config/cache/transcodes   HLS segments ffmpeg writes, Jellyfin serves
+#   /config/data/subtitles     subtitle tracks extracted for burn-in
+#   /config/data/attachments   fonts for ASS/SSA burn-in
+# All three are regenerable caches.
+#
+# Static PV (like media-nfs) rather than a nfs-nvme claim, for the mount
+# options. Jellyfin polls for an HLS segment before ffmpeg on the other node
+# has written it, and the default NFS client then caches "no such file" for
+# tens of seconds: measured 9.6 s to see a new file, ~40 s to the first
+# segment. lookupcache=positive stops negative lookups being cached and the
+# short attribute timeout keeps growing segment files current.
+#
+# The directory is the one the old dynamic claim `jellyfin-shared` created
+# (the storage class uses onDelete: retain), so no data moves.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jellyfin-scratch-nfs
+spec:
+  capacity:
+    storage: 30Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    server: 192.168.1.16
+    path: /rpool/data/k8s-configs/media/jellyfin-shared
+  mountOptions:
+    - nfsvers=4.1
+    - proto=tcp
+    - lookupcache=positive
+    - actimeo=2
+  claimRef:
+    namespace: media
+    name: jellyfin-scratch
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellyfin-scratch
+  namespace: media
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 30Gi
+  volumeName: jellyfin-scratch-nfs
+  storageClassName: ""
