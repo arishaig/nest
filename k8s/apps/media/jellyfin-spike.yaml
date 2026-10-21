@@ -4,6 +4,10 @@
 # software fallback on alpha). Not wired into ingress, so it is reachable
 # only via `kubectl port-forward`.
 #
+# Wired like the live Jellyfin will be (JELLYFIN_FFMPEG -> offload wrapper,
+# shared transcode/subtitle volume, runner token) so the omega offload can be
+# tested end to end first. See docs/jellyfin-offload.md.
+#
 # Isolated from the real Jellyfin: official sqlite image (no POSTGRES_*
 # env, so it can never touch the shared `jellyfin` DB), config/cache on
 # emptyDir, media mounted read-only. The sole shared resource is the spare
@@ -52,6 +56,12 @@ spec:
           env:
             - name: TZ
               value: America/Los_Angeles
+            # Route every ffmpeg call through the offload wrapper, exactly as
+            # the live Jellyfin will be wired (docs/jellyfin-offload.md).
+            - name: JELLYFIN_FFMPEG
+              value: /offload/ffmpeg
+            - name: FFMPEG_RUNNER_HOST
+              value: jellyfin-ffmpeg-runner
             - name: NVIDIA_VISIBLE_DEVICES
               value: all
             # "video" is what exposes NVENC/NVDEC to ffmpeg.
@@ -76,6 +86,21 @@ spec:
             - name: media
               mountPath: /data
               readOnly: true
+            - name: offload-scripts
+              mountPath: /offload
+            - name: offload-secret
+              mountPath: /offload-secret
+              readOnly: true
+            # Same shared paths as the runner on omega.
+            - name: shared
+              mountPath: /config/cache/transcodes
+              subPath: transcodes
+            - name: shared
+              mountPath: /config/data/subtitles
+              subPath: subtitles
+            - name: shared
+              mountPath: /config/data/attachments
+              subPath: attachments
       volumes:
         - name: config
           emptyDir: {}
@@ -86,3 +111,13 @@ spec:
           persistentVolumeClaim:
             claimName: media-nfs
             readOnly: true
+        - name: offload-scripts
+          configMap:
+            name: jellyfin-offload-scripts
+            defaultMode: 0755
+        - name: offload-secret
+          secret:
+            secretName: jellyfin-ffmpeg-runner
+        - name: shared
+          persistentVolumeClaim:
+            claimName: jellyfin-shared

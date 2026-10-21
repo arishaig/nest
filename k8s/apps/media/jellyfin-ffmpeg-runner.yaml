@@ -1,0 +1,118 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: jellyfin-ffmpeg-runner
+  namespace: media
+spec:
+  interval: 1h
+  # Explicit so kustomize-controller owns this field (see tdarr-node.yaml).
+  suspend: false
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    # Runs Jellyfin's GPU transcodes on omega's RTX 3080 for the wrapper in
+    # the Jellyfin pod (k8s/apps/media/jellyfin-offload/, docs/jellyfin-offload.md).
+    # Same omega pinning as tdarr-node: whenever the owner boots Windows this
+    # sits Pending and the wrapper transparently runs the CPU fallback on alpha.
+    defaultPodOptions:
+      runtimeClassName: nvidia
+      tolerations:
+        - key: nest.arishaig.site/workloads
+          operator: Equal
+          value: omega
+          effect: PreferNoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [omega]
+    controllers:
+      jellyfin-ffmpeg-runner:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # The stock Jellyfin image: jellyfin-ffmpeg plus perl, which is
+              # all the runner needs. Keep the major.minor in step with the
+              # live Jellyfin (jpvenson/jellyfin.pgsql) so ffmpeg matches the
+              # command lines it generates.
+              # renovate: datasource=docker depName=ghcr.io/jellyfin/jellyfin
+              repository: ghcr.io/jellyfin/jellyfin
+              tag: 12.1.20260915-010956
+            command: ["/usr/bin/perl", "/offload/ffmpeg-runner.pl"]
+            env:
+              RUNNER_PORT: "9876"
+              # Concurrent GPU transcodes before new ones are declined (the
+              # wrapper then runs the CPU fallback). NVENC session limits and
+              # the 10 GB of VRAM shared with ollama/subgen bound this.
+              RUNNER_MAX: "3"
+              NVIDIA_VISIBLE_DEVICES: all
+              # "video" is what exposes NVENC/NVDEC to ffmpeg.
+              NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
+              RUNNER_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: jellyfin-ffmpeg-runner
+                    key: token
+            probes:
+              liveness:
+                enabled: false
+              startup:
+                enabled: false
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 9876
+            resources:
+              requests:
+                cpu: 500m
+                memory: 512Mi
+                nvidia.com/gpu: "1"
+              limits:
+                memory: 4Gi
+                nvidia.com/gpu: "1"
+    service:
+      app:
+        controller: jellyfin-ffmpeg-runner
+        ports:
+          http:
+            port: 9876
+            protocol: TCP
+    persistence:
+      scripts:
+        type: configMap
+        name: jellyfin-offload-scripts
+        defaultMode: 0755
+        advancedMounts:
+          jellyfin-ffmpeg-runner:
+            app:
+              - path: /offload
+      media:
+        existingClaim: media-nfs
+        advancedMounts:
+          jellyfin-ffmpeg-runner:
+            app:
+              - path: /data
+                readOnly: true
+      shared:
+        existingClaim: jellyfin-shared
+        advancedMounts:
+          jellyfin-ffmpeg-runner:
+            app:
+              - path: /config/cache/transcodes
+                subPath: transcodes
+              - path: /config/data/subtitles
+                subPath: subtitles
+              - path: /config/data/attachments
+                subPath: attachments

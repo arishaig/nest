@@ -130,6 +130,7 @@ gev_tomtom_api_key: ENC[AES256_GCM,data:G+1JMm3mykiYFwyznam+K271P855VhPMh7WIm8Zx
 authelia_oidc_client_secret_gev_mcp: ENC[AES256_GCM,data:k5OlWIGacfde3HgdS1wWxyREdQqMJryRRupr1aX1MvGQectKUTjKP/hXzLQu/sUS02HDZQrKXx+iQYXgugebRA==,iv:dvFeWTe43mtUPXpQLfoQmwb14ZVpgOF/4tDNnqf48hY=,tag:jxEWdIyb7Z73VrgSLnfN6g==,type:str]
 authelia_oidc_client_secret_gev_mcp_hash: ENC[AES256_GCM,data:93wesUy1MTGM6VhHF5jtvYAOImZFB8/brEuNBUGtbo4rcVHqB3y4lMDO26ywJAbpK/uzzrCGLZrmD4NcpKRyH6txi4yBHCCD88jBSM5OiRJSc9SkW+tXmsOW6CCuDHnjVs1HrkFJaiMZkbxKkUlgS2o7shqdLrtzQVflZU7uU4k24Fk=,iv:1OI4rf65FIaHhCXkE2lPjvmZamMvv70E4UjXO/C+dkc=,tag:wiXgzBuIOgnic5VXz8R/5w==,type:str]
 gev_home_view: ENC[AES256_GCM,data:7LxDuPl/krhCRfFBQVqiGk2MB+k=,iv:2l9wI5abvR9mxbX/5ZkJ0mL65ghOBViACWLMTwAx/28=,tag:/VkCzJU9l3CFezvKD0oZJA==,type:str]
+jellyfin_ffmpeg_runner_token: ENC[AES256_GCM,data:j8QTE8c8XthVg3fLY8sNNt53PR2vWYc1dimf/fXViid+H2Ej9YCEYg==,iv:w4lcpLF2u4I+dffjX/Ob90bAZ+4MqSIvQjDyo8SevnI=,tag:ilXrm30xr+Ij3pOeud6V+g==,type:str]
 sops:
     age:
         - enc: |
@@ -151,7 +152,7 @@ sops:
             2jPOjg==
             -----END AGE ENCRYPTED FILE-----
           recipient: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpbfa/Dw9jY/uvl6k549/LREsabJ21/rM52NGuofFCN
-    lastmodified: "2026-10-11T07:33:28Z"
-    mac: ENC[AES256_GCM,data:pIuXVFBVRqz+VK4MiYInJ5myoudSnqVe44ccbfqPaQ3fDN9XDq4n0lVMhCyaVQnupobL7QJNjzzS8URVlcDosEq0rZ+4N7l7KZBVcy0kVCwe/Inu+JjgkWx2jRkzWRhjA81SaNyY1HHCWaa2X8s+2/VMuSRHwoCXjlOqwyLfLoY=,iv:JBrhZcYXCLzUR5FpeFz+uDo7XUWvVyp7brAheoZnpJE=,tag:BSuC07H8pKwXaR920on4Ag==,type:str]
+    lastmodified: "2026-10-21T01:31:23Z"
+    mac: ENC[AES256_GCM,data:xplAAHwmYzB/KoEQadmgLyLmPgXeAtWN49qzZNjHbSwIbFBH7pC7NYqt6LHxa01WRh6BtjlazOQ/4t9lM6AkQFIXg6Gb3GcJbn+j0Ttxah+kIq/zchWdH6FnRcffkC3AlXzAXxwerBvvetney43oi7VJVUUO/rv0meCb/MUPTmI=,iv:Khd5SXSSJDW8+uAySCfZtmIXoq1iHWaUzYpCVfle3zQ=,tag:LoINL2bOyrmMgvIzXyYtbw==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.3

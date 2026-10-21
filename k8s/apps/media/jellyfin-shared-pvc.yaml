@@ -1,0 +1,19 @@
+# RWX scratch shared between Jellyfin (alpha) and the omega ffmpeg runner, so
+# both see the same transcode output, extracted subtitles and fonts at the
+# same paths (Jellyfin builds ffmpeg command lines with absolute /config/...
+# paths). Mounted by subPath over:
+#   /config/cache/transcodes   HLS segments ffmpeg writes, Jellyfin serves
+#   /config/data/subtitles     subtitle tracks extracted for burn-in
+#   /config/data/attachments   fonts for ASS/SSA burn-in
+# All three are regenerable caches.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellyfin-shared
+  namespace: media
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: nfs-nvme
+  resources:
+    requests:
+      storage: 30Gi
