@@ -1,0 +1,88 @@
+# TEMPORARY spike (remove after use): throwaway Jellyfin on omega with NVENC
+# enabled, used only to capture real ffmpeg command lines for the
+# rffmpeg/arg-rewriter design (offload Jellyfin transcodes to omega with
+# software fallback on alpha). Not wired into ingress, so it is reachable
+# only via `kubectl port-forward`.
+#
+# Isolated from the real Jellyfin: official sqlite image (no POSTGRES_*
+# env, so it can never touch the shared `jellyfin` DB), config/cache on
+# emptyDir, media mounted read-only. The sole shared resource is the spare
+# GPU time-slice on omega.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jellyfin-spike
+  namespace: media
+  labels:
+    app.kubernetes.io/name: jellyfin-spike
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jellyfin-spike
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jellyfin-spike
+    spec:
+      # CDI isn't the cluster default; without this the pod schedules but
+      # gets no GPU (see tdarr-node.yaml).
+      runtimeClassName: nvidia
+      tolerations:
+        - key: nest.arishaig.site/workloads
+          operator: Equal
+          value: omega
+          effect: PreferNoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [omega]
+      containers:
+        - name: jellyfin
+          # Same major.minor as the live jpvenson/jellyfin.pgsql:12.1-2 fork,
+          # so the generated ffmpeg arguments match production's.
+          # renovate: datasource=docker depName=ghcr.io/jellyfin/jellyfin
+          image: ghcr.io/jellyfin/jellyfin:12.1.20260915-010956
+          env:
+            - name: TZ
+              value: America/Los_Angeles
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+            # "video" is what exposes NVENC/NVDEC to ffmpeg.
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility,video
+          ports:
+            - name: http
+              containerPort: 8096
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+              nvidia.com/gpu: "1"
+            limits:
+              memory: 4Gi
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: cache
+              mountPath: /cache
+            - name: media
+              mountPath: /data
+              readOnly: true
+      volumes:
+        - name: config
+          emptyDir: {}
+        - name: cache
+          emptyDir:
+            sizeLimit: 8Gi
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-nfs
+            readOnly: true
