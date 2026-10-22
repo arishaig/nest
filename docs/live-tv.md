@@ -45,9 +45,15 @@ playlists are gone (reportedly a takedown, 2024). The helper is a stdlib-only
 Python script in a ConfigMap on `python:3.13-alpine`, no state:
 
 - `/playlist.m3u`: ~430 channels; `tvg-id` is Pluto's channel id.
-- `/ch/<id>.m3u8`: 302 to Pluto's stitcher with a fresh token (tokens last 24h;
+- `/ch/<id>.m3u8`: 302 to the best single quality level of Pluto's stitched
+  stream, with a fresh token (tokens last 24h;
   the channel list and session refresh every 6h, and the last good copy is
-  served if Pluto is unreachable).
+  served if Pluto is unreachable). Pluto's master playlist lists five qualities
+  plus audio-description and subtitle tracks; Dispatcharr's default ffmpeg
+  profile maps all of them (`-map 0`), which made channels slow to probe and
+  heavy to stream. `MAX_BANDWIDTH` (bits/s, default unlimited) caps the pick.
+  A script change needs `kubectl -n media rollout restart deploy/pluto-proxy`
+  (the ConfigMap has no name hash).
 - Dispatcharr M3U account (type **Standard**): `http://pluto-proxy:8181/playlist.m3u`.
 - Dispatcharr EPG (XMLTV): `https://i.mjh.nz/PlutoTV/us.xml`. Its channel ids
   match Pluto's (426 of 429 when checked), so EPG matching is by id.

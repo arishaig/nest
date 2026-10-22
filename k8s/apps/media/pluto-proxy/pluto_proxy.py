@@ -6,7 +6,11 @@ boot API, so there is no static playlist. This serves:
 
   /playlist.m3u     channels as an M3U; tvg-id is Pluto's channel id, which is
                     also the id in i.mjh.nz's PlutoTV/us.xml guide
-  /ch/<id>.m3u8     302 to Pluto's stitcher with a fresh token
+  /ch/<id>.m3u8     302 to the best single quality level of Pluto's stitched
+                    stream (fresh token). The master playlist lists every
+                    quality plus audio-description and subtitle tracks, and a
+                    remuxer that maps everything (Dispatcharr's default ffmpeg
+                    profile) copies them all into one huge stream.
   /healthz          200 once a session and channel list are loaded
 
 Stdlib only. Usage and caveats: docs/live-tv.md.
@@ -25,6 +29,7 @@ UA = "Mozilla/5.0"
 BOOT_URL = "https://boot.pluto.tv/v4/start"
 REFRESH = int(os.environ.get("REFRESH_SECONDS", "21600"))  # tokens last 24h
 PORT = int(os.environ.get("PORT", "8181"))
+MAX_BANDWIDTH = int(os.environ.get("MAX_BANDWIDTH", "0"))  # bits/s; 0 = best available
 CLIENT_ID = str(uuid.uuid4())
 ID_RE = re.compile(r"^[0-9a-f]{24}$")
 
@@ -111,6 +116,41 @@ def stream_url(session, channel):
         session["stitcher"], channel["path"], session["params"], session["token"])
 
 
+def pick_variant(master, base_url, max_bw=0):
+    """Absolute URL of the highest-bandwidth variant (within max_bw if set) in an
+    HLS master playlist, or None if it lists no variants."""
+    best = None
+    lines = master.splitlines()
+    for i, line in enumerate(lines):
+        m = re.match(r"#EXT-X-STREAM-INF:.*?BANDWIDTH=(\d+)", line)
+        if not m or i + 1 >= len(lines):
+            continue
+        bw, uri = int(m.group(1)), lines[i + 1].strip()
+        if not uri or uri.startswith("#") or (max_bw and bw > max_bw):
+            continue
+        if best is None or bw > best[0]:
+            best = (bw, uri)
+    return urllib.parse.urljoin(base_url, best[1]) if best else None
+
+
+def fetch_master(url):
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return r.read().decode("utf-8", "replace"), r.geturl()
+
+
+def resolve(session, channel):
+    """Best-variant URL, falling back to the master if Pluto's playlist can't be
+    read or parsed (the client then still gets a working, if heavier, stream)."""
+    master_url = stream_url(session, channel)
+    try:
+        text, final = fetch_master(master_url)
+        return pick_variant(text, final, MAX_BANDWIDTH) or master_url
+    except Exception as e:  # noqa: BLE001
+        print("variant pick failed: %s" % type(e).__name__, flush=True)
+        return master_url
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # request lines carry no secrets, but keep it quiet
         pass
@@ -137,7 +177,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, playlist(base, channels).encode(), "audio/x-mpegurl")
         m = re.match(r"^/ch/([0-9a-f]{24})\.m3u8$", path)
         if m and m.group(1) in channels:
-            return self.reply(302, headers={"Location": stream_url(session, channels[m.group(1)])})
+            return self.reply(302, headers={"Location": resolve(session, channels[m.group(1)])})
         self.reply(404, b"not found\n")
 
 
