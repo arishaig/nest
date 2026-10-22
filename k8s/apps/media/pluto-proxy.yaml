@@ -1,0 +1,88 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: pluto-proxy
+  namespace: media
+spec:
+  interval: 1h
+  # Explicit so kustomize-controller owns this field (see tunarr.yaml).
+  suspend: false
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    # Playlist + stream redirector for Pluto TV, feeding Dispatcharr
+    # (docs/live-tv.md). Stdlib-only script in the pluto-proxy-script
+    # ConfigMap (pluto-proxy/); no state, nothing to back up.
+    controllers:
+      pluto-proxy:
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=python
+              repository: python
+              tag: 3.13-alpine
+            command: [python, -I, /app/pluto_proxy.py]
+            env:
+              TZ: America/Los_Angeles
+              PORT: "8181"
+              PYTHONDONTWRITEBYTECODE: "1"
+              PYTHONUNBUFFERED: "1"
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: 8181
+                  periodSeconds: 60
+                  timeoutSeconds: 10
+                  failureThreshold: 5
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: 8181
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+    service:
+      app:
+        controller: pluto-proxy
+        type: ClusterIP
+        ports:
+          http:
+            port: 8181
+            targetPort: 8181
+    persistence:
+      script:
+        type: configMap
+        name: pluto-proxy-script
+        advancedMounts:
+          pluto-proxy:
+            app:
+              - path: /app
+                readOnly: true
