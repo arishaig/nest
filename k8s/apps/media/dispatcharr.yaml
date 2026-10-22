@@ -93,6 +93,20 @@ spec:
           http:
             port: 9191
             targetPort: 9191
+      # dispatcharr_exporter plugin (installed in /data/plugins, serves
+      # :9192/metrics). Shared MetalLB metrics IP, same pattern as the *arrs;
+      # Prometheus job `dispatcharr` in prometheus.yml.j2.
+      metrics:
+        controller: dispatcharr
+        type: LoadBalancer
+        annotations:
+          metallb.io/loadBalancerIPs: "192.168.1.116"
+          metallb.io/allow-shared-ip: "metrics"
+        ports:
+          metrics:
+            port: 9192
+            targetPort: 9192
+            nodePort: 30192
       redis:
         controller: redis
         type: ClusterIP
