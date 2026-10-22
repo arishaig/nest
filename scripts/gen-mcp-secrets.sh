@@ -80,6 +80,9 @@ NEST_JELLYSEERR_KEY=$(vaultkey "jellyseerr_api_key")
 # Jellyfin (vault: jellyfin_api_key — create "nest-mcp" key in Jellyfin dashboard, then run pull-secrets.sh)
 NEST_JELLYFIN_KEY=$(vaultkey "jellyfin_api_key")
 
+# Dispatcharr (vault: dispatcharr_api_key — API key from the Dispatcharr UI; add it to all.sops.yaml)
+NEST_DISPATCHARR_KEY=$(vaultkey "dispatcharr_api_key")
+
 # MCP HTTP server (serve.py) — only needed on the MCP LXC (192.168.1.19)
 MCP_PORT=8765
 MCP_AUTHELIA_ISSUER=https://auth.arishaig.site

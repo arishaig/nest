@@ -81,6 +81,15 @@ class JellyfinSettings(BaseSettings):
     key: str = ""
 
 
+class DispatcharrSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_DISPATCHARR_")
+    # nest-mcp runs in-cluster; reach dispatcharr via its ClusterIP Service.
+    # /output/m3u and /hdhr/lineup.json are open (LAN-only), the management
+    # API needs an X-API-Key (Dispatcharr UI -> user -> API keys).
+    url: str = "http://dispatcharr-main.media.svc.cluster.local:9191"
+    key: str = ""
+
+
 class TunarrSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_TUNARR_")
     # nest-mcp runs in-cluster; reach tunarr via its ClusterIP Service. The
@@ -170,6 +179,7 @@ traefik = TraefikSettings()
 arr = ArrSettings()
 jellyfin = JellyfinSettings()
 tunarr = TunarrSettings()
+dispatcharr = DispatcharrSettings()
 jellyseerr = JellyseerrSettings()
 vps = VpsSettings()
 docker_host = DockerHostSettings()
