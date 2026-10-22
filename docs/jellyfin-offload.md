@@ -88,9 +88,11 @@ today (Jellyfin already software-transcodes on alpha), and decode dominates
 ## Operating notes
 
 - **GPU slot.** The runner holds one `nvidia.com/gpu` time-slice. With
-  subgen, ollama, tdarr-node and audiomuse-worker that leaves none spare for
-  ad-hoc jobs such as `shrink-remux`; raise `replicas` in
-  `k8s/infrastructure/nvidia-gpu-operator/helmrelease.yaml` if that bites.
+  subgen, ollama, tdarr-node and audiomuse-worker that made five residents,
+  which used up the spare slot (#673) that ad-hoc jobs such as `shrink-remux`
+  rely on; `replicas` in
+  `k8s/infrastructure/nvidia-gpu-operator/helmrelease.yaml` is now 6 to keep one
+  free. Add a 7th, not the spare, for the next resident.
 - **Script changes need a rollout.** The ConfigMap has no name hash, so restart
   the runner and Jellyfin after changing a script.
 - **Upgrades.** After a Jellyfin bump, check the generated command lines still
