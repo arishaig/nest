@@ -1,5 +1,7 @@
 import asyncio
+import os
 import re
+import signal
 import shutil
 import time
 from urllib.parse import urlparse
@@ -28,6 +30,8 @@ _SLATE_MAX_DISTANCE = 12  # of 144 bits
 _W, _H = 96, 54
 _FRAME = _W * _H * 3
 _PROBE_MAX = 25
+_CAPTURE_GRACE = 30  # seconds beyond the capture window before a channel is abandoned
+_now = time.monotonic  # indirection so tests can drive the clock without touching asyncio's
 
 
 def _client() -> httpx.AsyncClient:
@@ -221,27 +225,48 @@ def _analyse(frames: list[bytes], slates: dict[str, str]) -> dict:
 
 
 async def _capture(url: str, seconds: int) -> dict:
-    """One ffmpeg connection: decode a frame every 2 s for `seconds`, scaled down, and keep its log."""
-    started = time.monotonic()
+    """One ffmpeg connection: decode a frame every 2 s for `seconds`, scaled down, and keep its log.
+
+    The whole capture, including connecting, is cut off after `seconds` + a grace
+    period, so one stalled channel cannot hold the caller up."""
+    started = _now()
+    deadline = started + seconds + _CAPTURE_GRACE
     proc = await asyncio.create_subprocess_exec(
         "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "info", "-t", str(seconds), "-i", url,
         "-map", "0:v:0", "-vf", f"fps=1/2,scale={_W}:{_H}", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1",
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        start_new_session=True)  # own process group, so the whole tree can be killed
     err_task = asyncio.ensure_future(proc.stderr.read())
     frames: list[bytes] = []
     first = None
+    timed_out = False
     try:
         while True:
-            frames.append(await asyncio.wait_for(proc.stdout.readexactly(_FRAME), seconds + 40))
-            first = first if first is not None else time.monotonic() - started
-    except (asyncio.IncompleteReadError, asyncio.TimeoutError):
+            left = deadline - _now()
+            if left <= 0:
+                timed_out = True
+                break
+            frames.append(await asyncio.wait_for(proc.stdout.readexactly(_FRAME), left))
+            first = first if first is not None else _now() - started
+    except asyncio.TimeoutError:
+        timed_out = True
+    except asyncio.IncompleteReadError:
         pass
     finally:
-        if proc.returncode is None:
-            proc.kill()
-        await proc.wait()
-    stderr = (await err_task).decode(errors="replace")
-    return {"frames": frames, "stderr": stderr, "startup_s": round(first, 1) if first is not None else None}
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            await asyncio.wait_for(proc.wait(), 3)
+        except asyncio.TimeoutError:
+            pass
+    try:
+        stderr = (await asyncio.wait_for(err_task, 3)).decode(errors="replace")
+    except asyncio.TimeoutError:
+        stderr = ""
+    return {"frames": frames, "stderr": stderr, "timed_out": timed_out,
+            "startup_s": round(first, 1) if first is not None else None}
 
 
 def _stream_info(stderr: str) -> dict:
@@ -272,16 +297,21 @@ def register(mcp: MCPServer) -> None:
     @mcp.tool()
     async def dispatcharr_probe_channels(
         channels: list[str] | None = None, group: str = "", search: str = "", limit: int = 10,
-        seconds: int = 6, pause: float = 3.0, slate_hashes: dict[str, str] | None = None,
-    ) -> list[dict]:
-        """Actively probe live channels through Dispatcharr's proxy (needs ffmpeg in this environment; no API key). For each: seconds to first frame, codec/resolution/fps, blank or frozen picture, and whether it shows an error slate (a known one by image fingerprint, or a static yellow-on-black text screen as a lower-confidence guess). Select by `channels` (numbers, names or UUIDs), `group` or name `search`; capped at 25 per call and run one at a time with `pause` seconds between, so it does not overload the proxy or Pluto. Pass `slate_hashes` ({name: fingerprint}) to detect a slate seen on a channel before (every probe result carries the `fingerprint` of its last frame)."""
+        seconds: int = 6, pause: float = 3.0, budget_s: float = 90.0,
+        slate_hashes: dict[str, str] | None = None,
+    ) -> dict:
+        """Actively probe live channels through Dispatcharr's proxy (needs ffmpeg in this environment; no API key). For each: seconds to first frame, codec/resolution/fps, blank or frozen picture, and whether it shows an error slate (a known one by image fingerprint, or a static yellow-on-black text screen as a lower-confidence guess). Select by `channels` (numbers, names or UUIDs), `group` or name `search`; capped at 25 per call and run one at a time with `pause` seconds between, so it does not overload the proxy or Pluto. The call stops starting new channels after `budget_s` seconds (default 90, to stay inside the MCP call timeout) and lists what it skipped, so call again with those. Pass `slate_hashes` ({name: fingerprint}) to detect a slate seen on a channel before (every probe result carries the `fingerprint` of its last frame)."""
         if shutil.which("ffmpeg") is None:
             raise RuntimeError("ffmpeg is not installed where nest-mcp runs; probing needs it "
                                "(add it to the image, or run the probe somewhere that has it)")
         picked = _select(await _lineup(), channels, group, search)[:min(limit, _PROBE_MAX)]
         slates = {**KNOWN_SLATES, **(slate_hashes or {})}
-        results = []
+        started = _now()
+        results, skipped = [], []
         for n, ch in enumerate(picked):
+            if _now() - started >= budget_s:
+                skipped.append(ch["number"] or ch["name"])
+                continue
             if n:
                 await asyncio.sleep(pause)
             row = {"number": ch["number"], "name": ch["name"], "group": ch["group"]}
@@ -291,11 +321,15 @@ def register(mcp: MCPServer) -> None:
             row.update(_stream_info(cap["stderr"]))
             if cap["frames"]:
                 row.update(_analyse(cap["frames"], slates))
+            elif cap.get("timed_out"):
+                row["error"] = "timed out waiting for video"
             else:
                 tail = [ln for ln in cap["stderr"].strip().splitlines() if ln.strip()][-1:]
                 row["error"] = tail[0][-160:] if tail else "no frames decoded"
+            if cap.get("timed_out") and cap["frames"]:
+                row["partial"] = True
             results.append(row)
-        return results
+        return {"probed": results, "skipped": skipped, "budget_exhausted": bool(skipped)}
 
     # ── Read: management API (needs the API key) ──────────────────────────────
 

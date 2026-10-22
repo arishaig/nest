@@ -109,14 +109,20 @@ The `dispatcharr_*` tools (`mcp/nest_mcp/tools/dispatcharr.py`) cover this setup
 
 - **Management** (channels, streams, profiles, M3U/EPG refresh, a raw-API
   escape hatch) uses an `X-API-Key`. Generate it in the Dispatcharr UI (user
-  menu, API keys) and put it in `k8s/apps/nest-mcp/nest-mcp-secrets.sops.yaml`
-  as `NEST_DISPATCHARR_KEY`. Write tools are marked `[DESTRUCTIVE]`.
+  menu, API keys) and add it to `inventory/group_vars/all.sops.yaml` as
+  `dispatcharr_api_key`, then run `scripts/render-k8s-secrets.sh`: it generates
+  `nest-mcp-secrets.sops.yaml` (as `NEST_DISPATCHARR_KEY`) from
+  `playbooks/provision/k8s-secrets.yml`, so a key added only to the generated
+  file is dropped on the next render. Write tools are marked `[DESTRUCTIVE]`.
 - **Lineup and probing** need no key: they use the open `/output/m3u`.
   `dispatcharr_probe_channels` decodes a few frames per channel through the
   proxy and reports time to first frame, codec/resolution, blank or frozen
   pictures and error slates. It probes one channel at a time (at most 25 per
   call): concurrent probes overload the proxy and show healthy channels as
-  5xx. ffmpeg is in the nest-mcp image for this.
+  5xx. Each channel is cut off after the capture window plus 30 s, and the call
+  stops starting new channels after `budget_s` (90 s) and lists the ones it
+  skipped, so it stays inside the MCP call timeout. ffmpeg is in the nest-mcp
+  image for this.
 - **Stored stats**: Dispatcharr records resolution/bitrate per stream only once
   it has been played, so `dispatcharr_quality_report` shows many `no_stats`
   until streams are watched or probed. Pluto's normal tier is 1216x684.

@@ -108,7 +108,7 @@ async def test_probe_reports_slate_error_and_stream_info(monkeypatch):
         return {"frames": [], "stderr": "x\nServer returned 5XX Server Error reply\n", "startup_s": None}
 
     monkeypatch.setattr(dispatcharr, "_capture", fake_capture)
-    out = await load_tools(dispatcharr)["dispatcharr_probe_channels"](pause=0)
+    out = (await load_tools(dispatcharr)["dispatcharr_probe_channels"](pause=0))["probed"]
     assert urls[0] == config.dispatcharr.url.rstrip("/") + "/proxy/ts/stream/aaaa-1111"
     assert out[0]["possible_slate"] is True and out[0]["resolution"] == "1280x720" and out[0]["startup_s"] == 1.5
     assert out[1]["error"].endswith("5XX Server Error reply") and "possible_slate" not in out[1]
@@ -126,8 +126,8 @@ async def test_probe_caps_limit_and_uses_passed_hashes(monkeypatch):
         return {"frames": [GREY], "stderr": "", "startup_s": 0.5}
 
     monkeypatch.setattr(dispatcharr, "_capture", fake_capture)
-    out = await load_tools(dispatcharr)["dispatcharr_probe_channels"](
-        limit=1000, pause=0, slate_hashes={"s": dispatcharr._fingerprint(GREY)})
+    out = (await load_tools(dispatcharr)["dispatcharr_probe_channels"](
+        limit=1000, pause=0, slate_hashes={"s": dispatcharr._fingerprint(GREY)}))["probed"]
     assert len(out) == 25 == len(seen)
     assert out[0]["known_slate"] == "s"
 
@@ -161,6 +161,73 @@ async def test_capture_with_no_output_returns_empty(monkeypatch):
     monkeypatch.setenv("PATH", d + os.pathsep + os.environ["PATH"])
     out = await dispatcharr._capture("http://x", 4)
     assert out["frames"] == [] and out["startup_s"] is None and "404" in out["stderr"]
+
+
+async def test_capture_is_cut_off_at_the_deadline(monkeypatch):
+    """A channel that connects but never sends video must not hold the caller up."""
+    import asyncio
+    import os
+    import stat
+    import tempfile
+    d = tempfile.mkdtemp()
+    script = os.path.join(d, "ffmpeg")
+    open(script, "w").write("#!/bin/sh\necho 'connecting' >&2\nexec sleep 60\n")
+    os.chmod(script, os.stat(script).st_mode | stat.S_IEXEC)
+    monkeypatch.setenv("PATH", d + os.pathsep + os.environ["PATH"])
+    monkeypatch.setattr(dispatcharr, "_CAPTURE_GRACE", 1)
+    out = await asyncio.wait_for(dispatcharr._capture("http://x", 1), 15)   # 1 s window + 1 s grace
+    assert out["timed_out"] is True and out["frames"] == [] and out["startup_s"] is None
+
+
+async def test_capture_does_not_hang_on_a_child_holding_the_pipe(monkeypatch):
+    """Killing the process leaves a grandchild that keeps stderr open; the capture must still return."""
+    import asyncio
+    import os
+    import stat
+    import tempfile
+    d = tempfile.mkdtemp()
+    script = os.path.join(d, "ffmpeg")
+    open(script, "w").write("#!/bin/sh\nsleep 30\n")      # no exec: sleep outlives the shell
+    os.chmod(script, os.stat(script).st_mode | stat.S_IEXEC)
+    monkeypatch.setenv("PATH", d + os.pathsep + os.environ["PATH"])
+    monkeypatch.setattr(dispatcharr, "_CAPTURE_GRACE", 1)
+    out = await asyncio.wait_for(dispatcharr._capture("http://x", 1), 15)
+    assert out["timed_out"] is True and out["frames"] == []
+
+
+async def test_probe_reports_timeouts_and_partial_captures(monkeypatch):
+    patch_http(monkeypatch, dispatcharr, {"/output/m3u": (200, M3U)})
+    monkeypatch.setattr(dispatcharr.shutil, "which", lambda _: "/x")
+
+    async def fake_capture(url, seconds):
+        if url.endswith("aaaa-1111"):
+            return {"frames": [], "stderr": "", "startup_s": None, "timed_out": True}
+        return {"frames": [GREY], "stderr": "", "startup_s": 9.0, "timed_out": True}
+
+    monkeypatch.setattr(dispatcharr, "_capture", fake_capture)
+    out = (await load_tools(dispatcharr)["dispatcharr_probe_channels"](pause=0))["probed"]
+    assert out[0]["error"] == "timed out waiting for video"
+    assert out[1]["partial"] is True and out[1]["frames"] == 1
+
+
+async def test_probe_stops_at_the_budget_and_lists_skipped(monkeypatch):
+    big = "".join(
+        f'#EXTINF:-1 tvg-id="{i}" group-title="G",Ch{i}\nhttps://d/proxy/ts/stream/u{i}\n' for i in range(6))
+    patch_http(monkeypatch, dispatcharr, {"/output/m3u": (200, big)})
+    monkeypatch.setattr(dispatcharr.shutil, "which", lambda _: "/x")
+    clock = {"t": 0.0}
+    monkeypatch.setattr(dispatcharr, "_now", lambda: clock["t"])
+
+    async def slow_capture(url, seconds):
+        clock["t"] += 40            # each channel "takes" 40 s
+        return {"frames": [GREY], "stderr": "", "startup_s": 1.0}
+
+    monkeypatch.setattr(dispatcharr, "_capture", slow_capture)
+    out = await load_tools(dispatcharr)["dispatcharr_probe_channels"](pause=0, budget_s=90)
+    assert [r["number"] for r in out["probed"]] == ["0", "1", "2"]       # 0, 40, 80 s < 90 s; 120 s is over
+    assert out["skipped"] == ["3", "4", "5"] and out["budget_exhausted"] is True
+    full = await load_tools(dispatcharr)["dispatcharr_probe_channels"](pause=0, budget_s=10_000)
+    assert full["skipped"] == [] and full["budget_exhausted"] is False
 
 
 async def test_missing_key_gives_actionable_error(monkeypatch):
