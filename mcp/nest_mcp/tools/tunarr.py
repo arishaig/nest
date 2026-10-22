@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 from mcp.server.mcpserver import MCPServer
 from nest_mcp import config
@@ -24,6 +26,9 @@ _SETTINGS = {
 }
 
 _PAGE = 200
+_SEARCH_PAGES = 15  # search pages are ~20 hits; cap runaway common titles
+_SEARCH_CONCURRENCY = 8
+_DURATION_SLOP_MS = 1000
 
 
 def _client() -> httpx.AsyncClient:
@@ -91,6 +96,56 @@ def _program_row(p: dict) -> dict:
         "imdb": _ident(p, "imdb"),
         "tvdb": _ident(p, "tvdb"),
     }
+
+
+def _same_content(old: dict, new: dict) -> bool:
+    """True if `new` is the freshly scanned twin of the dead program `old`.
+
+    After Jellyfin re-IDs its library, Tunarr keeps the old rows (state 'missing')
+    and adds new ones (state 'ok'). The twin has the same title, year and episode
+    number. Where both records carry an IMDb/TVDB id those must agree and are
+    trusted over duration (files get re-encoded or re-cut); with no shared
+    external id, the duration must match too.
+    """
+    if new.get("state") != "ok" or new.get("uuid") == old.get("uuid") or new.get("type") != old.get("type"):
+        return False
+    if (new.get("title") or "") != (old.get("title") or ""):
+        return False
+    if new.get("episodeNumber") != old.get("episodeNumber") or new.get("year") != old.get("year"):
+        return False
+    shared_id = False
+    for kind in ("tvdb", "imdb"):
+        a, b = _ident(old, kind), _ident(new, kind)
+        if a and b:
+            if a != b:
+                return False
+            shared_id = True
+    if shared_id:
+        return True
+    return abs((new.get("duration") or 0) - (old.get("duration") or 0)) <= _DURATION_SLOP_MS
+
+
+def _best_twin(old: dict, hits: list[dict]) -> dict | None:
+    """The matching candidate closest in duration to `old` (prefers the same cut of the episode)."""
+    twins = [h for h in hits if _same_content(old, h)]
+    if not twins:
+        return None
+    return min(twins, key=lambda h: abs((h.get("duration") or 0) - (old.get("duration") or 0)))
+
+
+async def _search_title(client: httpx.AsyncClient, title: str, media_source: str, library: str) -> list[dict]:
+    hits: list[dict] = []
+    for page in range(1, _SEARCH_PAGES + 1):
+        body: dict = {"query": {"query": title, "restrictSearchTo": ["title"]}, "page": page}
+        if media_source:
+            body["mediaSourceId"] = media_source
+        if library:
+            body["libraryId"] = library
+        res = await _call(client, "POST", "/api/programs/search", json=body)
+        hits.extend(res.get("results", []))
+        if page >= (res.get("totalPages") or 1):
+            break
+    return hits
 
 
 def _slice(rows: list, limit: int, offset: int) -> dict:
@@ -418,6 +473,84 @@ def register(mcp: MCPServer) -> None:
             result["applied"] = True
             result["removed_entries"] = [_lineup_entry(e) for e in removed]
             return result
+
+    @mcp.tool()
+    async def tunarr_rematch_missing(
+        channel: str = "", dry_run: bool = True, drop_unmatched: bool = False,
+    ) -> list[dict]:
+        """[DESTRUCTIVE] Repair lineups after Jellyfin re-IDed its library: for every lineup entry whose program Tunarr flags 'missing', find its freshly scanned twin (state 'ok': same title, year and episode number; IMDb/TVDB ids must agree where present, otherwise duration must match; the lineup slot takes the new file's duration) and swap the entry over, keeping order, flex and fillers. Run a library scan first (tunarr_scan_library) so the twins exist. Omit `channel` for all channels. Defaults to dry_run=True, which only reports matched/unmatched counts and examples; set dry_run=False to rewrite the lineups. Unmatched entries are kept (still broken) unless drop_unmatched=True removes them. Confirm with the user before applying."""
+        async with _client() as client:
+            if channel:
+                channels = [await _channel(client, channel)]
+            else:
+                channels = await _call(client, "GET", "/api/channels")
+            plans = []
+            for ch in channels:
+                programs = {p["uuid"]: p for p in await _all_programs(client, ch["id"])}
+                prog = await _call(client, "GET", f"/api/channels/{ch['id']}/programming")
+                lineup = prog.get("lineup", [])
+                dead = {e["id"] for e in lineup if e.get("type") == "content" and (programs.get(e.get("id")) or {}).get("state") == "missing"}
+                plans.append((ch, programs, lineup, dead))
+
+            # One search per distinct (title, library), run concurrently and shared across channels.
+            wanted: dict[tuple, dict] = {}
+            for _, programs, _, dead in plans:
+                for uid in dead:
+                    old = programs[uid]
+                    wanted.setdefault((old.get("title") or "", old.get("mediaSourceId") or "", old.get("libraryId") or ""), old)
+            sem = asyncio.Semaphore(_SEARCH_CONCURRENCY)
+
+            async def run(key):
+                async with sem:
+                    return key, await _search_title(client, *key)
+
+            hits = dict(await asyncio.gather(*(run(k) for k in wanted)))
+
+            results = []
+            for ch, programs, lineup, dead in plans:
+                replace: dict[str, dict] = {}
+                unmatched = []
+                for uid in dead:
+                    old = programs[uid]
+                    key = (old.get("title") or "", old.get("mediaSourceId") or "", old.get("libraryId") or "")
+                    twin = _best_twin(old, hits[key])
+                    if twin:
+                        replace[uid] = twin
+                    else:
+                        unmatched.append(old)
+                new_lineup = []
+                for entry in lineup:
+                    if entry.get("id") in replace:
+                        twin = replace[entry["id"]]
+                        # The new file may be a different length; the slot must follow it.
+                        new_lineup.append({**_lineup_entry(entry), "id": twin["uuid"],
+                                           "duration": twin.get("duration") or entry.get("duration")})
+                    elif entry.get("id") in dead and drop_unmatched:
+                        continue
+                    else:
+                        new_lineup.append(_lineup_entry(entry))
+                row = {
+                    "channel": f"{ch.get('number')} {ch.get('name')}",
+                    "lineup_entries": len(lineup),
+                    "missing_programs": len(dead),
+                    "matched": len(replace),
+                    "duration_changed": sum(
+                        1 for uid, tw in replace.items()
+                        if abs((tw.get("duration") or 0) - (programs[uid].get("duration") or 0)) > _DURATION_SLOP_MS),
+                    "unmatched": len(unmatched),
+                    "unmatched_examples": [
+                        f"{(u.get('show') or {}).get('title') or '?'} - {u.get('title')} (e{u.get('episodeNumber')}, {u.get('year')})"
+                        for u in unmatched[:10]
+                    ],
+                    "applied": False,
+                }
+                if not dry_run and (replace or (drop_unmatched and unmatched)):
+                    await _call(client, "POST", f"/api/channels/{ch['id']}/programming",
+                                json={"type": "manual", "lineup": new_lineup, "append": False})
+                    row["applied"] = True
+                    row["lineup_entries_after"] = len(new_lineup)
+                results.append(row)
+            return results
 
     @mcp.tool()
     async def tunarr_generate_schedule(channel: str, mode: str, schedule: dict) -> dict:
