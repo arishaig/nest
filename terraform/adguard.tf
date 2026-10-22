@@ -46,6 +46,7 @@ locals {
     "recommendarr.arishaig.site" = "192.168.1.117"
     "watcharr.arishaig.site"     = "192.168.1.117"
     "tunarr.arishaig.site"       = "192.168.1.117"
+    "dispatcharr.arishaig.site"  = "192.168.1.117"
     "auth.arishaig.site"         = "192.168.1.117"
     "torrent.arishaig.site"      = "192.168.1.117"
     "proxmox.arishaig.site"      = "192.168.1.117"
