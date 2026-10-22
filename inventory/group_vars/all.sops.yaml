@@ -135,6 +135,7 @@ meshcore_mqtt_user: ENC[AES256_GCM,data:MyHJ1Tpf0+UP02TQaWYF,iv:YXwv5TQy9VjIdJA0
 meshcore_mqtt_password: ENC[AES256_GCM,data:b66b/HB6sE7cdtcGcnus+8Hk30cikzs=,iv:C2yMXXxSfzNIm5dTTqg8d7r387Lbl6h6ILZpNqlPR+E=,tag:3+CT1H7FLOa0hTwl4H0AgQ==,type:str]
 dispatcharr_postgres_user: ENC[AES256_GCM,data:kplm4RlKl0hFIFE=,iv:wPA6Y/Gu6ZnyUUG6dSFtUdzn6JhXDVDh2kHxT1Z/MQ0=,tag:2gN8IMba3+tJBoRsRpvU9w==,type:str]
 dispatcharr_postgres_password: ENC[AES256_GCM,data:N+5OjxbDDYwFrSS2zmDwpLfJGEu/C6KrZTff9sNAQyNwjBA54UGXK8divvngq9mk,iv:BFbzLs2tNeWsB/O2wVTHAHFKekazkOnHDnSHfqILaDM=,tag:1tf3bsirx7AQndyRkGuFhA==,type:str]
+dispatcharr_api_key: ENC[AES256_GCM,data:BYW9InPypZMnrEU6oSIclRYCuIyYsGagdPUNNLHyrxt0R++MeKHgA0b6DUI8qFluWZvkH2JB,iv:XYrWrWPjBSUGKXrSDHmZCKOYAe0Yz/3UpQqpJaKZ93Q=,tag:kL33d420/P5unxchzXirxA==,type:str]
 sops:
     age:
         - enc: |
@@ -156,7 +157,7 @@ sops:
             2jPOjg==
             -----END AGE ENCRYPTED FILE-----
           recipient: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpbfa/Dw9jY/uvl6k549/LREsabJ21/rM52NGuofFCN
-    lastmodified: "2026-10-22T04:03:46Z"
-    mac: ENC[AES256_GCM,data:rSsqCcRVz1/pad5IybxiYr+tHrLUp5v7OnEuJtjOyaeqy5f5lDkexxMKVjkF9t0pW2+/WrqcLzX3C7S5+mMMO49ZjdRUuxs3+Q7JNTyzEAgAzZzaywwK9raq9qrVXfTIL068HviPtMwSEl+/A64dPMFMHqpqtRp0Nge5V7l7Jec=,iv:nA8SGY/ht7VUbto4YrVhW0/jysIhy5cJeAuKZN1puQM=,tag:mfs8RGKILUS3t9jWdHgFcg==,type:str]
+    lastmodified: "2026-10-22T22:51:36Z"
+    mac: ENC[AES256_GCM,data:9sPdlCUvvqPBZr0k+u5Z/eg3j+wtaqL/bCO5kY1RHS9XUUziQD7Wc0bz1b3jF1hstyOcJWY01aE87+69xCTIPjYUNY/cN44HSpYrJ0MCk3xKr0vvYHBNpamFUTkf6KFk6j+BJmjvRINHYbtMU5Q25/zajHGQapGzj/r1793twHc=,iv:NP1i1C3sDmnAxn+WKRSHw/1vvRBXFQ5iTmARm1WgPbE=,tag:qjN2Y0EC7x6iwuwShJXVmg==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.3
