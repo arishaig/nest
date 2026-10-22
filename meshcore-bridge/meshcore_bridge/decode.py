@@ -62,6 +62,9 @@ def decode(packet: dict, channels: list[Channel]) -> Decoded | None:
         if not hmac.compare_digest(want, mac):
             continue
         usable = ciphertext[: len(ciphertext) // 16 * 16]
+        # ECB is the MeshCore wire format; we can only read what the mesh sends.
+        # Nothing here is protected by it: a hashtag channel's key is derived
+        # from its public name, so anyone can read the channel.
         plain = Cipher(algorithms.AES(ch.secret), modes.ECB()).decryptor().update(usable)
         sent_at = int.from_bytes(plain[:4], "little")
         body = plain[5:].split(b"\0", 1)[0].decode("utf-8", "replace")
