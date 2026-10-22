@@ -451,8 +451,108 @@ def test_every_write_tool_is_marked_destructive():
     tunarr.register(mcp)
     docs = {t.name: (t.description or "") for t in mcp._tool_manager.list_tools()}
     writes = ["tunarr_create_channel", "tunarr_update_channel", "tunarr_delete_channel",
-              "tunarr_set_programming", "tunarr_remove_programs", "tunarr_generate_schedule",
+              "tunarr_set_programming", "tunarr_remove_programs", "tunarr_rematch_missing", "tunarr_generate_schedule",
               "tunarr_stop_sessions", "tunarr_save_resource", "tunarr_delete_resource",
               "tunarr_set_settings", "tunarr_set_library_enabled", "tunarr_empty_trash", "tunarr_api"]
     missing = [w for w in writes if "[DESTRUCTIVE" not in docs[w]]
     assert not missing
+
+
+# ── rematch ──────────────────────────────────────────────────────────────────
+
+def _ep(uuid, state, jf, title="Pilot", ep=1, year=2000, dur=1_800_000, tvdb="9", imdb="tt1", typ="episode"):
+    ids = [{"type": "jellyfin", "id": jf}]
+    if tvdb:
+        ids.append({"type": "tvdb", "id": tvdb})
+    if imdb:
+        ids.append({"type": "imdb", "id": imdb})
+    return {"uuid": uuid, "title": title, "type": typ, "year": year, "state": state, "duration": dur,
+            "episodeNumber": ep, "identifiers": ids, "mediaSourceId": "ms", "libraryId": "lib",
+            "show": {"title": "Lucy"}}
+
+
+def test_same_content_rules():
+    old = _ep("o", "missing", "j0")
+    assert tunarr._same_content(old, _ep("n", "ok", "j1"))
+    assert not tunarr._same_content(old, _ep("n", "missing", "j1"))          # twin must be ok
+    assert not tunarr._same_content(old, _ep("o", "ok", "j1"))               # not itself
+    assert not tunarr._same_content(old, _ep("n", "ok", "j1", title="Other"))
+    assert not tunarr._same_content(old, _ep("n", "ok", "j1", ep=2))
+    assert not tunarr._same_content(old, _ep("n", "ok", "j1", year=2001))
+    assert not tunarr._same_content(old, _ep("n", "ok", "j1", tvdb="8"))     # conflicting ids
+    assert not tunarr._same_content(old, _ep("n", "ok", "j1", typ="movie"))
+    # shared external id outranks a changed duration (re-encoded / re-cut file)...
+    assert tunarr._same_content(old, _ep("n", "ok", "j1", dur=700_000))
+    # ...but without one, duration must match
+    bare = _ep("o", "missing", "j0", tvdb="", imdb="")
+    assert tunarr._same_content(bare, _ep("n", "ok", "j1", tvdb="", imdb="", dur=1_800_500))
+    assert not tunarr._same_content(bare, _ep("n", "ok", "j1", tvdb="", imdb="", dur=700_000))
+
+
+def test_best_twin_prefers_closest_duration():
+    old = _ep("o", "missing", "j0", dur=1_000_000)
+    far, near = _ep("a", "ok", "j1", dur=500_000), _ep("b", "ok", "j2", dur=990_000)
+    assert tunarr._best_twin(old, [far, near])["uuid"] == "b"
+    assert tunarr._best_twin(old, [_ep("c", "missing", "j3")]) is None
+
+
+def _rematch_routes(apply_to=None):
+    old1, old2, ok = _ep("o1", "missing", "j0"), _ep("o2", "missing", "j9", title="Gone", tvdb="", imdb=""), \
+        _ep("k1", "ok", "j5", title="Keep", tvdb="", imdb="")
+    twin = _ep("n1", "ok", "j1", dur=900_000)
+
+    def search(request):
+        q = json.loads(request.content)["query"]["query"]
+        return {"results": [twin] if q == "Pilot" else [], "totalPages": 1}
+
+    def programming(request):
+        if request.method == "POST":
+            apply_to.append(json.loads(request.content))
+            return {}
+        return {"lineup": [
+            {"type": "content", "id": "o1", "duration": 1_800_000},
+            {"type": "flex", "id": "f", "duration": 60_000},
+            {"type": "content", "id": "o2", "duration": 1_800_000},
+            {"type": "content", "id": "k1", "duration": 1_800_000},
+        ]}
+
+    return _base_routes({
+        "/api/channels/aaa/programs": {"total": 3, "result": [old1, old2, ok]},
+        "/api/channels/aaa/programming": programming,
+        "/api/programs/search": search,
+    })
+
+
+async def test_rematch_dry_run_reports_without_writing(monkeypatch):
+    posts = []
+    routes = _rematch_routes(posts)
+    patch_http(monkeypatch, tunarr, routes)
+    out = await load_tools(tunarr)["tunarr_rematch_missing"]("6001")
+    assert out[0]["missing_programs"] == 2 and out[0]["matched"] == 1 and out[0]["unmatched"] == 1
+    assert out[0]["duration_changed"] == 1 and out[0]["applied"] is False
+    assert "Lucy - Gone" in out[0]["unmatched_examples"][0]
+    assert posts == []
+
+
+async def test_rematch_apply_swaps_ids_and_durations_keeps_rest(monkeypatch):
+    posts = []
+    patch_http(monkeypatch, tunarr, _rematch_routes(posts))
+    out = await load_tools(tunarr)["tunarr_rematch_missing"]("6001", dry_run=False)
+    assert out[0]["applied"] is True and out[0]["lineup_entries_after"] == 4
+    assert posts == [{"type": "manual", "append": False, "lineup": [
+        {"type": "content", "id": "n1", "duration": 900_000},
+        {"type": "flex", "id": "f", "duration": 60_000},
+        {"type": "content", "id": "o2", "duration": 1_800_000},   # unmatched stays
+        {"type": "content", "id": "k1", "duration": 1_800_000},
+    ]}]
+
+
+async def test_rematch_drop_unmatched_and_all_channels(monkeypatch):
+    posts = []
+    routes = _rematch_routes(posts)
+    routes["/api/channels/bbb/programs"] = {"total": 0, "result": []}
+    routes["/api/channels/bbb/programming"] = {"lineup": []}
+    patch_http(monkeypatch, tunarr, routes)
+    out = await load_tools(tunarr)["tunarr_rematch_missing"](dry_run=False, drop_unmatched=True)
+    assert [r["applied"] for r in out] == [True, False]       # nothing to do on the empty channel
+    assert [e["id"] for e in posts[0]["lineup"]] == ["n1", "f", "k1"]
