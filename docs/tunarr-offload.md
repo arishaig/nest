@@ -18,10 +18,16 @@ Observed 2026-10-22, while repairing the channels after a Jellyfin re-ID:
   `hardwareAccelerationMode: none`, decode and `scale` and `libx264` all on the
   CPU, in a pod limited to 2Gi. My own API traffic ran at the same time, so the
   transcode is the likely cause, not a proven one.
-- Jellyfin's Live TV tuner gives up on a channel after about 15 s
-  (`Zero bytes copied from stream SharedHttpStream`, then
-  `Unable to find host to play channel`). Tunarr will not answer until it has two
-  HLS segments, and the software path did not get there in time on 4K sources.
+- **Tunarr gives up on a channel after about 15 s.** It waits for the playlist and
+  two HLS segments (`Still waiting for stream session to start (num segments=0 < 2)`
+  once a second), then logs `Error starting stream after retrying` /
+  `Stream not ready yet. Retry`, shuts the session down and closes the response
+  empty (`GET /stream/channels/<id>.ts 200 - 15135ms`). Jellyfin's
+  `Zero bytes copied from stream SharedHttpStream` and `Unable to find host to play
+  channel` are it reporting that empty response. So the limit is Tunarr's, it
+  applies to every client, and it is not configurable: neither the OpenAPI spec nor
+  `/api/system/settings` has a start timeout or retry count (checked 2026-10-22).
+  Software transcoding of 4K sources did not reach two segments in time.
 - Tunarr's `tonemapHdr` is `false`, so HDR sources are squeezed to SDR without
   tone mapping. A GPU path is a place to fix that (separate step, see Risks).
 - omega's GPU is idle most of the time.
@@ -42,7 +48,7 @@ Details that shape the design:
 - Input is paced: `-readrate 1 -readrate_initial_burst 60`. ffmpeg reads at real
   time after a 60 s burst, so **a GPU cannot make Tunarr faster than 1x**. What it
   buys is CPU and memory off the pod, and a fast first two segments (the burst
-  is decoded quickly), which is what the 15 s limit needs.
+  is decoded quickly), which is what Tunarr's own 15 s start wait needs.
 - Decode is forced to CPU: `-c:v hevc` (or `mpeg4`, `h264`, ...) before `-i`.
 - Encode is `-c:v libx264 -preset:v veryfast -sc_threshold 1000000000`, 4000k,
   1080p, with `-force_key_frames expr:gte(t,n_forced*4)` for 4 s segments.
@@ -140,14 +146,21 @@ Kill switch: `OFFLOAD_DISABLED=1` on the Tunarr container.
 
 ## The 15-second budget (*to measure*)
 
-Jellyfin tuner (about 15 s) -> Tunarr waits for playlist plus 2 segments (8 s of
-media) -> wrapper connects (2 s timeout) -> runner starts ffmpeg -> ffmpeg opens
-the Jellyfin URL and seeks (`-ss` over HTTP into a large remux) -> decodes the
-burst -> NFS makes the first segments visible. Rough expectation: NVDEC and NVENC
+Tunarr's own start wait (about 15 s, fixed) -> wrapper connects (2 s timeout) ->
+runner starts ffmpeg -> ffmpeg opens the Jellyfin URL and seeks (`-ss` over HTTP
+into a large remux) -> decodes the burst -> NFS makes the first segments visible
+to Tunarr (two are needed, 8 s of media). Rough expectation: NVDEC and NVENC
 produce 200 frames in about 1 s, so the dominant costs are the HTTP seek and NFS
 visibility. Today the software path misses 15 s on 4K. **The spike has to report
 time to two segments**, and a failure-before-output must also fit the budget, or
 the fallback arrives too late to help.
+
+Open question: the **error screen path may be too slow too.** In the failing run
+the error-screen ffmpeg (a still image, always local) exited after about 5 s with
+one segment, and the session still timed out at 15 s without a second one. So even
+the slate Tunarr shows on failure did not reach two segments in time; a failed
+program therefore looks like a dead channel, not an error picture. That is worth
+checking regardless of the GPU work.
 
 ## Risks and open questions
 
@@ -189,3 +202,9 @@ the fallback arrives too late to help.
    mid-stream, viewer stops.
 3. **Wire live Tunarr** in a window with no viewers (it restarts Tunarr), set the
    two settings, and keep the kill switch in the notes.
+
+## Other observations
+
+- Tunarr's system `logging.logLevel` is `trace` (it logs every scheduled task each
+  minute). Cheap to lower and unrelated to the GPU work, but it adds log volume
+  and CPU to a pod that has been OOMKilled.
