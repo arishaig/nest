@@ -26,7 +26,8 @@ mcp = MCPServer(
         "monitoring stack (Prometheus/Loki/Grafana), "
         "Home Assistant devices, areas and automations, UniFi network and clients, "
         "AdGuard DNS (stats, rewrites, plus host-level fail2ban/service status "
-        "on the AdGuard Pis), Prometheus alerts, Jellyfin, the *arr media stack, "
+        "on the AdGuard Pis), Prometheus alerts, Jellyfin, Tunarr (channels, lineups, "
+        "libraries, scans, schedules, settings), the *arr media stack, "
         "seedbox (qBittorrent torrents, tracker status, VPN/gluetun exit IP), "
         "the VPS proxy (Docker, WireGuard, fail2ban). "
         "Start sessions with lab_health_summary for a full snapshot."
@@ -36,7 +37,7 @@ mcp = MCPServer(
     lifespan=lifespan,
 )
 
-from nest_mcp.tools import proxmox, adguard, adguard_host, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, kubernetes, infra  # noqa: E402
+from nest_mcp.tools import proxmox, adguard, adguard_host, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, kubernetes, infra, tunarr  # noqa: E402
 
 proxmox.register(mcp)
 adguard.register(mcp)
@@ -60,3 +61,4 @@ loki.register(mcp)
 media_files.register(mcp)
 kubernetes.register(mcp)
 infra.register(mcp)
+tunarr.register(mcp)
