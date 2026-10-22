@@ -571,52 +571,97 @@ jobs:
 
           TARGET=$(grep 'talos_version' terraform/terraform.tfvars | grep -oP 'v[\d.]+')
           SCHEMATIC=$(grep 'talos_schematic_id' terraform/terraform.tfvars | grep -oP '"[a-f0-9]+"' | tr -d '"')
-          IMAGE="factory.talos.dev/installer/${SCHEMATIC}:${TARGET}"
 
           curl -sL "https://github.com/siderolabs/talos/releases/download/${TARGET}/talosctl-linux-amd64" \
             -o "$RUNNER_TEMP/talosctl"
           chmod +x "$RUNNER_TEMP/talosctl"
           TALOSCTL="$RUNNER_TEMP/talosctl"
 
+          # Each node class needs its own Image Factory schematic: the x86 VMs
+          # take talos_schematic_id (qemu-guest-agent + nfs-utils), the Pis the
+          # rpi_5 overlay + nfs-utils one, omega the NVIDIA one. This step
+          # previously pushed the x86 image to every node, which would have
+          # dropped the rpi_5 overlay from the Pis (unbootable) and the NVIDIA
+          # extensions from omega. The Pi/omega images come from their
+          # machine-config patches, where Renovate bumps the tag in lockstep
+          # and the installer URL appears exactly once per file.
+          X86_IMAGE="factory.talos.dev/installer/${SCHEMATIC}:${TARGET}"
+          patch_image() {
+            grep -oP 'factory\.talos\.dev/installer/[a-f0-9]+:v[\d.]+' "$1"
+          }
+          BETA_IMAGE=$(patch_image talos/patches/worker-beta-rpi5.yaml)
+          GAMMA_IMAGE=$(patch_image talos/patches/worker-gamma-rpi5.yaml)
+          OMEGA_IMAGE=$(patch_image talos/patches/worker-omega.yaml)
+          for IMG in "$BETA_IMAGE" "$GAMMA_IMAGE" "$OMEGA_IMAGE"; do
+            if [ "$(printf '%s\n' "$IMG" | grep -c .)" -ne 1 ] || [ "${IMG##*:}" != "$TARGET" ]; then
+              echo "::error::Expected exactly one installer image tagged $TARGET per patch, got: ${IMG:-none}"
+              exit 1
+            fi
+          done
+
+          # Server-side version of one node, empty if it doesn't answer. Every
+          # call targets the node as its own endpoint: the talosconfig endpoint
+          # (alpha-control) refuses to forward ("no request forwarding"), and
+          # the old `version --nodes` parse then picked up talosctl's own
+          # *client* Tag — which is always $TARGET, since the client is
+          # downloaded at that version. Every node but alpha read as "already
+          # on $TARGET" and was skipped, so beta/gamma/alpha-control sat on
+          # v1.13.6 while CI reported them current (found 2026-10-21).
+          server_version() {
+            timeout 30 "$TALOSCTL" --talosconfig "$TC" version --endpoints "$1" --nodes "$1" 2>/dev/null \
+              | awk '/^Server:/{s=1} s && /Tag:/{print $2}'
+          }
+
           # Workers first, control plane last (G2 in docs/architecture-review.md):
-          # this loop previously only listed .110 (alpha) — a leftover from
-          # the single-node period — so alpha-control/.119 (the sole etcd
-          # member), beta-rpi5/.112 and gamma-rpi5/.118 drifted silently.
-          # alpha-control goes last so a bad image/schematic surfaces on a
-          # worker first, before touching the only control-plane node.
-          # omega/.120 is deliberately NOT here — it's the user's gaming PC,
-          # not Proxmox/Terraform-managed and routinely offline in Windows;
-          # gating every talos_version deploy on it being up in Talos would
-          # wedge CI. Its installer tag still moves in lockstep (Renovate
-          # bumps talos/patches/worker-omega.yaml); upgrade it by hand per
-          # docs/gaming-gpu-talos.md next time it's on Talos.
+          # alpha-control/.119 is the sole etcd member, so a bad image or
+          # schematic should surface on a worker before it touches the only
+          # control-plane node.
+          #
+          # omega/.120 is best-effort: it's the user's dual-boot gaming PC and
+          # routinely in Windows. Unreachable → warn and move on (upgrade by
+          # hand per docs/gaming-gpu-talos.md next time it's on Talos); not
+          # back in time after the upgrade → warn too, since a reboot can land
+          # in Windows. Every other node failing either way is a hard error.
           #
           # Per-node budget for the node to reboot and re-report the target
           # version. `talosctl upgrade --wait` has no --timeout knob and hung
           # for its full 30-min default against a node that had already come
           # back healthy (2026-09-08 v1.14.0 deploy), reddening the job while
           # the upgrade had in fact succeeded. Issue the upgrade without --wait
-          # and poll `version` ourselves with a bounded deadline instead.
+          # and poll the version ourselves with a bounded deadline instead.
           UPGRADE_TIMEOUT=900
-          for NODE in 192.168.1.110 192.168.1.112 192.168.1.118 192.168.1.119; do
-            RUNNING=$("$TALOSCTL" --talosconfig "$TC" version --nodes "$NODE" 2>/dev/null | awk '/Tag:/{print $2}' | tail -1)
+          while IFS='|' read -r NODE IMAGE MODE; do
+            RUNNING=$(server_version "$NODE")
+            if [ -z "$RUNNING" ]; then
+              if [ "$MODE" = "best-effort" ]; then
+                echo "::warning::$NODE not answering on Talos, skipping — upgrade it by hand to $TARGET"
+                continue
+              fi
+              echo "::error::$NODE did not answer talosctl version"
+              exit 1
+            fi
             if [ "$RUNNING" = "$TARGET" ]; then
               echo "$NODE already on $TARGET, skipping"
               continue
             fi
 
-            echo "Upgrading $NODE: ${RUNNING:-unknown} → $TARGET"
+            echo "Upgrading $NODE: $RUNNING → $TARGET ($IMAGE)"
             # --drain=false: drain needs kubeconfig, and Talos only serves
             # GetKubeconfig on control-plane nodes. This was unconditionally
             # true when .110 was the only node upgraded here and was itself
             # worker-only (2026-07-27 deploy failure) — that constraint no
             # longer holds now that alpha-control exists, but revisiting
             # drain behavior is out of scope for this change.
-            "$TALOSCTL" --talosconfig "$TC" upgrade --nodes "$NODE" --image "$IMAGE" --wait=false --drain=false
+            "$TALOSCTL" --talosconfig "$TC" upgrade --endpoints "$NODE" --nodes "$NODE" \
+              --image "$IMAGE" --wait=false --drain=false
 
             deadline=$((SECONDS + UPGRADE_TIMEOUT))
-            until [ "$("$TALOSCTL" --talosconfig "$TC" version --nodes "$NODE" 2>/dev/null | awk '/Tag:/{print $2}' | tail -1)" = "$TARGET" ]; do
+            until [ "$(server_version "$NODE")" = "$TARGET" ]; do
               if [ "$SECONDS" -ge "$deadline" ]; then
+                if [ "$MODE" = "best-effort" ]; then
+                  echo "::warning::$NODE did not report $TARGET within ${UPGRADE_TIMEOUT}s (rebooted into Windows?) — check it next time it's on Talos"
+                  continue 2
+                fi
                 echo "::error::$NODE did not report $TARGET within ${UPGRADE_TIMEOUT}s"
                 exit 1
               fi
@@ -628,7 +673,13 @@ jobs:
             # to reschedule/restart before the next node (especially the
             # control plane) goes down too.
             sleep 60
-          done
+          done <<NODES
+          192.168.1.110|$X86_IMAGE|required
+          192.168.1.112|$BETA_IMAGE|required
+          192.168.1.118|$GAMMA_IMAGE|required
+          192.168.1.120|$OMEGA_IMAGE|best-effort
+          192.168.1.119|$X86_IMAGE|required
+          NODES
 
       - name: Reconcile WireGuard patch on alpha
         # C1 in architecture-review.md: talos/patches/wireguard-alpha.yaml.example

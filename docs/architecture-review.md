@@ -97,7 +97,7 @@ accounts for most of the Medium findings.
 |---|---|---|
 | G1 | #403 | `tofu plan` posted on every terraform-touching PR |
 | G4 | #404 | Runner toolchain version sync enforced in CI |
-| G2 | #405 | Talos upgrade loop now covers all four nodes, control plane last |
+| G2 | #405 | Talos upgrade loop now covers all four nodes, control plane last (in practice it only ever upgraded alpha until the per-node image + direct-endpoint fix, 2026-10-21) |
 | F2 | #406 | The seven BestEffort cluster primitives got requests/limits |
 | C4 | #407 | LXC 109 (`nest-mcp`) torn down; k8s HelmRelease is sole deployment |
 | E1 | #409 | 15 NodePort services (media namespace) converted to ClusterIP |

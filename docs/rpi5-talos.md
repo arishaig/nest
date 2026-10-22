@@ -194,23 +194,29 @@ in the rpi5 patches together. CI (`talos-rpi5-overlay` job) blocks the PR until
 the Image Factory serves the `rpi_5` overlay for that version — overlay
 releases can lag a Talos patch release by a few days
 ([siderolabs/talos#12748](https://github.com/siderolabs/talos/issues/12748)).
-After merge, upgrade one node at a time, Pis with the rpi_5 installer:
+After merge, the next `deploy-tofu` run upgrades the Pis one at a time with
+the installer image from their own patch (rpi_5 overlay + `nfs-utils`), never
+the x86 schematic. It runs whenever `terraform/**` changes, which includes
+every Talos bump. To upgrade one by hand (e.g. after a failed run), target the
+node as its own endpoint:
 
 ```bash
-talosctl upgrade --nodes 192.168.1.112 \
+talosctl upgrade --endpoints 192.168.1.112 --nodes 192.168.1.112 \
   --image factory.talos.dev/installer/b01e4d4c84232eef19a4e5613ea847d99e9c080cd198273c18f7611fa41eed6f:<new-version>
 ```
 
-(alpha keeps using the x86 schematic from `terraform.tfvars`.)
+(alpha and alpha-control use the x86 schematic from `terraform.tfvars`.)
 
-> **This step is manual and is currently behind.** CI's Talos upgrade loop in
-> `deploy.yml` is hardcoded to `192.168.1.110`, so it upgrades the amd64 worker
-> and nothing else (architecture review finding **G2**). As of 2026-07-30 both
-> Pis *and* `talos-alpha-control` run v1.13.6 against a pinned v1.13.7.
->
-> Do **not** fix that by adding the Pi IPs to the loop: it builds one image from
-> `talos_schematic_id` (`ed304c51…`, amd64), which would push an x86 installer
-> onto both Pis. Any fix needs a per-node schematic map.
+> **History.** #405 added the Pi IPs to CI's loop while it still built one image
+> from `talos_schematic_id` (`ed304c51…`, amd64) for every node. That never hit
+> the Pis only because of a second bug: the loop queried versions through the
+> talosconfig endpoint, which refuses to forward, so it read talosctl's own
+> client tag and logged every node except alpha as "already on" the target.
+> Until 2026-10-21 both Pis, `talos-alpha-control` and omega were silently
+> stuck on v1.13.x while CI reported them current. The loop now uses one image
+> per node and asks each node directly. Check the real version with
+> `kubectl get nodes -o wide` (OS-IMAGE column) or
+> `talosctl -e <ip> -n <ip> version`; the Tag under `Server:` is the node's.
 
 ## Known issues / watch list
 

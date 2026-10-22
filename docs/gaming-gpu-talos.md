@@ -218,17 +218,20 @@ time they restart, or all at once the next time omega reboots into Windows.
 Renovate bumps `talos_version` in `terraform.tfvars` and the installer tag in
 `talos/patches/worker-omega.yaml` together (separate custom regex manager in
 `renovate.json`, mirroring the RPi5 one — kept as its own entry so it doesn't
-double-track alongside the RPi5 pattern). After merge, upgrade manually
-(this node isn't covered by CI's Talos upgrade loop, same caveat as the RPi5
-nodes — see `docs/rpi5-talos.md`'s Upgrades section):
+double-track alongside the RPi5 pattern). CI's Talos upgrade loop
+(`deploy-tofu`) covers omega on a best-effort basis, using the NVIDIA image
+from `talos/patches/worker-omega.yaml`. If omega is in Windows at the time,
+the run logs a warning and moves on rather than failing, and the same goes if
+it doesn't come back on Talos after the upgrade reboot. Then upgrade by hand
+next time it's booted into Talos:
 
 ```bash
-talosctl upgrade --nodes 192.168.1.120 \
+talosctl upgrade --endpoints 192.168.1.120 --nodes 192.168.1.120 \
   --image factory.talos.dev/installer/6698d6f136c5bb37ca8bb8482c9084305084da0a5ead1f4dcae760796f8ab3a2:<new-version>
 ```
 
-The machine needs to be booted into Talos (not Windows) for an upgrade to
-apply, obviously.
+Never upgrade omega with the x86 `talos_schematic_id` image: it would strip
+both NVIDIA extensions.
 
 ## Known issues / design notes
 
