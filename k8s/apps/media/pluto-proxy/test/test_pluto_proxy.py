@@ -13,6 +13,18 @@ CID = "5" * 24
 SESSION = {"token": "TOK", "params": "a=1&b=2", "stitcher": "https://stitch.example", "channels_api": "https://api.example"}
 
 
+MASTER = """#EXTM3U
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",URI="subtitle/en/playlist.m3u8?sid=S"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="AD",URI="audio/ad/audio.m3u8?sid=S"
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1042180,SUBTITLES="subs",AUDIO="audio"
+1042180/playlist.m3u8?sid=S&jwt=TOK
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=3321280,SUBTITLES="subs",AUDIO="audio"
+3321280/playlist.m3u8?sid=S&jwt=TOK
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2294080,SUBTITLES="subs",AUDIO="audio"
+2294080/playlist.m3u8?sid=S&jwt=TOK
+"""
+
+
 def fake_fetch(url, token=None):
     if url.endswith("/v2/guide/categories"):
         return {"data": [{"id": "c1", "name": "News + Opinion"}]}
@@ -52,10 +64,23 @@ class ProxyTest(unittest.TestCase):
         self.assertIn('group-title="News + Opinion"', body)
         self.assertIn("http://127.0.0.1:%d/ch/%s.m3u8" % (self.srv.server_port, CID), body)
 
-    def test_redirect_carries_token(self):
+    def test_redirect_falls_back_to_master_when_unreadable(self):
+        pp.fetch_master = lambda url: (_ for _ in ()).throw(OSError("down"))
         status, h, _ = self.get("/ch/%s.m3u8" % CID)
         self.assertEqual(status, 302)
         self.assertEqual(h["Location"], "https://stitch.example/v2/stitch/hls/channel/%s/master.m3u8?a=1&b=2&jwt=TOK&masterJWTPassthrough=true" % CID)
+
+    def test_redirect_picks_best_variant(self):
+        pp.fetch_master = lambda url: (MASTER, "https://stitch.example/v2/stitch/hls/channel/x/master.m3u8?q=1")
+        status, h, _ = self.get("/ch/%s.m3u8" % CID)
+        self.assertEqual(status, 302)
+        self.assertEqual(h["Location"], "https://stitch.example/v2/stitch/hls/channel/x/3321280/playlist.m3u8?sid=S&jwt=TOK")
+
+    def test_pick_variant_respects_cap_and_handles_empty(self):
+        base = "https://h/p/master.m3u8"
+        self.assertEqual(pp.pick_variant(MASTER, base, 2300000), "https://h/p/2294080/playlist.m3u8?sid=S&jwt=TOK")
+        self.assertIsNone(pp.pick_variant(MASTER, base, 100))
+        self.assertIsNone(pp.pick_variant("#EXTM3U\n", base))
 
     def test_unknown_and_malformed_ids_404(self):
         self.assertEqual(self.get("/ch/%s.m3u8" % ("6" * 24))[0], 404)  # filtered out
