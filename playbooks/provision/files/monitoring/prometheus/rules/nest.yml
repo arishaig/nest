@@ -712,7 +712,7 @@ groups:
       # scrape path so a green web UI plus this alert doesn't read as a
       # contradiction.
       - alert: MediaAppExporterDown
-        expr: avg_over_time(up{job=~"sonarr|radarr|lidarr|prowlarr|bazarr"}[30m]) < 0.5
+        expr: avg_over_time(up{job=~"sonarr|radarr|lidarr|prowlarr|bazarr|dispatcharr"}[30m]) < 0.5
         for: 5m
         labels:
           severity: warning

@@ -200,6 +200,14 @@ scrape_configs:
         labels:
           instance: 'talos'
 
+  # Dispatcharr (Live TV proxy) via its dispatcharr_exporter plugin on the shared
+  # .116 metrics IP (k8s/apps/media/dispatcharr.yaml, docs/live-tv.md).
+  - job_name: 'dispatcharr'
+    static_configs:
+      - targets: ['192.168.1.116:9192']
+        labels:
+          instance: 'talos'
+
   - job_name: 'kube-state-metrics'
     static_configs:
       - targets: ['192.168.1.116:8080']

@@ -86,3 +86,13 @@ Dashboard → Live TV:
   series rules are unreliable. Use timed or one-off recordings.
 - Dispatcharr has its own DVR; it's unused here so Jellyfin stays the single
   recorder.
+
+## Metrics
+
+The `dispatcharr_exporter` plugin (sethwv, installed from the Dispatcharr UI, so
+it lives in `/data/plugins` on the PVC, not in git) serves Prometheus metrics on
+`:9192`. The `dispatcharr-metrics` Service puts that on the shared MetalLB
+metrics IP, and Prometheus scrapes it as job `dispatcharr`
+(`192.168.1.116:9192`). `MediaAppExporterDown` covers the scrape path. If the
+plugin is reinstalled or disabled, the target goes unscrapeable but the app is
+unaffected.
