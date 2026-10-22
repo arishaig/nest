@@ -81,6 +81,13 @@ class JellyfinSettings(BaseSettings):
     key: str = ""
 
 
+class TunarrSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_TUNARR_")
+    # nest-mcp runs in-cluster; reach tunarr via its ClusterIP Service. The
+    # API is unauthenticated (the IngressRoute is LAN-only instead).
+    url: str = "http://tunarr.media.svc.cluster.local:8000"
+
+
 class JellyseerrSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_JELLYSEERR_")
     # nest-mcp runs in-cluster; reach seerr via its ClusterIP Service
@@ -162,6 +169,7 @@ scrutiny = ScrutinySettings()
 traefik = TraefikSettings()
 arr = ArrSettings()
 jellyfin = JellyfinSettings()
+tunarr = TunarrSettings()
 jellyseerr = JellyseerrSettings()
 vps = VpsSettings()
 docker_host = DockerHostSettings()

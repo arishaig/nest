@@ -1,0 +1,543 @@
+import httpx
+from mcp.server.mcpserver import MCPServer
+from nest_mcp import config
+from nest_mcp.http_client import make_client
+
+# Resource collections that share one CRUD shape (list / get / create / replace / delete).
+_RESOURCES = {
+    "custom-shows": "/api/custom-shows",
+    "filler-lists": "/api/filler-lists",
+    "smart-collections": "/api/smart_collections",
+    "transcode-configs": "/api/transcode_configs",
+    "stream-selection-profiles": "/api/stream-selection-profiles",
+}
+
+# Singleton settings documents (GET to read, PUT to replace).
+_SETTINGS = {
+    "ffmpeg": "/api/ffmpeg-settings",
+    "hdhr": "/api/hdhr-settings",
+    "xmltv": "/api/xmltv-settings",
+    "plex": "/api/plex-settings",
+    "system": "/api/system/settings",
+    "media-source": "/api/settings/media-source",
+    "feature-flags": "/api/system/feature-flags",
+}
+
+_PAGE = 200
+
+
+def _client() -> httpx.AsyncClient:
+    # Scans, big lineups and programming rewrites are slow; Tunarr's API has no auth.
+    return make_client(config.tunarr.url, timeout=120.0)
+
+
+async def _call(client: httpx.AsyncClient, method: str, path: str, **kwargs):
+    """Request Tunarr; surface its error body (raise_for_status alone drops it)."""
+    resp = await client.request(method, path, **kwargs)
+    if resp.is_error:
+        raise RuntimeError(f"Tunarr {method} {path} -> {resp.status_code}: {resp.text[:500]}")
+    if not resp.content:
+        return {"status": resp.status_code}
+    try:
+        return resp.json()
+    except ValueError:
+        return {"status": resp.status_code, "body": resp.text[:2000]}
+
+
+async def _channel(client: httpx.AsyncClient, ref: str) -> dict:
+    """Resolve a channel by UUID, channel number or (case-insensitive) name."""
+    ref = str(ref).strip()
+    for ch in await _call(client, "GET", "/api/channels"):
+        if ch["id"] == ref or str(ch.get("number")) == ref or ch.get("name", "").lower() == ref.lower():
+            return ch
+    raise ValueError(f"No Tunarr channel matches {ref!r}; call tunarr_channels to list them")
+
+
+async def _all_programs(client: httpx.AsyncClient, channel_id: str) -> list[dict]:
+    out: list[dict] = []
+    offset = 0
+    while True:
+        page = await _call(
+            client, "GET", f"/api/channels/{channel_id}/programs",
+            params={"limit": _PAGE, "offset": offset},
+        )
+        out.extend(page["result"])
+        offset += _PAGE
+        if offset >= page["total"]:
+            return out
+
+
+def _ident(program: dict, kind: str) -> str:
+    for i in program.get("identifiers") or []:
+        if i.get("type") == kind:
+            return i.get("id", "")
+    return ""
+
+
+def _program_row(p: dict) -> dict:
+    show = p.get("show") or {}
+    season = p.get("season") or {}
+    return {
+        "id": p.get("uuid"),
+        "title": p.get("title"),
+        "show": show.get("title"),
+        "season": season.get("index"),
+        "episode": p.get("episodeNumber"),
+        "type": p.get("type"),
+        "year": p.get("year"),
+        "minutes": round((p.get("duration") or 0) / 60000, 1),
+        "state": p.get("state"),
+        "jellyfin_id": _ident(p, "jellyfin"),
+        "imdb": _ident(p, "imdb"),
+        "tvdb": _ident(p, "tvdb"),
+    }
+
+
+def _slice(rows: list, limit: int, offset: int) -> dict:
+    return {"total": len(rows), "offset": offset, "items": rows[offset:offset + limit]}
+
+
+def _need(table: dict, name: str, what: str) -> str:
+    if name not in table:
+        raise ValueError(f"Unknown {what} {name!r}; choose one of: {', '.join(table)}")
+    return table[name]
+
+
+def register(mcp: MCPServer) -> None:
+
+    # ── Read: server, channels, programs ──────────────────────────────────────
+
+    @mcp.tool()
+    async def tunarr_status() -> dict:
+        """Tunarr server overview: version, health checks, ffmpeg, sessions, XMLTV last refresh, scheduled tasks."""
+        async with _client() as client:
+            out: dict = {}
+            for key, path in (
+                ("version", "/api/version"),
+                ("health", "/api/system/health"),
+                ("sessions", "/api/sessions"),
+                ("xmltv_last_refresh", "/api/xmltv-last-refresh"),
+                ("guide", "/api/guide/status"),
+            ):
+                try:
+                    out[key] = await _call(client, "GET", path)
+                except RuntimeError as exc:
+                    out[key] = {"error": str(exc)}
+            tasks = await _call(client, "GET", "/api/tasks")
+            out["tasks"] = [
+                {"id": t["id"], "scheduled": [
+                    {"next": s.get("nextExecution"), "last": s.get("lastExecution"), "running": s.get("running")}
+                    for s in t.get("scheduledTasks", [])]}
+                for t in tasks
+            ]
+            return out
+
+    @mcp.tool()
+    async def tunarr_channels() -> list[dict]:
+        """List Tunarr channels: number, name, id, lineup length (entries, repeats counted), total hours, stream mode, offline/stealth/on-demand flags."""
+        async with _client() as client:
+            return [
+                {
+                    "number": c.get("number"),
+                    "name": c.get("name"),
+                    "id": c.get("id"),
+                    "lineup_entries": c.get("programCount"),
+                    "hours": round((c.get("duration") or 0) / 3_600_000, 1),
+                    "stream_mode": c.get("streamMode"),
+                    "offline": c.get("offline"),
+                    "stealth": c.get("stealth"),
+                    "on_demand": (c.get("onDemand") or {}).get("enabled"),
+                    "transcode_config_id": c.get("transcodeConfigId"),
+                    "sessions": c.get("sessions"),
+                }
+                for c in await _call(client, "GET", "/api/channels")
+            ]
+
+    @mcp.tool()
+    async def tunarr_channel(channel: str) -> dict:
+        """Full configuration of one channel (number, UUID or name): icon, watermark, filler, transcode config, subtitles, on-demand, etc."""
+        async with _client() as client:
+            ch = await _channel(client, channel)
+            return await _call(client, "GET", f"/api/channels/{ch['id']}")
+
+    @mcp.tool()
+    async def tunarr_channel_programs(
+        channel: str, state: str = "", search: str = "", limit: int = 100, offset: int = 0,
+    ) -> dict:
+        """List the distinct programs on a channel (number, UUID or name) as compact rows: title, show, season/episode, minutes, Jellyfin ID, and Tunarr `state` ('ok' or 'missing'). Filter by `state` and/or a case-insensitive title/show `search`; page with limit/offset."""
+        async with _client() as client:
+            ch = await _channel(client, channel)
+            rows = [_program_row(p) for p in await _all_programs(client, ch["id"])]
+        if state:
+            rows = [r for r in rows if r["state"] == state]
+        if search:
+            needle = search.lower()
+            rows = [r for r in rows if needle in (r["title"] or "").lower() or needle in (r["show"] or "").lower()]
+        return _slice(rows, limit, offset)
+
+    @mcp.tool()
+    async def tunarr_channel_lineup(channel: str, limit: int = 100, offset: int = 0) -> dict:
+        """The ordered lineup of a channel (what plays, in order): each entry's type (content/flex/redirect/custom/filler), program UUID, minutes and title. Use this to see exact ordering before editing with tunarr_set_programming."""
+        async with _client() as client:
+            ch = await _channel(client, channel)
+            prog = await _call(client, "GET", f"/api/channels/{ch['id']}/programming")
+        programs = prog.get("programs", {})
+        rows = []
+        for idx, entry in enumerate(prog.get("lineup", [])):
+            detail = programs.get(entry.get("id"), {}).get("program") or {}
+            rows.append({
+                "index": idx,
+                "type": entry.get("type"),
+                "id": entry.get("id"),
+                "minutes": round((entry.get("duration") or 0) / 60000, 1),
+                "title": detail.get("title"),
+                "show": (detail.get("show") or {}).get("title"),
+                "state": detail.get("state"),
+            })
+        return {"channel": ch["name"], **_slice(rows, limit, offset)}
+
+    @mcp.tool()
+    async def tunarr_now_playing(channel: str) -> dict:
+        """What a channel is playing right now (and its position), as Tunarr's schedule computes it."""
+        async with _client() as client:
+            ch = await _channel(client, channel)
+            return await _call(client, "GET", f"/api/channels/{ch['id']}/now_playing")
+
+    @mcp.tool()
+    async def tunarr_guide(date_from: str, date_to: str, channel: str = "") -> dict | list:
+        """TV guide (EPG) between two ISO-8601 timestamps, for one channel or all. Example: date_from='2026-10-22T18:00:00Z'."""
+        params = {"dateFrom": date_from, "dateTo": date_to}
+        async with _client() as client:
+            if channel:
+                ch = await _channel(client, channel)
+                return await _call(client, "GET", f"/api/guide/channels/{ch['id']}", params=params)
+            return await _call(client, "GET", "/api/guide/channels", params=params)
+
+    @mcp.tool()
+    async def tunarr_sessions() -> dict | list:
+        """Active Tunarr stream sessions (which channels are being watched, by whom)."""
+        async with _client() as client:
+            return await _call(client, "GET", "/api/sessions")
+
+    # ── Read: media sources, libraries, programs search ───────────────────────
+
+    @mcp.tool()
+    async def tunarr_media_sources() -> list[dict]:
+        """Media sources (Jellyfin/Plex/Emby) configured in Tunarr with their libraries, enabled flags and last scan times."""
+        async with _client() as client:
+            sources = await _call(client, "GET", "/api/media-sources")
+            for src in sources:
+                src.pop("accessToken", None)
+            return sources
+
+    @mcp.tool()
+    async def tunarr_scan_status(media_source: str, library: str = "") -> dict | list:
+        """Scan state for a media source, or one library of it ('idle'/'queued'/'in_progress' with percentComplete). Pass IDs from tunarr_media_sources."""
+        async with _client() as client:
+            if library:
+                return await _call(client, "GET", f"/api/media-sources/{media_source}/{library}/status")
+            return await _call(client, "GET", f"/api/media-sources/{media_source}/status")
+
+    @mcp.tool()
+    async def tunarr_search_programs(
+        query: str = "", media_source: str = "", library: str = "", filter: dict | None = None,
+        restrict_to: list[str] | None = None, sort_by: str = "", descending: bool = False,
+        limit: int = 25, page: int = 1,
+    ) -> dict:
+        """Search Tunarr's synced program database (what can be put on a channel). `query` is free text matched against titles (restrict_to names the fields to search, e.g. ["title"]). `filter` is Tunarr's structured filter tree ({"type":"value","fieldSpec":{...}} / {"type":"op","op":"and"|"or","children":[...]}), the same shape smart collections use. sort_by: title, sortTitle, duration, originalReleaseDate, originalReleaseYear, addedAt, index. Restrict to a media source and library by ID (tunarr_media_sources). Results include each program's Tunarr UUID for tunarr_set_programming."""
+        search: dict = {"query": query or None}
+        if restrict_to:
+            search["restrictSearchTo"] = restrict_to
+        if filter:
+            search["filter"] = filter
+        if sort_by:
+            search["sort"] = [{"field": sort_by, "direction": "desc" if descending else "asc"}]
+        body: dict = {"query": search, "limit": limit, "page": page}
+        if media_source:
+            body["mediaSourceId"] = media_source
+        if library:
+            body["libraryId"] = library
+        async with _client() as client:
+            return await _call(client, "POST", "/api/programs/search", json=body)
+
+    @mcp.tool()
+    async def tunarr_program(program_id: str) -> dict:
+        """One program by Tunarr UUID, plus its stream details (codecs, streams, subtitles)."""
+        async with _client() as client:
+            prog = await _call(client, "GET", f"/api/programs/{program_id}")
+            try:
+                prog["stream_details"] = await _call(client, "GET", f"/api/programs/{program_id}/stream_details")
+            except RuntimeError as exc:
+                prog["stream_details"] = {"error": str(exc)}
+            return prog
+
+    # ── Read: other resources and settings ────────────────────────────────────
+
+    @mcp.tool()
+    async def tunarr_list_resources(kind: str) -> list | dict:
+        """List a resource collection. kind: custom-shows, filler-lists, smart-collections, transcode-configs, stream-selection-profiles."""
+        async with _client() as client:
+            return await _call(client, "GET", _need(_RESOURCES, kind, "kind"))
+
+    @mcp.tool()
+    async def tunarr_get_resource(kind: str, resource_id: str, include_programs: bool = False) -> dict:
+        """One resource by ID (see tunarr_list_resources for kinds). For custom-shows and filler-lists, include_programs=True also returns their programs."""
+        base = _need(_RESOURCES, kind, "kind")
+        async with _client() as client:
+            out = await _call(client, "GET", f"{base}/{resource_id}")
+            if include_programs and kind in ("custom-shows", "filler-lists"):
+                out = {"resource": out, "programs": await _call(client, "GET", f"{base}/{resource_id}/programs")}
+            return out
+
+    @mcp.tool()
+    async def tunarr_get_settings(kind: str) -> dict:
+        """Read a settings document. kind: ffmpeg, hdhr, xmltv, plex, system, media-source, feature-flags."""
+        async with _client() as client:
+            return await _call(client, "GET", _need(_SETTINGS, kind, "kind"))
+
+    @mcp.tool()
+    async def tunarr_trash() -> dict:
+        """Programs Tunarr has flagged as no longer present in their source (the trash), which can be emptied with tunarr_empty_trash."""
+        async with _client() as client:
+            return await _call(client, "GET", "/api/trash")
+
+    # ── Audit ─────────────────────────────────────────────────────────────────
+
+    @mcp.tool()
+    async def tunarr_audit_programs(channel: str = "", check_jellyfin: bool = False) -> list[dict]:
+        """Health-check channel lineups. Per channel: program counts by Tunarr `state` ('ok'/'missing') and the missing programs grouped by show. With check_jellyfin=True, also verifies every program's Jellyfin ID against Jellyfin itself (catches stale IDs before Tunarr's next library scan flags them). Omit `channel` for all."""
+        async with _client() as client:
+            if channel:
+                channels = [await _channel(client, channel)]
+            else:
+                channels = await _call(client, "GET", "/api/channels")
+            results = []
+            for ch in channels:
+                programs = await _all_programs(client, ch["id"])
+                states: dict[str, int] = {}
+                missing_by_show: dict[str, int] = {}
+                jf_ids = {}
+                for p in programs:
+                    states[p.get("state") or "unknown"] = states.get(p.get("state") or "unknown", 0) + 1
+                    if p.get("state") == "missing":
+                        name = (p.get("show") or {}).get("title") or p.get("title") or "?"
+                        missing_by_show[name] = missing_by_show.get(name, 0) + 1
+                    jid = _ident(p, "jellyfin")
+                    if jid:
+                        jf_ids[jid.replace("-", "").lower()] = p
+                row = {
+                    "channel": f"{ch.get('number')} {ch.get('name')}",
+                    "programs": len(programs),
+                    "by_state": states,
+                    "missing_by_show": dict(sorted(missing_by_show.items(), key=lambda kv: -kv[1])),
+                }
+                if check_jellyfin:
+                    absent = await _absent_in_jellyfin(list(jf_ids))
+                    row["jellyfin_absent"] = len(absent)
+                    shows: dict[str, int] = {}
+                    for jid in absent:
+                        name = (jf_ids[jid].get("show") or {}).get("title") or jf_ids[jid].get("title") or "?"
+                        shows[name] = shows.get(name, 0) + 1
+                    row["jellyfin_absent_by_show"] = dict(sorted(shows.items(), key=lambda kv: -kv[1]))
+                results.append(row)
+            return results
+
+    async def _absent_in_jellyfin(ids: list[str]) -> list[str]:
+        """IDs (dashless lowercase) that Jellyfin does not know about."""
+        headers = {"Authorization": f'MediaBrowser Token="{config.jellyfin.key}"'}
+        present: set[str] = set()
+        async with make_client(config.jellyfin.url, headers=headers, timeout=60.0) as jf:
+            for i in range(0, len(ids), 100):
+                batch = ids[i:i + 100]
+                resp = await jf.get("/Items", params={"Ids": ",".join(batch), "Recursive": "true"})
+                resp.raise_for_status()
+                present.update(it["Id"].replace("-", "").lower() for it in resp.json().get("Items", []))
+        return [i for i in ids if i not in present]
+
+    # ── Write: channels and programming ───────────────────────────────────────
+
+    @mcp.tool()
+    async def tunarr_create_channel(channel: dict) -> dict:
+        """[DESTRUCTIVE] Create a Tunarr channel. `channel` is Tunarr's create body: at minimum name, number, icon, and the other fields shown by tunarr_channel on an existing channel (take one as a template). Show the user the final body and confirm before calling."""
+        async with _client() as client:
+            return await _call(client, "POST", "/api/channels", json=channel)
+
+    @mcp.tool()
+    async def tunarr_update_channel(channel: str, changes: dict) -> dict:
+        """[DESTRUCTIVE] Update channel settings (name, number, icon, watermark, stream mode, offline, on-demand, transcode config, ...). Fetches the current channel, merges `changes` over it, and PUTs the whole thing back, so only send the fields you want to change. Programming is not touched; use tunarr_set_programming for that. Confirm with the user first."""
+        async with _client() as client:
+            ch = await _channel(client, channel)
+            current = await _call(client, "GET", f"/api/channels/{ch['id']}")
+            return await _call(client, "PUT", f"/api/channels/{ch['id']}", json={**current, **changes})
+
+    @mcp.tool()
+    async def tunarr_delete_channel(channel: str) -> dict:
+        """[DESTRUCTIVE] Permanently delete a channel and its lineup. Cannot be undone. Confirm with the user first."""
+        async with _client() as client:
+            ch = await _channel(client, channel)
+            await _call(client, "DELETE", f"/api/channels/{ch['id']}")
+            return {"deleted": f"{ch.get('number')} {ch.get('name')}", "id": ch["id"]}
+
+    @mcp.tool()
+    async def tunarr_set_programming(channel: str, programming: dict) -> dict:
+        """[DESTRUCTIVE] Replace (or append to) a channel's programming. `programming` is Tunarr's body, one of: {"type":"manual","lineup":[{"type":"content","id":<program UUID>,"duration":<ms>}, {"type":"flex"|"custom"|"filler"|"redirect",...}],"append":false}; {"type":"time","programs":[...],"schedule":{...}}; {"type":"random","programs":[...],"schedule":{...}}. Program UUIDs come from tunarr_search_programs. Unless append=true this REPLACES the whole lineup. Snapshot first with tunarr_channel_lineup and confirm with the user."""
+        async with _client() as client:
+            ch = await _channel(client, channel)
+            return await _call(client, "POST", f"/api/channels/{ch['id']}/programming", json=programming)
+
+    @mcp.tool()
+    async def tunarr_remove_programs(
+        channel: str, program_ids: list[str] | None = None, only_missing: bool = False, dry_run: bool = True,
+    ) -> dict:
+        """[DESTRUCTIVE] Remove programs from a channel's lineup, keeping everything else (order, flex, fillers) intact. Select by `program_ids` (Tunarr UUIDs) and/or `only_missing=True` (every program Tunarr flags 'missing'). Defaults to dry_run=True, which only reports what would be removed; set dry_run=False to apply. The response lists the removed entries so they can be restored. Confirm with the user before applying."""
+        if not program_ids and not only_missing:
+            raise ValueError("Pass program_ids and/or only_missing=True")
+        async with _client() as client:
+            ch = await _channel(client, channel)
+            prog = await _call(client, "GET", f"/api/channels/{ch['id']}/programming")
+            programs = prog.get("programs", {})
+            wanted = set(program_ids or [])
+
+            def doomed(entry: dict) -> bool:
+                if entry.get("type") != "content":
+                    return False
+                detail = programs.get(entry.get("id"), {}).get("program") or {}
+                return entry.get("id") in wanted or (only_missing and detail.get("state") == "missing")
+
+            keep = [e for e in prog.get("lineup", []) if not doomed(e)]
+            removed = [e for e in prog.get("lineup", []) if doomed(e)]
+            result = {
+                "channel": f"{ch.get('number')} {ch.get('name')}",
+                "before": len(prog.get("lineup", [])), "after": len(keep), "removed": len(removed),
+                "applied": False,
+            }
+            if dry_run or not removed:
+                return result
+            await _call(client, "POST", f"/api/channels/{ch['id']}/programming",
+                        json={"type": "manual", "lineup": [_lineup_entry(e) for e in keep], "append": False})
+            result["applied"] = True
+            result["removed_entries"] = [_lineup_entry(e) for e in removed]
+            return result
+
+    @mcp.tool()
+    async def tunarr_generate_schedule(channel: str, mode: str, schedule: dict) -> dict:
+        """[DESTRUCTIVE] Generate a channel schedule from slots and apply it to the channel's existing programming. mode 'slots' (Tunarr schedule-slots: ordered slots with a duration/order each) or 'time-slots' (schedule-time-slots: slots pinned to times of day). `schedule` is Tunarr's schedule object. Replaces the channel's lineup; confirm with the user first."""
+        path = {"slots": "schedule-slots", "time-slots": "schedule-time-slots"}.get(mode)
+        if path is None:
+            raise ValueError("mode must be 'slots' or 'time-slots'")
+        async with _client() as client:
+            ch = await _channel(client, channel)
+            return await _call(client, "POST", f"/api/channels/{ch['id']}/{path}", json={"schedule": schedule})
+
+    @mcp.tool()
+    async def tunarr_stop_sessions(channel: str) -> dict:
+        """[DESTRUCTIVE] Stop all active stream sessions on a channel (viewers are disconnected and will have to retune). Use after fixing a channel to clear a stuck stream."""
+        async with _client() as client:
+            ch = await _channel(client, channel)
+            return await _call(client, "DELETE", f"/api/channels/{ch['id']}/sessions")
+
+    # ── Write: custom shows, fillers, collections, transcode configs, profiles ─
+
+    @mcp.tool()
+    async def tunarr_save_resource(kind: str, body: dict, resource_id: str = "") -> dict:
+        """[DESTRUCTIVE] Create or replace a resource. kind: custom-shows, filler-lists, smart-collections, transcode-configs, stream-selection-profiles. Omit resource_id to create; pass it to REPLACE that resource entirely (fetch it with tunarr_get_resource, edit, send the whole). Show the user the final body and confirm first."""
+        base = _need(_RESOURCES, kind, "kind")
+        async with _client() as client:
+            if resource_id:
+                return await _call(client, "PUT", f"{base}/{resource_id}", json=body)
+            return await _call(client, "POST", base, json=body)
+
+    @mcp.tool()
+    async def tunarr_delete_resource(kind: str, resource_id: str) -> dict:
+        """[DESTRUCTIVE] Delete a custom show, filler list, smart collection, transcode config or stream-selection profile. Channels referencing it may break. Confirm with the user first."""
+        base = _need(_RESOURCES, kind, "kind")
+        async with _client() as client:
+            return await _call(client, "DELETE", f"{base}/{resource_id}")
+
+    @mcp.tool()
+    async def tunarr_copy_transcode_config(config_id: str) -> dict:
+        """Duplicate a transcode config (a safe starting point for edits instead of changing one in use)."""
+        async with _client() as client:
+            return await _call(client, "POST", f"/api/transcode_configs/{config_id}/copy")
+
+    @mcp.tool()
+    async def tunarr_sync_custom_show(custom_show_id: str) -> dict:
+        """Re-sync a custom show from its external playlist source (only for custom shows created with a sync source)."""
+        async with _client() as client:
+            return await _call(client, "POST", f"/api/custom-shows/{custom_show_id}/sync")
+
+    @mcp.tool()
+    async def tunarr_set_settings(kind: str, settings: dict) -> dict:
+        """[DESTRUCTIVE] Replace a settings document. kind: ffmpeg, hdhr, xmltv, plex, system, media-source, feature-flags. Read it first with tunarr_get_settings, edit, send the whole document back. Some settings need a restart to take effect. Confirm with the user first."""
+        async with _client() as client:
+            return await _call(client, "PUT", _need(_SETTINGS, kind, "kind"), json=settings)
+
+    # ── Write: media sources, scans, tasks, maintenance ───────────────────────
+
+    @mcp.tool()
+    async def tunarr_scan_library(media_source: str, library: str, force: bool = True) -> dict:
+        """Start a scan of one library so Tunarr re-syncs its program database from the media source (this is what refreshes IDs and flips programs between 'ok' and 'missing'). Returns immediately; a large library takes many minutes, so poll tunarr_scan_status. IDs come from tunarr_media_sources."""
+        async with _client() as client:
+            return await _call(
+                client, "POST", f"/api/media-sources/{media_source}/libraries/{library}/scan",
+                params={"forceScan": str(force).lower()},
+            )
+
+    @mcp.tool()
+    async def tunarr_refresh_libraries(media_source: str) -> dict:
+        """Re-fetch the list of libraries a media source offers (new/removed libraries). Does not scan their contents."""
+        async with _client() as client:
+            return await _call(client, "POST", f"/api/media-sources/{media_source}/libraries/refresh")
+
+    @mcp.tool()
+    async def tunarr_set_library_enabled(media_source: str, library: str, enabled: bool) -> dict:
+        """[DESTRUCTIVE] Enable or disable a library for Tunarr. Disabled libraries are not scanned and their programs cannot be added to channels."""
+        async with _client() as client:
+            return await _call(
+                client, "PUT", f"/api/media-sources/{media_source}/libraries/{library}", json={"enabled": enabled},
+            )
+
+    @mcp.tool()
+    async def tunarr_run_task(task_id: str) -> dict:
+        """Run a scheduled Tunarr task now. IDs are listed by tunarr_status (e.g. ScanLibrariesTask, RefreshMediaSourceLibraryTask, BackupTask)."""
+        async with _client() as client:
+            return await _call(client, "POST", f"/api/tasks/{task_id}/run")
+
+    @mcp.tool()
+    async def tunarr_run_fixer(fixer_id: str) -> dict:
+        """Run one of Tunarr's built-in data fixers by ID (repairs for known DB inconsistencies). Valid IDs are in Tunarr's docs and server logs (use k8s_pod_logs)."""
+        async with _client() as client:
+            return await _call(client, "POST", f"/api/system/fixers/{fixer_id}/run")
+
+    @mcp.tool()
+    async def tunarr_refresh_xmltv() -> dict:
+        """Regenerate the XMLTV guide file that Jellyfin (and other clients) read."""
+        async with _client() as client:
+            return await _call(client, "POST", "/api/xmltv/refresh")
+
+    @mcp.tool()
+    async def tunarr_empty_trash() -> dict:
+        """[DESTRUCTIVE] Permanently delete the programs Tunarr has in its trash (items missing from their source). Confirm with the user first."""
+        async with _client() as client:
+            return await _call(client, "DELETE", "/api/trash")
+
+    # ── Escape hatch ──────────────────────────────────────────────────────────
+
+    @mcp.tool()
+    async def tunarr_api(method: str, path: str, body: dict | None = None, query: dict | None = None) -> dict | list:
+        """[DESTRUCTIVE unless GET] Call any Tunarr API endpoint directly. `path` starts with /api/ (the OpenAPI spec is at /openapi.json). Use for anything the dedicated tunarr_* tools do not cover. Non-GET calls change live state: confirm with the user first."""
+        method = method.upper()
+        if method not in ("GET", "POST", "PUT", "PATCH", "DELETE"):
+            raise ValueError("method must be GET, POST, PUT, PATCH or DELETE")
+        if not path.startswith("/api/"):
+            raise ValueError("path must start with /api/")
+        async with _client() as client:
+            return await _call(client, method, path, json=body, params=query)
+
+
+def _lineup_entry(entry: dict) -> dict:
+    """Reduce a lineup entry from GET /programming to the shape POST /programming accepts."""
+    keep = ("type", "id", "duration", "icon", "customShowId", "index", "fillerListId", "fillerType",
+            "channel", "channelNumber", "channelName", "startOffsetMs")
+    return {k: entry[k] for k in keep if k in entry}
+
