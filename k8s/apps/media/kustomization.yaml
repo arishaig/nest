@@ -50,6 +50,7 @@ resources:
   - tunarr.yaml  # HelmRelease (app-template) — replaces deployment+service
   - dispatcharr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - dispatcharr.yaml  # HelmRelease (app-template) — FAST-channel M3U/XMLTV proxy for Jellyfin Live TV
+  - pluto-proxy.yaml  # HelmRelease (app-template) — Pluto TV playlist/stream redirector feeding Dispatcharr
   - metube.yaml  # HelmRelease (app-template) — replaces deployment+service (no PVC; uses media-nfs)
   - medialyze-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - medialyze.yaml  # HelmRelease (app-template) — replaces deployment+service
@@ -129,6 +130,12 @@ configMapGenerator:
       - ffprobe=jellyfin-offload/ffprobe
       - ffmpeg-sw-fallback.pl=jellyfin-offload/ffmpeg-sw-fallback.pl
       - ffmpeg-runner.pl=jellyfin-offload/ffmpeg-runner.pl
+  # Stdlib-only Pluto TV playlist helper (docs/live-tv.md); no name hash, so a
+  # script change needs a rollout of the pluto-proxy pod to take effect.
+  - name: pluto-proxy-script
+    namespace: media
+    files:
+      - pluto-proxy/pluto_proxy.py
   - name: shrink-remux-script
     namespace: media
     files:

@@ -15,6 +15,7 @@ Manifest: `k8s/apps/media/dispatcharr.yaml`, UI at `dispatcharr.arishaig.site`
 |---|---|
 | web + celery | two containers, one pod (same image, shared `/data`; celery reaches web on localhost) |
 | Postgres | shared `media/postgres`, role and database `dispatcharr` ([postgres.md](postgres.md)) |
+| pluto-proxy | `pluto-proxy:8181`, playlist/redirect helper for Pluto (below) |
 | Redis | private Valkey `dispatcharr-redis`, no persistence (broker and stream state only) |
 | Data | `dispatcharr-config` PVC (`nfs-nvme`) at `/data` |
 
@@ -35,13 +36,38 @@ CREATE DATABASE dispatcharr OWNER dispatcharr;
 
 ## Feeds
 
-Add the sources in the Dispatcharr UI (not in git):
+Configured in the Dispatcharr UI (not in git). Two sources:
 
-- **i.mjh.nz**: per-service M3U and XMLTV for Pluto, Samsung TV Plus, Plex and
-  Stirr, region `us`. Volunteer-run; expect occasional outages and stale guides.
-  Check the site for the current URLs.
-- Filter to the groups you want, map EPG, and use the generated M3U + XMLTV
-  endpoints below.
+**Pluto TV** via `pluto-proxy` (`k8s/apps/media/pluto-proxy/pluto_proxy.py`).
+Pluto's streams need a short-lived session token from its own boot API, so
+nothing publishes a static playlist; the old i.mjh.nz Pluto/Samsung/Plex
+playlists are gone (reportedly a takedown, 2024). The helper is a stdlib-only
+Python script in a ConfigMap on `python:3.13-alpine`, no state:
+
+- `/playlist.m3u`: ~430 channels; `tvg-id` is Pluto's channel id.
+- `/ch/<id>.m3u8`: 302 to Pluto's stitcher with a fresh token (tokens last 24h;
+  the channel list and session refresh every 6h, and the last good copy is
+  served if Pluto is unreachable).
+- Dispatcharr M3U account (type **Standard**): `http://pluto-proxy:8181/playlist.m3u`.
+- Dispatcharr EPG (XMLTV): `https://i.mjh.nz/PlutoTV/us.xml`. Its channel ids
+  match Pluto's (426 of 429 when checked), so EPG matching is by id.
+- Pluto's API is unofficial and against the spirit of its terms; it can change
+  or block at any time. Streams carry Pluto's ads (server-side stitched).
+- Tests: `python3 -m unittest discover -s k8s/apps/media/pluto-proxy/test`
+  (offline, Pluto stubbed).
+
+**Free-TV/IPTV** (`playlists/playlist_usa.m3u8` on raw.githubusercontent.com):
+28 US channels (news, NASA, Newsmax, etc.). Its published guide files don't
+cover them (epgshare01 renamed or dropped the US ids), so these have no guide.
+
+Pluto has ~430 channels; in Dispatcharr only create the groups you want, or
+the Jellyfin guide gets unwieldy.
+
+## Not available
+PBS: all 143 station streams in i.mjh.nz's data are Widevine DRM, which neither
+Dispatcharr nor Jellyfin can play or record. Over-the-air PBS and the local
+networks need an antenna and an HDHomeRun tuner, which Jellyfin supports
+natively, DVR included.
 
 ## Jellyfin
 
@@ -55,7 +81,7 @@ Dashboard → Live TV:
 
 ## Limits
 
-- Ads are stitched into the streams, so recordings contain them.
+- Pluto streams have ads stitched in, so recordings contain them.
 - The guide is thin and episodes often look identical, so "record new episodes"
   series rules are unreliable. Use timed or one-off recordings.
 - Dispatcharr has its own DVR; it's unused here so Jellyfin stays the single

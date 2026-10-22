@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""pluto-proxy: M3U playlist and stream redirector for Pluto TV's free channels.
+
+Pluto's stream URLs need a short-lived session token from its own (unofficial)
+boot API, so there is no static playlist. This serves:
+
+  /playlist.m3u     channels as an M3U; tvg-id is Pluto's channel id, which is
+                    also the id in i.mjh.nz's PlutoTV/us.xml guide
+  /ch/<id>.m3u8     302 to Pluto's stitcher with a fresh token
+  /healthz          200 once a session and channel list are loaded
+
+Stdlib only. Usage and caveats: docs/live-tv.md.
+"""
+import json
+import os
+import re
+import threading
+import time
+import urllib.parse
+import urllib.request
+import uuid
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+UA = "Mozilla/5.0"
+BOOT_URL = "https://boot.pluto.tv/v4/start"
+REFRESH = int(os.environ.get("REFRESH_SECONDS", "21600"))  # tokens last 24h
+PORT = int(os.environ.get("PORT", "8181"))
+CLIENT_ID = str(uuid.uuid4())
+ID_RE = re.compile(r"^[0-9a-f]{24}$")
+
+_lock = threading.Lock()
+_state = {"session": None, "channels": None, "at": 0.0}
+
+
+def fetch_json(url, token=None):
+    headers = {"User-Agent": UA}
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as r:
+        return json.load(r)
+
+
+def boot():
+    q = urllib.parse.urlencode({
+        "appName": "web", "appVersion": "9.0.0", "deviceVersion": "120.0",
+        "deviceModel": "web", "deviceMake": "chrome", "deviceType": "web",
+        "clientID": CLIENT_ID, "clientModelNumber": "1.0.0",
+        "serverSideAds": "false",
+    })
+    b = fetch_json(BOOT_URL + "?" + q)
+    return {
+        "token": b["sessionToken"],
+        "params": b["stitcherParams"],
+        "stitcher": b["servers"]["stitcher"],
+        "channels_api": b["servers"]["channels"],
+    }
+
+
+def load_channels(session):
+    api, tok = session["channels_api"], session["token"]
+    cats = {c["id"]: c["name"] for c in fetch_json(api + "/v2/guide/categories", tok)["data"]}
+    out = {}
+    for c in fetch_json(api + "/v2/guide/channels?limit=1000", tok)["data"]:
+        path = (c.get("stitched") or {}).get("path")
+        if not path or c.get("plutoOfficeOnly") or not ID_RE.match(c["id"]):
+            continue
+        logos = {i.get("type"): i.get("url") for i in c.get("images", [])}
+        out[c["id"]] = {
+            "name": c["name"],
+            "number": c.get("number") or 0,
+            "path": path,
+            "logo": logos.get("colorLogoPNG") or next(iter(logos.values()), ""),
+            "group": next((cats[i] for i in c.get("categoryIDs", []) if i in cats), "Pluto TV"),
+        }
+    return out
+
+
+def refresh(force=False):
+    """Return (session, channels), refreshing both when stale. Keeps the last
+    good copy if Pluto is unreachable."""
+    with _lock:
+        if force or _state["session"] is None or time.time() - _state["at"] > REFRESH:
+            try:
+                session = boot()
+                _state["channels"] = load_channels(session)
+                _state["session"], _state["at"] = session, time.time()
+            except Exception as e:  # noqa: BLE001 - serve stale rather than die
+                print("refresh failed: %s" % type(e).__name__, flush=True)
+                if _state["session"] is None:
+                    raise
+        return _state["session"], _state["channels"]
+
+
+def attr(s):
+    return str(s).replace('"', "'").replace("\n", " ")
+
+
+def playlist(base, channels):
+    lines = ["#EXTM3U"]
+    for cid, c in sorted(channels.items(), key=lambda kv: (kv[1]["number"], kv[1]["name"])):
+        lines.append(
+            '#EXTINF:-1 tvg-id="%s" tvg-name="%s" tvg-chno="%s" tvg-logo="%s" group-title="%s",%s'
+            % (cid, attr(c["name"]), c["number"], attr(c["logo"]), attr(c["group"]), attr(c["name"]))
+        )
+        lines.append("%s/ch/%s.m3u8" % (base, cid))
+    return "\n".join(lines) + "\n"
+
+
+def stream_url(session, channel):
+    return "%s/v2%s?%s&jwt=%s&masterJWTPassthrough=true" % (
+        session["stitcher"], channel["path"], session["params"], session["token"])
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args):  # request lines carry no secrets, but keep it quiet
+        pass
+
+    def reply(self, code, body=b"", ctype="text/plain", headers=None):
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        for k, v in (headers or {}).items():
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        path = urllib.parse.urlsplit(self.path).path
+        try:
+            session, channels = refresh()
+        except Exception:  # noqa: BLE001
+            return self.reply(503, b"pluto unavailable\n")
+        if path == "/healthz":
+            return self.reply(200, b"ok\n")
+        if path == "/playlist.m3u":
+            base = os.environ.get("PUBLIC_BASE") or "http://" + (self.headers.get("Host") or "localhost")
+            return self.reply(200, playlist(base, channels).encode(), "audio/x-mpegurl")
+        m = re.match(r"^/ch/([0-9a-f]{24})\.m3u8$", path)
+        if m and m.group(1) in channels:
+            return self.reply(302, headers={"Location": stream_url(session, channels[m.group(1)])})
+        self.reply(404, b"not found\n")
+
+
+if __name__ == "__main__":
+    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
