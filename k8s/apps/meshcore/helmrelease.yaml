@@ -1,0 +1,101 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: meshcore-bridge
+  namespace: meshcore
+spec:
+  interval: 1h
+  # Explicit so kustomize-controller owns this field: a stray
+  # `flux suspend` is reverted on the next apps reconcile instead of
+  # silently freezing the release (25 media HRs sat suspended
+  # 2026-08-02..09-24). For break-glass, suspend the `apps` Kustomization.
+  suspend: false
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    defaultPodOptions:
+      # omega is the user's gaming PC and goes offline on every Windows
+      # boot; the silence alerts would fire each time the bridge ran there.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: NotIn
+                    values: [omega]
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+    controllers:
+      meshcore-bridge:
+        # One subscriber: a second pod would notify twice per message.
+        replicas: 1
+        strategy: Recreate
+        containers:
+          app:
+            # ghcr.io/arishaig/meshcore-bridge:latest — own CI image, rolling tag.
+            # Set the package to public visibility at
+            # https://github.com/users/arishaig/packages/container/meshcore-bridge/settings
+            image:
+              repository: ghcr.io/arishaig/meshcore-bridge
+              tag: latest
+              pullPolicy: Always
+            env:
+              # HA's Mosquitto add-on (IoT VLAN). Credentials come from the Secret.
+              MESHCORE_BRIDGE_MQTT_HOST: 192.168.4.50
+              # Channels whose text is decrypted and acted on. Everything else
+              # stays encrypted in Loki, so keep this list short. Add "#test"
+              # to prove the pipeline end to end.
+              MESHCORE_BRIDGE_DECODE_CHANNELS: "#emergency"
+            envFrom:
+              - secretRef:
+                  name: meshcore-bridge-secrets
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: 8080
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: 8080
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+              startup:
+                enabled: false
+            resources:
+              requests:
+                cpu: 10m
+                memory: 48Mi
+              limits:
+                memory: 128Mi
+    service:
+      app:
+        controller: meshcore-bridge
+        ports:
+          http:
+            port: 8080
+            targetPort: 8080

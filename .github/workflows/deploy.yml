@@ -13,6 +13,10 @@ on:
         description: 'Force rebuild/deploy subgen-ui'
         type: boolean
         default: false
+      force_meshcore_bridge:
+        description: 'Force rebuild/deploy meshcore-bridge'
+        type: boolean
+        default: false
       # k8s.yml now pushes only flux-system/sops-age (every other Secret is
       # reconciled by Flux from k8s/**/*.sops.yaml). This forces a re-push,
       # e.g. after rotating the age key.
@@ -54,6 +58,7 @@ jobs:
       mcp: ${{ steps.filter.outputs.mcp }}
       lidarr_ui: ${{ steps.filter.outputs.lidarr_ui }}
       subgen_ui: ${{ steps.filter.outputs.subgen_ui }}
+      meshcore_bridge: ${{ steps.filter.outputs.meshcore_bridge }}
       ci_runner: ${{ steps.filter.outputs.ci_runner }}
       adguard: ${{ steps.filter.outputs.adguard }}
       foundry: ${{ steps.filter.outputs.foundry }}
@@ -119,6 +124,8 @@ jobs:
               - 'lidarr-ui/**'
             subgen_ui:
               - 'subgen-ui/**'
+            meshcore_bridge:
+              - 'meshcore-bridge/**'
             ci_runner:
               - 'ci/runner/**'
             adguard:
@@ -930,6 +937,62 @@ jobs:
             exit 1
           fi
           kubectl rollout restart deployment/subgen-ui -n media
+
+  build-meshcore-bridge:
+    needs: changes
+    if: needs.changes.outputs.meshcore_bridge == 'true' || inputs.force_meshcore_bridge == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+      # Multi-arch (amd64+arm64) so the pod can land on the RPi5 workers.
+      - name: Build and push image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: meshcore-bridge/
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/arishaig/meshcore-bridge:latest
+
+  deploy-meshcore-bridge:
+    needs: [changes, build-meshcore-bridge]
+    if: needs.changes.outputs.meshcore_bridge == 'true' || inputs.force_meshcore_bridge == true
+    runs-on: self-hosted
+    steps:
+      - name: Write kubeconfig
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/.kube"
+          printf '%s' "${{ secrets.KUBECONFIG_TALOS }}" > "$RUNNER_TEMP/.kube/config"
+          chmod 600 "$RUNNER_TEMP/.kube/config"
+
+      - name: Rollout restart
+        env:
+          KUBECONFIG: "${{ runner.temp }}/.kube/config"
+        run: |
+          # Only a genuine NotFound means "Flux hasn't created it yet". Any other
+          # error (e.g. an unreachable API server) must fail the job.
+          if ! out=$(kubectl get deployment/meshcore-bridge -n meshcore 2>&1); then
+            if grep -q NotFound <<<"$out"; then
+              echo "Deployment not yet applied by Flux — skipping rollout restart"
+              exit 0
+            fi
+            echo "$out" >&2
+            exit 1
+          fi
+          kubectl rollout restart deployment/meshcore-bridge -n meshcore
 
   # Custom tooling image for the lint.yml jobs, which run on GitHub-hosted
   # ubuntu-latest via `container:`. Built on a GitHub-hosted runner

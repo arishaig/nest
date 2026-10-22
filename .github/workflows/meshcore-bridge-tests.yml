@@ -1,0 +1,32 @@
+name: meshcore-bridge Tests
+
+# Tests for meshcore-bridge: the packet decoder (checked against a real
+# captured packet) and the notification dedupe, which keeps one mesh message
+# from paging more than once.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'meshcore-bridge/**'
+      - '.github/workflows/meshcore-bridge-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  meshcore-bridge-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.15'
+
+      - name: Install and run tests
+        working-directory: meshcore-bridge
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+          pytest

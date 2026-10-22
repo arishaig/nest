@@ -6,4 +6,5 @@ resources:
   - gods-eye-view/
   - headlamp/
   - mcp-rbac/
+  - meshcore/
   - nest-mcp/
