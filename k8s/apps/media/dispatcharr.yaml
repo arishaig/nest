@@ -1,0 +1,111 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dispatcharr
+  namespace: media
+spec:
+  interval: 1h
+  # Explicit so kustomize-controller owns this field (see tunarr.yaml).
+  suspend: false
+  chart:
+    spec:
+      chart: app-template
+      version: 4.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+        namespace: flux-system
+  values:
+    # FAST-channel M3U/XMLTV proxy for Jellyfin Live TV (docs/live-tv.md).
+    # Modular mode: web + celery from one image share a pod (so celery reaches
+    # web on localhost for DVR hooks and both share /data), Postgres is the
+    # shared media instance, Redis is a private Valkey below. Not confirmed to
+    # have an arm64 build, so stay off the Pis.
+    defaultPodOptions:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+    controllers:
+      dispatcharr:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=ghcr.io/dispatcharr/dispatcharr
+              repository: ghcr.io/dispatcharr/dispatcharr
+              tag: 0.32.0
+            env: &env
+              TZ: America/Los_Angeles
+              DISPATCHARR_ENV: modular
+              DISPATCHARR_LOG_LEVEL: info
+              POSTGRES_HOST: postgres
+              POSTGRES_PORT: "5432"
+              POSTGRES_DB: dispatcharr
+              REDIS_HOST: dispatcharr-redis
+              REDIS_PORT: "6379"
+            envFrom: &envFrom
+              - secretRef:
+                  name: dispatcharr-postgres-secret
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+          celery:
+            image:
+              repository: ghcr.io/dispatcharr/dispatcharr
+              tag: 0.32.0
+            command: [/app/docker/entrypoint.celery.sh]
+            env:
+              <<: *env
+              DISPATCHARR_PORT: "9191"
+              DISPATCHARR_WEB_HOST: localhost
+              DJANGO_SETTINGS_MODULE: dispatcharr.settings
+              PYTHONUNBUFFERED: "1"
+            envFrom: *envFrom
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+      redis:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              # renovate: datasource=docker depName=valkey/valkey
+              repository: valkey/valkey
+              tag: 9-alpine
+            # Pure broker/stream-state cache: no persistence needed.
+            args: [valkey-server, --save, "", --appendonly, "no", --timeout, "300"]
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 256Mi
+    service:
+      main:
+        controller: dispatcharr
+        type: ClusterIP
+        ports:
+          http:
+            port: 9191
+            targetPort: 9191
+      redis:
+        controller: redis
+        type: ClusterIP
+        ports:
+          redis:
+            port: 6379
+            targetPort: 6379
+    persistence:
+      data:
+        existingClaim: dispatcharr-config
+        advancedMounts:
+          dispatcharr:
+            app:
+              - path: /data
+            celery:
+              - path: /data
