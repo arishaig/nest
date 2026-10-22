@@ -45,13 +45,16 @@ spec:
     # (k8s/apps/media/audiomuse.yaml), which took the slot anagnorisis
     # freed (2026-09). At 3 slots, ollama's arrival in
     # 2026-08 left a consumer unschedulable
-    # (see docs/gaming-gpu-talos.md). 5th replica (2026-10): a spare slot
-    # for ad-hoc one-shot Jobs (e.g. tools/prepper-library's docling
+    # (see docs/gaming-gpu-talos.md). 5th replica (2026-10, #673): a spare
+    # slot for ad-hoc one-shot Jobs (e.g. tools/prepper-library's docling
     # extraction) so they schedule without evicting a resident consumer.
-    # Keep it unclaimed by long-running workloads — if a new resident
-    # service needs a slot, add a 6th rather than taking this one.
-    # This multiplexes SMs, not the 10GB of VRAM — five CUDA workloads
-    # sharing it concurrently is the ceiling to watch, not just the replica
+    # jellyfin-ffmpeg-runner (docs/jellyfin-offload.md) then took that slot as
+    # a resident, so the 6th replica (2026-10-22) restores one spare, wanted
+    # first for the Tunarr offload spike (docs/tunarr-offload.md).
+    # Keep one unclaimed by long-running workloads — if a new resident
+    # service needs a slot, add a 7th rather than taking the spare.
+    # This multiplexes SMs, not the 10GB of VRAM — the CUDA workloads
+    # sharing it concurrently are the ceiling to watch, not just the replica
     # count; check nvidia-smi before launching an ad-hoc GPU job. ollama
     # unloads idle models after 5m, which is what makes the sharing workable.
     devicePlugin:
@@ -66,7 +69,7 @@ spec:
               timeSlicing:
                 resources:
                 - name: nvidia.com/gpu
-                  replicas: 5
+                  replicas: 6
 
     # No manual nodeSelector is set for the GPU operand DaemonSets
     # (device-plugin, dcgm-exporter, gpu-feature-discovery, etc.) — the chart
