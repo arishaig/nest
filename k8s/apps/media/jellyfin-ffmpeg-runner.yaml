@@ -116,3 +116,7 @@ spec:
                 subPath: subtitles
               - path: /config/data/attachments
                 subPath: attachments
+              # Tunarr's HLS output (tunarr-spike.yaml, docs/tunarr-offload.md);
+              # same path as in the Tunarr pod, as ffmpeg writes absolute paths.
+              - path: /config/tunarr/streams
+                subPath: tunarr-streams

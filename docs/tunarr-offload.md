@@ -86,7 +86,7 @@ Tunarr pod (alpha)                                   omega
      └─ else / on failure: real ffmpeg, original args   └─ writes HLS to the shared volume
 ```
 
-- **Wrapper** (`tunarr-offload/ffmpeg-wrapper.pl`, not written yet): the Jellyfin
+- **Wrapper** (`tunarr-offload/ffmpeg-wrapper.pl`): the Jellyfin
   wrapper with two changes. `should_offload`/`rewrite` come from
   `nvenc-rewrite.pl`, and the fallback runs the original arguments instead of a
   rewritten set. Same protocol, token, silence watchdog and `[offload]` logging.
@@ -108,7 +108,8 @@ Tunarr pod (alpha)                                   omega
   which would blow the 15 s budget by itself. `tunarr-config` is `ReadWriteOnce`
   and holds SQLite, so it is not reused.
 - **Tunarr settings** (`ffmpegExecutablePath`, `transcodeDirectory`) live in
-  Tunarr's database, not in git. Set them with `tunarr_set_settings` and record
+  `/config/tunarr/settings.json` on the config volume (checked 2026-10-23), not in
+  git and not in the database. Set them with `tunarr_set_settings` and record
   the values in a runbook; this is a GitOps gap, like Dispatcharr's UI config.
 
 ### What gets rewritten (`nvenc-rewrite.pl`, *tested*)
@@ -204,7 +205,13 @@ checking regardless of the GPU work.
    replica (device-plugin restart) or temporarily scaling a resident down. **Your
    call.**
 2. **Wire a spike Tunarr** (like `jellyfin-spike.yaml`) with the wrapper, the shared
-   volume and the runner, and test: omega up, omega scaled to 0, omega killed
+   volume and the runner, and test. *Written* (`k8s/apps/media/tunarr-spike.yaml`,
+   `tunarr-offload/ffmpeg-wrapper.pl`, wrapper tests in `test/test-wrapper.sh`
+   against the real runner with a stub ffmpeg). The spike has its own empty
+   database (never the live `tunarr-config`: one SQLite writer) and is reached by
+   port-forward; segments go on a subPath of `jellyfin-scratch`, mounted at
+   `/config/tunarr/streams` in both pods, so no Tunarr setting changes for the
+   directory. `ffmpegExecutablePath` is set through the spike's own API. Test: omega up, omega scaled to 0, omega killed
    mid-stream, viewer stops.
 3. **Wire live Tunarr** in a window with no viewers (it restarts Tunarr), set the
    two settings, and keep the kill switch in the notes.
