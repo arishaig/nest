@@ -281,6 +281,53 @@ def register_write(mcp: MCPServer) -> None:
             resp.raise_for_status()
             return _release_rows(resp.json(), limit)
 
+    @mcp.tool()
+    async def sonarr_episode_files(series_id: int, limit: int = 200) -> dict:
+        """Files Sonarr has imported for a series: folder path, per-file relative path, size, quality and release group, plus the files per season. Use it to check what is really on disk against what the series is called (e.g. a folder named for the wrong year). Read-only."""
+        async with _arr_client("sonarr") as client:
+            series = await client.get(f"/api/v3/series/{series_id}")
+            series.raise_for_status()
+            files = await client.get("/api/v3/episodefile", params={"seriesId": series_id})
+            files.raise_for_status()
+            rows = sorted(files.json(), key=lambda f: (f.get("seasonNumber", 0), f.get("relativePath", "")))
+            sd = series.json()
+            by_season: dict = {}
+            for f in rows:
+                by_season[f.get("seasonNumber")] = by_season.get(f.get("seasonNumber"), 0) + 1
+            return {
+                "series": f"{sd.get('title')} ({sd.get('year')})", "tvdb_id": sd.get("tvdbId"), "path": sd.get("path", ""),
+                "files": len(rows), "files_by_season": by_season,
+                "items": [
+                    {
+                        "relative_path": f.get("relativePath", ""), "size_mb": round((f.get("size") or 0) / 1024 / 1024),
+                        "quality": (f.get("quality") or {}).get("quality", {}).get("name", ""),
+                        "release_group": f.get("releaseGroup", ""),
+                    }
+                    for f in rows[:limit]
+                ],
+            }
+
+    @mcp.tool()
+    async def sonarr_set_series_path(series_id: int, path: str, move_files: bool = True) -> dict:
+        """[DESTRUCTIVE] Change a series' folder in Sonarr. With move_files=True Sonarr renames/moves the existing folder on disk to `path` (the safe way to fix a wrongly named folder: Sonarr keeps tracking the files). `path` must sit under one of Sonarr's root folders (see arr_config). Jellyfin and Tunarr still need a rescan afterwards. Confirm with the user first."""
+        async with _arr_client("sonarr") as client:
+            roots = await client.get("/api/v3/rootfolder")
+            roots.raise_for_status()
+            allowed = [r.get("path", "").rstrip("/") for r in roots.json()]
+            if not any(path.rstrip("/").startswith(root + "/") for root in allowed if root):
+                raise ValueError(f"{path!r} is not under a Sonarr root folder ({', '.join(allowed)})")
+            cur = await client.get(f"/api/v3/series/{series_id}")
+            cur.raise_for_status()
+            series = cur.json()
+            old = series.get("path", "")
+            if old.rstrip("/") == path.rstrip("/"):
+                return {"series_id": series_id, "path": old, "changed": False}
+            put = await client.put(f"/api/v3/series/{series_id}", params={"moveFiles": str(move_files).lower()},
+                                   json={**series, "path": path})
+            put.raise_for_status()
+            return {"series_id": series_id, "title": series.get("title"), "old_path": old,
+                    "path": put.json().get("path"), "moved_files": move_files, "changed": True}
+
     # ── Radarr ────────────────────────────────────────────────────────────────
 
     @mcp.tool()

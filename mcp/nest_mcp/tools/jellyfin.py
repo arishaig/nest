@@ -66,6 +66,28 @@ def register(mcp: MCPServer) -> None:
             return result
 
     @mcp.tool()
+    async def jellyfin_refresh(series: str = "", replace_metadata: bool = False) -> dict:
+        """[DESTRUCTIVE] Ask Jellyfin to rescan. With no `series` it scans every library for new/changed/removed files (like the dashboard's Scan All Libraries). With a series title it deep-refreshes every series item with that exact title; replace_metadata=True discards its current metadata and re-identifies it from the folder name (use after renaming or moving a series folder). Returns immediately; the scan runs in the background. Confirm with the user first."""
+        async with make_client(config.jellyfin.url, headers=_headers(), timeout=60.0) as client:
+            if not series:
+                resp = await client.post("/Library/Refresh")
+                resp.raise_for_status()
+                return {"refreshing": "all libraries"}
+            found = await client.get("/Items", params={"IncludeItemTypes": "Series", "Recursive": "true", "searchTerm": series})
+            found.raise_for_status()
+            hits = [i for i in found.json().get("Items", []) if (i.get("Name") or "").lower() == series.lower()]
+            if not hits:
+                raise ValueError(f"No Jellyfin series named {series!r}")
+            for item in hits:
+                resp = await client.post(f"/Items/{item['Id']}/Refresh", params={
+                    "Recursive": "true", "MetadataRefreshMode": "FullRefresh", "ImageRefreshMode": "FullRefresh",
+                    "ReplaceAllMetadata": str(replace_metadata).lower(), "ReplaceAllImages": "false",
+                })
+                resp.raise_for_status()
+            return {"refreshing": [{"id": i["Id"], "name": i.get("Name"), "year": i.get("ProductionYear")} for i in hits],
+                    "replace_metadata": replace_metadata}
+
+    @mcp.tool()
     async def jellyfin_livetv_tuners() -> dict:
         """List Jellyfin's Live TV tuner hosts and guide (EPG) providers: type, a label (the friendly name if set, else the URL's host), URL (query string dropped), max concurrent streams ("unlimited" when Jellyfin's TunerCount is 0) and, for guides, how many manual channel mappings exist (0 means everything is auto-matched). Shows where the Live TV channel list comes from."""
         async with make_client(config.jellyfin.url, headers=_headers()) as client:

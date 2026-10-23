@@ -1,3 +1,5 @@
+import pytest
+
 from nest_mcp.tools import jellyfin
 from helpers import load_tools, patch_http
 
@@ -54,3 +56,26 @@ async def test_livetv_tuners_labels_and_unset_values(monkeypatch):
     assert out["tuners"][0]["max_streams"] == "unlimited"
     assert out["guide_providers"][0]["label"] == "tunarr:8000"
     assert out["guide_providers"][0]["manual_channel_mappings"] == 0
+
+
+async def test_refresh_all_and_named_series(monkeypatch):
+    calls = []
+
+    def post(request):
+        calls.append((request.url.path, dict(request.url.params)))
+        return (204, "")
+
+    patch_http(monkeypatch, jellyfin, {
+        "/Library/Refresh": post,
+        "/Items": {"Items": [{"Id": "a", "Name": "The Twilight Zone", "ProductionYear": 2002},
+                             {"Id": "b", "Name": "The Twilight Zone Redux"}]},
+        "/Items/a/Refresh": post,
+    })
+    tool = load_tools(jellyfin)["jellyfin_refresh"]
+    assert (await tool())["refreshing"] == "all libraries"
+    out = await tool(series="the twilight zone", replace_metadata=True)
+    assert [i["id"] for i in out["refreshing"]] == ["a"] and out["replace_metadata"] is True
+    path, params = calls[-1]
+    assert path == "/Items/a/Refresh" and params["ReplaceAllMetadata"] == "true" and params["Recursive"] == "true"
+    with pytest.raises(ValueError, match="No Jellyfin series"):
+        await tool(series="Nope")
