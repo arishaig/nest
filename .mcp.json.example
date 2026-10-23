@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "nest-mcp": {
-      "command": "/home/isaac/Projects/ansible-on-nest/mcp/launch.sh"
+    "home-assistant": {
+      "command": "/home/isaac/Projects/ansible-on-nest/mcp/ha-launch.sh"
     }
   }
 }
