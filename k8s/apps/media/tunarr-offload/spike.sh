@@ -30,8 +30,8 @@ pick() { # kind -> first matching file path
 }
 
 cmd() { # input -> Tunarr 1.3.15 shaped command (local file, no -headers)
-  echo "-nostdin -hide_banner -nostats -loglevel warning -fflags +genpts+discardcorrupt+igndts \
--ss 600s -c:v $2 -readrate 1 -readrate_initial_burst 60 -i $1 \
+  tr ' ' '\n' <<<"-nostdin -hide_banner -nostats -loglevel warning -fflags +genpts+discardcorrupt+igndts \
+-ss 600s -c:v $2 -readrate 1 -readrate_initial_burst 60 -i @IN@ \
 -filter_complex [0:1]aresample=async=1,apad[a];[0:0]scale=1920:1080:flags=bicubic:force_original_aspect_ratio=decrease,setsar=1,pad=1920:1080:-1:-1:color=black[v] \
 -map [v] -map [a] -muxdelay 0 -muxpreload 0 -flags cgop -movflags +faststart -t ${RUN}s \
 -video_track_timescale 90000 -b:v 4000k -maxrate:v 4000k -bufsize:v 8000k -c:v libx264 \
@@ -42,14 +42,16 @@ cmd() { # input -> Tunarr 1.3.15 shaped command (local file, no -headers)
 }
 
 run() { # label file codec rewrite(0|1)
-  local label=$1 file=$2 codec=$3 rw=$4 dir="$SC/$1" start t2="n/a" line args
-  mkdir -p "$dir"; line=$(cmd "$file" "$codec" "$dir")
+  local label=$1 file=$2 codec=$3 rw=$4 dir="$SC/$1" start t2="n/a" line
+  mkdir -p "$dir"
+  mapfile -t args < <(cmd "$file" "$codec" "$dir")
   if [ "$rw" = 1 ]; then
-    line=$(perl -e 'require $ENV{REWRITE}; use Text::ParseWords;
-      print join(" ", NvencRewrite::rewrite(shellwords(shift)))' "$line")
+    mapfile -t args < <(printf '%s\n' "${args[@]}" | perl -e 'require $ENV{REWRITE};
+      chomp(my @a = <STDIN>); print "$_\n" for NvencRewrite::rewrite(@a)')
   fi
-  read -r -a args <<<"$line"
-  echo "--- $label ---"; echo "cmd: ${line//$file/<file>}"
+  local i; for i in "${!args[@]}"; do [ "${args[$i]}" = @IN@ ] && args[i]=$file; done
+  line="${args[*]}"
+  echo "--- $label ---"; echo "cmd: ${line//"$file"/<file>}"
   start=$(date +%s.%N)
   ffmpeg "${args[@]}" 2>"$dir/err.txt" &
   local pid=$! vram=0 v
