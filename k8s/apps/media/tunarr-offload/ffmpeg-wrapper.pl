@@ -47,6 +47,20 @@ sub run_local {
 run_local() unless NvencRewrite::should_offload(@args);
 run_local('offload disabled') if $ENV{OFFLOAD_DISABLED};
 
+# Tunarr appends every item of a session to one HLS directory, so segments from
+# earlier items are already there when this command starts. Remember the newest
+# segment number now; a failed run only counts as having produced output if a
+# newer one appears.
+my ($playlist) = grep { m{/stream\.m3u8$} } @args;
+my ($outdir) = defined $playlist ? $playlist =~ m{^(.*)/} : ();
+sub newest_segment {
+  return -1 unless defined $outdir && opendir(my $dh, $outdir);
+  my $max = -1;
+  for (readdir $dh) { $max = $1 if /^data(\d+)\.ts$/ && $1 > $max }
+  return $max;
+}
+my $seg_before = newest_segment();
+
 my @remote = NvencRewrite::rewrite(@args);
 
 my $token = do {
@@ -131,11 +145,9 @@ close $sock;
 
 exit 0 if $exit == 0;
 # With -loglevel warning ffmpeg prints no "frame=" progress, so "no progress"
-# cannot tell a failed start from a stream that ran. Fall back to whether the
-# first segment exists in the output directory.
-my ($playlist) = grep { m{/stream\.m3u8$} } @args;
-my ($outdir) = defined $playlist ? $playlist =~ m{^(.*)/} : ();
-my $has_output = defined $outdir && -e "$outdir/data000000.ts";
+# cannot tell a failed start from a stream that ran. Fall back to whether a
+# segment newer than the ones present at start was written.
+my $has_output = newest_segment() > $seg_before;
 run_local("omega failed before producing output (exit $exit); running on CPU")
   unless $progress || $has_output;
 note("omega transcode ended with exit $exit");
