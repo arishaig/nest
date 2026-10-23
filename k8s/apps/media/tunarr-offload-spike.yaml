@@ -1,0 +1,71 @@
+# One-shot spike for docs/tunarr-offload.md: times Tunarr-shaped transcodes on
+# omega, CPU vs NVDEC/NVENC, against one 4K HDR and one 1080p library file.
+# Reads the media share read-only and writes to an emptyDir. Uses the spare
+# GPU time-slice (6th, #780); remove this file and its generator entry after
+# the numbers are recorded in the doc. Result = the Job log.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tunarr-offload-spike
+  namespace: media
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 604800
+  template:
+    spec:
+      restartPolicy: Never
+      runtimeClassName: nvidia
+      tolerations:
+        - key: nest.arishaig.site/workloads
+          operator: Equal
+          value: omega
+          effect: PreferNoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [omega]
+      containers:
+        - name: spike
+          # Same image as shrink-remux/tdarr-node: jellyfin-ffmpeg with NVENC.
+          # renovate: datasource=docker depName=ghcr.io/haveagitgat/tdarr_node
+          image: ghcr.io/haveagitgat/tdarr_node:2.77.01
+          command: ["bash", "/scripts/spike.sh"]
+          env:
+            - name: TZ
+              value: America/Los_Angeles
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility,video
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+              nvidia.com/gpu: "1"
+            limits:
+              memory: 4Gi
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: media
+              mountPath: /data
+              readOnly: true
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+            - name: scratch
+              mountPath: /scratch
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-nfs
+            readOnly: true
+        - name: scripts
+          configMap:
+            name: tunarr-offload-spike-scripts
+        - name: scratch
+          emptyDir:
+            sizeLimit: 2Gi
