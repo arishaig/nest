@@ -57,9 +57,17 @@ identity_providers:
         use: 'sig'
         key: |
 {{ authelia_oidc_jwk_private_key | indent(10, first=True) }}
+    # Authelia's defaults (1h access, 90m refresh) drop the claude.ai connector
+    # whenever it sits idle; the nest-mcp client uses this longer-lived set.
+    lifespans:
+      custom:
+        mcp_connector:
+          access_token: '8h'
+          refresh_token: '30d'
     clients:
       - client_id: 'nest-mcp'
         client_name: 'Nest MCP'
+        lifespan: 'mcp_connector'
         client_secret: '{{ authelia_oidc_client_secret_nest_mcp_hash }}'
         redirect_uris:
           - 'https://claude.ai/api/mcp/auth_callback'

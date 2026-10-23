@@ -8,7 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 
-from nest_mcp.auth import ISSUER, verify_token
+from nest_mcp.auth import ISSUER, AuthUnavailable, verify_token
 from nest_mcp.server import mcp
 
 _LOGO = Path(__file__).parent / "static" / "nest_logo.webp"
@@ -21,6 +21,13 @@ PORT = int(os.getenv("MCP_PORT", "8765"))
 
 MCP_URL = "https://mcp.arishaig.site"
 
+# openid is required for any OIDC grant; offline_access is what makes Authelia
+# issue a refresh token, so claude.ai can renew instead of dropping the
+# connector when the access token expires.
+SCOPES = ["openid", "offline_access"]
+
+_RESOURCE_METADATA = f"{MCP_URL}/.well-known/oauth-protected-resource"
+
 DISCOVERY = {
     "issuer": MCP_URL,
     "authorization_endpoint": f"{ISSUER}/api/oidc/authorization",
@@ -29,6 +36,7 @@ DISCOVERY = {
     "response_types_supported": ["code"],
     "grant_types_supported": ["authorization_code", "refresh_token"],
     "code_challenge_methods_supported": ["S256"],
+    "scopes_supported": SCOPES,
 }
 
 PROTECTED_RESOURCE = {
@@ -36,7 +44,17 @@ PROTECTED_RESOURCE = {
     "authorization_servers": [ISSUER],
     "bearer_methods_supported": ["header"],
     "resource_name": "Nest MCP",
+    "scopes_supported": SCOPES,
 }
+
+def _challenge(error: str | None = None) -> str:
+    parts = [f'Bearer realm="{MCP_URL}"']
+    if error:
+        parts.append(f'error="{error}"')
+    parts.append(f'resource_metadata="{_RESOURCE_METADATA}"')
+    parts.append(f'scope="{" ".join(SCOPES)}"')
+    return ", ".join(parts)
+
 
 class JWTMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -46,16 +64,14 @@ class JWTMiddleware(BaseHTTPMiddleware):
             return JSONResponse(PROTECTED_RESOURCE)
         auth = request.headers.get("Authorization", "")
         if not auth.startswith("Bearer "):
-            return Response(
-                status_code=401,
-                headers={
-                    "WWW-Authenticate": f'Bearer realm="{MCP_URL}", resource_metadata="{MCP_URL}/.well-known/oauth-protected-resource"',
-                },
-            )
+            return Response(status_code=401, headers={"WWW-Authenticate": _challenge()})
         try:
             await verify_token(auth[7:])
+        except AuthUnavailable:
+            # Not the client's fault: a 401 here would make it discard a good login.
+            return Response(status_code=503, headers={"Retry-After": "5"})
         except Exception:
-            return Response(status_code=401)
+            return Response(status_code=401, headers={"WWW-Authenticate": _challenge("invalid_token")})
         return await call_next(request)
 
 
