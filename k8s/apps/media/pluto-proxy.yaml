@@ -21,6 +21,11 @@ spec:
     # ConfigMap (pluto-proxy/); no state, nothing to back up.
     controllers:
       pluto-proxy:
+        pod:
+          annotations:
+            # One-time roll so the self-reloading script is loaded; after that
+            # the process re-execs by itself when its ConfigMap changes.
+            nest.arishaig.site/script-revision: "2"
         containers:
           app:
             image:
