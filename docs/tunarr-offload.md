@@ -1,6 +1,6 @@
 # Tunarr transcode offload to omega (design)
 
-**Status: design only.** Nothing here is deployed. What exists is the pure
+**Status: spiked, not live.** The wrapper and a throwaway Tunarr are deployed; the live Tunarr is untouched. What exists is the pure
 argument-rewrite function and its tests
 (`k8s/apps/media/tunarr-offload/nvenc-rewrite.pl`, `test/test-rewrite.pl`). Every
 claim below is marked *verified* or *to measure*; the second kind needs omega.
@@ -231,6 +231,28 @@ Caveats: the CPU column is omega's CPU, not alpha's where Tunarr runs, and input
 NFS, not Jellyfin HTTP, so this does not explain the slow starts seen in production.
 It shows the GPU path is fast enough for the 15 s budget and fits in VRAM. Next: step
 2 (a spike Tunarr) to measure the real path.
+
+### Spike Tunarr results (2026-10-23)
+
+Throwaway Tunarr 1.3.15 on alpha (2 Gi limit, own empty database, one Jellyfin
+source, a two-movie channel), wrapper at `/offload/ffmpeg`, runner on omega, segments
+on the shared volume. Real path: Jellyfin over HTTP, `-ss` seek, Tunarr's own session
+logic. Time is request to first byte of the MPEG-TS the viewer gets.
+
+| Case | Result |
+|---|---|
+| 1080p H.264, omega up | first byte 2.9 s; runner started ffmpeg; 1080p yuv420p out |
+| 1080p H.264, runner scaled to 0 (omega off) | first byte 7.4 s; ran locally on the original arguments; stream fine |
+| **4K HDR HEVC, alpha CPU (omega off)** | **spike pod OOMKilled (exit 137, 2 Gi) at the start**; it was using ~2.4 CPU cores and ~950 Mi before that |
+| **4K HDR HEVC, omega up** | first byte 5.0 s; 95 MB in 60 s; spike pod 48 m CPU / 383 Mi; 8-bit Main out |
+| Viewer leaves | Tunarr's idle timeout (~4 min) ends the session, the wrapper is terminated, the runner logs `client gone, killing pid` and ffmpeg stops. No orphan |
+| Runner pod killed mid-stream | the viewer's stream kept flowing from segments already written (60 s of burst output); wrapper exited 255 (`omega transcode ended with exit 255`); Tunarr ran its error screen locally; a new tune afterwards worked (first byte 4.8 s) |
+
+Takeaways: the production OOM reproduces on a clean instance with the same 4K HDR
+file on CPU, and the GPU path removes it. Shared NFS segments are visible across pods
+without delay at these sizes; cross-pod writes work (both run as root). Not exercised:
+more than one channel at a time (`RUNNER_MAX` 3 is shared), HDR tone mapping, and what
+a viewer sees at the exact moment omega dies after the buffered segments run out.
 
 ## Other observations
 
