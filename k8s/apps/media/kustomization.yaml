@@ -88,6 +88,7 @@ resources:
   - jellyfin.yaml  # HelmRelease (app-template) — renamed from jellyfin-pgsql (it's the Jellyfin server)
   - jellyfin-spike.yaml  # TEMPORARY throwaway NVENC Jellyfin on omega (ffmpeg arg capture) — remove after spike
   - jellyfin-scratch-nfs.yaml  # static RWX PV+PVC shared by Jellyfin and the omega ffmpeg runner (NFS lookup-cache options)
+  - tunarr-offload-spike.yaml  # one-shot GPU spike (docs/tunarr-offload.md) — remove after recording numbers
   - jellyfin-ffmpeg-runner.yaml  # HelmRelease (app-template) — GPU ffmpeg runner on omega (docs/jellyfin-offload.md)
   # --- ollama (local LLM inference, GPU; backs CutScript's AI features) ---
   - ollama-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
@@ -136,6 +137,11 @@ configMapGenerator:
     namespace: media
     files:
       - pluto-proxy/pluto_proxy.py
+  - name: tunarr-offload-spike-scripts
+    namespace: media
+    files:
+      - spike.sh=tunarr-offload/spike.sh
+      - nvenc-rewrite.pl=tunarr-offload/nvenc-rewrite.pl
   - name: shrink-remux-script
     namespace: media
     files:
