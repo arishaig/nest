@@ -556,3 +556,124 @@ async def test_rematch_drop_unmatched_and_all_channels(monkeypatch):
     out = await load_tools(tunarr)["tunarr_rematch_missing"](dry_run=False, drop_unmatched=True)
     assert [r["applied"] for r in out] == [True, False]       # nothing to do on the empty channel
     assert [e["id"] for e in posts[0]["lineup"]] == ["n1", "f", "k1"]
+
+
+# ── tunarr_add_shows ─────────────────────────────────────────────────────────
+
+MIN = 60000
+
+
+def _desc(uid, season, episode, state="ok", minutes=22):
+    return {"id": uid, "duration": minutes * MIN, "type": "content", "program": {
+        "type": "episode", "state": state, "episodeNumber": episode, "season": {"index": season},
+        "duration": minutes * MIN, "show": {"title": "Doug"}}}
+
+
+def _show_search(request):
+    body = json.loads(request.content)
+    assert body["query"]["filter"]["fieldSpec"]["value"] == ["show"]
+    return {"results": [
+        {"uuid": "show-a", "title": "Doug"}, {"uuid": "show-b", "title": "doug"}, {"uuid": "x", "title": "Doug Funnie"},
+    ], "totalPages": 1}
+
+
+def _add_routes(captured, lineup=None):
+    def programming(request):
+        if request.method == "POST":
+            captured.append(json.loads(request.content))
+            return {}
+        return lineup if lineup is not None else {"lineup": [], "programs": {}}
+
+    return _base_routes({
+        "/api/programs/search": _show_search,
+        # show-a is the live library row; show-b the stale duplicate carrying one extra dead episode and a twin
+        "/api/programs/show-a/descendants": [_desc("a2", 1, 2), _desc("a1", 1, 1), _desc("a3", 2, 1), _desc("a4", 2, 2, minutes=30)],
+        "/api/programs/show-b/descendants": [_desc("b1", 1, 1), _desc("b9", 3, 1, state="missing")],
+        "/api/channels/aaa/programming": programming,
+    })
+
+
+async def test_add_shows_dry_run_reports_without_writing(monkeypatch):
+    captured = []
+    patch_http(monkeypatch, tunarr, _add_routes(captured))
+    out = await load_tools(tunarr)["tunarr_add_shows"]("6001", ["Doug"])
+    assert out["applied"] is False and captured == []
+    row = out["shows"][0]
+    assert row["library_rows"] == 2 and row["to_add"] == 4  # a1,a2,a3,a4: b1 duplicates a1, b9 is dead
+    assert row["skipped_not_playable"] == 1 and out["entries_after"] == 4
+
+
+async def test_add_shows_appends_in_season_order_with_padding(monkeypatch):
+    captured = []
+    patch_http(monkeypatch, tunarr, _add_routes(captured))
+    out = await load_tools(tunarr)["tunarr_add_shows"]("6001", ["doug"], pad_to_minutes=30, dry_run=False)
+    assert out["applied"] is True
+    lineup = captured[0]["lineup"]
+    assert captured[0]["append"] is False
+    assert [e["id"] for e in lineup if e["type"] == "content"] == ["a1", "a2", "a3", "a4"]
+    flex = [e["duration"] for e in lineup if e["type"] == "flex"]
+    assert flex == [8 * MIN, 8 * MIN, 8 * MIN]  # 22 -> 30 three times; the 30-minute episode needs none
+
+
+async def test_add_shows_skips_episodes_already_on_channel(monkeypatch):
+    captured = []
+    existing = {
+        "lineup": [{"type": "content", "id": "a1", "duration": 22 * MIN}, {"type": "flex", "duration": 8 * MIN}],
+        "programs": {"a1": {"program": {"show": {"title": "Doug"}}}},
+    }
+    patch_http(monkeypatch, tunarr, _add_routes(captured, existing))
+    out = await load_tools(tunarr)["tunarr_add_shows"]("6001", ["Doug"], dry_run=False)
+    assert out["shows"][0]["already_on_channel"] >= 1 and out["shows"][0]["to_add"] == 3
+    ids = [e.get("id") for e in captured[0]["lineup"] if e["type"] == "content"]
+    assert ids == ["a1", "a2", "a3", "a4"]  # b1 (twin of a1) is not added a second time
+
+
+async def test_add_shows_round_robin_alternates_shows(monkeypatch):
+    captured = []
+    existing = {
+        "lineup": [{"type": "content", "id": f"t{i}", "duration": 40 * MIN} for i in range(3)],
+        "programs": {f"t{i}": {"program": {"show": {"title": "TNG"}}} for i in range(3)},
+    }
+    patch_http(monkeypatch, tunarr, _add_routes(captured, existing))
+    await load_tools(tunarr)["tunarr_add_shows"]("6001", ["Doug"], placement="round_robin", dry_run=False)
+    ids = [e["id"] for e in captured[0]["lineup"]]
+    assert ids == ["t0", "a1", "t1", "a2", "t2", "a3", "a4"]
+
+
+async def test_add_shows_shuffle_in_is_repeatable_and_keeps_existing_order(monkeypatch):
+    results = []
+    for _ in range(2):
+        captured = []
+        existing = {
+            "lineup": [{"type": "content", "id": f"t{i}", "duration": 40 * MIN} for i in range(3)],
+            "programs": {f"t{i}": {"program": {"show": {"title": "TNG"}}} for i in range(3)},
+        }
+        patch_http(monkeypatch, tunarr, _add_routes(captured, existing))
+        await load_tools(tunarr)["tunarr_add_shows"]("6001", ["Doug"], placement="shuffle_in", seed=7, dry_run=False)
+        results.append([e["id"] for e in captured[0]["lineup"]])
+    assert results[0] == results[1]
+    assert [i for i in results[0] if i.startswith("t")] == ["t0", "t1", "t2"]
+
+
+async def test_add_shows_keeps_fillers_and_unknown_show_is_reported(monkeypatch):
+    captured = []
+    existing = {
+        "lineup": [{"type": "content", "id": "t0", "duration": MIN}, {"type": "redirect", "channel": "x", "duration": MIN}],
+        "programs": {"t0": {"program": {"show": {"title": "TNG"}}}},
+    }
+    routes = _add_routes(captured, existing)
+    routes["/api/programs/search"] = lambda r: {"results": [], "totalPages": 1} if b"Nope" in r.content else _show_search(r)
+    patch_http(monkeypatch, tunarr, routes)
+    out = await load_tools(tunarr)["tunarr_add_shows"]("6001", ["Nope", "Doug"], placement="round_robin", dry_run=False)
+    assert "no show" in out["shows"][0]["error"]
+    types = [e["type"] for e in captured[0]["lineup"]]
+    assert "redirect" in types and types[-1] == "redirect"
+
+
+async def test_add_shows_validates_arguments(monkeypatch):
+    patch_http(monkeypatch, tunarr, _base_routes())
+    tool = load_tools(tunarr)["tunarr_add_shows"]
+    with pytest.raises(ValueError, match="placement"):
+        await tool("6001", ["Doug"], placement="sideways")
+    with pytest.raises(ValueError, match="at least one"):
+        await tool("6001", [])

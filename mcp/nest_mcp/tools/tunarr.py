@@ -1,4 +1,6 @@
 import asyncio
+import math
+import random
 
 import httpx
 from mcp.server.mcpserver import MCPServer
@@ -146,6 +148,51 @@ async def _search_title(client: httpx.AsyncClient, title: str, media_source: str
         if page >= (res.get("totalPages") or 1):
             break
     return hits
+
+
+def _season_episode(item: dict) -> tuple:
+    prog = item.get("program") or {}
+    return ((prog.get("season") or {}).get("index") or 0, prog.get("episodeNumber") or 0)
+
+
+def _units(lineup: list[dict], shows_by_id: dict[str, str]) -> list[tuple[str, list[dict]]]:
+    """Split a lineup into (show, entries) units: a content entry travels with the flex that pads it."""
+    units: list[tuple[str, list[dict]]] = []
+    for entry in lineup:
+        entry = _lineup_entry(entry)
+        if entry.get("type") == "flex" and units and units[-1][1][-1].get("type") == "content" and len(units[-1][1]) == 1:
+            units[-1][1].append(entry)
+        elif entry.get("type") == "content":
+            units.append((shows_by_id.get(entry.get("id"), "?"), [entry]))
+        else:
+            units.append(("", [entry]))
+    return units
+
+
+def _place(existing: list, new: list, placement: str, seed: int) -> list:
+    """Merge `new` units into `existing` units according to `placement`."""
+    if placement == "append":
+        return existing + new
+    if placement == "shuffle_in":
+        rng = random.Random(seed)
+        merged = list(existing)
+        for unit in new:
+            merged.insert(rng.randint(0, len(merged)), unit)
+        return merged
+    if placement == "round_robin":
+        groups: dict[str, list] = {}
+        for unit in existing + new:
+            groups.setdefault(unit[0], []).append(unit)
+        # Units with no show (flex, fillers, redirects) keep their place at the tail.
+        tail = groups.pop("", [])
+        queues = list(groups.values())
+        merged = []
+        while any(queues):
+            for q in queues:
+                if q:
+                    merged.append(q.pop(0))
+        return merged + tail
+    raise ValueError("placement must be 'append', 'round_robin' or 'shuffle_in'")
 
 
 def _slice(rows: list, limit: int, offset: int) -> dict:
@@ -472,6 +519,86 @@ def register(mcp: MCPServer) -> None:
                         json={"type": "manual", "lineup": [_lineup_entry(e) for e in keep], "append": False})
             result["applied"] = True
             result["removed_entries"] = [_lineup_entry(e) for e in removed]
+            return result
+
+    @mcp.tool()
+    async def tunarr_add_shows(
+        channel: str, shows: list[str], placement: str = "append", pad_to_minutes: int = 0,
+        seed: int = 0, dry_run: bool = True,
+    ) -> dict:
+        """[DESTRUCTIVE] Add whole TV shows to a channel by title. For each title (exact, case-insensitive) every playable episode ('ok' state) is gathered across duplicate library rows, de-duplicated by season/episode, put in season/episode order, and skipped if already on the channel. placement: 'append' (after the existing lineup), 'round_robin' (rebuild the lineup so shows alternate episode by episode; each show keeps its own order) or 'shuffle_in' (scatter the new episodes at random positions, `seed` makes it repeatable). pad_to_minutes (e.g. 30) follows each new episode with flex up to the next slot boundary, to match channels built that way; leave 0 for back-to-back channels. Existing flex, fillers and redirects are kept. Defaults to dry_run=True, which only reports counts per show; set dry_run=False to rewrite the lineup. Snapshot with tunarr_channel_lineup and confirm with the user before applying."""
+        if placement not in ("append", "round_robin", "shuffle_in"):
+            raise ValueError("placement must be 'append', 'round_robin' or 'shuffle_in'")
+        if not shows:
+            raise ValueError("Pass at least one show title")
+        async with _client() as client:
+            ch = await _channel(client, channel)
+            prog = await _call(client, "GET", f"/api/channels/{ch['id']}/programming")
+            lineup = prog.get("lineup", [])
+            known = prog.get("programs", {})
+            shows_by_id = {uid: ((v.get("program") or {}).get("show") or {}).get("title") or "?" for uid, v in known.items()}
+            on_channel = {e.get("id") for e in lineup if e.get("type") == "content"}
+            slot_ms = pad_to_minutes * 60000
+
+            report, new_units = [], []
+            for title in shows:
+                rows = []
+                for page in range(1, _SEARCH_PAGES + 1):
+                    res = await _call(client, "POST", "/api/programs/search", json={
+                        "query": {"query": title, "restrictSearchTo": ["title"], "filter": {
+                            "type": "value", "fieldSpec": {"key": "type", "name": "type", "type": "string", "op": "=", "value": ["show"]}}},
+                        "page": page, "limit": 50,
+                    })
+                    rows.extend(h for h in res.get("results", []) if (h.get("title") or "").lower() == title.lower())
+                    if page >= (res.get("totalPages") or 1):
+                        break
+                if not rows:
+                    report.append({"show": title, "error": "no show with that title in Tunarr's library; check the spelling or scan the library"})
+                    continue
+                episodes: dict[tuple, dict] = {}
+                skipped_missing = skipped_present = 0
+                for row in rows:
+                    for item in await _call(client, "GET", f"/api/programs/{row['uuid']}/descendants"):
+                        p = item.get("program") or {}
+                        if p.get("type") != "episode":
+                            continue
+                        if p.get("state") != "ok":
+                            skipped_missing += 1
+                            continue
+                        key = _season_episode(item)
+                        if item["id"] in on_channel:
+                            skipped_present += 1
+                            episodes.setdefault(key, None)  # the slot is taken; a twin must not fill it
+                        elif key not in episodes:
+                            episodes[key] = item
+                added = [v for _, v in sorted(episodes.items()) if v is not None]
+                for item in added:
+                    dur = item.get("duration") or (item.get("program") or {}).get("duration") or 0
+                    entries = [{"type": "content", "id": item["id"], "duration": dur}]
+                    if slot_ms and dur:
+                        pad = math.ceil(dur / slot_ms) * slot_ms - dur
+                        if pad > 0:
+                            entries.append({"type": "flex", "duration": pad})
+                    new_units.append((title, entries))
+                report.append({
+                    "show": title, "library_rows": len(rows), "to_add": len(added),
+                    "already_on_channel": skipped_present, "skipped_not_playable": skipped_missing,
+                    "hours": round(sum((i.get("duration") or 0) for i in added) / 3600000, 1),
+                })
+
+            existing = _units(lineup, shows_by_id)
+            merged = _place(existing, [(t, [dict(e) for e in es]) for t, es in new_units], placement, seed)
+            new_lineup = [e for _, es in merged for e in es]
+            result = {
+                "channel": f"{ch.get('number')} {ch.get('name')}", "placement": placement,
+                "shows": report, "entries_before": len(lineup), "entries_after": len(new_lineup),
+                "applied": False,
+            }
+            if dry_run or not new_units:
+                return result
+            await _call(client, "POST", f"/api/channels/{ch['id']}/programming",
+                        json={"type": "manual", "lineup": new_lineup, "append": False})
+            result["applied"] = True
             return result
 
     @mcp.tool()
