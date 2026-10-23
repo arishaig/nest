@@ -257,3 +257,39 @@ async def test_prowlarr_search_sorts_by_seeders(monkeypatch):
     ]})
     out = await load_tools(arr)["prowlarr_search"]("doug", limit=2)
     assert [r["title"] for r in out] == ["high", "low"] and out[1]["categories"] == ["TV"]
+
+
+async def test_sonarr_episode_files_summarises_by_season(monkeypatch):
+    patch_http(monkeypatch, arr, {
+        "/api/v3/series/58": {"title": "TZ", "year": 1959, "tvdbId": 73587, "path": "/tv/TZ (2002)"},
+        "/api/v3/episodefile": [
+            {"seasonNumber": 2, "relativePath": "Season 2/b.mkv", "size": 1048576, "releaseGroup": "G",
+             "quality": {"quality": {"name": "DVD"}}},
+            {"seasonNumber": 1, "relativePath": "Season 1/a.mkv", "size": 2097152},
+        ],
+    })
+    out = await load_tools(arr)["sonarr_episode_files"](series_id=58, limit=1)
+    assert out["files"] == 2 and out["files_by_season"] == {1: 1, 2: 1} and out["path"] == "/tv/TZ (2002)"
+    assert out["items"][0]["relative_path"] == "Season 1/a.mkv" and len(out["items"]) == 1
+
+
+async def test_sonarr_set_series_path_moves_files(monkeypatch):
+    seen = {}
+
+    def put(request):
+        import json
+        seen["query"] = dict(request.url.params)
+        seen["body"] = json.loads(request.content)
+        return {"path": seen["body"]["path"]}
+
+    def route(request):
+        return put(request) if request.method == "PUT" else {"id": 58, "title": "TZ", "path": "/data/media/tv/TZ (2002)"}
+
+    patch_http(monkeypatch, arr, {"/api/v3/rootfolder": [{"path": "/data/media/tv"}], "/api/v3/series/58": route})
+    tool = load_tools(arr)["sonarr_set_series_path"]
+    out = await tool(series_id=58, path="/data/media/tv/TZ (1959)")
+    assert out["changed"] is True and out["old_path"].endswith("(2002)") and seen["query"] == {"moveFiles": "true"}
+    assert seen["body"]["path"] == "/data/media/tv/TZ (1959)"
+    assert (await tool(series_id=58, path="/data/media/tv/TZ (2002)/"))["changed"] is False
+    with pytest.raises(ValueError, match="root folder"):
+        await tool(series_id=58, path="/elsewhere/TZ")
