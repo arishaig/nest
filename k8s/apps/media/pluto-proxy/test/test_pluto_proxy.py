@@ -117,6 +117,18 @@ class ProxyTest(unittest.TestCase):
         self.assertEqual(self.get("/ch/..%2Fetc.m3u8")[0], 404)
         self.assertEqual(self.get("/nope")[0], 404)
 
+    def test_watch_script_fires_when_file_changes(self):
+        import tempfile, time
+        fired = threading.Event()
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+            f.write("a")
+        pp.watch_script(f.name, interval=0.05, exit_fn=fired.set)
+        time.sleep(0.2)
+        self.assertFalse(fired.is_set())
+        os.utime(f.name, ns=(1, 1))
+        self.assertTrue(fired.wait(2))
+        os.unlink(f.name)
+
     def test_healthz(self):
         self.assertEqual(self.get("/healthz")[0], 200)
 

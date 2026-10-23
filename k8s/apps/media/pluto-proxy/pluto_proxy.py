@@ -21,6 +21,7 @@ Stdlib only. Usage and caveats: docs/live-tv.md.
 import json
 import os
 import re
+import sys
 import threading
 import time
 import urllib.parse
@@ -220,5 +221,29 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(404, b"not found\n")
 
 
+def watch_script(path, interval=30, exit_fn=None):
+    """Re-exec when the script changes on disk. The script comes from a ConfigMap
+    with no name hash, so a git change updates the mounted file but would never
+    restart this process."""
+    def mtime():
+        return os.stat(path).st_mtime_ns
+
+    def loop():
+        seen = mtime()
+        while True:
+            time.sleep(interval)
+            try:
+                now = mtime()
+            except OSError:
+                continue
+            if now != seen:
+                print("script changed; restarting", flush=True)
+                (exit_fn or (lambda: os.execv(sys.executable, [sys.executable, "-I", path])))()
+                return
+
+    threading.Thread(target=loop, daemon=True).start()
+
+
 if __name__ == "__main__":
+    watch_script(os.path.abspath(__file__))
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
