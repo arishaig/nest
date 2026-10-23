@@ -167,7 +167,13 @@ checking regardless of the GPU work.
 1. **NVDEC coverage.** 10-bit H.264 and some old codecs fail on NVDEC. That is
    "fail before output", so it falls back, but it burns time against the 15 s
    budget. *To measure*: how many library files this hits.
-2. **10-bit HEVC to 8-bit H.264.** Expected to convert automatically; confirm no
+2. **10-bit HEVC to 8-bit H.264.** *Measured: does not convert automatically.*
+   Spike (2026-10-23, omega, RTX 3080): `h264_nvenc` fails to open on a 10-bit
+   source ("Function not implemented", exit 218, no output); with `-pix_fmt
+   yuv420p` it works. The rewrite now adds it. Side effect: today's CPU path emits
+   10-bit High 10 H.264 for such sources, which many players cannot decode, so
+   8-bit is also a compatibility gain, but HDR (PQ) is then shown untonemapped in
+   8-bit (washed out) until Risk 3 is done. Original wording: confirm no
    banding and that the encoder accepts the frames.
 3. **HDR.** `tonemapHdr` stays off in this design, so HDR output looks as it does
    today. Fixing it means GPU tone mapping (`tonemap_cuda` exists in
@@ -202,6 +208,22 @@ checking regardless of the GPU work.
    mid-stream, viewer stops.
 3. **Wire live Tunarr** in a window with no viewers (it restarts Tunarr), set the
    two settings, and keep the kill switch in the notes.
+
+### Spike results (2026-10-23)
+
+Run on omega against local files, original libx264 vs rewritten, Tunarr-shaped
+command, 30 s of output, `-readrate 1` with its 60 s burst (flatters both). Time to
+two finished segments:
+
+| Source | CPU (omega) | NVDEC/NVENC |
+|---|---|---|
+| 1080p H.264 | 2.5 s | 0.8 s (peak VRAM 674 MiB total) |
+| 4K HDR HEVC | 5.1 s | fails as-is; 3.0 s with 8-bit output (1.3 GiB total) |
+
+Caveats: the CPU column is omega's CPU, not alpha's where Tunarr runs, and input was
+NFS, not Jellyfin HTTP, so this does not explain the slow starts seen in production.
+It shows the GPU path is fast enough for the 15 s budget and fits in VRAM. Next: step
+2 (a spike Tunarr) to measure the real path.
 
 ## Other observations
 

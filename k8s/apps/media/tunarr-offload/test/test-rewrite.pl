@@ -57,7 +57,7 @@ my @r = NvencRewrite::rewrite(@scaled);
 my $line = join ' ', @r;
 like($line, qr/-hwaccel cuda -readrate 1/, 'input-side hevc decoder becomes NVDEC');
 unlike($line, qr/-c:v hevc/, 'software decoder flag is gone');
-like($line, qr/-c:v h264_nvenc/, 'encoder becomes NVENC');
+like($line, qr/-pix_fmt yuv420p -c:v h264_nvenc/, 'encoder becomes NVENC, forced to 8-bit');
 unlike($line, qr/libx264/, 'no x264 left');
 like($line, qr/-preset:v p3/, 'veryfast maps to p3');
 unlike($line, qr/sc_threshold/, 'x264-only flag dropped');
@@ -68,7 +68,7 @@ like($line, qr/-headers X-Emby-Token: REDACTED|-headers 'X-Emby-Token: REDACTED'
 # The result is the original with exactly the intended substitutions, in order.
 my $expect = join ' ', @scaled;
 $expect =~ s/-c:v hevc/-hwaccel cuda/;
-$expect =~ s/-c:v libx264/-c:v h264_nvenc/;
+$expect =~ s/-c:v libx264/-pix_fmt yuv420p -c:v h264_nvenc/;
 $expect =~ s/-preset:v veryfast/-preset:v p3/;
 $expect =~ s/ -sc_threshold 1000000000//;
 $expect =~ s/(-force_key_frames expr:gte\(t,n_forced\*4\))/$1 -forced-idr 1/;
