@@ -648,6 +648,19 @@ groups:
 
   - name: endpoints
     rules:
+      # Critical although the other Pi still answers: stub resolvers (Talos, CoreDNS)
+      # treat SERVFAIL as an answer and do not try the next server, so a
+      # resolver that is up but failing breaks a share of every lookup. This
+      # sat unnoticed for 11 h on 2026-10-23 behind the warning-level UnboundDown.
+      - alert: DNSResolverFailing
+        expr: avg_over_time(probe_success{job="blackbox-dns"}[10m]) < 0.5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.dns_role }} DNS resolver {{ $labels.instance }} is failing lookups"
+          description: "{{ $labels.instance }} ({{ $labels.dns_role }}) has not returned NOERROR for example.com in most probes over 10 minutes. Clients that do not fail over on SERVFAIL see random lookup failures. Check Unbound; a wedged Pi has needed a power cycle."
+
       # This is the true user-facing symptom alert (probes the public path),
       # so it uses a tighter 15m window than the scrape-path rules — it pages
       # in ~20 minutes instead of 30+ while staying flap-proof.

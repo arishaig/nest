@@ -1,0 +1,32 @@
+# promtool unit tests for DNSResolverFailing in ../rules/nest.yml.
+# Run: promtool test rules playbooks/provision/files/monitoring/prometheus/tests/*.yml
+rule_files:
+  - ../rules/nest.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Primary fails every probe from minute 10 (SERVFAIL); secondary stays healthy.
+  # Must stay quiet through the average window and fire once it has been bad
+  # long enough, for the primary only.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-dns", instance="192.168.7.7", dns_role="primary"}'
+        values: '1x10 0x40'
+      - series: 'probe_success{job="blackbox-dns", instance="192.168.7.8", dns_role="secondary"}'
+        values: '1x50'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: DNSResolverFailing
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: DNSResolverFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: blackbox-dns
+              instance: 192.168.7.7
+              dns_role: primary
+            exp_annotations:
+              summary: "primary DNS resolver 192.168.7.7 is failing lookups"
+              description: "192.168.7.7 (primary) has not returned NOERROR for example.com in most probes over 10 minutes. Clients that do not fail over on SERVFAIL see random lookup failures. Check Unbound; a wedged Pi has needed a power cycle."
