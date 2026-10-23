@@ -1,5 +1,8 @@
 from contextlib import asynccontextmanager
+
+import httpx
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp.types import Icon
 from nest_mcp.tools.unifi import get_session
 
@@ -16,7 +19,39 @@ async def lifespan(server):
 
 _ICON = "https://mcp.arishaig.site/nest_logo.webp"
 
-mcp = MCPServer(
+
+def describe_failure(exc: BaseException | None) -> str | None:
+    """Client-safe text for a backend HTTP failure, or None for anything else.
+
+    The SDK hides the text of unexpected exceptions, so a dead backend shows up
+    as a bare "Error executing tool X". Names the error type, status and URL
+    path only: never the query string, headers or response body.
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        u = exc.request.url
+        return f"HTTP {exc.response.status_code} from {exc.request.method} {u.host}{u.path}"
+    if isinstance(exc, httpx.RequestError):
+        try:
+            host = exc.request.url.host
+        except RuntimeError:
+            host = "?"
+        detail = str(exc) or "no detail"
+        return f"{type(exc).__name__} reaching {host}: {detail}"
+    return None
+
+
+class NestMCPServer(MCPServer):
+    async def call_tool(self, name, arguments, context=None):
+        try:
+            return await super().call_tool(name, arguments, context)
+        except UnexpectedToolError as exc:
+            reason = describe_failure(exc.__cause__)
+            if reason is None:
+                raise
+            raise ToolError(f"Error executing tool {name}: {reason}") from exc
+
+
+mcp = NestMCPServer(
     name="Nest",
     instructions=(
         "Live homelab status and control. "
