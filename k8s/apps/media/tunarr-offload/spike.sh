@@ -10,16 +10,19 @@ SC=/scratch
 export REWRITE=/scripts/nvenc-rewrite.pl
 
 pick() { # kind -> first matching file path
-  local kind=$1 f probe n=0 pat='*1080p*'
+  local kind=$1 f probe n=0 codec w pix tr pat='*1080p*'
   [ "$kind" = uhd_hdr ] && pat='*2160p*'
   while IFS= read -r f; do
-    n=$((n + 1)); [ "$n" -gt 40 ] && break
+    n=$((n + 1)); [ "$n" -gt 60 ] && break
     probe=$(ffprobe -v error -select_streams v:0 \
       -show_entries stream=codec_name,height,color_transfer,pix_fmt \
       -of csv=p=0 -- "$f" </dev/null 2>/dev/null) || continue
+    # csv order is ffprobe's own: codec,width,height,pix_fmt,color_transfer.
+    # Match on width: scope films are cropped (3840x1608, 1920x800).
+    IFS=, read -r codec w _ pix tr <<<"$probe"
     case $kind in
-      uhd_hdr) [[ $probe == hevc,*,2160,* && $probe == *smpte2084* ]] && { echo "$f"; return; } ;;
-      hd_h264) [[ $probe == h264,*,1080,* && $probe == *yuv420p,* ]] && { echo "$f"; return; } ;;
+      uhd_hdr) [ "$codec" = hevc ] && [ "${w:-0}" -ge 3800 ] && [ "$tr" = smpte2084 ] && { echo "$f"; return; } ;;
+      hd_h264) [ "$codec" = h264 ] && [ "${w:-0}" -ge 1900 ] && [ "$pix" = yuv420p ] && { echo "$f"; return; } ;;
     esac
   done < <(find /data/media/movies /data/media/tv -type f \( -iname '*.mkv' -o -iname '*.mp4' \) \
              -iname "$pat" 2>/dev/null)
