@@ -45,9 +45,18 @@ run() { # label file codec rewrite(0|1)
   local label=$1 file=$2 codec=$3 rw=$4 dir="$SC/$1" start t2="n/a" line
   mkdir -p "$dir"
   mapfile -t args < <(cmd "$file" "$codec" "$dir")
-  if [ "$rw" = 1 ]; then
+  if [ "$rw" -ge 1 ]; then
     mapfile -t args < <(printf '%s\n' "${args[@]}" | perl -e 'require $ENV{REWRITE};
       chomp(my @a = <STDIN>); print "$_\n" for NvencRewrite::rewrite(@a)')
+  fi
+  if [ "$rw" = 2 ]; then
+    local o=() k
+    for k in "${!args[@]}"; do
+      # NVENC H.264 cannot encode 10-bit on Ampere; force 8-bit before "-c:v h264_nvenc"
+      [ "${args[$k]}" = -c:v ] && [ "${args[$((k + 1))]:-}" = h264_nvenc ] && o+=(-pix_fmt yuv420p)
+      o+=("${args[$k]}")
+    done
+    args=("${o[@]}")
   fi
   local i; for i in "${!args[@]}"; do [ "${args[$i]}" = @IN@ ] && args[i]=$file; done
   line="${args[*]}"
@@ -70,7 +79,9 @@ run() { # label file codec rewrite(0|1)
   local seg; seg=$(find "$dir" -name 'data*.ts' | sort | head -1)
   [ -n "$seg" ] && ffprobe -v error -select_streams v:0 \
     -show_entries stream=codec_name,profile,pix_fmt,width,height -of csv=p=0 -- "$seg"
-  [ -s "$dir/err.txt" ] && { echo "stderr:"; head -15 "$dir/err.txt"; }
+  # Matroska/PGS probe chatter hides the real error; show the tail without it.
+  grep -v -E 'matroska|analyzeduration' "$dir/err.txt" | tail -8 | cut -c1-300 | sed 's/^/  err: /'
+  return 0
 }
 
 nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader
@@ -81,4 +92,7 @@ for kind in uhd_hdr hd_h264; do
   codec=$([ "$kind" = hd_h264 ] && echo h264 || echo hevc)
   run "$kind-cpu" "$f" "$codec" 0
   run "$kind-gpu" "$f" "$codec" 1
+  [ "$kind" = uhd_hdr ] && run "$kind-gpu-8bit" "$f" "$codec" 2
 done
+
+exit 0
