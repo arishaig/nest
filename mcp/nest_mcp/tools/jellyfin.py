@@ -1,3 +1,5 @@
+from urllib.parse import urlsplit
+
 from mcp.server.mcpserver import MCPServer
 from nest_mcp import config
 from nest_mcp.http_client import make_client
@@ -65,20 +67,24 @@ def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def jellyfin_livetv_tuners() -> dict:
-        """List Jellyfin's Live TV tuner hosts and guide (EPG) providers: type, name, URL (query string dropped), and channel mapping count. Shows where the Live TV channel list comes from."""
+        """List Jellyfin's Live TV tuner hosts and guide (EPG) providers: type, a label (the friendly name if set, else the URL's host), URL (query string dropped), max concurrent streams ("unlimited" when Jellyfin's TunerCount is 0) and, for guides, how many manual channel mappings exist (0 means everything is auto-matched). Shows where the Live TV channel list comes from."""
         async with make_client(config.jellyfin.url, headers=_headers()) as client:
             resp = await client.get("/System/Configuration/livetv")
             resp.raise_for_status()
             conf = resp.json()
+
+            def _host(url: str) -> str:
+                return urlsplit(url).netloc or url
+
             return {
                 "tuners": [
                     {
                         "id": t.get("Id", ""),
                         "type": t.get("Type", ""),
-                        "name": t.get("FriendlyName", ""),
+                        "label": t.get("FriendlyName") or _host(t.get("Url") or ""),
                         "url": (t.get("Url") or "").split("?")[0],
                         "import_favorites_only": t.get("ImportFavoritesOnly", False),
-                        "tuner_count": t.get("TunerCount", 0),
+                        "max_streams": t.get("TunerCount") or "unlimited",
                     }
                     for t in conf.get("TunerHosts", [])
                 ],
@@ -86,9 +92,9 @@ def register(mcp: MCPServer) -> None:
                     {
                         "id": p.get("Id", ""),
                         "type": p.get("Type", ""),
-                        "name": p.get("Name", ""),
+                        "label": _host(p.get("Path") or ""),
                         "path": (p.get("Path") or "").split("?")[0],
-                        "mapped_channels": len(p.get("ChannelMappings") or []),
+                        "manual_channel_mappings": len(p.get("ChannelMappings") or []),
                     }
                     for p in conf.get("ListingProviders", [])
                 ],
@@ -98,7 +104,7 @@ def register(mcp: MCPServer) -> None:
     async def jellyfin_livetv_channels(
         search: str = "", limit: int = 100, offset: int = 0
     ) -> dict:
-        """List Jellyfin's Live TV channels as clients see them, sorted by number, with a summary: total, number range, counts per source service, and names that appear more than once. Use it to spot stale or duplicate channels after renumbering. `search` matches the name; page with limit/offset."""
+        """List Jellyfin's Live TV channels as clients see them, sorted by number, with a summary: total, number range, counts per number band (hundreds) and per source service (only when Jellyfin reports one), and names that appear more than once. Use it to spot stale or duplicate channels after renumbering. `search` matches the name; page with limit/offset."""
         params = {"startIndex": 0, "addCurrentProgram": "false"}
         if search:
             params["searchTerm"] = search
@@ -116,17 +122,21 @@ def register(mcp: MCPServer) -> None:
 
         items.sort(key=_num)
         by_service: dict[str, int] = {}
+        by_band: dict[str, int] = {}
         names: dict[str, int] = {}
         for c in items:
-            svc = c.get("ServiceName", "") or "?"
-            by_service[svc] = by_service.get(svc, 0) + 1
+            if c.get("ServiceName"):
+                by_service[c["ServiceName"]] = by_service.get(c["ServiceName"], 0) + 1
+            n = _num(c)
+            band = "unnumbered" if n == float("inf") else f"{int(n // 100) * 100}-{int(n // 100) * 100 + 99}"
+            by_band[band] = by_band.get(band, 0) + 1
             names[c.get("Name", "")] = names.get(c.get("Name", ""), 0) + 1
         numbered = [c.get("Number") for c in items if c.get("Number")]
-        return {
+        summary = {
             "total": body.get("TotalRecordCount", len(items)),
             "first_number": numbered[0] if numbered else None,
             "last_number": numbered[-1] if numbered else None,
-            "by_service": by_service,
+            "by_number_band": by_band,
             "duplicate_names": {n: k for n, k in names.items() if k > 1 and n},
             "channels": [
                 {
@@ -139,3 +149,6 @@ def register(mcp: MCPServer) -> None:
                 for c in items[offset:offset + limit]
             ],
         }
+        if by_service:
+            summary["by_service"] = by_service
+        return summary
