@@ -9,7 +9,8 @@ modules:
       follow_redirects: false
       preferred_ip_protocol: ip4
 
-  # Asks a resolver for a real name and requires NOERROR. The Pis' Unbound can
+  # Asks a resolver for a real name and requires NOERROR (restart on change:
+  # blackbox only reads modules at startup). The Pis' Unbound can
   # die or wedge while AdGuard keeps answering SERVFAIL for everything (2026-10-23:
   # 11 h, ~half of cluster lookups failed because clients do not fail over on
   # SERVFAIL), which unbound_up and up{job="unbound"} did not catch in time.
