@@ -57,7 +57,9 @@ sub rewrite {
       push @out, '-hwaccel', 'cuda'; $i++; next;
     }
     if ($seen_input && $x eq '-c:v' && ($a[$i + 1] // '') eq 'libx264') {
-      push @out, '-c:v', 'h264_nvenc'; $i++; next;
+      # Ampere NVENC cannot encode 10-bit H.264 ("Function not implemented"),
+      # and the CPU path emits High 10 for 10-bit sources; force 8-bit.
+      push @out, '-pix_fmt', 'yuv420p', '-c:v', 'h264_nvenc'; $i++; next;
     }
     if ($seen_input && $x eq '-preset:v') {
       push @out, '-preset:v', $PRESET{ $a[$i + 1] // '' } // 'p4'; $i++; next;
