@@ -88,6 +88,7 @@ resources:
   - jellyfin.yaml  # HelmRelease (app-template) — renamed from jellyfin-pgsql (it's the Jellyfin server)
   - jellyfin-spike.yaml  # TEMPORARY throwaway NVENC Jellyfin on omega (ffmpeg arg capture) — remove after spike
   - jellyfin-scratch-nfs.yaml  # static RWX PV+PVC shared by Jellyfin and the omega ffmpeg runner (NFS lookup-cache options)
+  - tunarr-spike.yaml  # TEMPORARY throwaway Tunarr wired to the omega offload wrapper — remove after spike (docs/tunarr-offload.md)
   - jellyfin-ffmpeg-runner.yaml  # HelmRelease (app-template) — GPU ffmpeg runner on omega (docs/jellyfin-offload.md)
   # --- ollama (local LLM inference, GPU; backs CutScript's AI features) ---
   - ollama-data-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
@@ -130,6 +131,13 @@ configMapGenerator:
       - ffprobe=jellyfin-offload/ffprobe
       - ffmpeg-sw-fallback.pl=jellyfin-offload/ffmpeg-sw-fallback.pl
       - ffmpeg-runner.pl=jellyfin-offload/ffmpeg-runner.pl
+  # Tunarr offload wrapper + the tested argument rewrite (docs/tunarr-offload.md).
+  # Published as `ffmpeg` so ffmpegExecutablePath can point at /offload/ffmpeg.
+  - name: tunarr-offload-scripts
+    namespace: media
+    files:
+      - ffmpeg=tunarr-offload/ffmpeg-wrapper.pl
+      - nvenc-rewrite.pl=tunarr-offload/nvenc-rewrite.pl
   # Stdlib-only Pluto TV playlist helper (docs/live-tv.md); no name hash, so a
   # script change needs a rollout of the pluto-proxy pod to take effect.
   - name: pluto-proxy-script

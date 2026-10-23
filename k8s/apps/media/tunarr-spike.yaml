@@ -1,0 +1,106 @@
+# TEMPORARY spike (remove after use): a throwaway Tunarr wired to the omega
+# offload wrapper, to measure the real transcode path (Jellyfin over HTTP,
+# shared segment volume, time to two segments against Tunarr's ~15 s start
+# wait) without touching the live Tunarr. docs/tunarr-offload.md, step 2.
+#
+# Isolated from the live Tunarr: its own empty config on emptyDir (never mounts
+# tunarr-config, whose SQLite must have a single writer), no ingress, reachable
+# only via `kubectl port-forward`. The nest-mcp tunarr_* tools point at the LIVE
+# Service, so they do not reach this pod. Configure it through its own API.
+#
+# Segments land on a subPath of the jellyfin-scratch volume (lookupcache=positive,
+# actimeo=2), mounted at the same path in the runner on omega, so ffmpeg there
+# and Tunarr here see one directory without changing Tunarr's settings.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tunarr-spike
+  namespace: media
+  labels:
+    app.kubernetes.io/name: tunarr-spike
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tunarr-spike
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tunarr-spike
+    spec:
+      # Alpha, like the live Tunarr: the point is to reproduce its CPU-only host.
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: NotIn
+                    values: [omega]
+      containers:
+        - name: tunarr
+          # Same version as the live tunarr.yaml so the command lines match.
+          # renovate: datasource=docker depName=chrisbenincasa/tunarr
+          image: chrisbenincasa/tunarr:1.3.15
+          env:
+            - name: TZ
+              value: America/Los_Angeles
+            - name: TUNARR_DATABASE_PATH
+              value: /config/tunarr
+            - name: FFMPEG_REAL
+              value: /usr/local/bin/ffmpeg
+            - name: FFMPEG_RUNNER_HOST
+              value: jellyfin-ffmpeg-runner
+          ports:
+            - name: http
+              containerPort: 8000
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            # Capped like the live pod so a CPU-fallback transcode here shows
+            # what it would do there, and cannot starve the node.
+            limits:
+              cpu: "4"
+              memory: 2Gi
+          volumeMounts:
+            - name: config
+              mountPath: /config/tunarr
+            - name: offload-scripts
+              mountPath: /offload
+            - name: offload-secret
+              mountPath: /offload-secret
+              readOnly: true
+            - name: shared
+              mountPath: /config/tunarr/streams
+              subPath: tunarr-streams
+      volumes:
+        - name: config
+          emptyDir: {}
+        - name: offload-scripts
+          configMap:
+            name: tunarr-offload-scripts
+            defaultMode: 493  # 0755 (decimal: yamllint forbids implicit octal)
+        - name: offload-secret
+          secret:
+            secretName: jellyfin-ffmpeg-runner
+        - name: shared
+          persistentVolumeClaim:
+            claimName: jellyfin-scratch
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tunarr-spike
+  namespace: media
+spec:
+  selector:
+    app.kubernetes.io/name: tunarr-spike
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
