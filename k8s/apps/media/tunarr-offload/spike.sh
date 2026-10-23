@@ -15,10 +15,11 @@ pick() { # kind -> first matching file path
   while IFS= read -r f; do
     n=$((n + 1)); [ "$n" -gt 60 ] && break
     probe=$(ffprobe -v error -select_streams v:0 \
-      -show_entries stream=codec_name,height,color_transfer,pix_fmt \
+      -show_entries stream=codec_name,width,height,pix_fmt,color_transfer \
       -of csv=p=0 -- "$f" </dev/null 2>/dev/null) || continue
     # csv order is ffprobe's own: codec,width,height,pix_fmt,color_transfer.
     # Match on width: scope films are cropped (3840x1608, 1920x800).
+    echo "probe[$kind] $probe  <- ${f#/data/media/}" >&2
     IFS=, read -r codec w _ pix tr <<<"$probe"
     case $kind in
       uhd_hdr) [ "$codec" = hevc ] && [ "${w:-0}" -ge 3800 ] && [ "$tr" = smpte2084 ] && { echo "$f"; return; } ;;
@@ -55,14 +56,14 @@ run() { # label file codec rewrite(0|1)
   while kill -0 "$pid" 2>/dev/null; do
     if [ "$t2" = n/a ] && [ "$(find "$dir" -name 'data*.ts' | wc -l)" -ge 3 ]; then
       # segment N is complete once N+1 exists, so 3 files = 2 finished segments
-      t2=$(echo "$(date +%s.%N) - $start" | bc)
+      t2=$(awk -v a="$(date +%s.%N)" -v b="$start" 'BEGIN{printf "%.1f", a-b}')
     fi
     v=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1)
     [ -n "$v" ] && [ "$v" -gt "$vram" ] && vram=$v
     sleep 0.25
   done
   wait "$pid"; local rc=$?
-  local total; total=$(echo "$(date +%s.%N) - $start" | bc)
+  local total; total=$(awk -v a="$(date +%s.%N)" -v b="$start" 'BEGIN{printf "%.1f", a-b}')
   echo "exit=$rc wall=${total}s two_segments_at=${t2}s segments=$(find "$dir" -name 'data*.ts' | wc -l) gpu_mem_peak_mib=$vram"
   local seg; seg=$(find "$dir" -name 'data*.ts' | sort | head -1)
   [ -n "$seg" ] && ffprobe -v error -select_streams v:0 \
