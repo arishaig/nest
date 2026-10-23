@@ -15,13 +15,24 @@ SESSION = {"token": "TOK", "params": "a=1&b=2", "stitcher": "https://stitch.exam
 
 MASTER = """#EXTM3U
 #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",URI="subtitle/en/playlist.m3u8?sid=S"
-#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="AD",URI="audio/ad/audio.m3u8?sid=S"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="AD",CHARACTERISTICS="public.accessibility.describes-video",URI="audio/ad/audio.m3u8?sid=S"
 #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1042180,SUBTITLES="subs",AUDIO="audio"
 1042180/playlist.m3u8?sid=S&jwt=TOK
 #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=3321280,SUBTITLES="subs",AUDIO="audio"
 3321280/playlist.m3u8?sid=S&jwt=TOK
 #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2294080,SUBTITLES="subs",AUDIO="audio"
 2294080/playlist.m3u8?sid=S&jwt=TOK
+"""
+
+# Original audio is its own rendition: the bare variant would be silent.
+SPLIT_AUDIO = """#EXTM3U
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",URI="subtitle/en/playlist.m3u8?sid=S"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="English [Original]",DEFAULT=YES,AUTOSELECT=YES,URI="audio/orig/audio.m3u8?sid=S"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="English",CHARACTERISTICS="public.accessibility.describes-video",URI="audio/ad/audio.m3u8?sid=S"
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1042180,SUBTITLES="subs",AUDIO="audio"
+1042180/playlist.m3u8?sid=S&jwt=TOK
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=3321280,SUBTITLES="subs",AUDIO="audio"
+3321280/playlist.m3u8?sid=S&jwt=TOK
 """
 
 
@@ -75,6 +86,25 @@ class ProxyTest(unittest.TestCase):
         status, h, _ = self.get("/ch/%s.m3u8" % CID)
         self.assertEqual(status, 302)
         self.assertEqual(h["Location"], "https://stitch.example/v2/stitch/hls/channel/x/3321280/playlist.m3u8?sid=S&jwt=TOK")
+
+    def test_split_audio_serves_trimmed_master(self):
+        base = "https://h/p/master.m3u8"
+        body = pp.trimmed_master(SPLIT_AUDIO, base)
+        self.assertIn('NAME="English [Original]"', body)
+        self.assertIn('URI="https://h/p/audio/orig/audio.m3u8?sid=S"', body)
+        self.assertNotIn("describes-video", body)   # no audio-description track
+        self.assertNotIn("SUBTITLES", body)
+        self.assertEqual(body.count("#EXT-X-STREAM-INF"), 1)
+        self.assertTrue(body.rstrip().endswith("https://h/p/3321280/playlist.m3u8?sid=S&jwt=TOK"))
+        self.assertIsNone(pp.trimmed_master(MASTER, base))      # only an AD track: plain redirect
+        self.assertIsNone(pp.trimmed_master("#EXTM3U\n", base))
+
+    def test_handler_serves_trimmed_master_for_split_audio(self):
+        pp.fetch_master = lambda url: (SPLIT_AUDIO, "https://stitch.example/v2/stitch/hls/channel/x/master.m3u8?q=1")
+        status, h, body = self.get("/ch/%s.m3u8" % CID)
+        self.assertEqual(status, 200)
+        self.assertIn("mpegurl", h["Content-Type"])
+        self.assertIn("audio/orig/audio.m3u8", body)
 
     def test_pick_variant_respects_cap_and_handles_empty(self):
         base = "https://h/p/master.m3u8"

@@ -10,7 +10,10 @@ boot API, so there is no static playlist. This serves:
                     stream (fresh token). The master playlist lists every
                     quality plus audio-description and subtitle tracks, and a
                     remuxer that maps everything (Dispatcharr's default ffmpeg
-                    profile) copies them all into one huge stream.
+                    profile) copies them all into one huge stream. Where the
+                    original audio is a separate rendition (about half the
+                    channels) the variant alone is silent, so a one-variant
+                    master with that audio track is served instead.
   /healthz          200 once a session and channel list are loaded
 
 Stdlib only. Usage and caveats: docs/live-tv.md.
@@ -116,9 +119,9 @@ def stream_url(session, channel):
         session["stitcher"], channel["path"], session["params"], session["token"])
 
 
-def pick_variant(master, base_url, max_bw=0):
-    """Absolute URL of the highest-bandwidth variant (within max_bw if set) in an
-    HLS master playlist, or None if it lists no variants."""
+def _best_variant(master, max_bw=0):
+    """(STREAM-INF line, URI) of the highest-bandwidth variant (within max_bw if
+    set), or None if the playlist lists no variants."""
     best = None
     lines = master.splitlines()
     for i, line in enumerate(lines):
@@ -129,8 +132,36 @@ def pick_variant(master, base_url, max_bw=0):
         if not uri or uri.startswith("#") or (max_bw and bw > max_bw):
             continue
         if best is None or bw > best[0]:
-            best = (bw, uri)
+            best = (bw, line, uri)
+    return best[1:] if best else None
+
+
+def pick_variant(master, base_url, max_bw=0):
+    """Absolute URL of the highest-bandwidth variant (within max_bw if set) in an
+    HLS master playlist, or None if it lists no variants."""
+    best = _best_variant(master, max_bw)
     return urllib.parse.urljoin(base_url, best[1]) if best else None
+
+
+def trimmed_master(master, base_url, max_bw=0):
+    """A one-variant master for channels whose original audio is a separate
+    EXT-X-MEDIA rendition (about half of Pluto's): the bare variant playlist is
+    video only, so redirecting to it loses the sound. Keeps the best variant and
+    the original audio track (not the audio-description one), with absolute URIs
+    and no subtitles. None when the variant carries its own audio."""
+    best = _best_variant(master, max_bw)
+    group = re.search(r'AUDIO="([^"]+)"', best[0]) if best else None
+    if not group:
+        return None
+    media = [l for l in master.splitlines()
+             if l.startswith("#EXT-X-MEDIA:TYPE=AUDIO") and 'GROUP-ID="%s"' % group.group(1) in l
+             and "URI=" in l and "describes-video" not in l]
+    if not media:
+        return None
+    audio = next((l for l in media if "DEFAULT=YES" in l), media[0])
+    audio = re.sub(r'URI="([^"]*)"', lambda m: 'URI="%s"' % urllib.parse.urljoin(base_url, m.group(1)), audio)
+    info = re.sub(r',?SUBTITLES="[^"]*"', "", best[0])
+    return "#EXTM3U\n%s\n%s\n%s\n" % (audio, info, urllib.parse.urljoin(base_url, best[1]))
 
 
 def fetch_master(url):
@@ -140,15 +171,20 @@ def fetch_master(url):
 
 
 def resolve(session, channel):
-    """Best-variant URL, falling back to the master if Pluto's playlist can't be
-    read or parsed (the client then still gets a working, if heavier, stream)."""
+    """('body', trimmed master) when the audio is a separate rendition, else
+    ('redirect', best-variant URL). Falls back to a redirect to the master if
+    Pluto's playlist can't be read or parsed (the client then still gets a
+    working, if heavier, stream)."""
     master_url = stream_url(session, channel)
     try:
         text, final = fetch_master(master_url)
-        return pick_variant(text, final, MAX_BANDWIDTH) or master_url
+        body = trimmed_master(text, final, MAX_BANDWIDTH)
+        if body:
+            return "body", body
+        return "redirect", pick_variant(text, final, MAX_BANDWIDTH) or master_url
     except Exception as e:  # noqa: BLE001
         print("variant pick failed: %s" % type(e).__name__, flush=True)
-        return master_url
+        return "redirect", master_url
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -177,7 +213,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, playlist(base, channels).encode(), "audio/x-mpegurl")
         m = re.match(r"^/ch/([0-9a-f]{24})\.m3u8$", path)
         if m and m.group(1) in channels:
-            return self.reply(302, headers={"Location": resolve(session, channels[m.group(1)])})
+            kind, value = resolve(session, channels[m.group(1)])
+            if kind == "body":
+                return self.reply(200, value.encode(), "application/vnd.apple.mpegurl")
+            return self.reply(302, headers={"Location": value})
         self.reply(404, b"not found\n")
 
 
