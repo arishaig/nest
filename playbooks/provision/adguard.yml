@@ -292,6 +292,34 @@
         enabled: true
         state: started
 
+    # The primary is a Pi 5 with no RTC battery. systemd boots the clock from the
+    # mtime of /var/lib/systemd/timesync/clock, which only systemd-timesyncd
+    # touches, and timesyncd is disabled above, so after the 2026-10-23 power
+    # cycle it booted at 2026-06-04 and chrony only stepped it ~17 s later.
+    # Until then Unbound cannot validate DNSSEC. fake-hwclock saves the time
+    # hourly and restores it at boot, so the clock starts hours, not months, off.
+    - name: Keep the boot clock near real time (Pi has no RTC battery)
+      when: adguard_primary | default(false)
+      ansible.builtin.apt:
+        name: fake-hwclock
+        state: present
+
+    - name: Enable fake-hwclock restore at boot and hourly save
+      when: adguard_primary | default(false)
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: true
+      loop:
+        - fake-hwclock-load.service
+        - fake-hwclock-save.service
+        - fake-hwclock-save.timer
+
+    - name: Start the hourly fake-hwclock save (also writes the first timestamp)
+      when: adguard_primary | default(false)
+      ansible.builtin.systemd:
+        name: fake-hwclock-save.timer
+        state: started
+
     # ── unbound-exporter (port 9167, systemd) ──
 
     - name: Check if unbound_exporter is installed
