@@ -62,3 +62,80 @@ def register(mcp: MCPServer) -> None:
                     "book_count": counts.get("BookCount", 0),
                 })
             return result
+
+    @mcp.tool()
+    async def jellyfin_livetv_tuners() -> dict:
+        """List Jellyfin's Live TV tuner hosts and guide (EPG) providers: type, name, URL (query string dropped), and channel mapping count. Shows where the Live TV channel list comes from."""
+        async with make_client(config.jellyfin.url, headers=_headers()) as client:
+            resp = await client.get("/System/Configuration/livetv")
+            resp.raise_for_status()
+            conf = resp.json()
+            return {
+                "tuners": [
+                    {
+                        "id": t.get("Id", ""),
+                        "type": t.get("Type", ""),
+                        "name": t.get("FriendlyName", ""),
+                        "url": (t.get("Url") or "").split("?")[0],
+                        "import_favorites_only": t.get("ImportFavoritesOnly", False),
+                        "tuner_count": t.get("TunerCount", 0),
+                    }
+                    for t in conf.get("TunerHosts", [])
+                ],
+                "guide_providers": [
+                    {
+                        "id": p.get("Id", ""),
+                        "type": p.get("Type", ""),
+                        "name": p.get("Name", ""),
+                        "path": (p.get("Path") or "").split("?")[0],
+                        "mapped_channels": len(p.get("ChannelMappings") or []),
+                    }
+                    for p in conf.get("ListingProviders", [])
+                ],
+            }
+
+    @mcp.tool()
+    async def jellyfin_livetv_channels(
+        search: str = "", limit: int = 100, offset: int = 0
+    ) -> dict:
+        """List Jellyfin's Live TV channels as clients see them, sorted by number, with a summary: total, number range, counts per source service, and names that appear more than once. Use it to spot stale or duplicate channels after renumbering. `search` matches the name; page with limit/offset."""
+        params = {"startIndex": 0, "addCurrentProgram": "false"}
+        if search:
+            params["searchTerm"] = search
+        async with make_client(config.jellyfin.url, headers=_headers()) as client:
+            resp = await client.get("/LiveTv/Channels", params=params)
+            resp.raise_for_status()
+            body = resp.json()
+        items = body.get("Items", [])
+
+        def _num(c: dict) -> float:
+            try:
+                return float(c.get("Number") or "inf")
+            except ValueError:
+                return float("inf")
+
+        items.sort(key=_num)
+        by_service: dict[str, int] = {}
+        names: dict[str, int] = {}
+        for c in items:
+            svc = c.get("ServiceName", "") or "?"
+            by_service[svc] = by_service.get(svc, 0) + 1
+            names[c.get("Name", "")] = names.get(c.get("Name", ""), 0) + 1
+        numbered = [c.get("Number") for c in items if c.get("Number")]
+        return {
+            "total": body.get("TotalRecordCount", len(items)),
+            "first_number": numbered[0] if numbered else None,
+            "last_number": numbered[-1] if numbered else None,
+            "by_service": by_service,
+            "duplicate_names": {n: k for n, k in names.items() if k > 1 and n},
+            "channels": [
+                {
+                    "number": c.get("Number", ""),
+                    "name": c.get("Name", ""),
+                    "id": c.get("Id", ""),
+                    "service": c.get("ServiceName", ""),
+                    "type": c.get("ChannelType", ""),
+                }
+                for c in items[offset:offset + limit]
+            ],
+        }
