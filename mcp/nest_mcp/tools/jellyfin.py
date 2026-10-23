@@ -66,9 +66,18 @@ def register(mcp: MCPServer) -> None:
             return result
 
     @mcp.tool()
-    async def jellyfin_refresh(series: str = "", replace_metadata: bool = False) -> dict:
-        """[DESTRUCTIVE] Ask Jellyfin to rescan. With no `series` it scans every library for new/changed/removed files (like the dashboard's Scan All Libraries). With a series title it deep-refreshes every series item with that exact title; replace_metadata=True discards its current metadata and re-identifies it from the folder name (use after renaming or moving a series folder). Returns immediately; the scan runs in the background. Confirm with the user first."""
+    async def jellyfin_refresh(
+        series: str = "", replace_metadata: bool = False,
+        created_paths: list[str] | None = None, deleted_paths: list[str] | None = None,
+    ) -> dict:
+        """[DESTRUCTIVE] Ask Jellyfin to rescan. With no `series` it scans every library for new/changed/removed files (like the dashboard's Scan All Libraries). With a series title it deep-refreshes every series item with that exact title; replace_metadata=True discards its current metadata and re-identifies it from the folder name (use after renaming or moving a series folder). To tell Jellyfin about moved or renamed folders without a full scan, pass `created_paths` / `deleted_paths` (absolute paths as Jellyfin sees them, e.g. /data/media/tv/Show (1959)); it then scans just those paths, the way Sonarr's Jellyfin connection does. Returns immediately; the scan runs in the background. Confirm with the user first."""
         async with make_client(config.jellyfin.url, headers=_headers(), timeout=60.0) as client:
+            if created_paths or deleted_paths:
+                updates = [{"Path": p, "UpdateType": "Deleted"} for p in deleted_paths or []] + \
+                    [{"Path": p, "UpdateType": "Created"} for p in created_paths or []]
+                resp = await client.post("/Library/Media/Updated", json={"Updates": updates})
+                resp.raise_for_status()
+                return {"notified": updates}
             if not series:
                 resp = await client.post("/Library/Refresh")
                 resp.raise_for_status()
