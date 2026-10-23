@@ -37,6 +37,13 @@ spec:
             env:
               TZ: America/Los_Angeles
               TUNARR_DATABASE_PATH: /config/tunarr
+              # GPU offload to omega (docs/tunarr-offload.md). The wrapper only
+              # takes effect once ffmpegExecutablePath is /offload/ffmpeg (a
+              # setting in /config/tunarr/settings.json, not in git).
+              # Kill switch: OFFLOAD_DISABLED=1 runs everything locally, or set
+              # ffmpegExecutablePath back to /usr/bin/ffmpeg.
+              FFMPEG_REAL: /usr/local/bin/ffmpeg
+              FFMPEG_RUNNER_HOST: jellyfin-ffmpeg-runner
             probes:
               liveness:
                 enabled: false
@@ -70,3 +77,28 @@ spec:
           tunarr:
             app:
               - path: /config/tunarr
+      offload-scripts:
+        type: configMap
+        name: tunarr-offload-scripts
+        defaultMode: 493  # 0755 (decimal: yamllint forbids implicit octal)
+        advancedMounts:
+          tunarr:
+            app:
+              - path: /offload
+      offload-secret:
+        type: secret
+        name: jellyfin-ffmpeg-runner
+        advancedMounts:
+          tunarr:
+            app:
+              - path: /offload-secret
+                readOnly: true
+      # HLS output shared with the runner on omega at the same absolute path
+      # (jellyfin-scratch: lookupcache=positive, actimeo=2; regenerable).
+      streams:
+        existingClaim: jellyfin-scratch
+        advancedMounts:
+          tunarr:
+            app:
+              - path: /config/tunarr/streams
+                subPath: tunarr-streams
