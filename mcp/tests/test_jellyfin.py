@@ -79,3 +79,21 @@ async def test_refresh_all_and_named_series(monkeypatch):
     assert path == "/Items/a/Refresh" and params["ReplaceAllMetadata"] == "true" and params["Recursive"] == "true"
     with pytest.raises(ValueError, match="No Jellyfin series"):
         await tool(series="Nope")
+
+
+async def test_refresh_notifies_specific_paths(monkeypatch):
+    sent = []
+
+    def post(request):
+        import json
+        sent.append(json.loads(request.content))
+        return (204, "")
+
+    patch_http(monkeypatch, jellyfin, {"/Library/Media/Updated": post})
+    out = await load_tools(jellyfin)["jellyfin_refresh"](
+        created_paths=["/data/media/tv/TZ (1959)"], deleted_paths=["/data/media/tv/TZ (2002)"])
+    assert sent[0]["Updates"] == [
+        {"Path": "/data/media/tv/TZ (2002)", "UpdateType": "Deleted"},
+        {"Path": "/data/media/tv/TZ (1959)", "UpdateType": "Created"},
+    ]
+    assert out["notified"] == sent[0]["Updates"]
