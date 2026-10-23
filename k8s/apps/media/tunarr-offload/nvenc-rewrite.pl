@@ -15,6 +15,10 @@ use warnings;
 # output and falls back.
 my %NVDEC = map { $_ => 1 } qw(h264 hevc mpeg1video mpeg2video mpeg4 vc1 vp8 vp9 av1 mjpeg);
 
+# Tunarr names software decoders for some codecs; NVDEC decodes the same
+# streams (Ampere does AV1).
+my %SWDEC = map { $_ => 1 } qw(libaom-av1 libdav1d libvpx-vp9 libvpx);
+
 # x264 preset -> NVENC preset (p1 fastest .. p7 slowest).
 my %PRESET = (
   ultrafast => 'p1', superfast => 'p2', veryfast => 'p3', faster => 'p4',
@@ -53,9 +57,13 @@ sub rewrite {
     # Input-side "-c:v hevc" forces CPU decode; use NVDEC instead. Frames come
     # back to system memory, so Tunarr's CPU filters (scale, pad, setsar) are
     # untouched.
-    if (!$seen_input && $x eq '-c:v' && defined $a[$i + 1] && $NVDEC{ $a[$i + 1] }) {
+    if (!$seen_input && $x eq '-c:v' && defined $a[$i + 1] && ($NVDEC{ $a[$i + 1] } || $SWDEC{ $a[$i + 1] })) {
       push @out, '-hwaccel', 'cuda'; $i++; next;
     }
+    # Any other external-library decoder may not be built into the runner's
+    # ffmpeg (libaom-av1 failed that way); drop it and let ffmpeg pick one.
+    # Native decoders exist in every build and are kept.
+    if (!$seen_input && $x eq '-c:v' && ($a[$i + 1] // '') =~ /^lib/) { $i++; next }
     if ($seen_input && $x eq '-c:v' && ($a[$i + 1] // '') eq 'libx264') {
       # Ampere NVENC cannot encode 10-bit H.264 ("Function not implemented"),
       # and the CPU path emits High 10 for 10-bit sources; force 8-bit.

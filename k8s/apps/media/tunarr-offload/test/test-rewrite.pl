@@ -84,6 +84,15 @@ like($wl, qr/-c:v msmpeg4v3/, 'unsupported decoder is left alone');
 unlike($wl, qr/-hwaccel/, '...and no hwaccel is added');
 like($wl, qr/-c:v h264_nvenc/, '...but encode still moves to NVENC');
 
+# Tunarr forces libaom-av1 for AV1 input; the runner's build may lack it.
+my @av1 = map { $_ eq 'hevc' ? 'libaom-av1' : $_ } @scaled;
+my $av = join ' ', NvencRewrite::rewrite(@av1);
+like($av, qr/-hwaccel cuda -readrate 1/, 'libaom-av1 input becomes NVDEC');
+unlike($av, qr/libaom/, '...and the software decoder name is gone');
+my @unk = map { $_ eq 'hevc' ? 'libfoo' : $_ } @scaled;
+my $uk = join ' ', NvencRewrite::rewrite(@unk);
+unlike($uk, qr/libfoo|-hwaccel/, 'unknown lib* decoder is dropped, ffmpeg chooses');
+
 # Rewriting is pure and leaves the input list alone.
 my @copy = @scaled;
 NvencRewrite::rewrite(@scaled);

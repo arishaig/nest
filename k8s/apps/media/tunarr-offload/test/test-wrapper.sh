@@ -68,4 +68,14 @@ FFMPEG_REAL="$tmp/ffmpeg-fail" STUB_NAME=local FFMPEG_RUNNER_HOST=127.0.0.1 FFMP
 grep -q '^remote' "$tmp/log" && grep -q '^local .*libx264' "$tmp/log" && grep -q 'before producing output' "$tmp/err"
 ok 'remote fails before output -> falls back to original locally' $?
 
+# Multi-item session: an earlier item already left data000000.ts in the
+# directory. A remote failure must still fall back (this was the live bug).
+mkdir -p "$tmp/out3"; : >"$tmp/out3/data000000.ts"; : >"$tmp/out3/data000001.ts"
+TR3=("${TR[@]:0:${#TR[@]}-1}" "$tmp/out3/stream.m3u8")
+: >"$tmp/log"
+FFMPEG_REAL="$tmp/ffmpeg-fail" STUB_NAME=local FFMPEG_RUNNER_HOST=127.0.0.1 FFMPEG_RUNNER_PORT=$port \
+  FFMPEG_RUNNER_TOKEN_FILE="$tmp/token" perl "$wrapper" "${TR3[@]}" 2>"$tmp/err"
+grep -q '^remote' "$tmp/log" && grep -q '^local .*libx264' "$tmp/log" && grep -q 'before producing output' "$tmp/err"
+ok 'earlier items left segments behind -> remote failure still falls back' $?
+
 echo "$pass passed, $fail failed"; [ "$fail" = 0 ]
