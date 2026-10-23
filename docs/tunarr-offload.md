@@ -1,9 +1,18 @@
 # Tunarr transcode offload to omega (design)
 
-**Status: spiked, not live.** The wrapper and a throwaway Tunarr are deployed; the live Tunarr is untouched. What exists is the pure
-argument-rewrite function and its tests
-(`k8s/apps/media/tunarr-offload/nvenc-rewrite.pl`, `test/test-rewrite.pl`). Every
-claim below is marked *verified* or *to measure*; the second kind needs omega.
+**Status: live (2026-10-23).** Live Tunarr's `ffmpegExecutablePath` is `/offload/ffmpeg` (the wrapper); the
+spike Tunarr and the Jellyfin spike were removed. Wrapper and rewrite live in `k8s/apps/media/tunarr-offload/`
+(`ffmpeg-wrapper.pl`, `nvenc-rewrite.pl`, tests under `test/`). Rollback: set `ffmpegExecutablePath` back to
+`/usr/bin/ffmpeg` (Tunarr API or `tunarr_set_settings`), or add `OFFLOAD_DISABLED=1` to the Tunarr env.
+Every claim below is marked *verified* or *to measure*.
+
+**First live attempt, same day (rolled back, then fixed).** Two bugs the spike missed:
+- Tunarr forces `-c:v libaom-av1` for AV1 input, and the runner's jellyfin-ffmpeg has no `libaom-av1`
+  (`Unknown decoder`, exit 8). Fixed by rewriting it (and `libdav1d`/`libvpx`) to `-hwaccel cuda`; other `lib*`
+  input decoders are dropped. Checked on omega with an AV1 filler file: NVDEC decode + `h264_nvenc` exits 0.
+- The "did omega produce output?" fallback test looked for `data000000.ts`, which Tunarr's appended HLS
+  directory already holds after the first item of a session, so a later failure was not retried locally.
+  It now compares the newest segment number before and after.
 
 Tunarr transcodes in software inside its own pod. This moves that work to
 omega's RTX 3080 when omega is up, the way [jellyfin-offload.md](jellyfin-offload.md)
