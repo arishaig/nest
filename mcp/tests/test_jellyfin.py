@@ -121,10 +121,13 @@ async def test_identify_lists_then_applies(monkeypatch):
     assert listed["current"]["provider_ids"] == {"Tvdb": "78611"} and len(listed["candidates"]) == 2
     out = await tool(series_id="e7", tvdb_id="73587", apply=True)
     assert out["applied"]["year"] == 1959 and applied[0][1]["ProviderIds"]["Tvdb"] == "73587"
-    with pytest.raises(ValueError, match="needs tvdb_id"):
+    with pytest.raises(ValueError, match="needs tvdb_id, tmdb_id or imdb_id"):
         await tool(series_id="e7", apply=True)
     with pytest.raises(ValueError, match="No candidate"):
         await tool(series_id="e7", tvdb_id="1", apply=True)
+    cands.append({"Name": "TZ", "ProductionYear": 1959, "ProviderIds": {"Tmdb": "6357"}})
+    out = await tool(series_id="e7", tmdb_id="6357", apply=True)
+    assert out["applied"]["provider_ids"] == {"Tmdb": "6357"} and applied[-1][1]["ProviderIds"]["Tmdb"] == "6357"
 
 
 async def test_identify_unknown_item(monkeypatch):
@@ -136,10 +139,10 @@ async def test_identify_unknown_item(monkeypatch):
 async def test_series_listing(monkeypatch):
     patch_http(monkeypatch, jellyfin, {"/Items": {"Items": [
         {"Id": "e7", "Name": "TZ", "ProductionYear": 1959, "Path": "/data/media/tv/TZ (1959)",
-         "ProviderIds": {"Tvdb": "73587"}, "RecursiveItemCount": 65}]}})
+         "ProviderIds": {"Tvdb": "73587"}}]}})
     out = await load_tools(jellyfin)["jellyfin_series"](search="TZ")
     assert out == [{"id": "e7", "name": "TZ", "year": 1959, "path": "/data/media/tv/TZ (1959)",
-                    "tvdb": "73587", "tmdb": None, "episodes": 65}]
+                    "tvdb": "73587", "tmdb": None}]
 
 
 async def test_tasks_list_start_stop(monkeypatch):

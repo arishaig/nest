@@ -98,17 +98,16 @@ def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def jellyfin_series(search: str = "", limit: int = 50) -> list[dict]:
-        """List Jellyfin series with their item id, year, folder path, TVDB/TMDB ids and episode count. `search` filters by title. Use it to find the id jellyfin_identify needs, to see which folder a series really points at, or to spot duplicate/stale series."""
+        """List Jellyfin series with their item id, year, folder path, TVDB/TMDB ids. `search` filters by title. Use it to find the id jellyfin_identify needs, to see which folder a series really points at, or to spot duplicate/stale series."""
         async with make_client(config.jellyfin.url, headers=_headers()) as client:
             resp = await client.get("/Items", params={
                 "IncludeItemTypes": "Series", "Recursive": "true", "searchTerm": search or None,
-                "Fields": "Path,ProviderIds,RecursiveItemCount", "SortBy": "SortName", "Limit": limit,
+                "Fields": "Path,ProviderIds", "SortBy": "SortName", "Limit": limit,
             })
             resp.raise_for_status()
             return [
                 {"id": i["Id"], "name": i.get("Name"), "year": i.get("ProductionYear"), "path": i.get("Path"),
-                 "tvdb": (i.get("ProviderIds") or {}).get("Tvdb"), "tmdb": (i.get("ProviderIds") or {}).get("Tmdb"),
-                 "episodes": i.get("RecursiveItemCount")}
+                 "tvdb": (i.get("ProviderIds") or {}).get("Tvdb"), "tmdb": (i.get("ProviderIds") or {}).get("Tmdb")}
                 for i in resp.json().get("Items", [])
             ]
 
@@ -141,9 +140,10 @@ def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def jellyfin_identify(
-        series_id: str, search_name: str = "", search_year: int = 0, tvdb_id: str = "", apply: bool = False,
+        series_id: str, search_name: str = "", search_year: int = 0, tvdb_id: str = "", tmdb_id: str = "",
+        imdb_id: str = "", apply: bool = False,
     ) -> dict:
-        """[DESTRUCTIVE when apply=True] Jellyfin's Identify for one series (find it with jellyfin_library_stats or jellyfin_refresh output; tunarr_search_programs shows the Jellyfin id as an identifier). With apply=False it searches the metadata providers and lists candidates (name, year, provider ids) so you can see what Jellyfin would match. With apply=True and `tvdb_id` it picks the candidate with that TVDB id and applies it, replacing the series' metadata and images; this is how to fix a series that Jellyfin matched to the wrong show (e.g. a 1959 series folder identified as the 2002 revival). `search_name`/`search_year` default to the series' current name and year. Confirm with the user first."""
+        """[DESTRUCTIVE when apply=True] Jellyfin's Identify for one series (find it with jellyfin_library_stats or jellyfin_refresh output; tunarr_search_programs shows the Jellyfin id as an identifier). With apply=False it searches the metadata providers and lists candidates (name, year, provider ids) so you can see what Jellyfin would match. With apply=True and one of `tvdb_id` / `tmdb_id` / `imdb_id` (providers differ by search: a candidate may carry only a TMDB id) it picks the candidate with that id and applies it, replacing the series' metadata and images; this is how to fix a series that Jellyfin matched to the wrong show (e.g. a 1959 series folder identified as the 2002 revival). `search_name`/`search_year` default to the series' current name and year. Confirm with the user first."""
         async with make_client(config.jellyfin.url, headers=_headers(), timeout=60.0) as client:
             item = await client.get("/Items", params={"Ids": series_id, "Fields": "ProviderIds"})
             item.raise_for_status()
@@ -154,8 +154,7 @@ def register(mcp: MCPServer) -> None:
             info: dict = {"Name": search_name or cur.get("Name"), "ProviderIds": {}}
             if search_year or (not search_name and cur.get("ProductionYear")):
                 info["Year"] = search_year or cur["ProductionYear"]
-            if tvdb_id:
-                info["ProviderIds"]["Tvdb"] = tvdb_id
+            wanted = {k: v for k, v in (("Tvdb", tvdb_id), ("Tmdb", tmdb_id), ("Imdb", imdb_id)) if v}
             resp = await client.post("/Items/RemoteSearch/Series", json={"SearchInfo": info, "ItemId": series_id})
             resp.raise_for_status()
             results = resp.json()
@@ -164,11 +163,11 @@ def register(mcp: MCPServer) -> None:
             current = {"name": cur.get("Name"), "year": cur.get("ProductionYear"), "provider_ids": cur.get("ProviderIds", {})}
             if not apply:
                 return {"current": current, "candidates": rows}
-            if not tvdb_id:
-                raise ValueError("apply=True needs tvdb_id to choose a candidate")
-            match = [r for r in results if str((r.get("ProviderIds") or {}).get("Tvdb")) == str(tvdb_id)]
+            if not wanted:
+                raise ValueError("apply=True needs tvdb_id, tmdb_id or imdb_id to choose a candidate")
+            match = [r for r in results if all(str((r.get("ProviderIds") or {}).get(k)) == str(v) for k, v in wanted.items())]
             if not match:
-                raise ValueError(f"No candidate with Tvdb id {tvdb_id}; candidates: {rows}")
+                raise ValueError(f"No candidate with {wanted}; candidates: {rows}")
             applied = await client.post(f"/Items/RemoteSearch/Apply/{series_id}", params={"ReplaceAllImages": "true"}, json=match[0])
             applied.raise_for_status()
             return {"current": current, "applied": rows[results.index(match[0])]}
