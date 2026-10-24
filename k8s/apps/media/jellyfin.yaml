@@ -98,6 +98,13 @@ spec:
               JELLYFIN_Serilog__MinimumLevel__Override__MediaBrowser.Providers.Manager: Debug
               JELLYFIN_Serilog__MinimumLevel__Override__Jellyfin.Plugin: Debug
               JELLYFIN_Serilog__MinimumLevel__Override__IntroSkipper: Debug
+              # ffmpeg goes through the omega offload wrapper (docs/jellyfin-offload.md).
+              # Today that only changes trickplay, which runs on omega only (and
+              # fails fast, exit 98, when omega is down); every other call has no
+              # GPU arguments and runs the real ffmpeg locally, unchanged.
+              # Kill switch: OFFLOAD_DISABLED=1 (trickplay then fails fast too).
+              JELLYFIN_FFMPEG: /offload/ffmpeg
+              FFMPEG_RUNNER_HOST: jellyfin-ffmpeg-runner
             probes:
               liveness:
                 enabled: true
@@ -165,6 +172,34 @@ spec:
           jellyfin:
             app:
               - path: /config
+      offload-scripts:
+        type: configMap
+        name: jellyfin-offload-scripts
+        defaultMode: 493  # 0755 (decimal: yamllint forbids implicit octal)
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /offload
+      offload-secret:
+        type: secret
+        name: jellyfin-ffmpeg-runner
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /offload-secret
+                readOnly: true
+      # Shared with the runner on omega at the same absolute path: trickplay
+      # thumbnails are written here by omega, then moved into /tmp/jellyfin by
+      # the wrapper. Only transcodes/ for now; subtitles/ and attachments/ join
+      # when NVENC transcoding is enabled (copy the existing contents first, or
+      # the first play of each file re-extracts them over NFS).
+      scratch:
+        existingClaim: jellyfin-scratch
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /config/cache/transcodes
+                subPath: transcodes
       media:
         existingClaim: media-nfs
         advancedMounts:
