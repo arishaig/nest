@@ -1,7 +1,10 @@
 # Jellyfin upgrades (Postgres fork)
 
-Jellyfin runs `ghcr.io/jpvenson/jellyfin.pgsql`
-([JPVenson/Jellyfin.Pgsql](https://github.com/JPVenson/Jellyfin.Pgsql)). This
+Jellyfin runs `ghcr.io/arishaig/jellyfin.pgsql`, built from our fork
+([arishaig/Jellyfin.Pgsql](https://github.com/arishaig/Jellyfin.Pgsql)) of
+[JPVenson/Jellyfin.Pgsql](https://github.com/JPVenson/Jellyfin.Pgsql). We
+forked because upstream lagged Jellyfin releases (12.1-2 was its newest build
+while Jellyfin was at 12.3). This
 is Jellyfin plus a plugin that stores the library in Postgres (the shared
 `postgres` service, DB `jellyfin`) instead of SQLite. Schema changes come from
 the plugin's EF Core migrations, which run at startup.
@@ -143,6 +146,38 @@ kubectl -n media exec $P -- sh -c 'psql -U "$POSTGRES_USER" -d jellyfin -At -c "
 kubectl -n media exec -i deploy/jellyfin -- sh -c 'while IFS= read -r p; do [ -e "$p" ] || echo "MISSING $p"; done' < paths.txt | wc -l
 ```
 
+## 2026-10-24: 12.1 → 12.3 on our own fork (`12.3-1`)
+
+Bumping Jellyfin means porting the fork, not just retagging:
+1. `git diff v12.1 v12.3 -- src/Jellyfin.Database Jellyfin.Server/Migrations`
+   in a Jellyfin checkout. The GitHub compare API truncates; diff locally.
+2. In the fork: bump `Jellyfin.Controller`/`Jellyfin.Model` and the
+   `Microsoft.*` 10.0.x packages to what Jellyfin needs (NU1605 names them),
+   add a Postgres migration for each new upstream schema migration
+   (`dotnet ef migrations add`, EF tool matching the EF version), implement
+   any new `IJellyfinDatabaseProvider` members, bump the pinned
+   `FROM jellyfin/jellyfin:<ver>@sha256:...` and the submodule pointer.
+3. Run the **Build & Publish Docker Image** workflow (workflow_dispatch). The
+   tag is `<jellyfin-version>-<n>`; pin the digest it prints in the manifest.
+4. Rehearse (below), then roll prod.
+
+What 12.3 needed: one schema migration (`MakeOwnerIdIndexesPartial`: the two
+`OwnerId` indexes become partial, and the filter SQL is valid Postgres as is),
+a new optional provider member (`RefreshStatistics`, implemented as `ANALYZE`),
+and `Microsoft.*` 10.0.12. Core routines: `MigrateRatingLevels` moved to
+`20260915120000` and still fails on Npgsql, so the skip row was re-seeded
+under the new id before the first 12.3 start:
+
+```sql
+INSERT INTO "__EFMigrationsHistory" ("MigrationId","ProductVersion") VALUES
+  ('20260915120000_MigrateRatingLevels','12.3.0.0');
+```
+
+The other new routines (`HarmonizeConflictingUserData`, `FixNullEncoderPreset`)
+ran fine; the rehearsal copy kept identical row counts and started in 7 s.
+All 17 plugins were Active, including Intro Skipper 12.0.6.0, which is built
+against Jellyfin 12.2+ and cannot load on 12.1.
+
 ## Before any Jellyfin bump: rehearse offline
 
 Run the new image against a copy of the DB on a workstation with Docker. Don't
@@ -179,7 +214,7 @@ kubectl -n media exec $P -- sh -c 'psql -U "$POSTGRES_USER" -d jellyfin -At -c "
 #    and /Items listings.
 docker run -d --name jfr-jf --network jfr -e POSTGRES_HOST=jfr-pg -e POSTGRES_PORT=5432 \
   -e POSTGRES_DB=jellyfin -e POSTGRES_USER=jellyfin -e POSTGRES_PASSWORD=rehearsal \
-  -v "$PWD/cfg:/config" -v "$PWD/media:/data/media:ro" ghcr.io/jpvenson/jellyfin.pgsql:<new-tag>@<digest>
+  -v "$PWD/cfg:/config" -v "$PWD/media:/data/media:ro" ghcr.io/arishaig/jellyfin.pgsql:<new-tag>@<digest>
 
 # 6. Rollback check: start the *current* tag against the upgraded DB. If the
 #    new version can't be downgraded from, restore the dump instead
