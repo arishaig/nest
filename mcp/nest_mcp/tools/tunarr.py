@@ -524,9 +524,9 @@ def register(mcp: MCPServer) -> None:
     @mcp.tool()
     async def tunarr_add_shows(
         channel: str, shows: list[str], placement: str = "append", pad_to_minutes: int = 0,
-        seed: int = 0, dry_run: bool = True,
+        seed: int = 0, dry_run: bool = True, max_per_show: int = 0,
     ) -> dict:
-        """[DESTRUCTIVE] Add whole TV shows to a channel by title. For each title (exact, case-insensitive) every playable episode ('ok' state) is gathered across duplicate library rows, de-duplicated by season/episode, put in season/episode order, and skipped if already on the channel. placement: 'append' (after the existing lineup), 'round_robin' (rebuild the lineup so shows alternate episode by episode; each show keeps its own order) or 'shuffle_in' (scatter the new episodes at random positions, `seed` makes it repeatable). pad_to_minutes (e.g. 30) follows each new episode with flex up to the next slot boundary, to match channels built that way; leave 0 for back-to-back channels. Existing flex, fillers and redirects are kept. Defaults to dry_run=True, which only reports counts per show; set dry_run=False to rewrite the lineup. Snapshot with tunarr_channel_lineup and confirm with the user before applying."""
+        """[DESTRUCTIVE] Add whole TV shows to a channel by title. For each title (exact, case-insensitive) every playable episode ('ok' state) is gathered across duplicate library rows, de-duplicated by season/episode, put in season/episode order, and skipped if already on the channel. placement: 'append' (after the existing lineup), 'round_robin' (rebuild the lineup so shows alternate episode by episode; each show keeps its own order) or 'shuffle_in' (scatter the new episodes at random positions, `seed` makes it repeatable). pad_to_minutes (e.g. 30) follows each new episode with flex up to the next slot boundary, to match channels built that way; leave 0 for back-to-back channels. max_per_show (>0) adds only that many randomly chosen episodes of each show (`seed` makes the pick repeatable), to keep one show from dominating a channel. Existing flex, fillers and redirects are kept. Defaults to dry_run=True, which only reports counts per show; set dry_run=False to rewrite the lineup. Snapshot with tunarr_channel_lineup and confirm with the user before applying."""
         if placement not in ("append", "round_robin", "shuffle_in"):
             raise ValueError("placement must be 'append', 'round_robin' or 'shuffle_in'")
         if not shows:
@@ -572,6 +572,9 @@ def register(mcp: MCPServer) -> None:
                         elif key not in episodes:
                             episodes[key] = item
                 added = [v for _, v in sorted(episodes.items()) if v is not None]
+                if max_per_show > 0 and len(added) > max_per_show:
+                    picked = set(random.Random(seed).sample(range(len(added)), max_per_show))
+                    added = [v for i, v in enumerate(added) if i in picked]
                 for item in added:
                     dur = item.get("duration") or (item.get("program") or {}).get("duration") or 0
                     entries = [{"type": "content", "id": item["id"], "duration": dur}]
