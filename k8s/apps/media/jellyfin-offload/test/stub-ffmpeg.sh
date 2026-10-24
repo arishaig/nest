@@ -4,6 +4,15 @@
 #   FAILFAST in args  -> exit 1 immediately, no progress
 #   FAILLATE in args  -> emit progress, then exit 3
 echo "[stub:${STUB_TAG:-?}] args: $*" >&2
+# Trickplay-shaped call (numbered .jpg output): write three thumbnails and exit.
+#   FAILTP in args -> exit 4 without writing any
+last=${!#}
+if [[ $last == *%08d.jpg ]]; then
+  for a in "$@"; do [[ $a == FAILTP ]] && { echo "stub: trickplay failed" >&2; exit 4; }; done
+  mkdir -p "${last%/*}"
+  for i in 1 2 3; do printf img >"${last%/*}/0000000$i.jpg"; done
+  exit 0
+fi
 for a in "$@"; do
   [[ $a == FAILFAST ]] && { echo "stub: cannot init" >&2; exit 1; }
 done
