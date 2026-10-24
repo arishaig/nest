@@ -159,10 +159,41 @@ check "trickplay, omega down: scratch cleaned" test -z "$(ls -A "$TRICKPLAY_SCRA
 start_runner
 out=$(wrap "$tmp/token" "${TP_ARGS[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
 check "trickplay, omega up: succeeds" has "$out" 'rc=0'
-check "trickplay, omega up: ran remotely with NVDEC" has "$out" 'stub:remote\] args: -loglevel error -threads 4 -hwaccel cuda -i in.mkv'
+check "trickplay, omega up: ran remotely with NVDEC, key frames only" has "$out" 'stub:remote\] args: -loglevel error -threads 4 -hwaccel cuda -skip_frame nokey -i in.mkv'
 check "trickplay, omega up: output redirected to scratch" has "$out" "trickplay-[0-9]+-[0-9]+/%08d.jpg"
 check "trickplay, omega up: thumbnails moved to the original dir" test "$(find "$tmp/tp1" -name "*.jpg" | wc -l)" -eq 3
 check "trickplay, omega up: scratch cleaned" test -z "$(ls -A "$TRICKPLAY_SCRATCH_ROOT")"
+
+# Thumbnails reach Jellyfin's dir WHILE ffmpeg runs (its watchdog kills a job
+# whose output dir stays empty ~20 s).
+TP_SLOW=(-i in.mkv -c:v mjpeg -f image2 TPSLOW "$tmp/tp3/%08d.jpg")
+( wrap "$tmp/token" "${TP_SLOW[@]}" </dev/null >"$tmp/slow.out" ) &
+slow_pid=$!
+seen_early=no
+for _ in $(seq 40); do
+  if kill -0 "$slow_pid" 2>/dev/null && [[ $(find "$tmp/tp3" -name '*.jpg' 2>/dev/null | wc -l) -ge 1 ]]; then seen_early=yes; break; fi
+  sleep 0.1
+done
+wait "$slow_pid" || true
+check "trickplay streams thumbnails to Jellyfin's dir while running" test "$seen_early" = yes
+check "trickplay streaming: all thumbnails delivered at the end" test "$(find "$tmp/tp3" -name '*.jpg' | wc -l)" -eq 4
+
+# A killed run leaves a stale scratch dir; the next trickplay sweeps old ones only.
+mkdir -p "$TRICKPLAY_SCRATCH_ROOT/trickplay-1-1" "$TRICKPLAY_SCRATCH_ROOT/trickplay-2-2"
+touch -d '30 minutes ago' "$TRICKPLAY_SCRATCH_ROOT/trickplay-1-1"
+wrap "$tmp/token" "${TP_ARGS[@]}" </dev/null >/dev/null || true
+check "stale scratch dir (>10 min) is swept" test ! -e "$TRICKPLAY_SCRATCH_ROOT/trickplay-1-1"
+check "recent scratch dir is left alone" test -d "$TRICKPLAY_SCRATCH_ROOT/trickplay-2-2"
+rmdir "$TRICKPLAY_SCRATCH_ROOT/trickplay-2-2"
+
+# No key frames: the key-frame-only run yields nothing, so it is retried once with all frames.
+TP_NOKEY=(-i in.mkv -c:v mjpeg -f image2 TPNOKEY "$tmp/tp4/%08d.jpg")
+out=$(wrap "$tmp/token" "${TP_NOKEY[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
+check "no key frames: retried with all frames" has "$out" 'no key frames produced a thumbnail; retrying'
+check "no key frames: first run was key-frame-only" has "$out" 'stub:remote\] args: -hwaccel cuda -skip_frame nokey -i in.mkv'
+check "no key frames: retry decodes all frames" has "$out" 'stub:remote\] args: -hwaccel cuda -i in.mkv'
+check "no key frames: thumbnails delivered after the retry" test "$(find "$tmp/tp4" -name '*.jpg' | wc -l)" -eq 3
+check "no key frames: ends successfully" has "$out" 'rc=0'
 
 TP_FAIL=(-i in.mkv -c:v mjpeg -f image2 FAILTP "$tmp/tp2/%08d.jpg")
 out=$(wrap "$tmp/token" "${TP_FAIL[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true

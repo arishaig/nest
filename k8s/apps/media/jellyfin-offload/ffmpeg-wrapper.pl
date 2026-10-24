@@ -62,14 +62,19 @@ sub trickplay_dest {
 
 # Point the output at the shared scratch dir and let NVDEC do the decode. ffmpeg
 # falls back to software for formats the GPU cannot decode, and downloads frames
-# for the software scale/tonemap filters that follow.
+# for the software scale/tonemap filters that follow. Only key frames are decoded
+# (-skip_frame nokey, what Jellyfin's "only generate images from key frames"
+# option does): trickplay wants one thumbnail per ~10 s, so decoding every frame
+# of a 4K episode is wasted work. TRICKPLAY_ALL_FRAMES=1 turns this off.
 sub trickplay_args {
   my ($scratch, @a) = @_;
   $a[-1] = "$scratch/" . ($a[-1] =~ m{([^/]+)$})[0];
-  unless (grep { $_ eq '-hwaccel' } @a) {
-    for my $i (0 .. $#a) {
-      if ($a[$i] eq '-i') { splice(@a, $i, 0, '-hwaccel', 'cuda'); last; }
-    }
+  my @pre;
+  push @pre, '-hwaccel', 'cuda' unless grep { $_ eq '-hwaccel' } @a;
+  push @pre, '-skip_frame', 'nokey'
+    unless $ENV{TRICKPLAY_ALL_FRAMES} || grep { $_ eq '-skip_frame' } @a;
+  for my $i (0 .. $#a) {
+    if ($a[$i] eq '-i') { splice(@a, $i, 0, @pre); last; }
   }
   return @a;
 }
@@ -82,9 +87,34 @@ if (defined $tp_dest) {
   # ffmpeg's image2 muxer does not create the output directory (Jellyfin only
   # creates its own pod-local one), so exit 254 (ENOENT) without this.
   make_path($scratch);
+  tp_sweep_stale();
 }
 
 sub tp_cleanup { remove_tree($scratch) if defined $scratch && -d $scratch; }
+
+# Jellyfin kills a trickplay job ("Trickplay process unresponsive") when no new
+# file appears in ITS output dir for ~20 s, so thumbnails are moved there as they
+# appear, not at the end. Files younger than 1 s may still be being written.
+sub tp_sync {
+  my ($final) = @_;
+  return unless defined $scratch && -d $scratch;
+  my $moved = 0;
+  for my $f (sort glob("$scratch/*.jpg")) {
+    next if !$final && time - (stat($f))[9] < 1;
+    make_path($tp_dest) unless -d $tp_dest;
+    my ($base) = $f =~ m{([^/]+)$};
+    if (move($f, "$tp_dest/$base")) { $moved++; } else { note("cannot move $f: $!"); return -1 if $final; }
+  }
+  return $moved;
+}
+
+# Killed runs (SIGKILL by Jellyfin) leave their scratch dir behind.
+sub tp_sweep_stale {
+  my $cutoff = time - 600;
+  for my $d (glob("$scratch_root/trickplay-*")) {
+    remove_tree($d) if -d $d && (stat($d))[9] < $cutoff;
+  }
+}
 
 # Anything that would have meant "run on CPU instead" lands here first.
 sub fallback {
@@ -193,6 +223,7 @@ while (!defined $exit) {
       syswrite($sock, $in);
     }
   }
+  tp_sync(0) if defined $tp_dest;
   if (!defined $exit && time - $last_seen > $silence) {
     note("omega silent for ${silence}s; treating as lost");
     $exit = 255;
@@ -202,15 +233,18 @@ close $sock;
 
 if (defined $tp_dest) {
   if ($exit == 0) {
-    make_path($tp_dest);
-    my $n = 0;
-    for my $f (sort glob("$scratch/*.jpg")) {
-      my ($base) = $f =~ m{([^/]+)$};
-      move($f, "$tp_dest/$base") or do { note("cannot move $f: $!"); tp_cleanup(); exit 1 };
-      $n++;
-    }
+    my $rest = tp_sync(1);
+    if ($rest < 0) { tp_cleanup(); exit 1 }
     tp_cleanup();
-    note("trickplay: $n thumbnails written to $tp_dest");
+    my $n = () = glob("$tp_dest/*.jpg");
+    if ($n == 0 && !$ENV{TRICKPLAY_ALL_FRAMES}) {
+      # Key-frame-only decoding found nothing (a file with no usable key frames,
+      # e.g. intra-refresh video): redo it once on omega decoding every frame.
+      note('trickplay: no key frames produced a thumbnail; retrying on omega with all frames');
+      $ENV{TRICKPLAY_ALL_FRAMES} = 1;
+      exec $^X, $0, @ARGV or die "re-exec: $!";
+    }
+    note("trickplay: $n thumbnails in $tp_dest");
     exit 0;
   }
   tp_cleanup();

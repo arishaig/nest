@@ -116,10 +116,20 @@ live heap dump). The wrapper therefore:
   independent of Jellyfin's hardware-acceleration setting;
 - adds `-hwaccel cuda` before `-i` so omega decodes with NVDEC (ffmpeg falls back
   to software for codecs the GPU cannot decode, still on omega);
+- decodes **key frames only** (`-skip_frame nokey`, the same thing as Jellyfin's
+  "only generate images from key frames" option): trickplay needs one thumbnail
+  per ~10 s, so decoding every frame of a 4K episode is wasted work. Very sparse
+  keyframes just repeat a thumbnail until the next one. If a file yields no
+  thumbnail at all (no usable key frames, e.g. intra-refresh video) the wrapper
+  reruns it once on omega decoding every frame. `TRICKPLAY_ALL_FRAMES=1` disables
+  the key-frame shortcut;
 - points the output at a scratch dir on the shared volume
   (`/config/cache/transcodes/trickplay-<pid>-<time>/`), because omega cannot see
-  Jellyfin's pod-local `/tmp/jellyfin/<id>/`, and moves the JPEGs into the
-  original directory when ffmpeg exits 0;
+  Jellyfin's pod-local `/tmp/jellyfin/<id>/`, and **moves each JPEG into the
+  original directory as it appears**. This matters: Jellyfin kills a trickplay
+  job ("Trickplay process unresponsive") when no new file shows up in its own
+  output dir for ~20 s, so moving everything at the end got every job killed.
+  Scratch dirs left behind by killed jobs are swept after 10 minutes;
 - **when omega is unavailable** (unreachable, busy, wrong token, kill switch) it
   exits **98** immediately with an `[offload] trickplay runs only on omega…`
   line. Nothing is generated and nothing runs on alpha.
