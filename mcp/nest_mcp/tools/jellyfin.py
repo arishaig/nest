@@ -1,3 +1,4 @@
+import asyncio
 from urllib.parse import urlsplit
 
 from mcp.server.mcpserver import MCPServer
@@ -45,23 +46,24 @@ def register(mcp: MCPServer) -> None:
             resp = await client.get("/Library/VirtualFolders")
             resp.raise_for_status()
             folders = resp.json()
+            kinds = {"movie_count": "Movie", "series_count": "Series", "episode_count": "Episode",
+                     "song_count": "Audio", "album_count": "MusicAlbum", "book_count": "Book"}
+
+            async def count(parent: str, kind: str) -> int:
+                # /Items/Counts ignores parentId (it is server-wide), so count each library's items directly.
+                r = await client.get("/Items", params={
+                    "ParentId": parent, "Recursive": "true", "IncludeItemTypes": kind, "Limit": 0,
+                })
+                return r.json().get("TotalRecordCount", 0) if r.is_success else 0
+
             result = []
             for folder in folders:
-                counts_resp = await client.get(
-                    "/Items/Counts",
-                    params={"parentId": folder.get("ItemId", "")},
-                )
-                counts = counts_resp.json() if counts_resp.is_success else {}
+                counts = await asyncio.gather(*(count(folder.get("ItemId", ""), k) for k in kinds.values()))
                 result.append({
                     "name": folder.get("Name", ""),
                     "type": folder.get("CollectionType", ""),
                     "locations": folder.get("Locations", []),
-                    "movie_count": counts.get("MovieCount", 0),
-                    "series_count": counts.get("SeriesCount", 0),
-                    "episode_count": counts.get("EpisodeCount", 0),
-                    "song_count": counts.get("SongCount", 0),
-                    "album_count": counts.get("AlbumCount", 0),
-                    "book_count": counts.get("BookCount", 0),
+                    **dict(zip(kinds, counts)),
                 })
             return result
 
@@ -110,6 +112,18 @@ def register(mcp: MCPServer) -> None:
                  "tvdb": (i.get("ProviderIds") or {}).get("Tvdb"), "tmdb": (i.get("ProviderIds") or {}).get("Tmdb")}
                 for i in resp.json().get("Items", [])
             ]
+
+    @mcp.tool()
+    async def jellyfin_plugins() -> list[dict]:
+        """List Jellyfin's installed plugins with version and status (Active, Disabled, Malfunctioned, NotSupported, Restart, ...). Read-only. Useful when a library scan or task misbehaves: plugins hook into scans, so a Malfunctioned or unexpected plugin is a suspect."""
+        async with make_client(config.jellyfin.url, headers=_headers()) as client:
+            resp = await client.get("/Plugins")
+            resp.raise_for_status()
+            return sorted(
+                ({"name": p.get("Name"), "version": p.get("Version"), "status": p.get("Status"), "id": p.get("Id"),
+                  "can_uninstall": p.get("CanUninstall")} for p in resp.json()),
+                key=lambda p: (p["status"] == "Active", (p["name"] or "").lower()),
+            )
 
     @mcp.tool()
     async def jellyfin_tasks(action: str = "list", task: str = "") -> list[dict] | dict:
