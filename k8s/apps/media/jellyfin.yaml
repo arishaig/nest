@@ -87,17 +87,6 @@ spec:
                   secretKeyRef:
                     name: jellyfin-postgres-secret
                     key: POSTGRES_PASSWORD
-              # Temporary: the full "Scan Media Library" task has been freezing
-              # at a fixed percentage with nothing in the log. Debug-level logs
-              # for just the scan/task/plugin namespaces show where it goes quiet
-              # (Jellyfin feeds JELLYFIN_-prefixed env into Serilog's config).
-              # Remove once the stall is understood.
-              JELLYFIN_Serilog__MinimumLevel__Override__Emby.Server.Implementations.Library: Debug
-              JELLYFIN_Serilog__MinimumLevel__Override__Emby.Server.Implementations.ScheduledTasks: Debug
-              JELLYFIN_Serilog__MinimumLevel__Override__MediaBrowser.Controller.Entities: Debug
-              JELLYFIN_Serilog__MinimumLevel__Override__MediaBrowser.Providers.Manager: Debug
-              JELLYFIN_Serilog__MinimumLevel__Override__Jellyfin.Plugin: Debug
-              JELLYFIN_Serilog__MinimumLevel__Override__IntroSkipper: Debug
               # ffmpeg goes through the omega offload wrapper (docs/jellyfin-offload.md).
               # Today that only changes trickplay, which runs on omega only (and
               # fails fast, exit 98, when omega is down); every other call has no
