@@ -9,6 +9,10 @@ on:
         description: 'Force rebuild/deploy lidarr-ui'
         type: boolean
         default: false
+      force_mcp:
+        description: 'Force rebuild/deploy nest-mcp (e.g. after superseded pushes cancelled its run)'
+        type: boolean
+        default: false
       force_subgen_ui:
         description: 'Force rebuild/deploy subgen-ui'
         type: boolean
@@ -760,7 +764,7 @@ jobs:
 
   build-mcp:
     needs: changes
-    if: needs.changes.outputs.mcp == 'true'
+    if: needs.changes.outputs.mcp == 'true' || inputs.force_mcp == true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -791,7 +795,7 @@ jobs:
 
   deploy-mcp:
     needs: [changes, build-mcp]
-    if: needs.changes.outputs.mcp == 'true'
+    if: needs.changes.outputs.mcp == 'true' || inputs.force_mcp == true
     runs-on: self-hosted
     steps:
       - name: Write kubeconfig
