@@ -148,7 +148,7 @@ wait "$bgpid" 2>/dev/null || true
 stop_runner
 export TRICKPLAY_SCRATCH_ROOT="$tmp/scratch"
 mkdir -p "$TRICKPLAY_SCRATCH_ROOT"
-TP_ARGS=(-loglevel error -threads 4 -i in.mkv -map 0:0 -an -sn -vf fps=0.1 -c:v mjpeg -f image2 "$tmp/tp1/%08d.jpg")
+TP_ARGS=(-loglevel error -threads 4 -i in.mkv -map 0:0 -an -sn -vf fps=0.1,format=yuv420p -c:v mjpeg -f image2 "$tmp/tp1/%08d.jpg")
 out=$(wrap "$tmp/token" "${TP_ARGS[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
 check "trickplay, omega down: fails fast with exit 98" has "$out" 'rc=98'
 check "trickplay, omega down: explains it runs only on omega" has "$out" 'trickplay runs only on omega'
@@ -159,7 +159,8 @@ check "trickplay, omega down: scratch cleaned" test -z "$(ls -A "$TRICKPLAY_SCRA
 start_runner
 out=$(wrap "$tmp/token" "${TP_ARGS[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
 check "trickplay, omega up: succeeds" has "$out" 'rc=0'
-check "trickplay, omega up: ran remotely with NVDEC, key frames only" has "$out" 'stub:remote\] args: -loglevel error -threads 4 -hwaccel cuda -skip_frame nokey -i in.mkv'
+check "trickplay, omega up: NVDEC with frames kept on the GPU until after fps" has "$out" 'stub:remote\] args: -loglevel error -threads 4 -hwaccel cuda -hwaccel_output_format cuda -i in.mkv'
+check "trickplay, omega up: hwdownload inserted right after fps" has "$out" 'fps=0.1,hwdownload,format=p010le,format=yuv420p'
 check "trickplay, omega up: output redirected to scratch" has "$out" "trickplay-[0-9]+-[0-9]+/%08d.jpg"
 check "trickplay, omega up: thumbnails moved to the original dir" test "$(find "$tmp/tp1" -name "*.jpg" | wc -l)" -eq 3
 check "trickplay, omega up: scratch cleaned" test -z "$(ls -A "$TRICKPLAY_SCRATCH_ROOT")"
@@ -186,14 +187,17 @@ check "stale scratch dir (>10 min) is swept" test ! -e "$TRICKPLAY_SCRATCH_ROOT/
 check "recent scratch dir is left alone" test -d "$TRICKPLAY_SCRATCH_ROOT/trickplay-2-2"
 rmdir "$TRICKPLAY_SCRATCH_ROOT/trickplay-2-2"
 
-# No key frames: the key-frame-only run yields nothing, so it is retried once with all frames.
-TP_NOKEY=(-i in.mkv -c:v mjpeg -f image2 TPNOKEY "$tmp/tp4/%08d.jpg")
-out=$(wrap "$tmp/token" "${TP_NOKEY[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
-check "no key frames: retried with all frames" has "$out" 'no key frames produced a thumbnail; retrying'
-check "no key frames: first run was key-frame-only" has "$out" 'stub:remote\] args: -hwaccel cuda -skip_frame nokey -i in.mkv'
-check "no key frames: retry decodes all frames" has "$out" 'stub:remote\] args: -hwaccel cuda -i in.mkv'
-check "no key frames: thumbnails delivered after the retry" test "$(find "$tmp/tp4" -name '*.jpg' | wc -l)" -eq 3
-check "no key frames: ends successfully" has "$out" 'rc=0'
+# GPU-frames path fails before any thumbnail (wrong pixel format / codec NVDEC
+# cannot decode): p010le, then nv12, then plain NVDEC.
+TP_NOHW=(-i in.mkv -vf fps=0.1,scale=320:-2 -c:v mjpeg -f image2 TPNOHW "$tmp/tp4/%08d.jpg")
+out=$(wrap "$tmp/token" "${TP_NOHW[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
+check "gpu-frames failure: p010le first" has "$out" 'stub:remote\] args: -hwaccel cuda -hwaccel_output_format cuda -i in.mkv -vf fps=0.1,hwdownload,format=p010le,scale'
+check "gpu-frames failure: then nv12" has "$out" '\(p010le\); retrying on omega with nv12'
+check "gpu-frames failure: nv12 attempt used nv12" has "$out" 'hwdownload,format=nv12,scale'
+check "gpu-frames failure: then plain NVDEC" has "$out" '\(nv12\); retrying on omega with plain'
+check "gpu-frames failure: plain run has no output-format or hwdownload" has "$out" 'stub:remote\] args: -hwaccel cuda -i in.mkv -vf fps=0.1,scale=320:-2'
+check "gpu-frames failure: thumbnails delivered after the retries" test "$(find "$tmp/tp4" -name '*.jpg' | wc -l)" -eq 3
+check "gpu-frames failure: ends successfully" has "$out" 'rc=0'
 
 TP_FAIL=(-i in.mkv -c:v mjpeg -f image2 FAILTP "$tmp/tp2/%08d.jpg")
 out=$(wrap "$tmp/token" "${TP_FAIL[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true

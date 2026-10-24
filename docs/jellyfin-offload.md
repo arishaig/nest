@@ -116,13 +116,17 @@ live heap dump). The wrapper therefore:
   independent of Jellyfin's hardware-acceleration setting;
 - adds `-hwaccel cuda` before `-i` so omega decodes with NVDEC (ffmpeg falls back
   to software for codecs the GPU cannot decode, still on omega);
-- decodes **key frames only** (`-skip_frame nokey`, the same thing as Jellyfin's
-  "only generate images from key frames" option): trickplay needs one thumbnail
-  per ~10 s, so decoding every frame of a 4K episode is wasted work. Very sparse
-  keyframes just repeat a thumbnail until the next one. If a file yields no
-  thumbnail at all (no usable key frames, e.g. intra-refresh video) the wrapper
-  reruns it once on omega decoding every frame. `TRICKPLAY_ALL_FRAMES=1` disables
-  the key-frame shortcut;
+- keeps decoded frames **on the GPU until after Jellyfin's `fps` filter**
+  (`-hwaccel_output_format cuda`, with `hwdownload,format=p010le` inserted right
+  after `fps=`; `hwdownload` needs the stream's exact pixel format, so 8-bit
+  streams take a quick failed attempt and are retried with `nv12`), so only the one frame in ~240 that survives `fps` is
+  downloaded for the software scale/tonemap filters. Measured on omega with a 4K
+  HDR/DV episode: 13x realtime, versus 3x when ffmpeg downloads every frame and
+  versus 30-45 s to the *first* thumbnail with `-skip_frame nokey` (these files
+  have sparse key frames, so key-frame-only is slower, not faster). If that
+  pipeline fails before producing any thumbnail (wrong pixel format, or a codec
+  NVDEC cannot decode) the wrapper retries on omega: `p010le`, then `nv12`, then
+  plain NVDEC (`TRICKPLAY_MODE=plain` forces the last);
 - points the output at a scratch dir on the shared volume
   (`/config/cache/transcodes/trickplay-<pid>-<time>/`), because omega cannot see
   Jellyfin's pod-local `/tmp/jellyfin/<id>/`, and **moves each JPEG into the

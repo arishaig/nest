@@ -14,7 +14,7 @@
 # runs ONLY on omega (NVDEC) and fails fast with exit 98 when omega is
 # unavailable; the nightly "Generate Trickplay Images" task retries later. The
 # thumbnails are written to a scratch dir on the shared volume (omega cannot see
-# Jellyfin's pod-local /tmp) and moved into place on success.
+# Jellyfin's pod-local /tmp) and moved into Jellyfin's dir as they appear.
 #
 # A transcode already running on omega when it drops is not recoverable (the
 # stream dies and the client's retry takes the local path); everything else is
@@ -60,19 +60,32 @@ sub trickplay_dest {
   return;
 }
 
-# Point the output at the shared scratch dir and let NVDEC do the decode. ffmpeg
-# falls back to software for formats the GPU cannot decode, and downloads frames
-# for the software scale/tonemap filters that follow. Only key frames are decoded
-# (-skip_frame nokey, what Jellyfin's "only generate images from key frames"
-# option does): trickplay wants one thumbnail per ~10 s, so decoding every frame
-# of a 4K episode is wasted work. TRICKPLAY_ALL_FRAMES=1 turns this off.
+# Point the output at the shared scratch dir and let NVDEC do the decode. By
+# default the decoded frames stay on the GPU until after Jellyfin's `fps` filter
+# (one frame in ~240 survives it), so only those few 4K frames are downloaded for
+# the software scale/tonemap filters: 13x realtime on a 4K HDR episode versus 3x
+# when ffmpeg downloads every frame first (measured on omega). hwdownload needs
+# the stream's exact pixel format, so the modes are tried in order, each failing
+# within half a second when wrong: p010le (10-bit, most 4K HEVC), nv12 (8-bit),
+# then plain (ffmpeg downloads every frame; TRICKPLAY_MODE=plain forces it). ffmpeg
+# falls back to software decode for codecs NVDEC cannot do. Key-frame-only
+# decoding (-skip_frame nokey) was measured and is slower here: these files have
+# sparse key frames, so the second frame the fps filter needs arrives 30 s late.
 sub trickplay_args {
   my ($scratch, @a) = @_;
   $a[-1] = "$scratch/" . ($a[-1] =~ m{([^/]+)$})[0];
-  my @pre;
-  push @pre, '-hwaccel', 'cuda' unless grep { $_ eq '-hwaccel' } @a;
-  push @pre, '-skip_frame', 'nokey'
-    unless $ENV{TRICKPLAY_ALL_FRAMES} || grep { $_ eq '-skip_frame' } @a;
+  return @a if grep { $_ eq '-hwaccel' } @a;
+  my @pre = ('-hwaccel', 'cuda');
+  my $mode = $ENV{TRICKPLAY_MODE} || 'p010le';
+  if ($mode ne 'plain') {
+    for my $i (0 .. $#a - 1) {
+      next unless $a[$i] eq '-vf';
+      if ($a[$i + 1] =~ s/(fps=[^,]+,)/${1}hwdownload,format=$mode,/) {
+        push @pre, '-hwaccel_output_format', 'cuda';
+      }
+      last;
+    }
+  }
   for my $i (0 .. $#a) {
     if ($a[$i] eq '-i') { splice(@a, $i, 0, @pre); last; }
   }
@@ -232,22 +245,23 @@ while (!defined $exit) {
 close $sock;
 
 if (defined $tp_dest) {
+  my $rest = tp_sync(1);
+  if ($rest < 0) { tp_cleanup(); exit 1 }
+  tp_cleanup();
+  my $n = () = glob("$tp_dest/*.jpg");
   if ($exit == 0) {
-    my $rest = tp_sync(1);
-    if ($rest < 0) { tp_cleanup(); exit 1 }
-    tp_cleanup();
-    my $n = () = glob("$tp_dest/*.jpg");
-    if ($n == 0 && !$ENV{TRICKPLAY_ALL_FRAMES}) {
-      # Key-frame-only decoding found nothing (a file with no usable key frames,
-      # e.g. intra-refresh video): redo it once on omega decoding every frame.
-      note('trickplay: no key frames produced a thumbnail; retrying on omega with all frames');
-      $ENV{TRICKPLAY_ALL_FRAMES} = 1;
-      exec $^X, $0, @ARGV or die "re-exec: $!";
-    }
     note("trickplay: $n thumbnails in $tp_dest");
     exit 0;
   }
-  tp_cleanup();
+  my %next = (p010le => 'nv12', nv12 => 'plain');
+  my $mode = $ENV{TRICKPLAY_MODE} || 'p010le';
+  if ($n == 0 && $next{$mode}) {
+    # The GPU-frames pipeline failed before producing anything (wrong pixel
+    # format for hwdownload, or a codec NVDEC cannot decode): try the next mode.
+    note("trickplay: failed with exit $exit before any thumbnail ($mode); retrying on omega with $next{$mode}");
+    $ENV{TRICKPLAY_MODE} = $next{$mode};
+    exec $^X, $0, @ARGV or die "re-exec: $!";
+  }
   note("trickplay on omega ended with exit $exit");
   exit($exit > 255 ? 1 : $exit);
 }
