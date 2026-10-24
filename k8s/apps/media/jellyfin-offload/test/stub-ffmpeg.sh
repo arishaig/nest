@@ -9,7 +9,8 @@ echo "[stub:${STUB_TAG:-?}] args: $*" >&2
 last=${!#}
 if [[ $last == *%08d.jpg ]]; then
   for a in "$@"; do [[ $a == FAILTP ]] && { echo "stub: trickplay failed" >&2; exit 4; }; done
-  mkdir -p "${last%/*}"
+  # Like the real image2 muxer: the output directory must already exist.
+  [[ -d ${last%/*} ]] || { echo "stub: ${last%/*}: No such file or directory" >&2; exit 254; }
   for i in 1 2 3; do printf img >"${last%/*}/0000000$i.jpg"; done
   exit 0
 fi
