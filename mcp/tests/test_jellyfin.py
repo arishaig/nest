@@ -97,3 +97,69 @@ async def test_refresh_notifies_specific_paths(monkeypatch):
         {"Path": "/data/media/tv/TZ (1959)", "UpdateType": "Created"},
     ]
     assert out["notified"] == sent[0]["Updates"]
+
+
+async def test_identify_lists_then_applies(monkeypatch):
+    import json
+    applied = []
+    cands = [
+        {"Name": "The Twilight Zone", "ProductionYear": 2002, "ProviderIds": {"Tvdb": "78611"}},
+        {"Name": "The Twilight Zone", "ProductionYear": 1959, "ProviderIds": {"Tvdb": "73587"}, "Overview": "Rod Serling"},
+    ]
+
+    def apply(request):
+        applied.append((request.url.path, json.loads(request.content)))
+        return (204, "")
+
+    patch_http(monkeypatch, jellyfin, {
+        "/Items": {"Items": [{"Id": "e7", "Name": "The Twilight Zone", "ProductionYear": 1959, "ProviderIds": {"Tvdb": "78611"}}]},
+        "/Items/RemoteSearch/Series": cands,
+        "/Items/RemoteSearch/Apply/e7": apply,
+    })
+    tool = load_tools(jellyfin)["jellyfin_identify"]
+    listed = await tool(series_id="e7")
+    assert listed["current"]["provider_ids"] == {"Tvdb": "78611"} and len(listed["candidates"]) == 2
+    out = await tool(series_id="e7", tvdb_id="73587", apply=True)
+    assert out["applied"]["year"] == 1959 and applied[0][1]["ProviderIds"]["Tvdb"] == "73587"
+    with pytest.raises(ValueError, match="needs tvdb_id"):
+        await tool(series_id="e7", apply=True)
+    with pytest.raises(ValueError, match="No candidate"):
+        await tool(series_id="e7", tvdb_id="1", apply=True)
+
+
+async def test_identify_unknown_item(monkeypatch):
+    patch_http(monkeypatch, jellyfin, {"/Items": {"Items": []}})
+    with pytest.raises(ValueError, match="No Jellyfin item"):
+        await load_tools(jellyfin)["jellyfin_identify"](series_id="zz")
+
+
+async def test_series_listing(monkeypatch):
+    patch_http(monkeypatch, jellyfin, {"/Items": {"Items": [
+        {"Id": "e7", "Name": "TZ", "ProductionYear": 1959, "Path": "/data/media/tv/TZ (1959)",
+         "ProviderIds": {"Tvdb": "73587"}, "RecursiveItemCount": 65}]}})
+    out = await load_tools(jellyfin)["jellyfin_series"](search="TZ")
+    assert out == [{"id": "e7", "name": "TZ", "year": 1959, "path": "/data/media/tv/TZ (1959)",
+                    "tvdb": "73587", "tmdb": None, "episodes": 65}]
+
+
+async def test_tasks_list_start_stop(monkeypatch):
+    seen = []
+
+    def run(request):
+        seen.append(request.method)
+        return (204, "")
+
+    patch_http(monkeypatch, jellyfin, {
+        "/ScheduledTasks": [{"Name": "Scan Media Library", "Id": "t1", "State": "Running",
+                             "CurrentProgressPercentage": 0, "LastExecutionResult": {"Status": "Completed"}}],
+        "/ScheduledTasks/Running/t1": run,
+    })
+    tool = load_tools(jellyfin)["jellyfin_tasks"]
+    assert (await tool())[0]["state"] == "Running"
+    await tool(action="stop", task="scan media library")
+    await tool(action="start", task="Scan Media Library")
+    assert seen == ["DELETE", "POST"]
+    with pytest.raises(ValueError, match="No Jellyfin task"):
+        await tool(action="stop", task="nope")
+    with pytest.raises(ValueError, match="action must"):
+        await tool(action="bogus")

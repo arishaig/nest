@@ -73,10 +73,11 @@ def register(mcp: MCPServer) -> None:
 
         depth = min(max(1, depth), _MAX_DEPTH)
 
-        root = config.fileserver.media_root.rstrip("/")
+        root = _media_subtree_root()
         target = f"{root}/{path}".rstrip("/") if path else root
 
-        cmd = f"/usr/bin/ncdu -0 -x -o - {shlex.quote(target)} 2>/dev/null"
+        # stderr stays attached (2>&1) so a bad path shows ncdu's own message instead of empty output.
+        cmd = f"/usr/bin/ncdu -0 -x -o - {shlex.quote(target)} 2>&1"
         try:
             raw = await ssh_run(
                 config.fileserver.host, cmd,
@@ -86,6 +87,8 @@ def register(mcp: MCPServer) -> None:
         except Exception as e:
             return {"error": str(e)}
 
+        if not raw.lstrip().startswith("["):
+            return {"error": f"ncdu failed: {raw[:300] or 'no output'}"}
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as e:

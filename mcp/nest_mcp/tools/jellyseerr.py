@@ -10,8 +10,8 @@ def _headers() -> dict:
 def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
-    async def jellyseerr_requests(status: str = "pending") -> list[dict]:
-        """List Jellyseerr media requests. Status: 'pending', 'approved', 'declined', 'available', or '' for all."""
+    async def seerr_requests(status: str = "pending") -> list[dict]:
+        """List Seerr media requests. Status: 'pending', 'approved', 'declined', 'available', or '' for all."""
         params: dict = {"take": 50, "sort": "added"}
         if status:
             # 1=pending, 2=approved, 3=declined, 4=available, 5=processing
@@ -36,8 +36,8 @@ def register(mcp: MCPServer) -> None:
             ]
 
     @mcp.tool()
-    async def jellyseerr_stats() -> dict:
-        """Get Jellyseerr request counts by status and total media in library."""
+    async def seerr_stats() -> dict:
+        """Get Seerr request counts by status and total media in library."""
         async with make_client(config.jellyseerr.url, headers=_headers()) as client:
             resp = await client.get("/api/v1/request/count")
             resp.raise_for_status()

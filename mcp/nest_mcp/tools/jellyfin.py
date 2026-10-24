@@ -97,6 +97,83 @@ def register(mcp: MCPServer) -> None:
                     "replace_metadata": replace_metadata}
 
     @mcp.tool()
+    async def jellyfin_series(search: str = "", limit: int = 50) -> list[dict]:
+        """List Jellyfin series with their item id, year, folder path, TVDB/TMDB ids and episode count. `search` filters by title. Use it to find the id jellyfin_identify needs, to see which folder a series really points at, or to spot duplicate/stale series."""
+        async with make_client(config.jellyfin.url, headers=_headers()) as client:
+            resp = await client.get("/Items", params={
+                "IncludeItemTypes": "Series", "Recursive": "true", "searchTerm": search or None,
+                "Fields": "Path,ProviderIds,RecursiveItemCount", "SortBy": "SortName", "Limit": limit,
+            })
+            resp.raise_for_status()
+            return [
+                {"id": i["Id"], "name": i.get("Name"), "year": i.get("ProductionYear"), "path": i.get("Path"),
+                 "tvdb": (i.get("ProviderIds") or {}).get("Tvdb"), "tmdb": (i.get("ProviderIds") or {}).get("Tmdb"),
+                 "episodes": i.get("RecursiveItemCount")}
+                for i in resp.json().get("Items", [])
+            ]
+
+    @mcp.tool()
+    async def jellyfin_tasks(action: str = "list", task: str = "") -> list[dict] | dict:
+        """Jellyfin scheduled tasks (library scan, metadata refresh, ...). action='list' shows each task with state (Idle/Running/Cancelling), progress and last result; 'start' / 'stop' [DESTRUCTIVE] act on the task whose name matches `task` exactly (case-insensitive). Library scans run one at a time, so a hung 'Scan Media Library' blocks every other scan: stop it, then start it again. Confirm with the user before start/stop."""
+        async with make_client(config.jellyfin.url, headers=_headers()) as client:
+            resp = await client.get("/ScheduledTasks")
+            resp.raise_for_status()
+            tasks = resp.json()
+            if action == "list":
+                return [
+                    {"name": t.get("Name"), "id": t.get("Id"), "state": t.get("State"),
+                     "progress_pct": t.get("CurrentProgressPercentage"),
+                     "last_result": (t.get("LastExecutionResult") or {}).get("Status"),
+                     "last_end": (t.get("LastExecutionResult") or {}).get("EndTimeUtc")}
+                    for t in tasks
+                ]
+            if action not in ("start", "stop"):
+                raise ValueError("action must be list, start or stop")
+            hit = [t for t in tasks if (t.get("Name") or "").lower() == task.lower()]
+            if not hit:
+                raise ValueError(f"No Jellyfin task named {task!r}")
+            if action == "start":
+                r = await client.post(f"/ScheduledTasks/Running/{hit[0]['Id']}")
+            else:
+                r = await client.delete(f"/ScheduledTasks/Running/{hit[0]['Id']}")
+            r.raise_for_status()
+            return {"action": action, "task": hit[0]["Name"]}
+
+    @mcp.tool()
+    async def jellyfin_identify(
+        series_id: str, search_name: str = "", search_year: int = 0, tvdb_id: str = "", apply: bool = False,
+    ) -> dict:
+        """[DESTRUCTIVE when apply=True] Jellyfin's Identify for one series (find it with jellyfin_library_stats or jellyfin_refresh output; tunarr_search_programs shows the Jellyfin id as an identifier). With apply=False it searches the metadata providers and lists candidates (name, year, provider ids) so you can see what Jellyfin would match. With apply=True and `tvdb_id` it picks the candidate with that TVDB id and applies it, replacing the series' metadata and images; this is how to fix a series that Jellyfin matched to the wrong show (e.g. a 1959 series folder identified as the 2002 revival). `search_name`/`search_year` default to the series' current name and year. Confirm with the user first."""
+        async with make_client(config.jellyfin.url, headers=_headers(), timeout=60.0) as client:
+            item = await client.get("/Items", params={"Ids": series_id, "Fields": "ProviderIds"})
+            item.raise_for_status()
+            items = item.json().get("Items", [])
+            if not items:
+                raise ValueError(f"No Jellyfin item with id {series_id!r}")
+            cur = items[0]
+            info: dict = {"Name": search_name or cur.get("Name"), "ProviderIds": {}}
+            if search_year or (not search_name and cur.get("ProductionYear")):
+                info["Year"] = search_year or cur["ProductionYear"]
+            if tvdb_id:
+                info["ProviderIds"]["Tvdb"] = tvdb_id
+            resp = await client.post("/Items/RemoteSearch/Series", json={"SearchInfo": info, "ItemId": series_id})
+            resp.raise_for_status()
+            results = resp.json()
+            rows = [{"name": r.get("Name"), "year": r.get("ProductionYear"), "provider_ids": r.get("ProviderIds", {}),
+                     "overview": (r.get("Overview") or "")[:120]} for r in results]
+            current = {"name": cur.get("Name"), "year": cur.get("ProductionYear"), "provider_ids": cur.get("ProviderIds", {})}
+            if not apply:
+                return {"current": current, "candidates": rows}
+            if not tvdb_id:
+                raise ValueError("apply=True needs tvdb_id to choose a candidate")
+            match = [r for r in results if str((r.get("ProviderIds") or {}).get("Tvdb")) == str(tvdb_id)]
+            if not match:
+                raise ValueError(f"No candidate with Tvdb id {tvdb_id}; candidates: {rows}")
+            applied = await client.post(f"/Items/RemoteSearch/Apply/{series_id}", params={"ReplaceAllImages": "true"}, json=match[0])
+            applied.raise_for_status()
+            return {"current": current, "applied": rows[results.index(match[0])]}
+
+    @mcp.tool()
     async def jellyfin_livetv_tuners() -> dict:
         """List Jellyfin's Live TV tuner hosts and guide (EPG) providers: type, a label (the friendly name if set, else the URL's host), URL (query string dropped), max concurrent streams ("unlimited" when Jellyfin's TunerCount is 0) and, for guides, how many manual channel mappings exist (0 means everything is auto-matched). Shows where the Live TV channel list comes from."""
         async with make_client(config.jellyfin.url, headers=_headers()) as client:
