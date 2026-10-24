@@ -293,3 +293,25 @@ async def test_sonarr_set_series_path_moves_files(monkeypatch):
     assert (await tool(series_id=58, path="/data/media/tv/TZ (2002)/"))["changed"] is False
     with pytest.raises(ValueError, match="root folder"):
         await tool(series_id=58, path="/elsewhere/TZ")
+
+
+async def test_refresh_series_and_queue_remove(monkeypatch):
+    import json
+    seen = []
+
+    def cmd(request):
+        seen.append(json.loads(request.content))
+        return {"id": 9}
+
+    def rm(request):
+        seen.append((request.method, dict(request.url.params), json.loads(request.content)))
+        return (200, "")
+
+    patch_http(monkeypatch, arr, {"/api/v3/command": cmd, "/api/v3/queue/bulk": rm})
+    tools = load_tools(arr)
+    assert (await tools["sonarr_refresh_series"](series_id=5, rescan=True))["command"] == "RescanSeries"
+    assert seen[0] == {"name": "RescanSeries", "seriesId": 5}
+    out = await tools["arr_queue_remove"](service="sonarr", queue_ids=[1, 2], blocklist=True)
+    assert out["blocklisted"] is True and seen[1] == ("DELETE", {"removeFromClient": "true", "blocklist": "true"}, {"ids": [1, 2]})
+    with pytest.raises(ValueError, match="empty"):
+        await tools["arr_queue_remove"](service="sonarr", queue_ids=[])

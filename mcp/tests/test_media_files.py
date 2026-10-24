@@ -36,12 +36,19 @@ async def test_media_ls_parses_ncdu(monkeypatch):
     out = await load_tools(media_files)["media_ls"](path="tv", depth=1)
     assert out["total"] == 1 and out["entries"][0]["name"] == "x.mkv"
     assert out["truncated"] is False
+    assert out["root"].endswith("/media_root/media/tv")
+
+
+async def test_media_ls_reports_ncdu_error_text(monkeypatch):
+    patch_ssh(monkeypatch, media_files, "Error obtaining full path: No such file or directory.")
+    out = await load_tools(media_files)["media_ls"](path="tv")
+    assert "No such file" in out["error"]
 
 
 async def test_media_ls_bad_json(monkeypatch):
-    patch_ssh(monkeypatch, media_files, "not-json")
+    patch_ssh(monkeypatch, media_files, "[not-json")
     out = await load_tools(media_files)["media_ls"](path="tv")
-    assert "error" in out
+    assert "Failed to parse" in out["error"]
 
 
 async def test_audio_lang_survey_rejects_traversal(monkeypatch):

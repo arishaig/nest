@@ -73,9 +73,11 @@ def register(mcp: MCPServer) -> None:
                 "total": d.get("totalRecords", 0),
                 "items": [
                     {
+                        "id": r.get("id"),
                         "title": r.get("title", ""),
                         "status": r.get("status", ""),
                         "tracked_status": r.get("trackedDownloadStatus", ""),
+                        "messages": [m for s in r.get("statusMessages", []) for m in s.get("messages", [])][:3],
                         "size_mb": round(r.get("size", 0) / 1024 / 1024),
                         "sizeleft_mb": round(r.get("sizeleft", 0) / 1024 / 1024),
                         "timeleft": r.get("timeleft", ""),
@@ -327,6 +329,32 @@ def register_write(mcp: MCPServer) -> None:
             put.raise_for_status()
             return {"series_id": series_id, "title": series.get("title"), "old_path": old,
                     "path": put.json().get("path"), "moved_files": move_files, "changed": True}
+
+    @mcp.tool()
+    async def sonarr_refresh_series(series_id: int, rescan: bool = False) -> dict:
+        """Make Sonarr refresh a series' metadata from TheTVDB (default) or rescan its folder on disk for new/removed files (rescan=True; use after renaming or moving a folder outside Sonarr). Returns the command id; it runs in the background."""
+        async with _arr_client("sonarr") as client:
+            name = "RescanSeries" if rescan else "RefreshSeries"
+            cmd = await client.post("/api/v3/command", json={"name": name, "seriesId": series_id})
+            cmd.raise_for_status()
+            return {"command": name, "series_id": series_id, "command_id": cmd.json().get("id")}
+
+    @mcp.tool()
+    async def arr_queue_remove(
+        service: Literal["sonarr", "radarr", "lidarr"], queue_ids: list[int],
+        blocklist: bool = False, remove_from_client: bool = True,
+    ) -> dict:
+        """[DESTRUCTIVE] Remove items from a *arr download queue (ids from arr_queue), e.g. downloads that completed but are stuck on an import warning. blocklist=True also blocklists the release so it is not grabbed again (use for bad/fake releases); remove_from_client=True also deletes the download from the download client. Re-search afterwards to get a replacement. Confirm with the user first."""
+        if not queue_ids:
+            raise ValueError("queue_ids is empty")
+        async with _arr_client(service) as client:
+            resp = await client.request(
+                "DELETE", f"/api/{_API_VERSION[service]}/queue/bulk",
+                params={"removeFromClient": str(remove_from_client).lower(), "blocklist": str(blocklist).lower()},
+                json={"ids": queue_ids},
+            )
+            resp.raise_for_status()
+            return {"removed": queue_ids, "blocklisted": blocklist, "removed_from_client": remove_from_client}
 
     # ── Radarr ────────────────────────────────────────────────────────────────
 

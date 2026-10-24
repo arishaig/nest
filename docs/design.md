@@ -441,7 +441,7 @@ Tools cover: Proxmox (VMs/LXCs/tasks/snapshots/storage), PBS backups, Kubernetes
 (pods/events/nodes/logs), Traefik routes, ZFS ARC and NFS, Docker (containers/logs),
 Home Assistant (entities, areas, automations), UniFi (clients/devices/firewall/WLANs),
 AdGuard (rewrites/query log/stats), Prometheus (queries/alerts/targets), Loki (log
-queries), Jellyfin, *arr stack, Mealie, Jellyseerr, Scrutiny, seedbox, VPS
+queries), Jellyfin, *arr stack, Mealie, Seerr, Scrutiny, seedbox, VPS
 (nftables/fail2ban/WireGuard/Vultr), and a `lab_health_summary` tool that gives a full
 live snapshot of the homelab in one call.
 

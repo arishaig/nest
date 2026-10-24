@@ -30,7 +30,7 @@ async def test_jellyfin_library_stats_merges_counts(monkeypatch):
     assert out[0]["movie_count"] == 42
 
 
-async def test_jellyseerr_requests_maps_filter(monkeypatch):
+async def test_seerr_requests_maps_filter(monkeypatch):
     patch_http(monkeypatch, jellyseerr, {
         "/api/v1/request": {"results": [
             {"id": 7, "status": 1, "type": "movie",
@@ -38,11 +38,11 @@ async def test_jellyseerr_requests_maps_filter(monkeypatch):
              "requestedBy": {"displayName": "alice"}, "createdAt": "t"},
         ]},
     })
-    out = await load_tools(jellyseerr)["jellyseerr_requests"](status="pending")
+    out = await load_tools(jellyseerr)["seerr_requests"](status="pending")
     assert out[0]["id"] == 7 and out[0]["requested_by"] == "alice"
 
 
-async def test_jellyseerr_stats_passthrough(monkeypatch):
+async def test_seerr_stats_passthrough(monkeypatch):
     patch_http(monkeypatch, jellyseerr, {"/api/v1/request/count": {"pending": 2, "available": 5}})
-    out = await load_tools(jellyseerr)["jellyseerr_stats"]()
+    out = await load_tools(jellyseerr)["seerr_stats"]()
     assert out == {"pending": 2, "available": 5}
