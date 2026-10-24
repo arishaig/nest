@@ -11,10 +11,10 @@ if [[ $last == *%08d.jpg ]]; then
   for a in "$@"; do [[ $a == FAILTP ]] && { echo "stub: trickplay failed" >&2; exit 4; }; done
   # Like the real image2 muxer: the output directory must already exist.
   [[ -d ${last%/*} ]] || { echo "stub: ${last%/*}: No such file or directory" >&2; exit 254; }
-  # TPNOKEY: a file with no usable key frames: skipping non-key frames yields nothing.
-  nokey=0 skip=0
-  for a in "$@"; do [[ $a == TPNOKEY ]] && nokey=1; [[ $a == -skip_frame ]] && skip=1; done
-  [[ $nokey -eq 1 && $skip -eq 1 ]] && exit 0
+  # TPNOHW: a codec NVDEC cannot decode on the GPU-frames path: fails until the plain retry.
+  nohw=0 gpuframes=0
+  for a in "$@"; do [[ $a == TPNOHW ]] && nohw=1; [[ $a == -hwaccel_output_format ]] && gpuframes=1; done
+  [[ $nohw -eq 1 && $gpuframes -eq 1 ]] && { echo "stub: hwdownload failed" >&2; exit 1; }
   for a in "$@"; do
     [[ $a == TPSLOW ]] && { for i in 1 2 3 4; do printf img >"${last%/*}/0000000$i.jpg"; sleep 1.2; done; exit 0; }
   done
