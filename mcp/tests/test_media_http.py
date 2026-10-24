@@ -23,11 +23,11 @@ async def test_jellyfin_library_stats_merges_counts(monkeypatch):
     patch_http(monkeypatch, jellyfin, {
         "/Library/VirtualFolders": [{"Name": "Movies", "CollectionType": "movies",
                                      "ItemId": "1", "Locations": ["/m"]}],
-        "/Items/Counts": {"MovieCount": 42},
+        "/Items": {"TotalRecordCount": 42},
     })
     out = await load_tools(jellyfin)["jellyfin_library_stats"]()
     assert out[0]["name"] == "Movies"
-    assert out[0]["movie_count"] == 42
+    assert out[0]["movie_count"] == 42 and out[0]["episode_count"] == 42
 
 
 async def test_seerr_requests_maps_filter(monkeypatch):

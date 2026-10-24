@@ -166,3 +166,12 @@ async def test_tasks_list_start_stop(monkeypatch):
         await tool(action="stop", task="nope")
     with pytest.raises(ValueError, match="action must"):
         await tool(action="bogus")
+
+
+async def test_plugins_sorted_non_active_first(monkeypatch):
+    patch_http(monkeypatch, jellyfin, {"/Plugins": [
+        {"Name": "Webhook", "Version": "1", "Status": "Active", "Id": "a", "CanUninstall": True},
+        {"Name": "Broken", "Version": "2", "Status": "Malfunctioned", "Id": "b", "CanUninstall": True},
+    ]})
+    out = await load_tools(jellyfin)["jellyfin_plugins"]()
+    assert [p["name"] for p in out] == ["Broken", "Webhook"] and out[0]["status"] == "Malfunctioned"
