@@ -143,4 +143,42 @@ pkill -CONT -P "$runner_pid" 2>/dev/null || true
 kill -CONT "$runner_pid" 2>/dev/null || true
 wait "$bgpid" 2>/dev/null || true
 
+# 10. Trickplay runs ONLY on omega: output goes via the shared scratch dir and is
+# moved into place; with omega unavailable it fails fast (exit 98), never on CPU.
+stop_runner
+export TRICKPLAY_SCRATCH_ROOT="$tmp/scratch"
+mkdir -p "$TRICKPLAY_SCRATCH_ROOT"
+TP_ARGS=(-loglevel error -threads 4 -i in.mkv -map 0:0 -an -sn -vf fps=0.1 -c:v mjpeg -f image2 "$tmp/tp1/%08d.jpg")
+out=$(wrap "$tmp/token" "${TP_ARGS[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
+check "trickplay, omega down: fails fast with exit 98" has "$out" 'rc=98'
+check "trickplay, omega down: explains it runs only on omega" has "$out" 'trickplay runs only on omega'
+check "trickplay, omega down: never ran locally" lacks "$out" 'stub:local'
+check "trickplay, omega down: no thumbnails" test ! -e "$tmp/tp1"
+check "trickplay, omega down: scratch cleaned" test -z "$(ls -A "$TRICKPLAY_SCRATCH_ROOT")"
+
+start_runner
+out=$(wrap "$tmp/token" "${TP_ARGS[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
+check "trickplay, omega up: succeeds" has "$out" 'rc=0'
+check "trickplay, omega up: ran remotely with NVDEC" has "$out" 'stub:remote\] args: -loglevel error -threads 4 -hwaccel cuda -i in.mkv'
+check "trickplay, omega up: output redirected to scratch" has "$out" "trickplay-[0-9]+-[0-9]+/%08d.jpg"
+check "trickplay, omega up: thumbnails moved to the original dir" test "$(find "$tmp/tp1" -name "*.jpg" | wc -l)" -eq 3
+check "trickplay, omega up: scratch cleaned" test -z "$(ls -A "$TRICKPLAY_SCRATCH_ROOT")"
+
+TP_FAIL=(-i in.mkv -c:v mjpeg -f image2 FAILTP "$tmp/tp2/%08d.jpg")
+out=$(wrap "$tmp/token" "${TP_FAIL[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
+check "trickplay, remote failure: exit code propagates, no CPU retry" has "$out" 'rc=4'
+check "trickplay, remote failure: not retried locally" lacks "$out" 'stub:local'
+check "trickplay, remote failure: nothing left behind" test ! -e "$tmp/tp2"
+
+out=$(wrap "$tmp/badtoken" "${TP_ARGS[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
+check "trickplay, bad token: fails fast" has "$out" 'rc=98'
+
+out=$(OFFLOAD_DISABLED=1 wrap "$tmp/token" "${TP_ARGS[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
+check "trickplay, kill switch: fails fast, does not run" has "$out" 'rc=98'
+check "trickplay, kill switch: nothing ran" lacks "$out" 'stub:'
+
+# Chapter images (single named .jpg) are not trickplay and keep running locally.
+out=$(printf 'q' | wrap "$tmp/token" -i in.mkv -frames:v 1 -f image2 "$tmp/chap.jpg" || true)
+check "single-image extraction is not treated as trickplay" lacks "$out" 'runs only on omega'
+
 exit "$fail"
