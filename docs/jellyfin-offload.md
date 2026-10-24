@@ -25,7 +25,8 @@ call goes through the wrapper, which decides per call:
 
 | Command | What happens |
 |---|---|
-| No GPU constructs (version/capability probes, trickplay, subtitle extraction) | Run the real ffmpeg locally, unchanged |
+| No GPU constructs (version/capability probes, subtitle extraction) | Run the real ffmpeg locally, unchanged |
+| Trickplay thumbnail extraction (`-f image2 …/%08d.jpg`) | Omega only, see [Trickplay](#trickplay); never on CPU |
 | GPU constructs, runner reachable | Run on omega with the original arguments |
 | GPU constructs, runner unreachable / busy / token rejected | Rewrite for CPU and run locally |
 | Runner fails *before* producing any output (NVENC session limit, out of VRAM) | Rewrite for CPU and run locally |
@@ -100,8 +101,47 @@ today (Jellyfin already software-transcodes on alpha), and decode dominates
   and `SUB_FILE` set (see its header), and `test/test-offload.sh`.
 - **Kill switch.** Set `OFFLOAD_DISABLED=1` on the Jellyfin container to force
   CPU without removing the wrapper.
-- **Trickplay.** Hardware acceleration is off for trickplay, so it never carries
-  GPU arguments and always runs locally.
+- **Trickplay.** See the next section.
+
+## Trickplay
+
+Trickplay (the scrub-bar thumbnails) runs **only on omega**. Decoding a 2160p
+HEVC episode in software takes 1 h or more on alpha, uses ~3.6 cores, and
+Jellyfin holds one global trickplay lock while the library scan waits on it
+(`Process.WaitForExitAsync` with no timeout). That is what made "Scan Media
+Library" look frozen at a fixed percentage for weeks (diagnosed 2026-10-24 from a
+live heap dump). The wrapper therefore:
+
+- recognises a trickplay call by shape (last argument `<dir>/%08d.jpg`, `-f image2`),
+  independent of Jellyfin's hardware-acceleration setting;
+- adds `-hwaccel cuda` before `-i` so omega decodes with NVDEC (ffmpeg falls back
+  to software for codecs the GPU cannot decode, still on omega);
+- points the output at a scratch dir on the shared volume
+  (`/config/cache/transcodes/trickplay-<pid>-<time>/`), because omega cannot see
+  Jellyfin's pod-local `/tmp/jellyfin/<id>/`, and moves the JPEGs into the
+  original directory when ffmpeg exits 0;
+- **when omega is unavailable** (unreachable, busy, wrong token, kill switch) it
+  exits **98** immediately with an `[offload] trickplay runs only on omega…`
+  line. Nothing is generated and nothing runs on alpha.
+
+### If someone asks "why is trickplay not generating?"
+
+Omega is the only place it runs. Check, in order:
+
+1. Is omega up (it is routinely rebooted into Windows)? `kubectl -n media get pods
+   -l app.kubernetes.io/name=jellyfin-ffmpeg-runner`.
+2. Look for `[offload] trickplay runs only on omega and omega is unavailable (…)`
+   in Jellyfin's log (`/config/log/`, or the pod log): the reason is in the
+   parentheses (unreachable, `declined (ERR busy)` when 3 jobs are already
+   running, `ERR auth`, or `offload disabled`).
+3. Nothing needs fixing when omega is simply off: the nightly "Generate Trickplay
+   Images" task (03:00 UTC) and any later library scan retry the items that are
+   still missing thumbnails.
+
+To allow CPU trickplay again, change the wrapper (the trickplay branch calls
+`fallback()`, which exits 98 for trickplay) and set Jellyfin's trickplay option
+"Only generate images from key frames" first, or 4K episodes will block the
+scan again.
 
 ## Rollout order
 
