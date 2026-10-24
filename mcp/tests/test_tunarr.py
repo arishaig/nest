@@ -677,3 +677,13 @@ async def test_add_shows_validates_arguments(monkeypatch):
         await tool("6001", ["Doug"], placement="sideways")
     with pytest.raises(ValueError, match="at least one"):
         await tool("6001", [])
+
+
+async def test_add_shows_max_per_show_samples_repeatably(monkeypatch):
+    captured = []
+    patch_http(monkeypatch, tunarr, _add_routes(captured))
+    tool = load_tools(tunarr)["tunarr_add_shows"]
+    out = await tool("6001", ["Doug"], max_per_show=2, seed=3)
+    assert out["shows"][0]["to_add"] == 2 and out["entries_after"] == 2
+    await tool("6001", ["Doug"], max_per_show=2, seed=3, dry_run=False)
+    assert len([e for e in captured[0]["lineup"] if e["type"] == "content"]) == 2
