@@ -79,6 +79,9 @@ my $scratch;
 if (defined $tp_dest) {
   $scratch = "$scratch_root/trickplay-$$-" . time;
   @args = trickplay_args($scratch, @args);
+  # ffmpeg's image2 muxer does not create the output directory (Jellyfin only
+  # creates its own pod-local one), so exit 254 (ENOENT) without this.
+  make_path($scratch);
 }
 
 sub tp_cleanup { remove_tree($scratch) if defined $scratch && -d $scratch; }
