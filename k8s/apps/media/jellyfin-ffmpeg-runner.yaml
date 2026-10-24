@@ -43,11 +43,11 @@ spec:
             image:
               # The stock Jellyfin image: jellyfin-ffmpeg plus perl, which is
               # all the runner needs. Keep the major.minor in step with the
-              # live Jellyfin (jpvenson/jellyfin.pgsql) so ffmpeg matches the
+              # live Jellyfin (arishaig/jellyfin.pgsql) so ffmpeg matches the
               # command lines it generates.
               # renovate: datasource=docker depName=ghcr.io/jellyfin/jellyfin
               repository: ghcr.io/jellyfin/jellyfin
-              tag: 12.1.20260915-010956
+              tag: 12.3.20261023-013714
             command: ["/usr/bin/perl", "/offload/ffmpeg-runner.pl"]
             env:
               RUNNER_PORT: "9876"

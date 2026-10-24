@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  # Renamed from jellyfin-pgsql — this is the Jellyfin server (jpvenson's
+  # Renamed from jellyfin-pgsql — this is the Jellyfin server (our fork of jpvenson's
   # postgres-backed build from the sqlite->postgres migration), not a database.
   # The config PVC keeps its original jellyfin-pgsql-config name: it's bound
   # to live data and renaming a PVC means migrating the volume.
@@ -27,7 +27,7 @@ spec:
     # still reschedule if alpha is unavailable (delta is gone; the old "2Gi
     # fits delta" sizing rationale went with it).
     #
-    # Hard amd64 pin: ghcr.io/jpvenson/jellyfin.pgsql has no arm64 build. Before
+    # Hard amd64 pin: ghcr.io/arishaig/jellyfin.pgsql has no arm64 build. Before
     # beta-rpi5/gamma-rpi5 became schedulable workers, this never mattered
     # (soft alpha preference always won since nothing else existed); once
     # RPi5 nodes joined as workers (2026-07 control-plane migration), an
@@ -65,11 +65,11 @@ spec:
         containers:
           app:
             image:
-              # renovate: datasource=docker depName=ghcr.io/jpvenson/jellyfin.pgsql
-              repository: ghcr.io/jpvenson/jellyfin.pgsql
+              # renovate: datasource=docker depName=ghcr.io/arishaig/jellyfin.pgsql
+              repository: ghcr.io/arishaig/jellyfin.pgsql
               # Digest-pinned: the fork re-tags quickly, and every bump needs the
               # offline rehearsal in docs/jellyfin-upgrades.md against this exact image.
-              tag: 12.1-2@sha256:b1cafefc4732895b9bece7da1787690aa462ee2e46e968b99c735754d95c785d
+              tag: 12.3-1@sha256:4347d318ee1d5dcc2677a4c72f0d2cdf63859a857c5ce803e537e43042887619
             env:
               # Library DB lives in the shared `postgres` service (DB: jellyfin),
               # not a bundled instance — despite the image name. Connects as its
