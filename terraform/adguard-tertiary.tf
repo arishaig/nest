@@ -3,6 +3,11 @@
 # DoT (853) and DoH (443 via Traefik SNI passthrough) for everyone; plain
 # DNS (53) only from the home WAN IP and WireGuard peers — enforced by the
 # nftables ruleset in playbooks/provision/vps.yml. No local rewrites.
+#
+# No depends_on = [vultr_instance.vps_proxy] here: CI plans/applies with
+# -exclude=vultr_instance.vps_proxy (see deploy.yml), and -exclude also skips
+# every dependent, so with it these resources silently went unmanaged from
+# 2026-08-03. The VPS already exists; ordering only mattered at creation.
 # ──────────────────────────────────────────────
 
 resource "adguard_config" "tertiary" {
@@ -72,8 +77,6 @@ resource "adguard_config" "tertiary" {
     private_key       = "/opt/AdGuardHome/ssl/privkey.pem"
     serve_plain_dns   = true
   }
-
-  depends_on = [vultr_instance.vps_proxy]
 }
 
 resource "adguard_user_rules" "tertiary" {
@@ -81,8 +84,6 @@ resource "adguard_user_rules" "tertiary" {
   rules = [
     "@@||stats.grafana.org^",
   ]
-
-  depends_on = [vultr_instance.vps_proxy]
 }
 
 resource "adguard_list_filter" "hagezi_pro_tertiary" {
@@ -90,6 +91,4 @@ resource "adguard_list_filter" "hagezi_pro_tertiary" {
   name     = "HaGeZi's Pro Blocklist"
   url      = "https://adguardteam.github.io/HostlistsRegistry/assets/filter_48.txt"
   enabled  = true
-
-  depends_on = [vultr_instance.vps_proxy]
 }
