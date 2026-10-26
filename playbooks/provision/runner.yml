@@ -23,7 +23,7 @@
     # deploy.yml). Versions are renovate-managed; bumping them re-installs via
     # the checksum-aware copy.
     opentofu_version: "1.13.2"
-    prometheus_version: "3.15.0"
+    prometheus_version: "3.15.1"
     alertmanager_version: "0.34.1"
     kubectl_version: "1.37.1"
     kustomize_version: "5.8.3"
