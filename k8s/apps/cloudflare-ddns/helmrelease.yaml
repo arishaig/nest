@@ -33,7 +33,7 @@ spec:
                   secretKeyRef:
                     name: cloudflare-ddns-token
                     key: CF_API_TOKEN
-              DOMAINS: vpn.arishaig.site
+              DOMAINS: vpn.arishaig.site,dns.arishaig.site
               PROXIED: "false"
               TTL: "300"
             securityContext:

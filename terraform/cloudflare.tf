@@ -26,6 +26,12 @@ resource "cloudflare_dns_record" "dns" {
   content = "50.47.227.169"
   ttl     = 300
   proxied = false
+
+  # Home WAN IP is dynamic; cloudflare-ddns (k8s/apps/cloudflare-ddns) owns
+  # the content. Without this every apply reverted it to the IP above.
+  lifecycle {
+    ignore_changes = [content]
+  }
 }
 
 # UDM WireGuard VPN — direct to home IP, bypasses VPS
@@ -36,4 +42,10 @@ resource "cloudflare_dns_record" "vpn" {
   content = "50.47.227.169"
   ttl     = 300
   proxied = false
+
+  # Home WAN IP is dynamic; cloudflare-ddns (k8s/apps/cloudflare-ddns) owns
+  # the content. Without this every apply reverted it to the IP above.
+  lifecycle {
+    ignore_changes = [content]
+  }
 }
