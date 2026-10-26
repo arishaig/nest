@@ -32,6 +32,7 @@
           - logrotate
           - unattended-upgrades
           - fail2ban
+          - bind9-dnsutils
         state: present
 
     - name: Set authorized SSH keys
@@ -98,8 +99,19 @@
     # --- nftables firewall ---
     - name: Deploy nftables ruleset
       ansible.builtin.copy:
+        # Declare-then-delete replaces only this table on each load; without
+        # it every reload appended a second copy of the rules. Not `flush
+        # ruleset`: fail2ban and Docker keep their own tables on this host.
         content: |
+          table inet filter
+          delete table inet filter
+
           table inet filter {
+            # Home WAN IP, refreshed from vpn.arishaig.site by home-wan-nft.timer
+            set home_wan {
+              type ipv4_addr
+            }
+
             chain input {
               type filter hook input priority 0; policy drop;
               iif lo accept
@@ -109,6 +121,10 @@
               udp dport 51820 accept
               tcp dport 853 accept
               udp dport 853 accept
+              # Plain DNS (tertiary resolver) — home and WireGuard only, never
+              # public: an open resolver gets abused for amplification DDoS.
+              ip saddr @home_wan meta l4proto { tcp, udp } th dport 53 accept
+              iifname "wg0" meta l4proto { tcp, udp } th dport 53 accept
               icmp type echo-request accept
               # node_exporter, Traefik metrics, AdGuard + Unbound exporters — WireGuard peers only
               iifname "wg0" tcp dport { 8080, 9100, 9167, 9618 } accept
@@ -122,13 +138,90 @@
           }
         dest: /etc/nftables.conf
         mode: "0600"
-      notify: Reload nftables
+      notify:
+        - Reload nftables
+        - Refresh home WAN set
 
     - name: Enable and start nftables
       ansible.builtin.systemd:
         name: nftables
         enabled: true
         state: started
+
+    # The home WAN IP is dynamic (cloudflare-ddns keeps vpn.arishaig.site
+    # current), so resolve it on a timer and swap it into the home_wan set.
+    # Queries 1.1.1.1 rather than the local AdGuard so a broken local resolver
+    # can't lock home out of the resolver it's meant to back up.
+    - name: Deploy home WAN set updater
+      ansible.builtin.copy:
+        content: |
+          #!/bin/sh
+          set -eu
+          ip=$(dig +short +time=3 +tries=2 A vpn.arishaig.site @1.1.1.1 | grep -E '^[0-9]+(\.[0-9]+){3}$' | tail -n1)
+          if [ -z "$ip" ]; then
+            echo "vpn.arishaig.site did not resolve; keeping current home_wan set" >&2
+            exit 1
+          fi
+          printf 'flush set inet filter home_wan\nadd element inet filter home_wan { %s }\n' "$ip" | nft -f -
+        dest: /usr/local/bin/home-wan-nft.sh
+        mode: "0755"
+
+    - name: Deploy home WAN set updater service and timer
+      ansible.builtin.copy:
+        content: "{{ item.content }}"
+        dest: "/etc/systemd/system/{{ item.name }}"
+        mode: "0644"
+      loop:
+        - name: home-wan-nft.service
+          content: |
+            [Unit]
+            Description=Refresh nftables home_wan set from vpn.arishaig.site
+            After=nftables.service network-online.target
+            Wants=network-online.target
+
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/local/bin/home-wan-nft.sh
+        - name: home-wan-nft.timer
+          content: |
+            [Unit]
+            Description=Refresh nftables home_wan set every 5 minutes
+
+            [Timer]
+            OnBootSec=30s
+            OnUnitActiveSec=5min
+
+            [Install]
+            WantedBy=timers.target
+      notify:
+        - Reload systemd
+        - Refresh home WAN set
+
+    # Every nftables (re)load recreates home_wan empty — including the
+    # `systemctl reload nftables` in wg0's PostUp — so refill it right away
+    # instead of leaving home locked out until the next timer tick.
+    - name: Create nftables override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/nftables.service.d
+        state: directory
+        mode: "0755"
+
+    - name: Refill home WAN set whenever nftables loads
+      ansible.builtin.copy:
+        content: |
+          [Service]
+          ExecStartPost=-/usr/local/bin/home-wan-nft.sh
+          ExecReload=-/usr/local/bin/home-wan-nft.sh
+        dest: /etc/systemd/system/nftables.service.d/home-wan.conf
+        mode: "0644"
+      notify: Reload systemd
+
+    - name: Enable and start home WAN set timer
+      ansible.builtin.systemd:
+        name: home-wan-nft.timer
+        enabled: true
+        state: started
+        daemon_reload: true
 
     # --- WireGuard ---
     - name: Deploy WireGuard config
@@ -402,10 +495,20 @@
         name: fail2ban
         state: restarted
 
+    # Reload, not restart: the unit's ExecStop is `nft flush ruleset`, which
+    # would take fail2ban's and Docker's tables down with ours.
     - name: Reload nftables
       ansible.builtin.systemd:
         name: nftables
-        state: restarted
+        state: reloaded
+        daemon_reload: true
+
+    # Must follow Reload nftables: the reload recreates home_wan empty.
+    - name: Refresh home WAN set
+      ansible.builtin.systemd:
+        name: home-wan-nft.service
+        state: started
+        daemon_reload: true
 
     - name: Restart WireGuard
       ansible.builtin.systemd:

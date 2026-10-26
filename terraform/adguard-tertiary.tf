@@ -1,6 +1,13 @@
 # ──────────────────────────────────────────────
 # AdGuard Tertiary — VPS (dns3.arishaig.site)
-# DoH/DoT only — no plain DNS, no local rewrites
+# DoT (853) and DoH (443 via Traefik SNI passthrough) for everyone; plain
+# DNS (53) only from the home WAN IP and WireGuard peers — enforced by the
+# nftables ruleset in playbooks/provision/vps.yml. No local rewrites.
+#
+# No depends_on = [vultr_instance.vps_proxy] here: CI plans/applies with
+# -exclude=vultr_instance.vps_proxy (see deploy.yml), and -exclude also skips
+# every dependent, so with it these resources silently went unmanaged from
+# 2026-08-03. The VPS already exists; ordering only mattered at creation.
 # ──────────────────────────────────────────────
 
 resource "adguard_config" "tertiary" {
@@ -54,11 +61,22 @@ resource "adguard_config" "tertiary" {
     ignored_enabled = false
   }
 
-  # TLS not managed by Terraform — provider switches to https://localhost:8443 mid-apply
-  # and loses the SSH tunnel. Configure once via UI: Settings > Encryption settings.
-  # Cert path: /opt/AdGuardHome/ssl/{fullchain,privkey}.pem (managed by certbot)
-
-  depends_on = [vultr_instance.vps_proxy]
+  # TLS must be set here: when `tls` is omitted the provider applies its
+  # defaults (enabled = false) on every apply, which silently disabled DoT/DoH
+  # from 2026-06-04 until this was added. force_https stays false so the
+  # provider keeps talking plain HTTP on :3000 through the SSH tunnel, and
+  # HTTPS sits on 8443 because Traefik owns 443 and passes dns3 SNI through.
+  # Certs are renewed by certbot and copied in by its deploy hook (adguard.yml).
+  tls = {
+    enabled           = true
+    server_name       = "dns3.arishaig.site"
+    force_https       = false
+    port_https        = 8443
+    port_dns_over_tls = 853
+    certificate_chain = "/opt/AdGuardHome/ssl/fullchain.pem"
+    private_key       = "/opt/AdGuardHome/ssl/privkey.pem"
+    serve_plain_dns   = true
+  }
 }
 
 resource "adguard_user_rules" "tertiary" {
@@ -66,8 +84,6 @@ resource "adguard_user_rules" "tertiary" {
   rules = [
     "@@||stats.grafana.org^",
   ]
-
-  depends_on = [vultr_instance.vps_proxy]
 }
 
 resource "adguard_list_filter" "hagezi_pro_tertiary" {
@@ -75,6 +91,4 @@ resource "adguard_list_filter" "hagezi_pro_tertiary" {
   name     = "HaGeZi's Pro Blocklist"
   url      = "https://adguardteam.github.io/HostlistsRegistry/assets/filter_48.txt"
   enabled  = true
-
-  depends_on = [vultr_instance.vps_proxy]
 }
