@@ -179,11 +179,6 @@ spec:
                     description: Watch tracking
                     icon: watcharr.svg
                     siteMonitor: http://watcharr.media.svc.cluster.local:3080
-                - Watchback:
-                    href: https://watchback.arishaig.site
-                    description: Comments while watching
-                    icon: mdi-comment-text
-                    siteMonitor: http://watchback.media.svc.cluster.local:8484
 
             - Downloads:
                 - SABnzbd:
@@ -223,6 +218,11 @@ spec:
                     description: Offline Wikipedia & library
                     icon: kiwix.svg
                     siteMonitor: http://kiwix.media.svc.cluster.local:8080
+                - Watchback:
+                    href: https://watchback.arishaig.site
+                    description: Comments while watching
+                    icon: mdi-comment-text
+                    siteMonitor: http://watchback.media.svc.cluster.local:8484
                 - Copyparty:
                     href: https://copyparty.arishaig.site
                     description: File access
@@ -294,7 +294,7 @@ spec:
                 columns: 4
               Apps:
                 style: row
-                columns: 3
+                columns: 4
               Monitoring:
                 style: row
                 columns: 3
