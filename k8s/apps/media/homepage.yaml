@@ -115,16 +115,6 @@ spec:
                     description: IPTV streams
                     icon: dispatcharr.svg
                     siteMonitor: http://dispatcharr-main.media.svc.cluster.local:9191
-                - Storyteller:
-                    href: https://storyteller.arishaig.site
-                    description: Ebooks & audiobooks
-                    icon: storyteller.png
-                    siteMonitor: http://storyteller.media.svc.cluster.local:8001
-                - Kiwix:
-                    href: https://kiwix.arishaig.site
-                    description: Offline Wikipedia & library
-                    icon: kiwix.svg
-                    siteMonitor: http://kiwix.media.svc.cluster.local:8080
 
             - Library:
                 - Sonarr:
@@ -223,6 +213,16 @@ spec:
                     description: Recipes
                     icon: mealie.svg
                     siteMonitor: http://mealie.media.svc.cluster.local:9000
+                - Storyteller:
+                    href: https://storyteller.arishaig.site
+                    description: Ebooks & audiobooks
+                    icon: storyteller.png
+                    siteMonitor: http://storyteller.media.svc.cluster.local:8001
+                - Kiwix:
+                    href: https://kiwix.arishaig.site
+                    description: Offline Wikipedia & library
+                    icon: kiwix.svg
+                    siteMonitor: http://kiwix.media.svc.cluster.local:8080
                 - Copyparty:
                     href: https://copyparty.arishaig.site
                     description: File access
@@ -282,7 +282,7 @@ spec:
             layout:
               Watch:
                 style: row
-                columns: 3
+                columns: 4
               Library:
                 style: row
                 columns: 4
@@ -294,7 +294,7 @@ spec:
                 columns: 4
               Apps:
                 style: row
-                columns: 4
+                columns: 3
               Monitoring:
                 style: row
                 columns: 3
