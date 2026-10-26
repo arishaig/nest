@@ -52,12 +52,33 @@ spec:
             port: 3000
             targetPort: 3000
     persistence:
+      # The PVC still backs /app/config (logs, custom.css/js, bookmarks); the
+      # dashboard itself is the configMap below, mounted file-by-file over it.
+      # app-template stamps a checksum of it on the pod, so edits roll the pod.
       config:
         existingClaim: homepage-config
         advancedMounts:
           homepage:
             app:
               - path: /app/config
+      dashboard:
+        type: configMap
+        identifier: dashboard
+        advancedMounts:
+          homepage:
+            app:
+              - path: /app/config/services.yaml
+                subPath: services.yaml
+                readOnly: true
+              - path: /app/config/settings.yaml
+                subPath: settings.yaml
+                readOnly: true
+              - path: /app/config/widgets.yaml
+                subPath: widgets.yaml
+                readOnly: true
+              - path: /app/config/docker.yaml
+                subPath: docker.yaml
+                readOnly: true
       media:
         existingClaim: media-nfs
         advancedMounts:
@@ -65,3 +86,234 @@ spec:
             app:
               - path: /mnt/media_root
                 readOnly: true
+    configMaps:
+      dashboard:
+        data:
+          # Status dots hit in-cluster services directly (no Authelia hop);
+          # LAN hosts use the same IPs as their ExternalName services in
+          # k8s/apps/traefik. Proxmox/PBS/AdGuard/HA have no siteMonitor:
+          # self-signed TLS or not reachable from the pod network.
+          services.yaml: |
+            - Watch:
+                - Jellyfin:
+                    href: https://jellyfin.arishaig.site
+                    description: Media server
+                    icon: jellyfin.svg
+                    siteMonitor: http://jellyfin.media.svc.cluster.local:8096
+                - Seerr:
+                    href: https://seerr.arishaig.site
+                    description: Requests
+                    icon: overseerr.svg
+                    siteMonitor: http://seerr.media.svc.cluster.local:5055
+                - Tunarr:
+                    href: https://tunarr.arishaig.site
+                    description: Live TV channels
+                    icon: tunarr.svg
+                    siteMonitor: http://tunarr.media.svc.cluster.local:8000
+                - Dispatcharr:
+                    href: https://dispatcharr.arishaig.site
+                    description: IPTV streams
+                    icon: dispatcharr.svg
+                    siteMonitor: http://dispatcharr-main.media.svc.cluster.local:9191
+                - Storyteller:
+                    href: https://storyteller.arishaig.site
+                    description: Ebooks & audiobooks
+                    icon: storyteller.png
+                    siteMonitor: http://storyteller.media.svc.cluster.local:8001
+                - Kiwix:
+                    href: https://kiwix.arishaig.site
+                    description: Offline Wikipedia & library
+                    icon: kiwix.svg
+                    siteMonitor: http://kiwix.media.svc.cluster.local:8080
+
+            - Library:
+                - Sonarr:
+                    href: https://sonarr.arishaig.site
+                    description: TV series
+                    icon: sonarr.svg
+                    siteMonitor: http://sonarr.media.svc.cluster.local:8989
+                - Radarr:
+                    href: https://radarr.arishaig.site
+                    description: Movies
+                    icon: radarr.svg
+                    siteMonitor: http://radarr.media.svc.cluster.local:7878
+                - Lidarr:
+                    href: https://lidarr.arishaig.site
+                    description: Music
+                    icon: lidarr.svg
+                    siteMonitor: http://lidarr.media.svc.cluster.local:8686
+                - Lidarr UI:
+                    href: https://music.arishaig.site
+                    description: Music search & add
+                    icon: mdi-music-circle
+                    siteMonitor: http://lidarr-ui.media.svc.cluster.local:8080
+                - Bazarr:
+                    href: https://bazarr.arishaig.site
+                    description: Subtitles
+                    icon: bazarr.svg
+                    siteMonitor: http://bazarr.media.svc.cluster.local:6767
+                - Subgen:
+                    href: https://subgen.arishaig.site
+                    description: AI subtitle generation
+                    icon: mdi-closed-caption
+                    siteMonitor: http://subgen-ui.media.svc.cluster.local:8080
+                - Tdarr:
+                    href: https://tdarr.arishaig.site
+                    description: Transcoding
+                    icon: tdarr.svg
+                    siteMonitor: http://tdarr.media.svc.cluster.local:8265
+
+            - Discovery:
+                - Recommendarr:
+                    href: https://recommendarr.arishaig.site
+                    description: AI content suggestions
+                    icon: mdi-lightbulb-on
+                    siteMonitor: http://recommendarr.media.svc.cluster.local:3000
+                - Digarr:
+                    href: https://digarr.arishaig.site
+                    description: Music recommendations
+                    icon: mdi-music-box-multiple
+                    siteMonitor: http://digarr.media.svc.cluster.local:3000
+                - AudioMuse:
+                    href: https://audiomuse.arishaig.site
+                    description: Sonic analysis & playlists
+                    icon: mdi-playlist-music
+                    siteMonitor: http://audiomuse.media.svc.cluster.local:8000
+                - Medialyze:
+                    href: https://medialyze.arishaig.site
+                    description: Media analytics
+                    icon: mdi-chart-bar
+                    siteMonitor: http://medialyze.media.svc.cluster.local:8080
+                - Watcharr:
+                    href: https://watcharr.arishaig.site
+                    description: Watch tracking
+                    icon: watcharr.svg
+                    siteMonitor: http://watcharr.media.svc.cluster.local:3080
+                - Watchback:
+                    href: https://watchback.arishaig.site
+                    description: Comments while watching
+                    icon: mdi-comment-text
+                    siteMonitor: http://watchback.media.svc.cluster.local:8484
+
+            - Downloads:
+                - SABnzbd:
+                    href: https://nzbd.arishaig.site
+                    description: Usenet
+                    icon: sabnzbd.svg
+                    siteMonitor: http://sabnzbd.media.svc.cluster.local:8080
+                - qBittorrent:
+                    href: https://torrent.arishaig.site
+                    description: Torrents (seedbox)
+                    icon: qbittorrent.svg
+                    siteMonitor: http://192.168.1.182:8090
+                - Prowlarr:
+                    href: https://prowlarr.arishaig.site
+                    description: Indexers
+                    icon: prowlarr.svg
+                    siteMonitor: http://prowlarr.media.svc.cluster.local:9696
+                - MeTube:
+                    href: https://metube.arishaig.site
+                    description: Video downloads
+                    icon: metube.svg
+                    siteMonitor: http://metube.media.svc.cluster.local:8081
+
+            - Apps:
+                - Mealie:
+                    href: https://mealie.arishaig.site
+                    description: Recipes
+                    icon: mealie.svg
+                    siteMonitor: http://mealie.media.svc.cluster.local:9000
+                - Copyparty:
+                    href: https://copyparty.arishaig.site
+                    description: File access
+                    icon: copyparty.svg
+                    siteMonitor: http://copyparty.media.svc.cluster.local:3923
+                - Foundry:
+                    href: https://foundry.arishaig.site
+                    description: Virtual tabletop
+                    icon: foundry-vtt.png
+                    siteMonitor: http://192.168.1.21:30000
+                - God's Eye View:
+                    href: https://globe.arishaig.site
+                    description: Globe
+                    icon: mdi-earth
+                    siteMonitor: http://gods-eye-view.gods-eye-view.svc.cluster.local:4173
+
+            - Monitoring:
+                - Grafana:
+                    href: https://monitoring.arishaig.site
+                    description: Metrics & logs
+                    icon: grafana.svg
+                    siteMonitor: http://192.168.1.44:3000
+                - Scrutiny:
+                    href: https://scrutiny.arishaig.site
+                    description: Disk health
+                    icon: scrutiny.svg
+                    siteMonitor: http://192.168.1.46:8888
+                - Headlamp:
+                    href: https://headlamp.arishaig.site
+                    description: Kubernetes
+                    icon: headlamp.svg
+                    siteMonitor: http://headlamp.headlamp.svc.cluster.local:4466
+
+            - Infrastructure:
+                - Proxmox:
+                    href: https://proxmox.arishaig.site
+                    description: Hypervisor
+                    icon: proxmox.svg
+                - PBS:
+                    href: https://backup.arishaig.site
+                    description: Backup server
+                    icon: proxmox.svg
+                - AdGuard Home:
+                    href: https://dns.arishaig.site
+                    description: DNS & ad blocking
+                    icon: adguard-home.svg
+                - Home Assistant:
+                    href: https://casa.arishaig.site
+                    description: Home automation
+                    icon: home-assistant.svg
+          settings.yaml: |
+            title: arishaig.site
+            favicon: https://www.google.com/s2/favicons?domain=arishaig.site
+            theme: dark
+            color: slate
+            headerStyle: clean
+            layout:
+              Watch:
+                style: row
+                columns: 3
+              Library:
+                style: row
+                columns: 4
+              Discovery:
+                style: row
+                columns: 3
+              Downloads:
+                style: row
+                columns: 4
+              Apps:
+                style: row
+                columns: 4
+              Monitoring:
+                style: row
+                columns: 3
+              Infrastructure:
+                style: row
+                columns: 4
+          widgets.yaml: |
+            - resources:
+                cpu: true
+                memory: true
+                disk:
+                  - /
+                  - /mnt/media_root
+            - datetime:
+                text_size: xl
+                format:
+                  dateStyle: long
+                  timeStyle: short
+                  hour12: true
+          # The Docker host (LXC 100) is retired; empty so nothing polls it.
+          docker.yaml: |
+            {}
