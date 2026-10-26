@@ -12,7 +12,7 @@
     traefik_version: "3.7.16"
     traefik_arch: "amd64"
     node_exporter_version: "1.12.1"
-    alloy_version: "1.21.0"
+    alloy_version: "1.21.1"
 
   tasks:
     # --- Bootstrap ---
