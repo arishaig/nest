@@ -38,7 +38,7 @@ providers:
 certificatesResolvers:
   cloudflare:
     acme:
-      email: {{ owner_email }}
+      email: contact@arishaig.com
       storage: /etc/traefik/acme.json
       dnsChallenge:
         provider: cloudflare

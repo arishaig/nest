@@ -92,7 +92,6 @@ jobs:
           filters: |
             docker:
               - 'playbooks/provision/files/docker/**'
-              - 'playbooks/provision/templates/docker/traefik.yml.j2'
               - 'playbooks/provision/files/seedbox/**'
               - 'playbooks/provision/files/scrutiny/**'
               - 'playbooks/update_docker.yml'

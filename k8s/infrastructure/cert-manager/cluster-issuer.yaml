@@ -4,7 +4,7 @@ metadata:
   name: cloudflare-issuer
 spec:
   acme:
-    email: izakizak@gmail.com
+    email: contact@arishaig.com
     server: https://acme-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
       name: cloudflare-issuer-account-key

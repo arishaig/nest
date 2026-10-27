@@ -18,8 +18,8 @@
       when: inventory_hostname == 'seedbox'
 
     - name: Copy Traefik static config
-      ansible.builtin.template:
-        src: "{{ playbook_dir }}/provision/templates/docker/traefik.yml.j2"
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/provision/files/docker/traefik/traefik.yml"
         dest: /mnt/app_config/traefik/traefik.yml
         mode: "0644"
       when: inventory_hostname == 'docker'
