@@ -328,6 +328,9 @@ jobs:
   # concurrent apply; treat it as informational, not a required check.
   tofu-plan:
     runs-on: self-hosted
+    # Never run fork PR code on the self-hosted runner host (it can read the
+    # tofu state and reach Proxmox/Vultr/AdGuard).
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     # Serialize across PRs: every run binds the same fixed local port (13001)
     # for the VPS AdGuard tunnel on the shared runner host, and the cleanup
     # step pkills by that port. Two PRs touching terraform/ at once collided
