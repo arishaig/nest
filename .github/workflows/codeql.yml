@@ -14,6 +14,8 @@ on:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    # Code scanning needs GitHub Code Security on private repos; skip there.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     permissions:
       security-events: write
