@@ -1,7 +1,7 @@
 # Dedicated control-plane VM (2 vCPU / 4GB, x86) — joins the existing
 # alpha+beta-rpi5 etcd as a third, fault-tolerant member. Control-plane only:
 # workloads stay on alpha (nest.arishaig.site/workloads=general), never here.
-# See /home/isaac/.claude/plans/silly-riding-stroustrup.md for the full
+# See the migration plan for the full
 # control-plane migration this is Phase 1 of.
 #
 # Talos 1.14 multi-document config: `talosctl gen config` now emits dedicated

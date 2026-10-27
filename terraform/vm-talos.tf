@@ -3,7 +3,7 @@
 # ──────────────────────────────────────────────
 # Worker-only (talos/patches/worker-alpha.yaml) as of the control-plane
 # migration to a dedicated VM — see vm-talos-alpha-control.tf and
-# /home/isaac/.claude/plans/silly-riding-stroustrup.md. Still the sole
+# the migration plan. Still the sole
 # workload node (nest.arishaig.site/workloads: general label) — Traefik's
 # nodeAffinity and the WireGuard ingress tunnel both depend on that.
 # Bootstrap: run scripts/bootstrap-talos.sh after `tofu apply`.

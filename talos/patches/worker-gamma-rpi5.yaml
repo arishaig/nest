@@ -1,7 +1,7 @@
 # RPi5 worker node (8GB). Boots from SD card ONLY — NVMe is not installed and
 # not used, even as a data disk. Joins talos-gamma-rpi5 directly as a worker
 # (it was never joined as control-plane) as part of the control-plane
-# migration — see /home/isaac/.claude/plans/silly-riding-stroustrup.md
+# migration — see the migration plan
 # (Phase 3). No `cluster:` block: workers don't run control-plane components.
 #
 # NVMe conclusively ruled out 2026-07-20 for RPi5 generally (see

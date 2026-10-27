@@ -4,7 +4,7 @@
 # Non-schedulable control-plane-only node (allowSchedulingOnControlPlanes:
 # false in talos/patches/controlplane-alpha-control.yaml). Joins the existing
 # alpha+beta-rpi5 etcd as a third, fault-tolerant member — see
-# /home/isaac/.claude/plans/silly-riding-stroustrup.md for the full migration
+# the migration plan for the full migration
 # this is Phase 1 of. Once alpha and beta/gamma are converted to workers,
 # this becomes the cluster's sole control-plane node.
 #

@@ -6,15 +6,15 @@
 # Install once, as your normal user (NOT root):
 #
 #   mkdir -p ~/.config/systemd/user
-#   ln -sf /home/isaac/Projects/ansible-on-nest/scripts/systemd/terraform-state-backup.path    ~/.config/systemd/user/
-#   ln -sf /home/isaac/Projects/ansible-on-nest/scripts/systemd/terraform-state-backup.service ~/.config/systemd/user/
+#   ln -sf ~/Projects/ansible-on-nest/scripts/systemd/terraform-state-backup.path    ~/.config/systemd/user/
+#   ln -sf ~/Projects/ansible-on-nest/scripts/systemd/terraform-state-backup.service ~/.config/systemd/user/
 #   systemctl --user daemon-reload
 #   systemctl --user enable --now terraform-state-backup.path
 #
 # Prerequisite: a vault password file — see scripts/backup-state.sh header.
 #
 # Verify the path -> service trigger actually fires (do this once after install):
-#   touch /home/isaac/Projects/ansible-on-nest/terraform/terraform.tfstate
+#   touch ~/Projects/ansible-on-nest/terraform/terraform.tfstate
 #   sleep 2
 #   journalctl --user -u terraform-state-backup.service -n 20
 # A backup run in the log confirms the chain works. OpenTofu writes state via
