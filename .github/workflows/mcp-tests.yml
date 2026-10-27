@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   mcp-tests:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       # Check out the PR branch itself (not the merge ref) so a regenerated
       # badge can be pushed back to it. Empty on workflow_dispatch → default ref.

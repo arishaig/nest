@@ -46,7 +46,7 @@ defaults:
 
 jobs:
   ansible-lint:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/arishaig/nest-ci-runner:latest
       credentials:
@@ -75,7 +75,7 @@ jobs:
           ./scripts/render-k8s-secrets.sh --check
 
   yamllint:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/arishaig/nest-ci-runner:latest
       credentials:
@@ -94,7 +94,7 @@ jobs:
           yamllint .
 
   config-validate:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/arishaig/nest-ci-runner:latest
       credentials:
@@ -130,7 +130,7 @@ jobs:
           exit $rc
 
   deploy-coverage:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/arishaig/nest-ci-runner:latest
       credentials:
@@ -142,7 +142,7 @@ jobs:
         run: scripts/check-deploy-coverage.sh
 
   runner-toolchain-sync:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/arishaig/nest-ci-runner:latest
       credentials:
@@ -154,7 +154,7 @@ jobs:
         run: scripts/check-runner-toolchain-sync.sh
 
   talos-rpi5-overlay:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/arishaig/nest-ci-runner:latest
       credentials:
@@ -170,7 +170,7 @@ jobs:
         run: scripts/check-talos-rpi5-overlay.sh
 
   prometheus-validate:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/arishaig/nest-ci-runner:latest
       credentials:
@@ -195,7 +195,7 @@ jobs:
           rm -f "$tmp"
 
   shellcheck:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/arishaig/nest-ci-runner:latest
       credentials:
@@ -211,7 +211,7 @@ jobs:
         run: shellcheck --exclude=SC2015 scripts/*.sh
 
   k8s-validate:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/arishaig/nest-ci-runner:latest
       credentials:
@@ -247,7 +247,7 @@ jobs:
           exit $fail
 
   helm-render:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/arishaig/nest-ci-runner:latest
       credentials:
@@ -282,7 +282,7 @@ jobs:
         run: scripts/check-helm-pvc-safety.sh "$RUNNER_TEMP/rendered.yaml"
 
   talos-config-validate:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/arishaig/nest-ci-runner:latest
       credentials:
@@ -298,7 +298,7 @@ jobs:
         run: scripts/check-talos-config.sh
 
   tofu:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/arishaig/nest-ci-runner:latest
       credentials:
