@@ -196,8 +196,8 @@ Managed by Terraform (`terraform/cloudflare.tf`, `cloudflare/cloudflare = 5.19.1
 | Record | Target | Notes |
 |---|---|---|
 | `*.arishaig.site` | VPS IP | Auto-populated from `vultr_instance.vps_proxy.main_ip` |
-| `dns.arishaig.site` | Home IP (50.47.227.169) | Direct to Pi, bypasses VPS |
-| `vpn.arishaig.site` | Home IP (50.47.227.169) | Direct to UDM WireGuard |
+| `dns.arishaig.site` | Home IP (dynamic, set by cloudflare-ddns) | Direct to Pi, bypasses VPS |
+| `vpn.arishaig.site` | Home IP (dynamic, set by cloudflare-ddns) | Direct to UDM WireGuard |
 
 `cloudflare-ddns` (k8s pod in `cloudflare-ddns` namespace) keeps `vpn.arishaig.site` current when the home IP changes.
 All records are unproxied (Cloudflare orange cloud off).

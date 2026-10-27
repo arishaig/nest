@@ -173,8 +173,8 @@ use the bjw-s `app-template` chart; cluster primitives use their official upstre
 | **Watcharr** | MIT | ✅ FOSS | [sbondCo/Watcharr](https://github.com/sbondCo/Watcharr) |
 | **Homepage** | GPL-3.0 | ✅ FOSS | [gethomepage/homepage](https://github.com/gethomepage/homepage) |
 | **MediaLyze** | MIT | ✅ FOSS | [FrederikEmmer/medialyze](https://github.com/FrederikEmmer/medialyze) |
-| **Watchback** | — | Private (Isaac's own) | [arishaig/watchback](https://github.com/arishaig/watchback) |
-| **nest-mcp** | — | Private (Isaac's own) | this repo (`mcp/`) — homelab MCP server |
+| **Watchback** | — | Private (owner's own) | [arishaig/watchback](https://github.com/arishaig/watchback) |
+| **nest-mcp** | — | Private (owner's own) | this repo (`mcp/`) — homelab MCP server |
 
 > **nest-mcp** (k8s, `k8s/apps/nest-mcp/`) is built on the [FastMCP / `mcp` Python SDK](https://github.com/modelcontextprotocol/python-sdk)
 > (MIT, ✅ FOSS) and `httpx` (BSD-3); it exposes live homelab state to Claude Code. Its test suite

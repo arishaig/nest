@@ -23,7 +23,7 @@ resource "cloudflare_dns_record" "dns" {
   zone_id = local.cf_zone_id
   name    = "dns"
   type    = "A"
-  content = "50.47.227.169"
+  content = "192.0.2.1" # placeholder; cloudflare-ddns owns the real value
   ttl     = 300
   proxied = false
 
@@ -39,7 +39,7 @@ resource "cloudflare_dns_record" "vpn" {
   zone_id = local.cf_zone_id
   name    = "vpn"
   type    = "A"
-  content = "50.47.227.169"
+  content = "192.0.2.1" # placeholder; cloudflare-ddns owns the real value
   ttl     = 300
   proxied = false
 

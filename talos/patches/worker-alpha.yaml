@@ -1,6 +1,6 @@
 # alpha's worker patch — converts talos-a2c-1b8 from control-plane+etcd to
 # worker-only as part of the control-plane migration — see
-# /home/isaac/.claude/plans/silly-riding-stroustrup.md (Phase 4). No
+# the migration plan (Phase 4). No
 # `cluster:` block: workers don't run control-plane components. Control-plane
 # now lives solely on alpha-control (talos/patches/controlplane-alpha-control.yaml).
 #

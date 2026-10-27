@@ -1,7 +1,7 @@
 # RPi5 worker node (8GB). Boots from SD card ONLY — NVMe is not installed and
 # not used, even as a data disk. Converts talos-beta-rpi5 from control-plane
 # to worker-only as part of the control-plane migration — see
-# /home/isaac/.claude/plans/silly-riding-stroustrup.md (Phase 2). No `cluster:`
+# the migration plan (Phase 2). No `cluster:`
 # block: workers don't run control-plane components.
 #
 # NVMe conclusively ruled out 2026-07-20 (see docs/rpi5-talos.md known
