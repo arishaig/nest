@@ -115,8 +115,8 @@
         mode: "0644"
 
     - name: Copy traefik static config
-      ansible.builtin.copy:
-        src: files/docker/traefik/traefik.yml
+      ansible.builtin.template:
+        src: templates/docker/traefik.yml.j2
         dest: "{{ compose_dir }}/traefik/traefik.yml"
         mode: "0644"
       notify: Restart Traefik

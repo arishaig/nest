@@ -136,6 +136,7 @@ meshcore_mqtt_password: ENC[AES256_GCM,data:b66b/HB6sE7cdtcGcnus+8Hk30cikzs=,iv:
 dispatcharr_postgres_user: ENC[AES256_GCM,data:kplm4RlKl0hFIFE=,iv:wPA6Y/Gu6ZnyUUG6dSFtUdzn6JhXDVDh2kHxT1Z/MQ0=,tag:2gN8IMba3+tJBoRsRpvU9w==,type:str]
 dispatcharr_postgres_password: ENC[AES256_GCM,data:N+5OjxbDDYwFrSS2zmDwpLfJGEu/C6KrZTff9sNAQyNwjBA54UGXK8divvngq9mk,iv:BFbzLs2tNeWsB/O2wVTHAHFKekazkOnHDnSHfqILaDM=,tag:1tf3bsirx7AQndyRkGuFhA==,type:str]
 dispatcharr_api_key: ENC[AES256_GCM,data:BYW9InPypZMnrEU6oSIclRYCuIyYsGagdPUNNLHyrxt0R++MeKHgA0b6DUI8qFluWZvkH2JB,iv:XYrWrWPjBSUGKXrSDHmZCKOYAe0Yz/3UpQqpJaKZ93Q=,tag:kL33d420/P5unxchzXirxA==,type:str]
+owner_email: ENC[AES256_GCM,data:5gTj7ly5exwVMXx2FSbs54X9,iv:PIsel64NU3fw6Rj9ClcS4keK41eK/iLbUYDVcceJtOY=,tag:wAS4EOeSbxBM2dTKp1F8tA==,type:str]
 sops:
     age:
         - enc: |
@@ -157,7 +158,7 @@ sops:
             2jPOjg==
             -----END AGE ENCRYPTED FILE-----
           recipient: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpbfa/Dw9jY/uvl6k549/LREsabJ21/rM52NGuofFCN
-    lastmodified: "2026-10-24T01:55:32Z"
-    mac: ENC[AES256_GCM,data:2h37+CEPwMKvMHc7zGDr02gCkwelJDOuytugBziSnaMQk40D9UMtiEEBPz/J+ykNGZq8EoTzs5IQ7q0s0Exyyl7wC0r10tF6jqg3Ahe55T986rkhzSA8xegkTOi0NAKZo9aylA4BzFyPcSCpctRSS6tL0NmyoW7L/HLcCsXuNoc=,iv:Un5vI6KPMt+VNp7ZxPf2kJOmjjdkJMNeEsv0myRkf30=,tag:axtQTXXKPtF8XsbwS+PlnQ==,type:str]
+    lastmodified: "2026-10-27T01:04:36Z"
+    mac: ENC[AES256_GCM,data:Jk9mdMBX12odZzh73GaZfS9PJfBE9hzfpZfvaELIms1diEmDzVxNTjwVeJDXd4WxxZt6FVuCO+KMM21spDURzTUNdpwuCAXT0Y6Zlv2WAp/WTEi4taV+sspz+vCJg73rgke6uFfDxXY+QIXWqI29RjnMJX2R/f7C2YMHy2jeVKY=,iv:EKqzc5OHcQ5+LQOs/Z86P8PBdon48YoyEzXFb0s/ITo=,tag:En9I6KD5BqI8ZSbyDmtMjw==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.3

@@ -38,7 +38,7 @@ providers:
 certificatesResolvers:
   cloudflare:
     acme:
-      email: izakizak@gmail.com
+      email: {{ owner_email }}
       storage: /etc/traefik/acme.json
       dnsChallenge:
         provider: cloudflare
