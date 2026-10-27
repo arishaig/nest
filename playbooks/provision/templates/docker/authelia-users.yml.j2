@@ -2,6 +2,6 @@ users:
   arishaig:
     displayname: "Isaac"
     password: "{{ authelia_user_password_hash }}"
-    email: izakizak@gmail.com
+    email: {{ owner_email }}
     groups:
       - admins
