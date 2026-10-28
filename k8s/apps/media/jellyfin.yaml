@@ -62,6 +62,25 @@ spec:
     controllers:
       jellyfin:
         strategy: Recreate
+        # Installs the git-tracked encoding.xml before Jellyfin starts, every start,
+        # so the transcode settings follow the pod across nodes and survive a
+        # restored/blank config volume. Overwrites the file on purpose: the
+        # ConfigMap (k8s/apps/media/jellyfin-config/encoding.xml) is the source of
+        # truth, and Dashboard > Playback edits last until the next restart.
+        # Copy + rename so Jellyfin never sees a half-written file.
+        initContainers:
+          encoding-xml:
+            image:
+              repository: busybox
+              tag: stable
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                mkdir -p /config/config
+                cp /encoding-config/encoding.xml /config/config/encoding.xml.tmp
+                mv /config/config/encoding.xml.tmp /config/config/encoding.xml
         containers:
           app:
             image:
@@ -161,6 +180,16 @@ spec:
           jellyfin:
             app:
               - path: /config
+            encoding-xml:
+              - path: /config
+      encoding-config:
+        type: configMap
+        name: jellyfin-encoding-config
+        advancedMounts:
+          jellyfin:
+            encoding-xml:
+              - path: /encoding-config
+                readOnly: true
       offload-scripts:
         type: configMap
         name: jellyfin-offload-scripts
