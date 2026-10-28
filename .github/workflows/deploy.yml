@@ -177,7 +177,7 @@ jobs:
             playbooks/provision/adguard.yml \
             --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
             --ssh-extra-args "-o StrictHostKeyChecking=no" \
-            --limit 'adguard,dns-secondary'
+            --limit 'adguard,dns-secondary,dns-tertiary'
 
   deploy-update-metrics:
     needs: changes

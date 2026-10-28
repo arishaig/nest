@@ -11,7 +11,7 @@
   vars:
     unbound_exporter_version: "0.6.0"
     docker_dir: /opt/docker
-    adguard_self_url: "{{ 'https://' + certbot_domain if adguard_tls | default(false) else 'http://127.0.0.1:3000' }}"
+    adguard_self_url: "{{ adguard_self_url_override | default('https://' + certbot_domain if adguard_tls | default(false) else 'http://127.0.0.1:3000') }}"
     adguard_exporter_username: "adguard"
     adguard_https_port: 443
 
@@ -427,6 +427,7 @@
         src: templates/adguard/dns-watchdog.sh.j2
         dest: /usr/local/bin/dns-watchdog.sh
         mode: "0755"
+      when: dns_watchdog | default(true)
       notify: Restart dns-watchdog timer
 
     - name: Create dns-watchdog systemd service
@@ -440,6 +441,7 @@
           ExecStart=/usr/local/bin/dns-watchdog.sh
         dest: /etc/systemd/system/dns-watchdog.service
         mode: "0644"
+      when: dns_watchdog | default(true)
       notify: Restart dns-watchdog timer
 
     - name: Create dns-watchdog systemd timer
@@ -456,6 +458,7 @@
           WantedBy=timers.target
         dest: /etc/systemd/system/dns-watchdog.timer
         mode: "0644"
+      when: dns_watchdog | default(true)
       notify: Restart dns-watchdog timer
 
     - name: Enable and start dns-watchdog timer
@@ -464,6 +467,7 @@
         enabled: true
         state: started
         daemon_reload: true
+      when: dns_watchdog | default(true)
 
   handlers:
     - name: Restart chrony
