@@ -57,6 +57,33 @@ spec:
     # sharing it concurrently are the ceiling to watch, not just the replica
     # count; check nvidia-smi before launching an ad-hoc GPU job. ollama
     # unloads idle models after 5m, which is what makes the sharing workable.
+    # Keep the operator and NFD master off the sole control-plane node. Both
+    # use short (5s) leader-election lease calls to the apiserver and exit on
+    # a timeout: 613/610 restarts in 73d, 2 more control-plane components
+    # (controller-manager, scheduler) died in the same second on 2026-10-23.
+    # The chart default prefers the control plane and tolerates its taint.
+    # Moving them does not fix an apiserver/etcd stall; it stops these two
+    # from crash-looping noisily on the node that least needs the load.
+    operator:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
+    node-feature-discovery:
+      master:
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: nest.arishaig.site/workloads
+                      operator: In
+                      values: [general]
+
     devicePlugin:
       config:
         create: true
