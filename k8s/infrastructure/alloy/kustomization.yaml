@@ -5,3 +5,4 @@ resources:
   - rbac.yaml
   - config-map.yaml
   - daemonset.yaml
+  - apiserver-metrics.yaml

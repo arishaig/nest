@@ -1,0 +1,134 @@
+# kube-apiserver metrics -> Prometheus (remote write).
+#
+# Prometheus (monitoring LXC) can't scrape the apiserver itself: the VIP only
+# serves 6443 and a bearer token would have to be exported into SOPS. A
+# single Alloy pod inside the cluster scrapes it with its own ServiceAccount
+# token and remote-writes to Prometheus (--web.enable-remote-write-receiver).
+#
+# Why: gpu-operator, controller-manager and scheduler all lost leader-election
+# leases in the same second on 2026-10-23 and nothing recorded apiserver
+# latency to explain it. The apiserver's client-side view of etcd
+# (etcd_request_duration_seconds) stands in for etcd's own :2381 endpoint,
+# which would need a control-plane machine-config change.
+#
+# Cardinality: the apiserver exposes ~16k histogram-bucket series. Only
+# sum/count histograms and a few gauges/counters are kept; use
+# rate(sum)/rate(count) for mean latency.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alloy-apiserver
+  namespace: alloy
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alloy-apiserver-metrics
+rules:
+  - nonResourceURLs: [/metrics]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alloy-apiserver-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alloy-apiserver-metrics
+subjects:
+  - kind: ServiceAccount
+    name: alloy-apiserver
+    namespace: alloy
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-apiserver-config
+  namespace: alloy
+data:
+  config.alloy: |
+    prometheus.scrape "apiserver" {
+      targets = [{
+        __address__ = "kubernetes.default.svc:443",
+        job         = "kube-apiserver",
+        instance    = "talos-alpha-control",
+      }]
+      scheme            = "https"
+      bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+      tls_config {
+        ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+      }
+      scrape_interval = "30s"
+      scrape_timeout  = "20s"
+      forward_to      = [prometheus.relabel.keep.receiver]
+    }
+
+    prometheus.relabel "keep" {
+      rule {
+        source_labels = ["__name__"]
+        regex         = "up|apiserver_request_duration_seconds_(sum|count)|apiserver_request_total|apiserver_current_inflight_requests|apiserver_flowcontrol_request_wait_duration_seconds_(sum|count)|apiserver_flowcontrol_rejected_requests_total|etcd_request_duration_seconds_(sum|count)|apiserver_storage_db_total_size_in_bytes|etcd_db_total_size_in_bytes|process_cpu_seconds_total|process_resident_memory_bytes|go_goroutines"
+        action        = "keep"
+      }
+      forward_to = [prometheus.remote_write.prometheus.receiver]
+    }
+
+    prometheus.remote_write "prometheus" {
+      endpoint {
+        url = "http://192.168.1.44:9090/api/v1/write"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alloy-apiserver
+  namespace: alloy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: alloy-apiserver
+  template:
+    metadata:
+      labels:
+        app: alloy-apiserver
+      annotations:
+        # Alloy doesn't reload config on its own: bump when the ConfigMap changes.
+        nest.arishaig.site/config-rev: "2026-10-28-initial"
+    spec:
+      serviceAccountName: alloy-apiserver
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nest.arishaig.site/workloads
+                    operator: In
+                    values: [general]
+      containers:
+        - name: alloy
+          image: grafana/alloy:v1.21.2
+          args:
+            - run
+            - /etc/alloy/config.alloy
+            - --storage.path=/var/lib/alloy/data
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+            - name: storage
+              mountPath: /var/lib/alloy/data
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: alloy-apiserver-config
+        - name: storage
+          emptyDir: {}
