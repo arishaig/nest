@@ -157,6 +157,10 @@ cluster VIP at 192.168.1.115. Export kubeconfig.
 > and stored as `vault_talos_etcd_backup_config`); renew it before it lapses.
 > A restore has not been rehearsed yet.
 
+> **If the PVE host or Tank is gone**, the unrecoverable state also lives, encrypted,
+> in the owner's Google Drive: see [offsite-backup.md](offsite-backup.md) for
+> the bare-metal restore (needs only the Bitwarden entries).
+
 ### 4. Join the workers
 
 `talos-alpha` (.110, amd64) via `talos/patches/worker-alpha.yaml`, then the two

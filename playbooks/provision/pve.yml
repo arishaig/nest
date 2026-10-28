@@ -27,6 +27,39 @@
     pg_dump_sources:
       postgres: /rpool/data/k8s-configs/media/postgres-data/backups
       audiomuse: /rpool/data/k8s-configs/media/audiomuse-data/backups
+    # Offsite (Google Drive) backup, docs/offsite-backup.md. Gated on the Drive
+    # token: until it is in SOPS the tools and script are installed but the
+    # timer stays off. Personal data (Tank/personal) and media are NOT backed
+    # up here by design.
+    restic_version: "0.19.1"
+    restic_sha256: "f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c"
+    rclone_version: "1.75.2"
+    rclone_sha256: "349ac8fba6ff65d6247043f1750cdcb518ec5d500ef91463a10d37c0ccdf3702"
+    offsite_token: "{{ vault_rclone_drive_token | default('') }}"
+    offsite_cap_gb: 50
+    offsite_upload_limit_kib: 20000
+    # Volumes under rpool/data/k8s-configs backed up from a ZFS snapshot.
+    # Excludes below drop caches, artwork and anything rebuildable by a rescan.
+    offsite_config_volumes:
+      - authelia/authelia-data
+      - media/mealie-data
+      - media/seerr-config
+      - media/dispatcharr-config
+      - media/prowlarr-config
+      - media/sonarr-config
+      - media/radarr-config
+      - media/lidarr-config
+      - media/bazarr-config
+      - media/sabnzbd-config
+      - media/tunarr-config
+      - media/jellyfin-pgsql-config
+      - media/watchback-data
+      - media/watcharr-data
+      - media/recommendarr-data
+      - media/digarr-data
+      - media/storyteller-config
+      - media/homepage-config
+      - media/copyparty-config
 
   tasks:
     - name: Deploy IP-based NTP fallbacks for chrony
@@ -486,6 +519,199 @@
         name: pg-dump-copy.timer
         enabled: true
         state: started
+        daemon_reload: true
+
+    # --- Offsite backup to Google Drive (restic over rclone) ----------------
+    # Client-side encrypted (restic), versioned, deduplicated. Only small,
+    # unrecoverable state: app config volumes (from a ZFS snapshot, since
+    # several are live SQLite), the newest Postgres dumps, the newest etcd
+    # snapshot, OpenTofu state and the PVE guest configs. The repo is created
+    # by hand once (`offsite-restic init`) so a re-auth under a different
+    # OAuth client can never silently start a second, empty repository.
+    - name: Install restic and rclone (version-pinned)
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          install -d /opt/offsite
+          cd /opt/offsite
+          if [ ! -x restic-{{ restic_version }} ]; then
+            echo installing-restic
+            curl -fsSL -o restic.bz2 https://github.com/restic/restic/releases/download/v{{ restic_version }}/restic_{{ restic_version }}_linux_amd64.bz2
+            echo "{{ restic_sha256 }}  restic.bz2" | sha256sum -c -
+            bunzip2 -c restic.bz2 > restic-{{ restic_version }}
+            chmod 0755 restic-{{ restic_version }}
+            rm -f restic.bz2
+          fi
+          if [ ! -x rclone-{{ rclone_version }} ]; then
+            echo installing-rclone
+            curl -fsSL -o rclone.zip https://github.com/rclone/rclone/releases/download/v{{ rclone_version }}/rclone-v{{ rclone_version }}-linux-amd64.zip
+            echo "{{ rclone_sha256 }}  rclone.zip" | sha256sum -c -
+            unzip -jo rclone.zip 'rclone-v{{ rclone_version }}-linux-amd64/rclone' -d tmp-rclone
+            mv tmp-rclone/rclone rclone-{{ rclone_version }}
+            rm -rf tmp-rclone rclone.zip
+          fi
+          ln -sf /opt/offsite/restic-{{ restic_version }} /usr/local/bin/restic
+          ln -sf /opt/offsite/rclone-{{ rclone_version }} /usr/local/bin/rclone
+        executable: /bin/bash
+      register: offsite_tools
+      changed_when: "'installing-' in offsite_tools.stdout"
+
+    - name: Create the restic and rclone config directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+      loop:
+        - /etc/restic
+        - /etc/rclone
+
+    - name: Deploy the restic repository password
+      ansible.builtin.copy:
+        content: "{{ vault_restic_password | default('') }}"
+        dest: /etc/restic/password
+        mode: "0600"
+      when: (vault_restic_password | default('')) | length > 0
+      no_log: true
+
+    # A dedicated config file (RCLONE_CONFIG below), so the stale 2025 remotes
+    # in /root/.config/rclone are never read. rclone rewrites the token here
+    # when it refreshes it; a re-deploy puts back the refresh token, which is
+    # what matters. The OAuth client_id/secret must never change: with the
+    # drive.file scope a different client cannot see the existing repository.
+    - name: Deploy the rclone Google Drive config
+      ansible.builtin.copy:
+        content: |
+          [gdrive]
+          type = drive
+          scope = drive.file
+          client_id = {{ vault_rclone_drive_client_id | default('') }}
+          client_secret = {{ vault_rclone_drive_client_secret | default('') }}
+          token = {{ offsite_token }}
+        dest: /etc/rclone/rclone.conf
+        mode: "0600"
+      when: offsite_token | length > 0
+      no_log: true
+
+    - name: Deploy the restic exclude list
+      ansible.builtin.copy:
+        content: |
+          **/MediaCover
+          **/logs
+          **/log
+          **/cache
+          **/transcodes
+          **/lidarr.db.corrupt
+          **/media/tunarr-config/data.ms
+          **/media/tunarr-config/ms-snapshots
+          **/media/tunarr-config/streams
+          **/media/jellyfin-pgsql-config/metadata
+          **/media/jellyfin-pgsql-config/data
+        dest: /etc/restic/excludes
+        mode: "0644"
+
+    # `offsite-restic <args>` runs restic against the Drive repository with the
+    # right config, e.g. `offsite-restic init`, `snapshots`, `restore`.
+    - name: Deploy the restic wrapper
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          export RCLONE_CONFIG=/etc/rclone/rclone.conf
+          export RESTIC_PASSWORD_FILE=/etc/restic/password
+          export RESTIC_REPOSITORY="${OFFSITE_REPOSITORY:-rclone:gdrive:nest-restic}"
+          exec /usr/local/bin/restic -o rclone.program=/usr/local/bin/rclone "$@"
+        dest: /usr/local/sbin/offsite-restic
+        mode: "0755"
+
+    - name: Deploy the offsite backup script
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          set -euo pipefail
+          R=/usr/local/sbin/offsite-restic
+          # The repository is created by hand once; never auto-init here.
+          $R cat config >/dev/null || { echo "restic repo missing or unreachable: create it with 'offsite-restic init' (docs/offsite-backup.md)"; exit 1; }
+
+          snap=rpool/data/k8s-configs@offsite
+          zfs destroy "$snap" 2>/dev/null || true
+          zfs snapshot "$snap"
+          trap 'zfs destroy "$snap" 2>/dev/null || true' EXIT
+          s=/rpool/data/k8s-configs/.zfs/snapshot/offsite
+
+          paths=()
+          {% for v in offsite_config_volumes %}
+          paths+=("$s/{{ v }}")
+          {% endfor %}
+          latest_dir() { ls -1d "$1"/*/ 2>/dev/null | sort | tail -1 || true; }
+          for d in "$(latest_dir /Tank/pg-dumps/postgres)" "$(latest_dir /Tank/pg-dumps/audiomuse)"; do
+            [ -n "$d" ] && paths+=("${d%/}")
+          done
+          e=$(ls -1 /Tank/etcd-backups/etcd-*.db 2>/dev/null | sort | tail -1 || true)
+          [ -n "$e" ] && paths+=("$e")
+          paths+=(/rpool/data/subvol-108-disk-0/opt/terraform-state /etc/pve)
+
+          existing=()
+          for p in "${paths[@]}"; do
+            if [ -e "$p" ]; then existing+=("$p"); else echo "skipping missing path: $p"; fi
+          done
+
+          $R backup --host proxmox --tag offsite --exclude-file /etc/restic/excludes             --limit-upload {{ offsite_upload_limit_kib }} "${existing[@]}"
+
+          # Paths change as new dumps appear, so group retention by host+tag.
+          $R forget --host proxmox --tag offsite --group-by host,tags             --keep-daily 7 --keep-weekly 4 --keep-monthly 6
+
+          # Sundays: reclaim space, spot-check data, enforce the size cap.
+          if [ "$(date +%u)" = 7 ]; then
+            $R prune
+            $R check --read-data-subset=2%
+            bytes=$($R stats --mode raw-data --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["total_size"])')
+            cap=$(( {{ offsite_cap_gb }} * 1024 * 1024 * 1024 ))
+            echo "repository raw data: $bytes bytes (cap $cap)"
+            [ "$bytes" -le "$cap" ] || { echo "offsite repository exceeds {{ offsite_cap_gb }} GB cap"; exit 1; }
+          fi
+        dest: /usr/local/sbin/offsite-backup
+        mode: "0755"
+
+    - name: Create the offsite backup unit
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Offsite (Google Drive) encrypted backup of unrecoverable state
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          Type=oneshot
+          Nice=19
+          IOSchedulingClass=idle
+          ExecStart=/usr/local/sbin/offsite-backup
+        dest: /etc/systemd/system/offsite-backup.service
+        mode: "0644"
+
+    # 05:15 stays clear of the dumps (02:30/02:40 + 6h), the 03:00 PBS run and
+    # the 04:30 etcd snapshot.
+    - name: Create the offsite backup timer
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Nightly offsite backup
+
+          [Timer]
+          OnCalendar=*-*-* 05:15:00
+          Persistent=true
+          RandomizedDelaySec=5min
+
+          [Install]
+          WantedBy=timers.target
+        dest: /etc/systemd/system/offsite-backup.timer
+        mode: "0644"
+
+    - name: Enable the offsite backup timer once the Drive token is set
+      ansible.builtin.systemd:
+        name: offsite-backup.timer
+        enabled: "{{ offsite_token | length > 0 }}"
+        state: "{{ 'started' if offsite_token | length > 0 else 'stopped' }}"
         daemon_reload: true
 
   handlers:

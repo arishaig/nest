@@ -404,6 +404,36 @@ groups:
           summary: "Postgres dump copy timer does not exist"
           description: "No pg-dump-copy.timer on the PVE host: pve.yml has not run or the timer was removed, so the dumps exist only on the same pool as the databases."
 
+      # Offsite (Google Drive) backup, pve.yml / docs/offsite-backup.md. Failing
+      # the unit also covers an exceeded size cap, an unreachable repo and an
+      # expired Google token.
+      - alert: OffsiteBackupFailed
+        expr: node_systemd_unit_state{name="offsite-backup.service", state="failed"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Offsite backup failed on {{ $labels.instance }}"
+          description: "offsite-backup.service failed. Check `journalctl -u offsite-backup` on the PVE host: usual causes are the Google token being revoked/expired, the repo missing, or the repository exceeding its size cap."
+
+      - alert: OffsiteBackupStale
+        expr: time() - node_systemd_timer_last_trigger_seconds{name="offsite-backup.timer"} > 36 * 3600
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No offsite backup run in 36h on {{ $labels.instance }}"
+          description: "offsite-backup.timer last fired {{ $value | humanizeDuration }} ago."
+
+      - alert: OffsiteBackupMissing
+        expr: absent(node_systemd_timer_last_trigger_seconds{name="offsite-backup.timer"})
+        for: 48h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Offsite backup timer is not enabled"
+          description: "No offsite-backup.timer on the PVE host. Until the Google Drive token (vault_rclone_drive_token) is in SOPS and `offsite-restic init` has been run, there is no offsite copy. See docs/offsite-backup.md."
+
       - alert: PBSBackupStale
         expr: time() - pbs_backup_last_snapshot_timestamp_seconds > 30 * 3600
         for: 30m
