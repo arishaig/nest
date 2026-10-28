@@ -64,6 +64,14 @@ restic snapshots
 restic restore latest --tag offsite --target /restore
 ```
 
+Paths inside the repository keep their original location, and the app volumes
+sit under `/rpool/data/k8s-configs/.zfs/snapshot/offsite/…` (the snapshot the
+job reads from), so a restore into `/restore` puts Authelia at
+`/restore/rpool/data/k8s-configs/.zfs/snapshot/offsite/authelia/authelia-data`.
+Tested 2026-10-28 against a local repository: the real set (about 0.6 GB in the
+repository, 32 s) restored with Authelia's SQLite passing `integrity_check`, a
+valid Postgres dump, parseable OpenTofu state, the etcd snapshot and `/etc/pve`.
+
 Restore targets: Authelia/app volumes under `…/k8s-configs/…`; Postgres dumps
 per [postgres.md](postgres.md#restore); etcd via `talosctl bootstrap
 --recover-from` ([disaster-recovery.md](disaster-recovery.md)); OpenTofu state
