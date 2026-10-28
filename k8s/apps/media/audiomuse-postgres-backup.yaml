@@ -19,7 +19,9 @@ spec:
     # instance covered by postgres-backup.yaml). pbs-k8s-configs-backup copies
     # rpool/data/k8s-configs file by file with no snapshot, so its copy of the
     # live PGDATA isn't guaranteed to restore. The dump lands in the same PVC
-    # (outside PGDATA) at 02:40, so the 03:00 run picks up a consistent copy.
+    # (outside PGDATA) every 6h (02:40, 08:40, 14:40, 20:40 PT), so the 03:00
+    # run picks up a consistent copy. pg-dump-copy.timer on PVE (pve.yml) also
+    # copies each COMPLETE dump to Tank/pg-dumps at :50.
     # Pinned to alpha alongside audiomuse: audiomuse-data is RWO.
     defaultPodOptions:
       affinity:
@@ -34,7 +36,7 @@ spec:
       audiomuse-postgres-backup:
         type: cronjob
         cronjob:
-          schedule: "40 2 * * *"
+          schedule: "40 2,8,14,20 * * *"
           timeZone: America/Los_Angeles
           concurrencyPolicy: Forbid
           successfulJobsHistory: 3
@@ -62,7 +64,7 @@ spec:
                 # Fails the job if the archive is unreadable.
                 pg_restore -l "$dir/audiomusedb.dump" > /dev/null
                 touch "$dir/COMPLETE"
-                find "$root" -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} +
+                find "$root" -mindepth 1 -maxdepth 1 -type d -mtime +4 -exec rm -rf {} +
                 ls -la "$dir"
             env:
               PGHOST: audiomuse-postgres

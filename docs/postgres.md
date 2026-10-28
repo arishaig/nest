@@ -47,7 +47,8 @@ copies files with no snapshot. A **live PGDATA copied that way is not
 guaranteed to restore**, so it isn't the Postgres backup. The logical dumps are:
 
 - **What:** the `postgres-backup` CronJob (`k8s/apps/media/postgres-backup.yaml`),
-  daily at 02:30 America/Los_Angeles, pinned to alpha.
+  every 6 hours (02:30, 08:30, 14:30, 20:30 America/Los_Angeles), pinned to alpha.
+  `audiomuse-postgres` has its own twin (`audiomuse-postgres-backup.yaml`, :40).
 - **Writes:** `pg_dumpall --globals-only > globals.sql` (roles) and a `pg_dump -Fc`
   per database, then `COMPLETE`.
 - **Where:** `backups/<YYYYmmdd-HHMMSS>/` on the `postgres-data` PVC, outside
@@ -56,11 +57,16 @@ guaranteed to restore**, so it isn't the Postgres backup. The logical dumps are:
   picks it up.
 - **Checks:** `pg_restore -l` on every archive; an unreadable dump fails the
   job.
-- **Keeps:** 7 days on the PVC.
+- **Keeps:** 4 days on the PVC.
+- **Second copy:** `pg-dump-copy.timer` on the PVE host (`pve.yml`, :50 after each
+  run) copies every `COMPLETE` dump to `/Tank/pg-dumps/{postgres,audiomuse}/<ts>/`
+  (root-only dataset, not NFS-exported, 14 days). Different pool from the database
+  and from etcd; alerts `PgDumpCopyFailed/Stale/Missing`.
 - **Run one now:** `kubectl -n media create job --from=cronjob/postgres-backup pb-manual`.
 
-PBS is the only copy beyond the PVC: there is **no offsite copy**
-([disaster-recovery.md](disaster-recovery.md)).
+Beyond the PVC the dumps exist on Tank (the copy above) and in PBS: there is **no
+offsite copy** by design ([disaster-recovery.md](disaster-recovery.md)). The
+recovery point is up to 6 hours.
 
 ## Restore
 
@@ -83,7 +89,10 @@ database on a local `postgres:18.6` container, as `scripts/pg-migrate/` does.
 
 The dump format was tested on 2026-10-10 against a throwaway `postgres:18.6`:
 the dumps were written, pruned, and restored with the right row count. A
-restore test of a real nightly dump is still to do.
+restore test of a real dump was done on 2026-10-28: the 09:30 UTC dump (13
+databases, `globals.sql` + `pg_restore --exit-on-error` each) restored cleanly into a
+throwaway `postgres:18.6`, and sonarr/radarr/mealie row counts matched the live
+database (118 / 47 / 14). The `audiomuse-postgres` dump has not been restore-tested yet.
 
 ## Monitoring
 

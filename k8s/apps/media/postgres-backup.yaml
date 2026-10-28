@@ -23,7 +23,10 @@ spec:
     # (playbooks/provision/pbs.yml) copies rpool/data/k8s-configs file by file
     # at 03:00 with no snapshot, so its copy of the live PGDATA isn't
     # guaranteed to restore. These dumps land in the same PVC (outside
-    # PGDATA) at 02:30, so that run picks up a consistent copy.
+    # PGDATA) every 6h (02:30, 08:30, 14:30, 20:30 PT), so the 03:00 run picks
+    # up a consistent copy. pg-dump-copy.timer on PVE (pve.yml) also copies
+    # each COMPLETE dump to Tank/pg-dumps at :50, keeping 14 days; the PVC
+    # keeps only 4 days.
     # Pinned to alpha alongside postgres: postgres-data is RWO.
     defaultPodOptions:
       affinity:
@@ -38,7 +41,7 @@ spec:
       postgres-backup:
         type: cronjob
         cronjob:
-          schedule: "30 2 * * *"
+          schedule: "30 2,8,14,20 * * *"
           timeZone: America/Los_Angeles
           concurrencyPolicy: Forbid
           successfulJobsHistory: 3
@@ -69,7 +72,7 @@ spec:
                   pg_restore -l "$dir/$db.dump" > /dev/null
                 done
                 touch "$dir/COMPLETE"
-                find "$root" -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} +
+                find "$root" -mindepth 1 -maxdepth 1 -type d -mtime +4 -exec rm -rf {} +
                 ls -la "$dir"
             env:
               PGHOST: postgres
