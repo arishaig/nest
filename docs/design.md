@@ -210,8 +210,9 @@ Tertiary: VPS at 66.42.79.175 (`dns3.arishaig.site`), DoH/DoT only (no plain UDP
 
 Internal rewrites (`.arishaig.site` → LAN IPs) managed by Terraform (`gmichels/adguard ~> 1.7`).
 Tertiary has no rewrites — public DNS via Unbound resolves `*.arishaig.site` correctly via the Cloudflare wildcard.
-cert-manager's wildcard cert covers `.local.arishaig.site` names too — no separate cert
-infrastructure needed for internal access.
+cert-manager's wildcard cert (`*.arishaig.site` + apex) does **not** cover two-label
+`*.local.arishaig.site` names, so clients of those routes get a certificate-name warning
+until `*.local.arishaig.site` is added to `wildcard-certificate.yaml`.
 
 ---
 
@@ -238,6 +239,9 @@ mealie, prowlarr, radarr, recommendarr, sabnzbd, sonarr, storyteller, watchback.
 
 **`.local.arishaig.site` routes** also bypass Authelia — these are direct internal-access
 routes for services that also have an Authelia-protected public route (torrent, scrutiny, backlight).
+They carry the `local-only` middleware (192.168.0.0/16): public DNS resolves `*.local.arishaig.site`
+to the VPS via the Cloudflare wildcard, and the VPS passes every SNI through, so source-IP
+filtering in cluster Traefik is the only thing keeping them LAN-only.
 
 ---
 
