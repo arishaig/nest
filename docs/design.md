@@ -199,7 +199,7 @@ Managed by Terraform (`terraform/cloudflare.tf`, `cloudflare/cloudflare = 5.19.1
 | `dns.arishaig.site` | Home IP (dynamic, set by cloudflare-ddns) | Direct to Pi, bypasses VPS |
 | `vpn.arishaig.site` | Home IP (dynamic, set by cloudflare-ddns) | Direct to UDM WireGuard |
 
-`cloudflare-ddns` (k8s pod in `cloudflare-ddns` namespace) keeps `vpn.arishaig.site` current when the home IP changes.
+`cloudflare-ddns` (container on the primary AdGuard Pi) keeps `dns` and `vpn.arishaig.site` current when the home IP changes. It deliberately does not run in the cluster: `vpn` is the way back in when the cluster is down, so its updater must not depend on it.
 All records are unproxied (Cloudflare orange cloud off).
 
 ### Internal (AdGuard Home)
@@ -297,7 +297,6 @@ Storage classes:
 | Namespace | Services |
 |---|---|
 | `media` | sonarr+exportarr, radarr+exportarr, lidarr+exportarr, bazarr+exportarr, prowlarr+exportarr, flaresolverr, sabnzbd, seerr, tunarr, watcharr, watchback, homepage, copyparty, medialyze, metube, recommendarr, storyteller, subgen, tdarr+node, mealie+postgres (postgres-exporter hostPort 9187), recyclarr (CronJob), jellyfin |
-| `cloudflare-ddns` | cloudflare-ddns — keeps `vpn.arishaig.site` current |
 | `headlamp` | Headlamp — Kubernetes UI |
 | `gods-eye-view` | God's Eye View — 3D globe of live public feeds, at `globe.arishaig.site` behind Authelia. Image from the fork `arishaig/gods-eye-view` (trusted-proxy + runtime-key patch); provider keys in `gods-eye-view-secrets` (`gev_*` SOPS vars). Also a claude.ai custom connector at `globe-mcp.arishaig.site`: the `mcp-auth` sidecar checks Authelia OIDC tokens (client `gods-eye-view-mcp`) and forwards to the app's loopback-only `/mcp` |
 

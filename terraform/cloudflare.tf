@@ -23,11 +23,11 @@ resource "cloudflare_dns_record" "dns" {
   zone_id = local.cf_zone_id
   name    = "dns"
   type    = "A"
-  content = "192.0.2.1" # placeholder; cloudflare-ddns owns the real value
+  content = "192.0.2.1" # placeholder; cloudflare-ddns (AdGuard Pi) owns the real value
   ttl     = 300
   proxied = false
 
-  # Home WAN IP is dynamic; cloudflare-ddns (k8s/apps/cloudflare-ddns) owns
+  # Home WAN IP is dynamic; cloudflare-ddns (AdGuard Pi, templates/adguard/docker-compose.yml.j2) owns
   # the content. Without this every apply reverted it to the IP above.
   lifecycle {
     ignore_changes = [content]
@@ -39,11 +39,11 @@ resource "cloudflare_dns_record" "vpn" {
   zone_id = local.cf_zone_id
   name    = "vpn"
   type    = "A"
-  content = "192.0.2.1" # placeholder; cloudflare-ddns owns the real value
+  content = "192.0.2.1" # placeholder; cloudflare-ddns (AdGuard Pi) owns the real value
   ttl     = 300
   proxied = false
 
-  # Home WAN IP is dynamic; cloudflare-ddns (k8s/apps/cloudflare-ddns) owns
+  # Home WAN IP is dynamic; cloudflare-ddns (AdGuard Pi, templates/adguard/docker-compose.yml.j2) owns
   # the content. Without this every apply reverted it to the IP above.
   lifecycle {
     ignore_changes = [content]
