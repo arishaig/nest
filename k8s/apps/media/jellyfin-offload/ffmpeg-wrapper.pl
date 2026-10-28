@@ -71,11 +71,36 @@ sub trickplay_dest {
 # falls back to software decode for codecs NVDEC cannot do. Key-frame-only
 # decoding (-skip_frame nokey) was measured and is slower here: these files have
 # sparse key frames, so the second frame the fps filter needs arrives 30 s late.
+#
+# The first mode is chosen from the stream's pixel format (ffprobe, ~50 ms) so
+# 8-bit sources do not burn a failed p010le attempt first; if the probe fails the
+# order above applies unchanged.
+sub probe_mode {
+  my ($file) = @_;
+  my $probe = $ENV{FFPROBE_REAL} // dirname($real) . '/ffprobe';
+  return unless defined $file && -x $probe;
+  open(my $ph, '-|', $probe, '-v', 'error', '-select_streams', 'v:0',
+    '-show_entries', 'stream=pix_fmt', '-of', 'csv=p=0', $file) or return;
+  my $fmt = <$ph> // '';
+  close $ph;
+  chomp $fmt;
+  return 'nv12'    if $fmt =~ /^yuvj?420p$/;
+  return 'p010le'  if $fmt =~ /^yuv420p10le$/;
+  return;
+}
+
 sub trickplay_args {
   my ($scratch, @a) = @_;
   $a[-1] = "$scratch/" . ($a[-1] =~ m{([^/]+)$})[0];
   return @a if grep { $_ eq '-hwaccel' } @a;
   my @pre = ('-hwaccel', 'cuda');
+  if (!$ENV{TRICKPLAY_MODE}) {
+    my ($in) = map { $a[$_ + 1] } grep { $a[$_] eq '-i' } 0 .. $#a - 1;
+    $in =~ s/^file:// if defined $in;
+    my $m = probe_mode($in);
+    # Exported so the retry re-exec in the failure path continues from here.
+    $ENV{TRICKPLAY_MODE} = $m if $m;
+  }
   my $mode = $ENV{TRICKPLAY_MODE} || 'p010le';
   if ($mode ne 'plain') {
     for my $i (0 .. $#a - 1) {
