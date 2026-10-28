@@ -145,8 +145,9 @@ live heap dump). The wrapper therefore:
   to software for codecs the GPU cannot decode, still on omega);
 - keeps decoded frames **on the GPU until after Jellyfin's `fps` filter**
   (`-hwaccel_output_format cuda`, with `hwdownload,format=p010le` inserted right
-  after `fps=`; `hwdownload` needs the stream's exact pixel format, so 8-bit
-  streams take a quick failed attempt and are retried with `nv12`), so only the one frame in ~240 that survives `fps` is
+  after `fps=`; `hwdownload` needs the stream's exact pixel format, so the wrapper
+  ffprobes the source and starts with `nv12` (8-bit) or `p010le` (10-bit); an
+  unrecognised format or failed probe starts at `p010le` and relies on the retries below), so only the one frame in ~240 that survives `fps` is
   downloaded for the software scale/tonemap filters. Measured on omega with a 4K
   HDR/DV episode: 13x realtime, versus 3x when ffmpeg downloads every frame and
   versus 30-45 s to the *first* thumbnail with `-skip_frame nokey` (these files

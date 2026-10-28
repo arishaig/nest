@@ -199,6 +199,18 @@ check "gpu-frames failure: plain run has no output-format or hwdownload" has "$o
 check "gpu-frames failure: thumbnails delivered after the retries" test "$(find "$tmp/tp4" -name '*.jpg' | wc -l)" -eq 3
 check "gpu-frames failure: ends successfully" has "$out" 'rc=0'
 
+# Source pixel format picks the first mode, so 8-bit sources skip the failed
+# p010le attempt.
+printf '#!/bin/sh\necho "$STUB_PIXFMT"\n' >"$tmp/ffprobe"
+chmod +x "$tmp/ffprobe"
+out=$(FFPROBE_REAL="$tmp/ffprobe" STUB_PIXFMT=yuv420p wrap "$tmp/token" "${TP_NOHW[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
+check "probe 8-bit: nv12 first" has "$out" 'stub:remote\] args: -hwaccel cuda -hwaccel_output_format cuda -i in.mkv -vf fps=0.1,hwdownload,format=nv12,scale'
+check "probe 8-bit: no p010le attempt" lacks "$out" 'p010le'
+out=$(FFPROBE_REAL="$tmp/ffprobe" STUB_PIXFMT=yuv420p10le wrap "$tmp/token" "${TP_NOHW[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
+check "probe 10-bit: p010le first" has "$out" 'format=p010le,scale'
+out=$(FFPROBE_REAL="$tmp/ffprobe" STUB_PIXFMT=weird wrap "$tmp/token" "${TP_NOHW[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
+check "probe unknown format: default order (p010le first)" has "$out" 'format=p010le,scale'
+
 TP_FAIL=(-i in.mkv -c:v mjpeg -f image2 FAILTP "$tmp/tp2/%08d.jpg")
 out=$(wrap "$tmp/token" "${TP_FAIL[@]}" </dev/null; echo "rc=${PIPESTATUS[0]}") || true
 check "trickplay, remote failure: exit code propagates, no CPU retry" has "$out" 'rc=4'
