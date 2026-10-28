@@ -12,8 +12,7 @@ reconcilability; all are cleanup.
 
 - **Dead Terraform/scripts:** `terraform/pve-firewall.tf` is 29 lines of fully commented-out
   placeholder with zero resources; `terraform/import.sh` was a one-shot migration;
-  `playbooks/upgrade-debian.yml` was the completed Bookworm→Trixie migration;
-  `scripts/bulk-subgen.sh` still says "runs on the docker host" while subgen is on k8s.
+  `playbooks/upgrade-debian.yml` was the completed Bookworm→Trixie migration.
 - **Docker-era config trees superseded by k8s:** `playbooks/provision/files/docker/traefik/`
   and `files/docker/homepage/` are dead (replaced by `k8s/infrastructure/traefik/` and
   `k8s/apps/media/homepage.yaml`). `playbooks/provision/files/docker/docker-compose.yml` is
