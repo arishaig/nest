@@ -63,3 +63,28 @@ tests:
             exp_annotations:
               summary: "Disk flushes on talos-alpha-control are slow (etcd fsync at risk)"
               description: "Average flush latency on talos-alpha-control sda is 500ms (baseline ~3 ms). Something is saturating the NVMe rpool that also holds etcd. Find the writer with topk(5, max by (dataset) (rate(node_zfs_zpool_dataset_nwritten{zpool=\"rpool\"}[5m]))), usually a bulk write into a k8s-configs PVC. Stop it before the scheduler and controller-manager lose their leases."
+
+  # Mean apiserver latency jumps from ~7 ms to 2 s at 10m and stays there.
+  - interval: 1m
+    input_series:
+      - series: 'apiserver_request_duration_seconds_sum{job="kube-apiserver", verb="GET"}'
+        values: '0+0.7x10 20+120x30'
+      - series: 'apiserver_request_duration_seconds_count{job="kube-apiserver", verb="GET"}'
+        values: '0+100x10 1000+60x30'
+      - series: 'up{job="kube-apiserver"}'
+        values: '1x40'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: ApiserverRequestsSlow
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: ApiserverRequestsSlow
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "kube-apiserver mean request latency is high"
+              description: "Mean non-watch apiserver request latency is 2s (baseline ~7 ms). Leader-election clients (gpu-operator, Flux, controller-manager) time out at 5 s and crash-loop. Check ControlPlaneDiskFlushSlow and etcd."
+      - eval_time: 25m
+        alertname: ApiserverMetricsMissing
+        exp_alerts: []

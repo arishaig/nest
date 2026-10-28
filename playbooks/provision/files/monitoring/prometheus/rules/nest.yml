@@ -594,6 +594,46 @@ groups:
           summary: "Disk flushes on talos-alpha-control are slow (etcd fsync at risk)"
           description: "Average flush latency on {{ $labels.instance }} {{ $labels.device }} is {{ $value | humanizeDuration }} (baseline ~3 ms). Something is saturating the NVMe rpool that also holds etcd. Find the writer with topk(5, max by (dataset) (rate(node_zfs_zpool_dataset_nwritten{zpool=\"rpool\"}[5m]))), usually a bulk write into a k8s-configs PVC. Stop it before the scheduler and controller-manager lose their leases."
 
+      # Apiserver-side latency, recorded by alloy-apiserver
+      # (k8s/infrastructure/alloy/apiserver-metrics.yaml). Baselines on
+      # 2026-10-28: ~6.5 ms mean for non-watch requests and ~5 ms mean for
+      # the apiserver's etcd calls. The 2026-10-23 lease-timeout event left
+      # no latency data; these fire on the symptom the lease clients see
+      # (5 s calls timing out) well before that.
+      - alert: ApiserverRequestsSlow
+        expr: |
+          sum(rate(apiserver_request_duration_seconds_sum{job="kube-apiserver", verb!~"WATCH|CONNECT"}[5m]))
+            / sum(rate(apiserver_request_duration_seconds_count{job="kube-apiserver", verb!~"WATCH|CONNECT"}[5m]))
+            > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "kube-apiserver mean request latency is high"
+          description: "Mean non-watch apiserver request latency is {{ $value | humanizeDuration }} (baseline ~7 ms). Leader-election clients (gpu-operator, Flux, controller-manager) time out at 5 s and crash-loop. Check ControlPlaneDiskFlushSlow and etcd."
+
+      - alert: ApiserverEtcdRequestsSlow
+        expr: |
+          sum(rate(etcd_request_duration_seconds_sum{job="kube-apiserver"}[5m]))
+            / sum(rate(etcd_request_duration_seconds_count{job="kube-apiserver"}[5m]))
+            > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "kube-apiserver sees slow etcd responses"
+          description: "Mean apiserver-to-etcd request latency is {{ $value | humanizeDuration }} (baseline ~5 ms). etcd's own fsync histogram isn't scraped, so this is the apiserver's view of the same stall."
+
+      - alert: ApiserverMetricsMissing
+        expr: |
+          (up{job="kube-apiserver"} == 0) or absent(up{job="kube-apiserver"})
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No kube-apiserver metrics from alloy-apiserver"
+          description: "Prometheus has had no samples (or up=0) for job kube-apiserver for 15 minutes. Check the alloy-apiserver Deployment in the alloy namespace; the latency alerts above are blind until it is back."
+
       # No separate KSM replica-availability rule is needed, contrary to
       # architecture review finding D2. That finding assumed two KSM replicas
       # behind the shared MetalLB IP, one of which could sit Failed while the
