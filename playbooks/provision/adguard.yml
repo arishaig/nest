@@ -13,7 +13,9 @@
     docker_dir: /opt/docker
     adguard_self_url: "{{ adguard_self_url_override | default('https://' + certbot_domain if adguard_tls | default(false) else 'http://127.0.0.1:3000') }}"
     adguard_exporter_username: "adguard"
-    adguard_https_port: 443
+    # Play vars outrank inventory vars, so a per-host value must come in under
+    # a different name (the VPS tertiary needs 8443: Traefik owns its 443).
+    adguard_https_port: "{{ adguard_https_port_override | default(443) }}"
 
   tasks:
     # ── Unbound (recursive resolver on 127.0.0.1:5335) ──
