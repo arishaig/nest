@@ -167,6 +167,11 @@ spec:
   routes:
     - match: "Host(`torrent.local.arishaig.site`)"
       kind: Rule
+      # LAN only: public DNS resolves *.local.arishaig.site to the VPS (the
+      # Cloudflare `*` record), and the VPS forwards every SNI here with the
+      # real client IP preserved via PROXY protocol.
+      middlewares:
+        - name: local-only
       services:
         - name: torrent-external
           port: 8090
@@ -216,6 +221,11 @@ spec:
   routes:
     - match: "Host(`backlight.local.arishaig.site`)"
       kind: Rule
+      # LAN only: public DNS resolves *.local.arishaig.site to the VPS (the
+      # Cloudflare `*` record), and the VPS forwards every SNI here with the
+      # real client IP preserved via PROXY protocol.
+      middlewares:
+        - name: local-only
       services:
         - name: backlight-external
           port: 80
@@ -232,6 +242,11 @@ spec:
   routes:
     - match: "Host(`scrutiny.local.arishaig.site`)"
       kind: Rule
+      # LAN only: public DNS resolves *.local.arishaig.site to the VPS (the
+      # Cloudflare `*` record), and the VPS forwards every SNI here with the
+      # real client IP preserved via PROXY protocol.
+      middlewares:
+        - name: local-only
       services:
         - name: scrutiny-external
           port: 8888
