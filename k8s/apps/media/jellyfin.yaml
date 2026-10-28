@@ -62,6 +62,25 @@ spec:
     controllers:
       jellyfin:
         strategy: Recreate
+        # Installs the git-tracked encoding.xml before Jellyfin starts, every start,
+        # so the transcode settings follow the pod across nodes and survive a
+        # restored/blank config volume. Overwrites the file on purpose: the
+        # ConfigMap (k8s/apps/media/jellyfin-config/encoding.xml) is the source of
+        # truth, and Dashboard > Playback edits last until the next restart.
+        # Copy + rename so Jellyfin never sees a half-written file.
+        initContainers:
+          encoding-xml:
+            image:
+              repository: busybox
+              tag: stable
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                mkdir -p /config/config
+                cp /encoding-config/encoding.xml /config/config/encoding.xml.tmp
+                mv /config/config/encoding.xml.tmp /config/config/encoding.xml
         containers:
           app:
             image:
@@ -88,9 +107,11 @@ spec:
                     name: jellyfin-postgres-secret
                     key: POSTGRES_PASSWORD
               # ffmpeg goes through the omega offload wrapper (docs/jellyfin-offload.md).
-              # Today that only changes trickplay, which runs on omega only (and
-              # fails fast, exit 98, when omega is down); every other call has no
-              # GPU arguments and runs the real ffmpeg locally, unchanged.
+              # Playback transcodes are NVENC command lines (encoding.xml, applied
+              # by the encoding-xml initContainer): omega runs them when it is up,
+              # otherwise the wrapper rewrites them for alpha's CPU. Trickplay runs
+              # on omega only (and fails fast, exit 98, when omega is down); calls
+              # with no GPU arguments run the real ffmpeg locally, unchanged.
               # Kill switch: OFFLOAD_DISABLED=1 (trickplay then fails fast too).
               JELLYFIN_FFMPEG: /offload/ffmpeg
               FFMPEG_RUNNER_HOST: jellyfin-ffmpeg-runner
@@ -161,6 +182,16 @@ spec:
           jellyfin:
             app:
               - path: /config
+            encoding-xml:
+              - path: /config
+      encoding-config:
+        type: configMap
+        name: jellyfin-encoding-config
+        advancedMounts:
+          jellyfin:
+            encoding-xml:
+              - path: /encoding-config
+                readOnly: true
       offload-scripts:
         type: configMap
         name: jellyfin-offload-scripts
@@ -177,11 +208,13 @@ spec:
             app:
               - path: /offload-secret
                 readOnly: true
-      # Shared with the runner on omega at the same absolute path: trickplay
-      # thumbnails are written here by omega, then moved into /tmp/jellyfin by
-      # the wrapper. Only transcodes/ for now; subtitles/ and attachments/ join
-      # when NVENC transcoding is enabled (copy the existing contents first, or
-      # the first play of each file re-extracts them over NFS).
+      # Shared with the runner on omega at the same absolute paths, because
+      # Jellyfin writes absolute /config/... paths into ffmpeg command lines.
+      # transcodes/ also carries trickplay thumbnails: omega writes them here and
+      # the wrapper moves them into /tmp/jellyfin. subtitles/ and attachments/
+      # are what NVENC transcodes read (burned-in subtitles, fonts); these mounts
+      # hide the copies on the config PVC, so seed the shared volume first or the
+      # first play of each file re-extracts them (docs/jellyfin-offload.md, Rollout).
       scratch:
         existingClaim: jellyfin-scratch
         advancedMounts:
@@ -189,6 +222,10 @@ spec:
             app:
               - path: /config/cache/transcodes
                 subPath: transcodes
+              - path: /config/data/subtitles
+                subPath: subtitles
+              - path: /config/data/attachments
+                subPath: attachments
       media:
         existingClaim: media-nfs
         advancedMounts:

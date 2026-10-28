@@ -101,7 +101,34 @@ today (Jellyfin already software-transcodes on alpha), and decode dominates
   and `SUB_FILE` set (see its header), and `test/test-offload.sh`.
 - **Kill switch.** Set `OFFLOAD_DISABLED=1` on the Jellyfin container to force
   CPU without removing the wrapper.
+- **Encoding settings.** Tracked in git, see the next section.
 - **Trickplay.** See the next section.
+
+## Encoding settings
+
+Jellyfin's transcode settings (Dashboard > Playback) live in
+`/config/config/encoding.xml`. The offload only works while
+`HardwareAccelerationType` is `nvenc`: with `none` Jellyfin emits plain CPU
+command lines (`libx265`, no `-hwaccel`), the wrapper sees no GPU constructs and
+runs them locally on alpha, and omega sits idle. That is how all playback
+transcodes ended up on alpha's CPU, with only trickplay reaching omega.
+
+The file is therefore tracked at `k8s/apps/media/jellyfin-config/encoding.xml`
+and published as the `jellyfin-encoding-config` ConfigMap. An `encoding-xml`
+initContainer on the Jellyfin pod copies it over the PVC copy on **every start**,
+so the settings follow the pod to whichever node it lands on and survive a blank
+or restored config volume. The value does not depend on the node: no node Jellyfin
+may use has a GPU (it is excluded from omega), and the wrapper already handles
+omega being down.
+
+- **Git wins.** Changes made in Dashboard > Playback last until the next pod
+  restart. To keep one, edit `encoding.xml` in git.
+- **Applying a change.** The ConfigMap has no name hash, so restart Jellyfin after
+  editing it (`kubectl -n media rollout restart deploy/jellyfin`).
+- **Re-capturing from the UI.** Change the setting in the dashboard, copy the file
+  out (`kubectl -n media exec deploy/jellyfin -- cat /config/config/encoding.xml`),
+  and diff it against the tracked one before committing. Jellyfin may add keys on
+  upgrade; a new key missing from the tracked file just takes its default.
 
 ## Trickplay
 
@@ -163,8 +190,19 @@ scan again.
 2. Test end to end on the spike: omega up, omega scaled to 0, omega killed
    mid-stream, playback stopped by the client.
 3. Wire the live Jellyfin (`JELLYFIN_FFMPEG`, mounts, token, NVENC in the
-   encoding settings). This restarts Jellyfin, so pick a window with no active
-   streams. Copy the existing `/config/data/subtitles` and `attachments`
-   contents into the shared volume first, or the first plays of each file
-   re-extract subtitles (a full read of the file over NFS).
+   encoding settings via the tracked `encoding.xml`). This restarts Jellyfin, so
+   pick a window with no active streams. Seed the shared volume **before** the
+   change deploys, or the first plays of each file re-extract subtitles (a full
+   read of the file over NFS). The runner mounts the shared subPaths already, so
+   copy through it (additive, safe while Jellyfin runs):
+
+   ```bash
+   kubectl -n media exec deploy/jellyfin -- tar -C /config/data -cf - subtitles attachments \
+     | kubectl -n media exec -i deploy/jellyfin-ffmpeg-runner -- tar -C /config/data -xf -
+   kubectl -n media exec deploy/jellyfin-ffmpeg-runner -- sh -c \
+     'ls /config/data/subtitles | wc -l; ls /config/data/attachments | wc -l'
+   ```
+
+   Then confirm a playback transcode logs `[offload] running on omega` in
+   `/config/log/FFmpeg.Transcode-*.log`.
 4. Remove `jellyfin-spike.yaml`.

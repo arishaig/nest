@@ -129,6 +129,14 @@ configMapGenerator:
       - ffprobe=jellyfin-offload/ffprobe
       - ffmpeg-sw-fallback.pl=jellyfin-offload/ffmpeg-sw-fallback.pl
       - ffmpeg-runner.pl=jellyfin-offload/ffmpeg-runner.pl
+  # Jellyfin's encoding settings (Dashboard > Playback), applied by the `encoding-xml`
+  # initContainer on every pod start so they follow the pod wherever it lands
+  # (docs/jellyfin-offload.md, "Encoding settings"). No name hash: edit, then
+  # restart Jellyfin.
+  - name: jellyfin-encoding-config
+    namespace: media
+    files:
+      - encoding.xml=jellyfin-config/encoding.xml
   # Tunarr offload wrapper + the tested argument rewrite (docs/tunarr-offload.md).
   # Published as `ffmpeg` so ffmpegExecutablePath can point at /offload/ffmpeg.
   - name: tunarr-offload-scripts
