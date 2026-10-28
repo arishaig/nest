@@ -24,10 +24,10 @@ spec:
         strategy: Recreate
         containers:
           app:
-            # ghcr.io/frederikemmer/medialyze:latest — rolling tag, no Renovate annotation.
             image:
+              # renovate: datasource=docker depName=ghcr.io/frederikemmer/medialyze
               repository: ghcr.io/frederikemmer/medialyze
-              tag: latest
+              tag: "0.19.2"
             env:
               TZ: America/Los_Angeles
             probes:
