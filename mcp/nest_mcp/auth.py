@@ -14,6 +14,11 @@ class AuthUnavailable(Exception):
 ISSUER = os.getenv("MCP_AUTHELIA_ISSUER", "https://auth.arishaig.site")
 CLIENT_ID = os.getenv("MCP_CLIENT_ID", "nest-mcp")
 CLIENT_SECRET = os.getenv("MCP_CLIENT_SECRET", "")
+# Introspection only says a token is active, for any client of this Authelia.
+# Accept tokens issued to these clients only (default: this server's own).
+ALLOWED_CLIENT_IDS = {
+    c.strip() for c in os.getenv("MCP_ALLOWED_CLIENT_IDS", CLIENT_ID).split(",") if c.strip()
+}
 
 _introspection_uri: str | None = None
 
@@ -66,5 +71,8 @@ async def verify_token(token: str) -> dict:
     if not data.get("active"):
         log.warning("token rejected: introspection reports inactive")
         raise ValueError("Token inactive")
+    if data.get("client_id") not in ALLOWED_CLIENT_IDS:
+        log.warning("token rejected: client_id=%r not allowed", data.get("client_id"))
+        raise ValueError("Token client not allowed")
     _log_grant(token, data)
     return data
