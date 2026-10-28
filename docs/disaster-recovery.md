@@ -146,6 +146,17 @@ cluster VIP at 192.168.1.115. Export kubeconfig.
 > Talos ISO/image. The pre-migration single-document versions exist only in
 > git history.
 
+> **Restoring etcd instead of starting empty.** `etcd-snapshot.timer` on the
+> PVE host writes a daily snapshot to `/Tank/etcd-backups/etcd-<ts>.db` (04:30,
+> 14 days kept, root-only; contains every Secret). After the Talos machine
+> config is applied but before bootstrapping, run
+> `talosctl bootstrap --recover-from=./etcd-<ts>.db -n 192.168.1.119` instead
+> of a plain `talosctl bootstrap`. The client config in `/etc/talos` is
+> snapshot-only (`os:etcd:backup`, 1-year cert, minted with
+> `talosctl -e <cp> -n <cp> config new --roles os:etcd:backup --crt-ttl 8760h`
+> and stored as `vault_talos_etcd_backup_config`); renew it before it lapses.
+> A restore has not been rehearsed yet.
+
 ### 4. Join the workers
 
 `talos-alpha` (.110, amd64) via `talos/patches/worker-alpha.yaml`, then the two

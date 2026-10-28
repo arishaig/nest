@@ -11,6 +11,17 @@
     # External dead-man's-switch ping URL (e.g. a healthchecks.io check).
     # Empty = heartbeat disabled; see docs/pve-host-hangs.md.
     pve_heartbeat_url: "{{ vault_pve_heartbeat_url | default('') }}"
+    # Scheduled etcd snapshot of the sole control plane. talosctl is pinned
+    # to the cluster's Talos version; the checksum comes from the release's
+    # sha256sum.txt and must change with the version.
+    talosctl_version: "1.14.4"
+    talosctl_sha256: "0a69e3f9b682c5cd844b78dae305f6056ceb86c5fcc6913dcea78c527ed97cee"
+    etcd_backup_dir: /Tank/etcd-backups
+    etcd_backup_cp_ip: 192.168.1.119
+    # Client config minted with `talosctl config new --roles os:etcd:backup`
+    # (snapshot only; 1-year cert, renew before it lapses — the stale alert
+    # fires when it does). Empty = snapshots disabled.
+    etcd_backup_config: "{{ vault_talos_etcd_backup_config | default('') }}"
 
   tasks:
     - name: Deploy IP-based NTP fallbacks for chrony
@@ -292,6 +303,107 @@
         name: pve-heartbeat.timer
         enabled: "{{ pve_heartbeat_url | length > 0 }}"
         state: "{{ 'started' if pve_heartbeat_url | length > 0 else 'stopped' }}"
+        daemon_reload: true
+
+    # --- etcd snapshots ---------------------------------------------------
+    # The only etcd copy besides crash-consistent PBS images of VM 112. The
+    # snapshot contains every Kubernetes Secret, so it lives in its own Tank
+    # dataset that is not NFS-exported (unlike media_root and k8s-configs,
+    # which are exported no_root_squash to the whole /24). 04:30 stays clear
+    # of the 02:30/02:40 database dumps and the 03:00 PBS host backup, since
+    # pool contention is what stalls etcd's WAL fsync.
+    - name: Install talosctl
+      ansible.builtin.get_url:
+        url: "https://github.com/siderolabs/talos/releases/download/v{{ talosctl_version }}/talosctl-linux-amd64"
+        dest: /usr/local/bin/talosctl
+        checksum: "sha256:{{ talosctl_sha256 }}"
+        mode: "0755"
+
+    - name: Create the etcd snapshot ZFS dataset
+      community.general.zfs:
+        name: Tank/etcd-backups
+        state: present
+        extra_zfs_properties:
+          sharenfs: "off"
+
+    - name: Restrict the etcd snapshot directory
+      ansible.builtin.file:
+        path: "{{ etcd_backup_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Create the Talos client config directory
+      ansible.builtin.file:
+        path: /etc/talos
+        state: directory
+        mode: "0700"
+
+    - name: Deploy the snapshot-only Talos client config
+      ansible.builtin.copy:
+        content: "{{ etcd_backup_config }}"
+        dest: /etc/talos/etcd-backup.talosconfig
+        mode: "0600"
+      when: etcd_backup_config | length > 0
+      no_log: true
+
+    - name: Deploy the etcd snapshot script
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          set -euo pipefail
+          dir={{ etcd_backup_dir }}
+          tmp=$(mktemp "$dir/.snapshot.XXXXXX")
+          trap 'rm -f "$tmp"' EXIT
+          talosctl --talosconfig /etc/talos/etcd-backup.talosconfig \
+            -e {{ etcd_backup_cp_ip }} -n {{ etcd_backup_cp_ip }} etcd snapshot "$tmp"
+          # A real snapshot is tens of MB; fail loudly on an empty/partial file.
+          [ "$(stat -c %s "$tmp")" -gt 1000000 ]
+          out="$dir/etcd-$(date +%Y%m%d-%H%M%S).db"
+          mv "$tmp" "$out"
+          trap - EXIT
+          chmod 600 "$out"
+          find "$dir" -maxdepth 1 -name 'etcd-*.db' -mtime +14 -delete
+          ls -la "$out"
+        dest: /usr/local/sbin/etcd-snapshot
+        mode: "0755"
+
+    - name: Create the etcd snapshot unit
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Snapshot etcd on the Talos control plane
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/sbin/etcd-snapshot
+        dest: /etc/systemd/system/etcd-snapshot.service
+        mode: "0644"
+
+    - name: Create the etcd snapshot timer
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Snapshot etcd daily
+
+          [Timer]
+          OnCalendar=*-*-* 04:30:00
+          Persistent=true
+          RandomizedDelaySec=5min
+
+          [Install]
+          WantedBy=timers.target
+        dest: /etc/systemd/system/etcd-snapshot.timer
+        mode: "0644"
+
+    - name: Enable the etcd snapshot timer when a client config is set
+      ansible.builtin.systemd:
+        name: etcd-snapshot.timer
+        enabled: "{{ etcd_backup_config | length > 0 }}"
+        state: "{{ 'started' if etcd_backup_config | length > 0 else 'stopped' }}"
         daemon_reload: true
 
   handlers:
