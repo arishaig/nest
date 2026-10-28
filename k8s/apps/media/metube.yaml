@@ -29,10 +29,10 @@ spec:
             fsGroup: 1000
         containers:
           app:
-            # ghcr.io/alexta69/metube:latest — rolling tag, no Renovate annotation.
             image:
+              # renovate: datasource=docker depName=ghcr.io/alexta69/metube
               repository: ghcr.io/alexta69/metube
-              tag: latest
+              tag: "2026.10.22"
             env:
               DOWNLOAD_DIR: /downloads
               TZ: America/Los_Angeles
