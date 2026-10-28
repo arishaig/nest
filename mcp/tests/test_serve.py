@@ -122,3 +122,9 @@ async def test_verify_token_upstream_failure_is_unavailable(introspect, resp):
     introspect(resp)
     with pytest.raises(auth.AuthUnavailable):
         await auth.verify_token("tok")
+
+
+async def test_verify_token_rejects_other_clients(introspect):
+    introspect(_Resp({"active": True, "client_id": "some-other-app", "scope": "openid"}))
+    with pytest.raises(ValueError, match="client not allowed"):
+        await auth.verify_token("tok")
