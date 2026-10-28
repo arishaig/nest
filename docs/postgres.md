@@ -7,7 +7,10 @@ Mealie, and the media apps as they move off SQLite
 `postgres-data` PVC (`nfs-nvme`, PVE `rpool/data/k8s-configs/media/postgres-data`).
 
 AudioMuse runs its own `audiomuse-postgres` (15) and Digarr embeds PGlite. Neither
-is on this instance.
+is on this instance. `audiomuse-postgres` gets its own nightly dump
+(`k8s/apps/media/audiomuse-postgres-backup.yaml`, 02:40, into `audiomuse-data`
+under `backups/<ts>/` with a `COMPLETE` marker, same scheme as below); a restore
+test of that dump is still to do.
 
 ## Roles and databases
 
