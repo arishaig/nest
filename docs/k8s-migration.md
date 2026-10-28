@@ -24,7 +24,7 @@ Storage: `nfs-nvme` StorageClass (nfs-subdir-external-provisioner → `rpool/dat
 
 | Service | Namespace | Config storage | Notes |
 |---|---|---|---|
-| cloudflare-ddns | cloudflare-ddns | none (env only) | Stateless; done early as proof-of-concept |
+| cloudflare-ddns | cloudflare-ddns | none (env only) | Stateless; done early as proof-of-concept. Retired 2026-10-28: the AdGuard Pi's updater owns the records (the VPN must not depend on the cluster) |
 | lidarr + exportarr | media | nfs-nvme PVC | NodePort 30686 (http) / hostPort 9709 (metrics) |
 | bazarr + exportarr | media | nfs-nvme PVC | NodePort 30767 (http) / hostPort 9711 (metrics) |
 | subgen (Whisper) | media | nfs-nvme PVC (models) | GPU-less CPU inference |
