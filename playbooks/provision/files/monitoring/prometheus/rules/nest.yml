@@ -375,6 +375,35 @@ groups:
           summary: "etcd snapshot timer does not exist"
           description: "No etcd-snapshot.timer on the PVE host: either pve.yml has not run with vault_talos_etcd_backup_config set, or the timer was removed. The sole control plane then has no etcd backup beyond PBS's crash-consistent VM image."
 
+      # Postgres dump copy to Tank (pg-dump-copy.timer, pve.yml). Dumps run
+      # every 6h, so 10h without the timer firing means a missed cycle.
+      - alert: PgDumpCopyFailed
+        expr: node_systemd_unit_state{name="pg-dump-copy.service", state="failed"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Postgres dump copy to Tank failed on {{ $labels.instance }}"
+          description: "pg-dump-copy.service is in the failed state. Check `journalctl -u pg-dump-copy` on the PVE host."
+
+      - alert: PgDumpCopyStale
+        expr: time() - node_systemd_timer_last_trigger_seconds{name="pg-dump-copy.timer"} > 10 * 3600
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Postgres dump copy has not run in 10h on {{ $labels.instance }}"
+          description: "pg-dump-copy.timer last fired {{ $value | humanizeDuration }} ago."
+
+      - alert: PgDumpCopyMissing
+        expr: absent(node_systemd_timer_last_trigger_seconds{name="pg-dump-copy.timer"})
+        for: 12h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Postgres dump copy timer does not exist"
+          description: "No pg-dump-copy.timer on the PVE host: pve.yml has not run or the timer was removed, so the dumps exist only on the same pool as the databases."
+
       - alert: PBSBackupStale
         expr: time() - pbs_backup_last_snapshot_timestamp_seconds > 30 * 3600
         for: 30m

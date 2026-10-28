@@ -22,6 +22,11 @@
     # (snapshot only; 1-year cert, renew before it lapses — the stale alert
     # fires when it does). Empty = snapshots disabled.
     etcd_backup_config: "{{ vault_talos_etcd_backup_config | default('') }}"
+    # Second copy of the Postgres logical dumps (see pg-dump-copy below).
+    pg_dump_copy_dir: /Tank/pg-dumps
+    pg_dump_sources:
+      postgres: /rpool/data/k8s-configs/media/postgres-data/backups
+      audiomuse: /rpool/data/k8s-configs/media/audiomuse-data/backups
 
   tasks:
     - name: Deploy IP-based NTP fallbacks for chrony
@@ -404,6 +409,83 @@
         name: etcd-snapshot.timer
         enabled: "{{ etcd_backup_config | length > 0 }}"
         state: "{{ 'started' if etcd_backup_config | length > 0 else 'stopped' }}"
+        daemon_reload: true
+
+    # --- Postgres dump copies ---------------------------------------------
+    # The dump CronJobs write into the same PVC as the database, which lives
+    # on rpool. This copies every COMPLETE dump to a root-only Tank dataset
+    # (not NFS-exported): a different pool from the database and from etcd,
+    # so deleting or corrupting the PVC does not take the dumps with it. It
+    # does not survive loss of the host — there is no offsite copy by design.
+    - name: Create the Postgres dump copy ZFS dataset
+      community.general.zfs:
+        name: Tank/pg-dumps
+        state: present
+        extra_zfs_properties:
+          sharenfs: "off"
+
+    - name: Restrict the Postgres dump copy directory
+      ansible.builtin.file:
+        path: "{{ pg_dump_copy_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Deploy the Postgres dump copy script
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          set -euo pipefail
+          dest={{ pg_dump_copy_dir }}
+          {% for name, src in pg_dump_sources.items() %}
+          mkdir -p "$dest/{{ name }}"
+          if [ -d "{{ src }}" ]; then
+            for d in "{{ src }}"/*/; do
+              [ -e "$d/COMPLETE" ] || continue
+              ts=$(basename "$d")
+              [ -e "$dest/{{ name }}/$ts" ] && continue
+              cp -a "$d" "$dest/{{ name }}/.$ts.tmp"
+              mv "$dest/{{ name }}/.$ts.tmp" "$dest/{{ name }}/$ts"
+            done
+            find "$dest/{{ name }}" -mindepth 1 -maxdepth 1 -type d -name '2*' -mtime +14 -exec rm -rf {} +
+          fi
+          {% endfor %}
+        dest: /usr/local/sbin/pg-dump-copy
+        mode: "0755"
+
+    - name: Create the Postgres dump copy unit
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Copy Postgres logical dumps to Tank
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/sbin/pg-dump-copy
+        dest: /etc/systemd/system/pg-dump-copy.service
+        mode: "0644"
+
+    - name: Create the Postgres dump copy timer
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Copy Postgres logical dumps to Tank after each dump run
+
+          [Timer]
+          OnCalendar=*-*-* 02,08,14,20:50:00
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+        dest: /etc/systemd/system/pg-dump-copy.timer
+        mode: "0644"
+
+    - name: Enable the Postgres dump copy timer
+      ansible.builtin.systemd:
+        name: pg-dump-copy.timer
+        enabled: true
+        state: started
         daemon_reload: true
 
   handlers:
