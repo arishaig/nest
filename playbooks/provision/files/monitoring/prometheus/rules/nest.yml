@@ -345,6 +345,36 @@ groups:
       # June 2026) paged twice a day for 5.5 days about machines that no longer
       # existed. When decommissioning a guest, prune its PBS backup group as
       # part of removal.
+      # etcd snapshot (etcd-snapshot.timer on the PVE host, pve.yml). Uses the
+      # systemd collector, so a failed unit, a timer that stopped firing and a
+      # timer that never existed are three separate signals.
+      - alert: EtcdSnapshotFailed
+        expr: node_systemd_unit_state{name="etcd-snapshot.service", state="failed"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "etcd snapshot failed on {{ $labels.instance }}"
+          description: "etcd-snapshot.service is in the failed state. Check `journalctl -u etcd-snapshot` — usual causes are the 1-year snapshot-only client cert expiring, talosctl no longer matching the Talos version, or the control plane being down."
+
+      - alert: EtcdSnapshotStale
+        expr: time() - node_systemd_timer_last_trigger_seconds{name="etcd-snapshot.timer"} > 30 * 3600
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No etcd snapshot in 30h on {{ $labels.instance }}"
+          description: "etcd-snapshot.timer last fired {{ $value | humanizeDuration }} ago."
+
+      - alert: EtcdSnapshotMissing
+        expr: absent(node_systemd_timer_last_trigger_seconds{name="etcd-snapshot.timer"})
+        for: 36h
+        labels:
+          severity: warning
+        annotations:
+          summary: "etcd snapshot timer does not exist"
+          description: "No etcd-snapshot.timer on the PVE host: either pve.yml has not run with vault_talos_etcd_backup_config set, or the timer was removed. The sole control plane then has no etcd backup beyond PBS's crash-consistent VM image."
+
       - alert: PBSBackupStale
         expr: time() - pbs_backup_last_snapshot_timestamp_seconds > 30 * 3600
         for: 30m
