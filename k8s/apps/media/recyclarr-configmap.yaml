@@ -105,3 +105,19 @@ data:
             - trash_id: d776a1ea912a117d66d83b880ff2055d  # [HDR Formats] DV (w/o HDR fallback)
             - trash_id: 7d366c213e5c23a052b157356fac1921  # [HDR Formats] HDR10+ Boost
             - trash_id: e9a1944a254e6f8a9da63083f7ae15cb  # [Audio] Audio Formats (Atmos etc.; off by default for Sonarr)
+
+        # Our own formats (recyclarr-custom-formats.yaml). Scores are explicit:
+        # local formats have no guide score. Foreign-only tags are rejected
+        # outright; MULTi/Dual releases that include English stay allowed but
+        # rank just below a plain English release of the same quality.
+        custom_formats:
+          - trash_ids:
+              - nest-foreign-release-tags
+            assign_scores_to:
+              - name: Max Quality
+                score: -10000
+          - trash_ids:
+              - nest-multi-dual-language
+            assign_scores_to:
+              - name: Max Quality
+                score: -150

@@ -307,6 +307,26 @@ The *arrs, Bazarr and Seerr are moving onto it from SQLite-on-NFS. See
 [postgres.md](postgres.md) for operations, tuning, backups and restore, and
 [media-postgres-migration.md](media-postgres-migration.md) for the migration.
 
+### SABnzbd 7z and Sonarr language scoring
+
+Two gaps found 2026-10-29 (Rugrats upgrade loop):
+
+- **7z.** SABnzbd detects 7z archives by file name only, and runs its unpacker
+  before the deobfuscator adds the `.7z` extension, so a release that is one
+  obfuscated 7z is "completed" with `Unpacked files []` and Sonarr cannot
+  import it. `sabnzbd-scripts.yaml` ships `extract-7z.sh`, mounted at
+  `/scripts`. SAB's settings live on its PVC, so an initContainer in
+  `sabnzbd.yaml` (`set-postproc-script`) re-applies `script_dir = /scripts` and
+  the `tv` category's `script = extract-7z.sh` to `sabnzbd.ini` on every start.
+  Already-completed jobs are not re-processed: run the script by hand on them.
+- **Language.** Sonarr scores language from the release *title* at grab time but
+  from the file's audio after import, so a title it cannot parse (`pt-BR-GOMES`)
+  is grabbed, imported as Portuguese, drops below the profile minimum, and is
+  re-grabbed forever. `recyclarr-custom-formats.yaml` adds two local custom
+  formats (via a Recyclarr `custom-formats` resource provider): foreign-only
+  title tags (-10000) and MULTi/Dual releases (-150, allowed but ranked below a
+  plain English release of the same quality).
+
 ### Exportarr metrics (hostPort on Talos)
 
 Prometheus scrapes exportarr sidecars directly via hostPort on the Talos node:

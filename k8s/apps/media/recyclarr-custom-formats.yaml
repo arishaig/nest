@@ -1,0 +1,64 @@
+# Our own Recyclarr custom formats (not from the TRaSH guide), loaded through
+# a local `custom-formats` resource provider (settings.yml below). They are
+# referenced by trash_id from recyclarr-configmap.yaml.
+#
+# Why these exist (2026-10-29, Rugrats): Sonarr scores a release's language
+# from its TITLE at grab time but from the file's audio tracks after import.
+# A title like "...576p.PMTP.WEB-DL.AAC2.0.H.264.pt-BR-GOMES" does not parse as
+# Portuguese, so it scored +1075 and was grabbed; the imported file then scored
+# -8925 (Language: Not Original), fell below the profile minimum, and every
+# later search re-grabbed the same release. Matching the title directly closes
+# that gap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recyclarr-settings
+  namespace: media
+data:
+  settings.yml: |
+    resource_providers:
+      - name: nest-sonarr-cfs
+        type: custom-formats
+        path: /config/custom-formats/sonarr
+        service: sonarr
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recyclarr-custom-formats-sonarr
+  namespace: media
+data:
+  nest-foreign-release-tags.json: |
+    {
+      "trash_id": "nest-foreign-release-tags",
+      "name": "Nest: Foreign-only release tags",
+      "includeCustomFormatWhenRenaming": false,
+      "specifications": [
+        {
+          "name": "pt-BR / Latino / Castellano / GOMES",
+          "implementation": "ReleaseTitleSpecification",
+          "negate": false,
+          "required": true,
+          "fields": {
+            "value": "\\b(pt[-. ]?br|GOMES|LATINO|CASTELLANO)\\b"
+          }
+        }
+      ]
+    }
+  nest-multi-dual-language.json: |
+    {
+      "trash_id": "nest-multi-dual-language",
+      "name": "Nest: MULTi / Dual language",
+      "includeCustomFormatWhenRenaming": false,
+      "specifications": [
+        {
+          "name": "MULTI / DUAL / <language>.DL",
+          "implementation": "ReleaseTitleSpecification",
+          "negate": false,
+          "required": true,
+          "fields": {
+            "value": "\\b(MULTI|DUAL)\\b|\\b(GERMAN|FRENCH|ITALIAN|SPANISH)[. ]DL\\b"
+          }
+        }
+      ]
+    }

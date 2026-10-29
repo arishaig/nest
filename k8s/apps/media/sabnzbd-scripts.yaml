@@ -1,0 +1,35 @@
+# SABnzbd post-processing scripts, mounted at /scripts by sabnzbd.yaml.
+#
+# extract-7z.sh: SABnzbd only detects 7z archives by file NAME (.7z / .7z.NNN,
+# filesystem.build_filelists), unlike RAR which also gets a content check. Some
+# releases (e.g. Rugrats *-AndreMor MULTI 1080p) are one obfuscated 7z: SAB runs
+# its unpacker while the file is still extensionless ("Unpacked files []"), then
+# the deobfuscator adds ".7z" afterwards. Scripts run after deobfuscation, so by
+# then the name is right and we can extract it ourselves; Sonarr then imports
+# the .mkv. Only touches the job's own folder under /data/usenet/complete.
+#
+# SAB keeps its config on the PVC, so the initContainer in sabnzbd.yaml sets
+# `script_dir = /scripts` and the `tv` category script on every start (see
+# docs/design.md "SABnzbd 7z and Sonarr language scoring").
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sabnzbd-scripts
+  namespace: media
+data:
+  extract-7z.sh: |
+    #!/bin/sh
+    # SAB passes the job's final folder as $1.
+    dir="$1"
+    [ -d "$dir" ] || exit 0
+    for f in "$dir"/*.7z; do
+      [ -e "$f" ] || continue
+      echo "extract-7z: extracting $f"
+      if 7zz x -y -o"$dir" "$f" >/dev/null; then
+        rm -f -- "$f"
+      else
+        echo "extract-7z: FAILED $f"
+        exit 1
+      fi
+    done
+    exit 0
