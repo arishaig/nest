@@ -1,5 +1,6 @@
 import datetime
 from typing import Literal
+import httpx
 from mcp.server.mcpserver import MCPServer
 from nest_mcp import config
 from nest_mcp.http_client import make_client
@@ -19,6 +20,11 @@ _KEY_MAP = {
     "lidarr": lambda: config.arr.lidarr_key,
     "prowlarr": lambda: config.arr.prowlarr_key,
 }
+
+# arr_queue page size cap, and how many ids arr_queue_remove sends per request
+# (bulk deletes of more than ~6 time out and apply only partly).
+_QUEUE_MAX_PAGE_SIZE = 200
+_QUEUE_REMOVE_BATCH = 4
 
 _API_VERSION = {
     "sonarr": "v3",
@@ -61,19 +67,33 @@ def register(mcp: MCPServer) -> None:
             }
 
     @mcp.tool()
-    async def arr_queue(service: Literal["sonarr", "radarr", "lidarr"]) -> dict:
-        """Get the current download queue for a *arr service (sonarr, radarr, or lidarr)."""
+    async def arr_queue(service: Literal["sonarr", "radarr", "lidarr"], page: int = 1, page_size: int = 50) -> dict:
+        """Get the current download queue for a *arr service (sonarr, radarr, or lidarr).
+
+        Paged: `page` is 1-based, `page_size` is capped at 200, and `has_more` says whether
+        another page exists. Each item carries `download_id` (the download client's id), so
+        several episodes of one multi-episode download can be grouped."""
+        page = max(1, page)
+        page_size = max(1, min(page_size, _QUEUE_MAX_PAGE_SIZE))
         async with _arr_client(service) as client:
-            resp = await client.get(f"/api/{_API_VERSION[service]}/queue", params={"pageSize": 50, "includeUnknownSeriesItems": True})
+            resp = await client.get(
+                f"/api/{_API_VERSION[service]}/queue",
+                params={"page": page, "pageSize": page_size, "includeUnknownSeriesItems": True},
+            )
             resp.raise_for_status()
             d = resp.json()
             records = d.get("records", [])
+            total = d.get("totalRecords", 0)
             return {
                 "service": service,
-                "total": d.get("totalRecords", 0),
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "has_more": page * page_size < total,
                 "items": [
                     {
                         "id": r.get("id"),
+                        "download_id": r.get("downloadId", ""),
                         "title": r.get("title", ""),
                         "status": r.get("status", ""),
                         "tracked_status": r.get("trackedDownloadStatus", ""),
@@ -344,17 +364,40 @@ def register_write(mcp: MCPServer) -> None:
         service: Literal["sonarr", "radarr", "lidarr"], queue_ids: list[int],
         blocklist: bool = False, remove_from_client: bool = True,
     ) -> dict:
-        """[DESTRUCTIVE] Remove items from a *arr download queue (ids from arr_queue), e.g. downloads that completed but are stuck on an import warning. blocklist=True also blocklists the release so it is not grabbed again (use for bad/fake releases); remove_from_client=True also deletes the download from the download client. Re-search afterwards to get a replacement. Confirm with the user first."""
+        """[DESTRUCTIVE] Remove items from a *arr download queue (ids from arr_queue), e.g. downloads that completed but are stuck on an import warning. blocklist=True also blocklists the release so it is not grabbed again (use for bad/fake releases); remove_from_client=True also deletes the download from the download client. Large lists are sent in small batches, and ids that are already gone count as success (reported in `already_gone`). If a batch fails, the error says what was removed so far. Re-search afterwards to get a replacement. Confirm with the user first."""
         if not queue_ids:
             raise ValueError("queue_ids is empty")
+        removed: list[int] = []
+        already_gone: list[int] = []
+        base = f"/api/{_API_VERSION[service]}/queue"
+        params = {"removeFromClient": str(remove_from_client).lower(), "blocklist": str(blocklist).lower()}
         async with _arr_client(service) as client:
-            resp = await client.request(
-                "DELETE", f"/api/{_API_VERSION[service]}/queue/bulk",
-                params={"removeFromClient": str(remove_from_client).lower(), "blocklist": str(blocklist).lower()},
-                json={"ids": queue_ids},
-            )
-            resp.raise_for_status()
-            return {"removed": queue_ids, "blocklisted": blocklist, "removed_from_client": remove_from_client}
+            for start in range(0, len(queue_ids), _QUEUE_REMOVE_BATCH):
+                chunk = queue_ids[start:start + _QUEUE_REMOVE_BATCH]
+                try:
+                    resp = await client.request("DELETE", f"{base}/bulk", params=params, json={"ids": chunk})
+                    if resp.status_code == 404:
+                        # Some id in the batch is already gone; go one by one so the rest still get removed.
+                        for qid in chunk:
+                            one = await client.request("DELETE", f"{base}/{qid}", params=params)
+                            if one.status_code == 404:
+                                already_gone.append(qid)
+                            else:
+                                one.raise_for_status()
+                                removed.append(qid)
+                        continue
+                    resp.raise_for_status()
+                    removed.extend(chunk)
+                except httpx.HTTPError as e:
+                    raise RuntimeError(
+                        f"Stopped on batch {chunk}: {e}. Removed so far: {removed}; already gone: {already_gone}; "
+                        f"not attempted: {queue_ids[start + len(chunk):]}. The failed batch may be partly applied, "
+                        "so re-check arr_queue before retrying."
+                    ) from e
+        return {
+            "removed": removed, "already_gone": already_gone,
+            "blocklisted": blocklist, "removed_from_client": remove_from_client,
+        }
 
     # ── Radarr ────────────────────────────────────────────────────────────────
 

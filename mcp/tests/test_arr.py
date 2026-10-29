@@ -315,3 +315,85 @@ async def test_refresh_series_and_queue_remove(monkeypatch):
     assert out["blocklisted"] is True and seen[1] == ("DELETE", {"removeFromClient": "true", "blocklist": "true"}, {"ids": [1, 2]})
     with pytest.raises(ValueError, match="empty"):
         await tools["arr_queue_remove"](service="sonarr", queue_ids=[])
+
+
+# ── arr_queue paging / arr_queue_remove batching ─────────────────────────────
+
+async def test_queue_paging_and_download_id(monkeypatch):
+    seen = {}
+
+    def queue(req):
+        seen.update(dict(req.url.params))
+        return {"totalRecords": 120, "records": [
+            {"id": 7, "downloadId": "abc123", "title": "T", "size": 0, "sizeleft": 0},
+        ]}
+
+    patch_http(monkeypatch, arr, {"/api/v3/queue": queue})
+    out = await load_tools(arr)["arr_queue"](service="sonarr", page=2, page_size=50)
+    assert seen["page"] == "2" and seen["pageSize"] == "50"
+    assert out["page"] == 2 and out["page_size"] == 50 and out["total"] == 120
+    assert out["has_more"] is True            # 2 * 50 < 120
+    assert out["items"][0]["download_id"] == "abc123"
+
+    last = await load_tools(arr)["arr_queue"](service="sonarr", page=3, page_size=50)
+    assert last["has_more"] is False          # 3 * 50 >= 120
+
+
+async def test_queue_page_bounds_are_clamped(monkeypatch):
+    seen = {}
+
+    def queue(req):
+        seen.update(dict(req.url.params))
+        return {"totalRecords": 0, "records": []}
+
+    patch_http(monkeypatch, arr, {"/api/v3/queue": queue})
+    await load_tools(arr)["arr_queue"](service="sonarr", page=0, page_size=5000)
+    assert seen["page"] == "1" and seen["pageSize"] == "200"
+
+
+async def test_queue_remove_sends_small_batches(monkeypatch):
+    batches = []
+
+    def bulk(req):
+        import json
+        batches.append(json.loads(req.content)["ids"])
+        return (200, {})
+
+    patch_http(monkeypatch, arr, {"/api/v3/queue/bulk": bulk})
+    out = await load_tools(arr)["arr_queue_remove"](service="sonarr", queue_ids=list(range(1, 11)))
+    assert batches == [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10]]
+    assert out["removed"] == list(range(1, 11)) and out["already_gone"] == []
+
+
+async def test_queue_remove_treats_404_as_already_removed(monkeypatch):
+    singles = []
+
+    def single(req):
+        qid = int(req.url.path.rsplit("/", 1)[1])
+        singles.append(qid)
+        return (404, {}) if qid == 2 else (200, {})
+
+    patch_http(monkeypatch, arr, {
+        "/api/v3/queue/bulk": (404, {"message": "NotFound"}),
+        "/api/v3/queue/*": single,
+    })
+    out = await load_tools(arr)["arr_queue_remove"](service="sonarr", queue_ids=[1, 2, 3], blocklist=True)
+    assert singles == [1, 2, 3]
+    assert out["removed"] == [1, 3] and out["already_gone"] == [2]
+    assert out["blocklisted"] is True
+
+
+async def test_queue_remove_failure_reports_progress(monkeypatch):
+    calls = {"n": 0}
+
+    def bulk(req):
+        calls["n"] += 1
+        return (200, {}) if calls["n"] == 1 else (502, {"error": "bad gateway"})
+
+    patch_http(monkeypatch, arr, {"/api/v3/queue/bulk": bulk})
+    with pytest.raises(RuntimeError) as exc:
+        await load_tools(arr)["arr_queue_remove"](service="sonarr", queue_ids=list(range(1, 11)))
+    msg = str(exc.value)
+    assert "[5, 6, 7, 8]" in msg                       # the batch that failed
+    assert "Removed so far: [1, 2, 3, 4]" in msg
+    assert "not attempted: [9, 10]" in msg
