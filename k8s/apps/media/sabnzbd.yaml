@@ -39,6 +39,26 @@ spec:
             runAsUser: 0
             runAsGroup: 0
             fsGroup: 0
+        # SAB keeps its settings in /config/sabnzbd.ini (PVC), not in git. This
+        # points it at the /scripts mount and sets the tv category's script
+        # (sabnzbd-scripts.yaml) on every start, before SAB runs (Recreate, so
+        # nothing else is writing the file). Idempotent; only touches those two keys.
+        initContainers:
+          set-postproc-script:
+            image:
+              # renovate: datasource=docker depName=linuxserver/sabnzbd
+              repository: linuxserver/sabnzbd
+              tag: 5.1.3
+            command:
+              - sh
+              - -c
+              - |
+                f=/config/sabnzbd.ini
+                [ -f "$f" ] || exit 0
+                sed -i \
+                  -e 's|^script_dir *=.*|script_dir = /scripts|' \
+                  -e '/^\[\[tv\]\]/,/^\[\[/ s|^\([[:space:]]*\)script *=.*|\1script = extract-7z.sh|' \
+                  "$f"
         containers:
           app:
             image:
@@ -99,9 +119,21 @@ spec:
           sabnzbd:
             app:
               - path: /config
+            set-postproc-script:
+              - path: /config
       data:
         existingClaim: media-nfs
         advancedMounts:
           sabnzbd:
             app:
               - path: /data
+      # Post-processing scripts (sabnzbd-scripts.yaml); executable bit via defaultMode.
+      scripts:
+        type: configMap
+        name: sabnzbd-scripts
+        defaultMode: 493  # = 0755 (decimal: yamllint forbids implicit octal)
+        advancedMounts:
+          sabnzbd:
+            app:
+              - path: /scripts
+                readOnly: true

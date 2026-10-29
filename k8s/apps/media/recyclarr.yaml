@@ -78,3 +78,21 @@ spec:
               - path: /config/configs/recyclarr.yml
                 subPath: recyclarr.yml
                 readOnly: true
+      # Local custom-format provider (recyclarr-custom-formats.yaml).
+      recyclarr-settings:
+        type: configMap
+        name: recyclarr-settings
+        advancedMounts:
+          recyclarr:
+            app:
+              - path: /config/settings.yml
+                subPath: settings.yml
+                readOnly: true
+      recyclarr-custom-formats-sonarr:
+        type: configMap
+        name: recyclarr-custom-formats-sonarr
+        advancedMounts:
+          recyclarr:
+            app:
+              - path: /config/custom-formats/sonarr
+                readOnly: true

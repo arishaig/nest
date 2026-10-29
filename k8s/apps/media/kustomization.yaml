@@ -37,8 +37,10 @@ resources:
   # --- download clients ---
   - sabnzbd-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - sabnzbd.yaml  # HelmRelease (app-template) — replaces deployment+service
+  - sabnzbd-scripts.yaml  # kept raw — post-processing scripts mounted at /scripts (7z extraction)
   - recyclarr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
   - recyclarr-configmap.yaml  # kept raw — HelmRelease mounts it via persistence (config as code)
+  - recyclarr-custom-formats.yaml  # kept raw — settings.yml + our own Sonarr custom formats, mounted by recyclarr
   - recyclarr.yaml  # HelmRelease (app-template) — replaces cronjob
   # --- request management ---
   - seerr-config-pvc.yaml  # kept raw (data safety) — HelmRelease binds via existingClaim
