@@ -163,3 +163,46 @@ def test_age_formatting():
     assert kubernetes._age((now - timedelta(days=5)).isoformat().replace("+00:00", "Z")).endswith("d")
     assert kubernetes._age("") == ""
     assert kubernetes._age("garbage") == ""
+
+
+# ── k8s_pod_logs container handling ──────────────────────────────────────────
+
+def _logs_client(monkeypatch, pod_obj, ok_container=None):
+    """Log endpoint answers 400 unless ?container= equals ok_container; the pod endpoint returns pod_obj."""
+    seen = []
+
+    def handler(req):
+        if req.url.path.endswith("/log"):
+            seen.append(dict(req.url.params))
+            if ok_container is not None and req.url.params.get("container") == ok_container:
+                return httpx.Response(200, text="log line\n")
+            return httpx.Response(400, json={"message": "a container name must be specified"})
+        return httpx.Response(200, json=pod_obj)
+
+    monkeypatch.setattr(kubernetes, "_client",
+                        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="https://k8s"))
+    return seen
+
+
+async def test_pod_logs_lists_containers_when_missing(monkeypatch):
+    pod = {"metadata": {}, "spec": {"containers": [{"name": "app"}, {"name": "exportarr"}],
+                                    "initContainers": [{"name": "setup"}]}}
+    _logs_client(monkeypatch, pod)
+    out = await load_tools(kubernetes)["k8s_pod_logs"](namespace="media", pod="sonarr-1")
+    assert "several containers" in out and "app, exportarr" in out and "init containers: setup" in out
+
+
+async def test_pod_logs_uses_default_container_annotation(monkeypatch):
+    pod = {"metadata": {"annotations": {"kubectl.kubernetes.io/default-container": "app"}},
+           "spec": {"containers": [{"name": "app"}, {"name": "exportarr"}]}}
+    seen = _logs_client(monkeypatch, pod, ok_container="app")
+    out = await load_tools(kubernetes)["k8s_pod_logs"](namespace="media", pod="sonarr-1")
+    assert out == "log line\n"
+    assert seen[-1]["container"] == "app"
+
+
+async def test_pod_logs_wrong_container_names_the_real_ones(monkeypatch):
+    pod = {"metadata": {}, "spec": {"containers": [{"name": "app"}]}}
+    _logs_client(monkeypatch, pod)
+    out = await load_tools(kubernetes)["k8s_pod_logs"](namespace="media", pod="sabnzbd-1", container="sabnzbd")
+    assert "Container 'sabnzbd' not found" in out and "Containers: app" in out

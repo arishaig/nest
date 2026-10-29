@@ -224,7 +224,10 @@ def register(mcp: MCPServer) -> None:
         Args:
             namespace: Pod's namespace.
             pod: Pod name.
-            container: Container name. Required if the pod has more than one container.
+            container: Container name. Optional: a single-container pod needs none, and a
+                multi-container pod uses its `kubectl.kubernetes.io/default-container`
+                annotation if set; otherwise (or if the name is wrong) the reply lists the
+                pod's containers so you can pick one.
             previous: Fetch logs from the immediately prior (crashed/restarted) instance.
             tail_lines: Max lines to return, most recent first (default 200).
         """
@@ -238,8 +241,25 @@ def register(mcp: MCPServer) -> None:
         if previous:
             params["previous"] = "true"
 
+        log_path = f"/api/v1/namespaces/{namespace}/pods/{pod}/log"
         async with _client() as c:
-            resp = await c.get(f"/api/v1/namespaces/{namespace}/pods/{pod}/log", params=params)
+            resp = await c.get(log_path, params=params)
+            if resp.status_code == 400:
+                # Missing or wrong container name: look the pod up and help instead of failing opaquely.
+                pod_resp = await c.get(f"/api/v1/namespaces/{namespace}/pods/{pod}")
+                if pod_resp.status_code == 200:
+                    pod_obj = pod_resp.json()
+                    default = pod_obj.get("metadata", {}).get("annotations", {}).get("kubectl.kubernetes.io/default-container", "")
+                    spec = pod_obj.get("spec", {})
+                    names = [x["name"] for x in spec.get("containers", [])]
+                    init = [x["name"] for x in spec.get("initContainers", [])]
+                    if not container and default in names:
+                        resp = await c.get(log_path, params={**params, "container": default})
+                    else:
+                        reason = f"Container '{container}' not found in" if container else "Pod has several containers:"
+                        return (f"{reason} {namespace}/{pod}. Containers: {', '.join(names) or '-'}"
+                                + (f"; init containers: {', '.join(init)}" if init else "")
+                                + ". Pass container=<name>.")
             resp.raise_for_status()
 
         return resp.text
