@@ -17,6 +17,9 @@
 
     - name: Wait for cloud-init to finish
       ansible.builtin.command: cloud-init status --wait
+      register: cloud_init
+      # rc 2 = finished with recoverable warnings (still "status: done").
+      failed_when: cloud_init.rc not in [0, 2]
       changed_when: false
 
     - name: Gather facts
