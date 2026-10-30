@@ -491,6 +491,18 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > "$RUNNER_TEMP/.ssh/ansible-on-nest"
           chmod 600 "$RUNNER_TEMP/.ssh/ansible-on-nest"
 
+      - name: Load SSH key into an agent
+        # The bpg/proxmox provider is configured with `ssh { agent = true }` and
+        # needs SSH to the PVE node for anything that touches disk images (e.g.
+        # importing a cloud image for the jumpbox VM, 2026-10-30). Without an
+        # agent holding an authorized key it fails with "unable to authenticate".
+        # Stopped again in the always() state-save step below.
+        run: |
+          eval "$(ssh-agent -s)" >/dev/null
+          ssh-add "$RUNNER_TEMP/.ssh/ansible-on-nest"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+
       - name: Write SOPS age key
         run: |
           printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > "$RUNNER_TEMP/age.key"
@@ -549,6 +561,9 @@ jobs:
         # reconciled by CI.
         run: |
           set -o pipefail
+          # Terraform local-exec provisioners (e.g. null_resource.jumpbox_provision)
+          # call ansible-playbook, which lives in the runner's venv.
+          source /opt/ansible-runner/venv/bin/activate
           tofu -chdir=terraform apply -var-file=secrets.tfvars -auto-approve -input=false \
             -exclude=vultr_instance.vps_proxy \
             2>&1 | tee "$RUNNER_TEMP/tofu-apply.log"
@@ -731,6 +746,7 @@ jobs:
         if: always()
         run: |
           pkill -f "ssh -f -N -L 13000" 2>/dev/null || true
+          if [ -n "${SSH_AGENT_PID:-}" ]; then kill "$SSH_AGENT_PID" 2>/dev/null || true; fi
           cp terraform/terraform.tfstate "$TF_STATE_DIR/terraform.tfstate"
           cp terraform/terraform.tfstate.backup "$TF_STATE_DIR/terraform.tfstate.backup" 2>/dev/null || true
 
