@@ -1,0 +1,97 @@
+# Provision VM 113: jumpbox (dual-homed: main LAN + Cloud IoT VLAN 8)
+# Self-contained — common.yml targets LXCs and is not used here.
+# The host bridges two security zones, so the baseline is: never forward,
+# never accept anything that arrived from VLAN 8, SSH from the main LAN only.
+
+- name: Jumpbox provisioning
+  hosts: jumpboxes
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Install tools
+      ansible.builtin.apt:
+        name:
+          - nmap
+          - tcpdump
+          - netcat-openbsd
+          - nftables
+          - unattended-upgrades
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Disable IP forwarding and enable strict reverse-path filtering
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/90-jumpbox.conf
+        mode: "0644"
+        content: |
+          net.ipv4.ip_forward = 0
+          net.ipv6.conf.all.forwarding = 0
+          net.ipv4.conf.all.rp_filter = 1
+          net.ipv4.conf.default.rp_filter = 1
+          net.ipv4.conf.all.accept_redirects = 0
+          net.ipv6.conf.all.accept_ra = 0
+      notify: Apply sysctl
+
+    - name: Harden sshd (key-only, no root)
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/90-jumpbox.conf
+        mode: "0644"
+        content: |
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          PermitRootLogin no
+      notify: Restart sshd
+
+    # Interface-name independent: matches on source subnet, so it holds
+    # whether the NICs come up as ens18/ens19 or anything else.
+    - name: Deploy nftables ruleset
+      ansible.builtin.copy:
+        dest: /etc/nftables.conf
+        mode: "0755"
+        backup: true
+        content: |
+          #!/usr/sbin/nft -f
+          flush ruleset
+
+          table inet filter {
+            chain input {
+              type filter hook input priority filter; policy drop;
+              iifname "lo" accept
+              ct state established,related accept
+              ct state invalid drop
+              # Nothing that originates on Cloud IoT may open a connection to us.
+              ip saddr 192.168.8.0/24 drop
+              ip saddr 192.168.1.0/24 tcp dport 22 accept
+              ip saddr 192.168.1.0/24 icmp type echo-request accept
+            }
+            chain forward {
+              type filter hook forward priority filter; policy drop;
+            }
+            chain output {
+              type filter hook output priority filter; policy accept;
+            }
+          }
+      notify: Reload nftables
+
+    - name: Enable nftables
+      ansible.builtin.systemd:
+        name: nftables
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Apply sysctl
+      ansible.builtin.command: sysctl --system
+      changed_when: true
+
+    - name: Restart sshd
+      ansible.builtin.systemd:
+        name: ssh
+        state: restarted
+
+    - name: Reload nftables
+      ansible.builtin.systemd:
+        name: nftables
+        state: restarted

@@ -33,6 +33,8 @@
   import_playbook: provision/monitoring.yml
 - name: "Provision: Scrutiny"
   import_playbook: provision/scrutiny.yml
+- name: "Provision: jumpbox (Cloud IoT diagnostics)"
+  import_playbook: provision/jumpbox.yml
 - name: "Provision: seedbox"
   import_playbook: provision/seedbox.yml
 - name: "Provision: FoundryVTT"
