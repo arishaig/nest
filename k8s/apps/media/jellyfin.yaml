@@ -62,6 +62,11 @@ spec:
     controllers:
       jellyfin:
         strategy: Recreate
+        # Changing the scratch PV's mountOptions does not roll pods; bump this to
+        # remount the volume with the new options.
+        pod:
+          annotations:
+            nest/scratch-mount-rev: "2"
         # Installs the git-tracked encoding.xml before Jellyfin starts, every start,
         # so the transcode settings follow the pod across nodes and survive a
         # restored/blank config volume. Overwrites the file on purpose: the
