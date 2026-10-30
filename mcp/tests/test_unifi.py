@@ -231,3 +231,22 @@ async def test_set_fixed_ip(monkeypatch):
     path, body = sess.puts[0]
     assert path.endswith("/rest/user/u1")
     assert body == {"use_fixedip": True, "fixed_ip": "192.168.4.172", "network_id": "n4"}
+
+
+async def test_internet_access_zone_names_unresolved(monkeypatch):
+    routes = _access_routes(["192.168.4.172"])
+    routes.pop("/proxy/network/v2/api/site/default/firewall/zones")
+    _patch(monkeypatch, routes)
+    out = await load_tools(unifi)["unifi_client_internet_access"]("lgwebostv")
+    assert out["verdict"] == "unknown" and "did not resolve" in out["note"]
+    assert [r["name"] for r in out["matching_rules"]] == ["NTP", "Block No Internet", "Allow IoT Internet"]
+
+
+async def test_zones_from_zone_matrix_shape(monkeypatch):
+    routes = _access_routes([])
+    routes.pop("/proxy/network/v2/api/site/default/firewall/zones")
+    routes["/proxy/network/v2/api/site/default/firewall/zone-matrix"] = [
+        {"zone_id": "zi", "name": "IoT"}, {"zone_id": "zx", "name": "External"}]
+    _patch(monkeypatch, routes)
+    out = await load_tools(unifi)["unifi_client_internet_access"]("lgwebostv")
+    assert out["verdict"] == "allowed" and out["zone"] == "IoT"
