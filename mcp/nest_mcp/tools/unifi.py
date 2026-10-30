@@ -1,4 +1,5 @@
 import httpx
+import ipaddress
 from mcp.server.mcpserver import MCPServer
 from nest_mcp import config
 from nest_mcp.http_client import UniFiSession
@@ -58,11 +59,26 @@ async def _fetch_policies(session: UniFiSession) -> list:
     return payload if isinstance(payload, list) else payload.get("data", [])
 
 
-def _fmt_side(side: dict, networks: dict[str, str]) -> str:
+async def _fetch_groups(session: UniFiSession) -> dict[str, dict]:
+    """Firewall address/port groups keyed by _id (what policies reference via *_group_id)."""
+    payload = await _fetch_json(session, "/proxy/network/api/s/default/rest/firewallgroup")
+    if not payload:
+        return {}
+    items = payload.get("data", []) if isinstance(payload, dict) else payload
+    return {g["_id"]: g for g in items if "_id" in g}
+
+
+def _fmt_side(side: dict, networks: dict[str, str], groups: dict[str, dict] | None = None) -> str:
     target = side.get("matching_target", "ANY")
     if target == "ANY":
         return "any"
     if target == "IP":
+        gid = side.get("ip_group_id")
+        if gid and not side.get("ips"):
+            g = (groups or {}).get(gid)
+            if g is None:
+                return f"group:{gid}"
+            return f"group:{g.get('name', gid)} [{', '.join(g.get('group_members', []))}]"
         ips = side.get("ips", [])
         return ", ".join(ips) if ips else "any"
     if target == "NETWORK":
@@ -109,7 +125,9 @@ def _fmt_wlan(w: dict, networks: dict[str, str]) -> dict:
     return out
 
 
-def _fmt_policy(p: dict, zones: dict[str, str], networks: dict[str, str]) -> dict:
+def _fmt_policy(
+    p: dict, zones: dict[str, str], networks: dict[str, str], groups: dict[str, dict] | None = None
+) -> dict:
     src = p["source"]
     dst = p["destination"]
     port = dst.get("port", "")
@@ -118,13 +136,76 @@ def _fmt_policy(p: dict, zones: dict[str, str], networks: dict[str, str]) -> dic
         "enabled": p.get("enabled", True),
         "action": p.get("action", ""),
         "src_zone": zones.get(src.get("zone_id", ""), src.get("zone_id", "?")),
-        "src": _fmt_side(src, networks),
+        "src": _fmt_side(src, networks, groups),
         "dst_zone": zones.get(dst.get("zone_id", ""), dst.get("zone_id", "?")),
-        "dst": _fmt_side(dst, networks),
+        "dst": _fmt_side(dst, networks, groups),
         "protocol": p.get("protocol", "all"),
         "dst_port": port,
         "index": p.get("index", 0),
     }
+
+
+def _member_matches(member: str, ip: str) -> bool:
+    """Does a firewall-group member (IP, CIDR, or a-b range) cover this IP?"""
+    try:
+        addr = ipaddress.ip_address(ip)
+        if "-" in member:
+            lo, hi = (ipaddress.ip_address(x.strip()) for x in member.split("-", 1))
+            return lo <= addr <= hi
+        return addr in ipaddress.ip_network(member, strict=False)
+    except ValueError:
+        return False
+
+
+def _valid_member(member: str) -> bool:
+    try:
+        if "-" in member:
+            lo, hi = (ipaddress.ip_address(x.strip()) for x in member.split("-", 1))
+            return lo <= hi
+        ipaddress.ip_network(member, strict=False)
+        return True
+    except ValueError:
+        return False
+
+
+def _source_matches(side: dict, client: dict, groups: dict[str, dict]) -> bool | None:
+    """True/False if the policy source covers the client; None if undeterminable here."""
+    target = side.get("matching_target", "ANY")
+    if target == "ANY":
+        return True
+    ip, mac, net = client.get("ip", ""), client.get("mac", "").lower(), client.get("network_id", "")
+    if target == "IP":
+        members = list(side.get("ips", []))
+        if side.get("ip_group_id") and not members:
+            members = groups.get(side["ip_group_id"], {}).get("group_members", [])
+        hit = any(_member_matches(m, ip) for m in members)
+        return not hit if side.get("match_opposite_ips") else hit
+    if target == "NETWORK":
+        hit = net in side.get("network_ids", [])
+        return not hit if side.get("match_opposite_networks") else hit
+    if target == "CLIENT":
+        return mac in [m.lower() for m in side.get("client_macs", [])]
+    return None
+
+
+def _find_client(clients: list[dict], query: str) -> tuple[dict | None, str]:
+    q = query.strip().lower()
+    exact = [c for c in clients if q in (c.get("ip", ""), c.get("mac", "").lower())]
+    hits = exact or [
+        c for c in clients
+        if q in (c.get("hostname") or c.get("name") or "").lower() or q in (c.get("name") or "").lower()
+    ]
+    if not hits:
+        return None, f"no active client matches {query!r}"
+    if len(hits) > 1:
+        names = ", ".join(f"{c.get('hostname') or c.get('name') or c.get('mac')} ({c.get('ip', '')})" for c in hits)
+        return None, f"{query!r} is ambiguous: {names}"
+    return hits[0], ""
+
+
+async def _fetch_clients(session: UniFiSession) -> list[dict]:
+    resp = await session.get("/proxy/network/api/s/default/stat/sta")
+    return resp.json().get("data", [])
 
 
 def register(mcp: MCPServer) -> None:
@@ -307,16 +388,17 @@ def register(mcp: MCPServer) -> None:
         descriptions, protocol, and destination port.
         """
         session = get_session()
-        zones, networks, policies = (
+        zones, networks, policies, groups = (
             await _fetch_zones(session),
             await _fetch_networks(session),
             await _fetch_policies(session),
+            await _fetch_groups(session),
         )
 
         if not include_predefined:
             policies = [p for p in policies if not p.get("predefined")]
 
-        rules = [_fmt_policy(p, zones, networks) for p in policies]
+        rules = [_fmt_policy(p, zones, networks, groups) for p in policies]
         rules.sort(key=lambda r: r["index"])
 
         if zone:
@@ -330,3 +412,190 @@ def register(mcp: MCPServer) -> None:
             rules = [r for r in rules if n in r["name"].lower()]
 
         return rules
+
+
+    @mcp.tool()
+    async def unifi_firewall_groups(name: str = "") -> list[dict]:
+        """List UniFi firewall groups (IP address groups and port groups) with their members and the firewall rules that reference each. IoT internet access is controlled by which address group a device's IP is in, so use this to see who is in e.g. the "No Internet" group.
+
+        Args:
+            name: Filter to groups whose name contains this string (case-insensitive).
+        """
+        session = get_session()
+        groups, policies = await _fetch_groups(session), await _fetch_policies(session)
+        used: dict[str, list[str]] = {}
+        for p in policies:
+            for side in ("source", "destination"):
+                for key in ("ip_group_id", "port_group_id"):
+                    gid = p.get(side, {}).get(key)
+                    if gid:
+                        used.setdefault(gid, []).append(f"{p.get('name', '')} ({side})")
+        out = [
+            {
+                "name": g.get("name", ""),
+                "type": g.get("group_type", ""),
+                "members": g.get("group_members", []),
+                "used_by": used.get(gid, []),
+            }
+            for gid, g in groups.items()
+        ]
+        if name:
+            n = name.lower()
+            out = [g for g in out if n in g["name"].lower()]
+        return sorted(out, key=lambda g: g["name"])
+
+    @mcp.tool()
+    async def unifi_client_internet_access(client: str) -> dict:
+        """Work out whether a UniFi client can reach the internet, from the firewall policy list. Resolves the client (IP, MAC, or hostname substring), then walks enabled policies from its zone to External in index order, matching the source against its IP / network / MAC / address-group membership. First fully-matching rule wins; rules limited to a port or destination are listed as `partial` (e.g. an NTP-only allow) and do not decide the verdict. This is a policy-level inference, not a packet test: verify with the device when it matters.
+
+        Args:
+            client: IP, MAC, or hostname/name substring of an active client.
+        """
+        session = get_session()
+        clients, zones, networks, policies, groups = (
+            await _fetch_clients(session),
+            await _fetch_zones(session),
+            await _fetch_networks(session),
+            await _fetch_policies(session),
+            await _fetch_groups(session),
+        )
+        c, err = _find_client(clients, client)
+        if c is None:
+            return {"error": err}
+
+        conf = {}
+        resp = await _fetch_json(session, "/proxy/network/api/s/default/rest/networkconf")
+        if resp:
+            items = resp.get("data", []) if isinstance(resp, dict) else resp
+            conf = next((n for n in items if n.get("_id") == c.get("network_id")), {})
+        client_zone = conf.get("firewall_zone_id", "")
+        external = {zid for zid, zn in zones.items() if "external" in zn.lower()}
+
+        decided: dict | None = None
+        partial: list[dict] = []
+        undetermined: list[str] = []
+        for p in sorted(policies, key=lambda x: x.get("index", 0)):
+            if not p.get("enabled", True) or p["destination"].get("zone_id") not in external:
+                continue
+            if client_zone and p["source"].get("zone_id") != client_zone:
+                continue
+            m = _source_matches(p["source"], c, groups)
+            if m is None:
+                undetermined.append(p.get("name", ""))
+                continue
+            if not m:
+                continue
+            rule = _fmt_policy(p, zones, networks, groups)
+            dst = p["destination"]
+            narrow = dst.get("matching_target", "ANY") != "ANY" or dst.get("port") or p.get("protocol", "all") != "all"
+            if narrow:
+                partial.append(rule)
+            else:
+                decided = rule
+                break
+
+        verdict = "unknown" if decided is None else ("allowed" if decided["action"] == "ALLOW" else "blocked")
+        return {
+            "client": c.get("hostname") or c.get("name") or c.get("mac", ""),
+            "ip": c.get("ip", ""),
+            "mac": c.get("mac", ""),
+            "network": networks.get(c.get("network_id", ""), c.get("network", "")),
+            "zone": zones.get(client_zone, client_zone or "unresolved (all zones considered)"),
+            "fixed_ip": c.get("fixed_ip") if c.get("use_fixedip") else None,
+            "verdict": verdict,
+            "decided_by": decided,
+            "partial_rules_before": partial,
+            "undetermined_rules": undetermined,
+        }
+
+    @mcp.tool()
+    async def unifi_firewall_group_member(
+        group: str, member: str, remove: bool = False, apply: bool = False
+    ) -> dict:
+        """[DESTRUCTIVE when apply=True] Add (or with remove=True, remove) an IP, CIDR, or a-b range in a UniFi IP address group. Group membership is what the zone firewall rules key on (e.g. the "No Internet" group blocks internet for its members), so this changes live traffic immediately. Defaults to apply=False, which only previews: current members, the rules that reference the group, and the resulting list. Show that to the user and confirm before passing apply=True. Refuses port groups and IPv6 groups.
+
+        Args:
+            group: Exact group name (case-insensitive).
+            member: IPv4 address, CIDR, or "a.b.c.d-e.f.g.h" range.
+            remove: Remove instead of add.
+            apply: False (default) = preview only. True = write the change.
+        """
+        member = member.strip()
+        if not _valid_member(member):
+            return {"error": f"{member!r} is not a valid IP, CIDR, or range"}
+        session = get_session()
+        groups, policies = await _fetch_groups(session), await _fetch_policies(session)
+        gid, g = next(((i, x) for i, x in groups.items() if x.get("name", "").lower() == group.strip().lower()), (None, None))
+        if g is None:
+            return {"error": f"no firewall group named {group!r}", "groups": sorted(x.get("name", "") for x in groups.values())}
+        if g.get("group_type") != "address-group":
+            return {"error": f"{g.get('name')!r} is a {g.get('group_type')}; only IPv4 address-groups are supported"}
+
+        current = list(g.get("group_members", []))
+        updated = [m for m in current if m != member] if remove else current + ([] if member in current else [member])
+        refs = [
+            f"{p.get('name', '')} ({p.get('action', '')}, {'on' if p.get('enabled', True) else 'off'})"
+            for p in policies
+            if gid in (p.get("source", {}).get("ip_group_id"), p.get("destination", {}).get("ip_group_id"))
+        ]
+        result = {
+            "group": g.get("name"), "action": "remove" if remove else "add", "member": member,
+            "current_members": current, "resulting_members": updated, "used_by_rules": refs,
+        }
+        if updated == current:
+            return {**result, "applied": False, "note": "no change: member already " + ("absent" if remove else "present")}
+        if not apply:
+            return {**result, "applied": False, "note": "preview only; call again with apply=True to write"}
+
+        resp = await session.put(
+            f"/proxy/network/api/s/default/rest/firewallgroup/{gid}",
+            json={**g, "group_members": updated},
+        )
+        rc = resp.json().get("meta", {}).get("rc", "")
+        if rc != "ok":
+            return {**result, "applied": False, "error": f"controller returned rc={rc!r}"}
+        fresh = (await _fetch_groups(session)).get(gid, {})
+        return {**result, "applied": True, "members_now": fresh.get("group_members", [])}
+
+    @mcp.tool()
+    async def unifi_set_fixed_ip(client: str, ip: str = "", apply: bool = False) -> dict:
+        """[DESTRUCTIVE when apply=True] Give a UniFi client a DHCP reservation (fixed IP). Needed before putting a device into an IP-based firewall group, otherwise a DHCP change silently drops it out. `ip` defaults to the client's current address. Refuses an address another client is using. Defaults to apply=False (preview only); confirm with the user before apply=True. The client keeps its old lease until it next renews or reconnects.
+
+        Args:
+            client: IP, MAC, or hostname/name substring of an active client.
+            ip: IPv4 address to reserve; empty = the client's current IP.
+            apply: False (default) = preview only. True = write the reservation.
+        """
+        session = get_session()
+        clients = await _fetch_clients(session)
+        c, err = _find_client(clients, client)
+        if c is None:
+            return {"error": err}
+        target = (ip or c.get("ip", "")).strip()
+        try:
+            ipaddress.IPv4Address(target)
+        except ValueError:
+            return {"error": f"{target!r} is not a valid IPv4 address"}
+        other = next((o for o in clients if o.get("ip") == target and o.get("mac") != c.get("mac")), None)
+        if other:
+            return {"error": f"{target} is in use by {other.get('hostname') or other.get('mac')}"}
+        uid = c.get("user_id") or c.get("_id")
+        result = {
+            "client": c.get("hostname") or c.get("name") or c.get("mac", ""),
+            "mac": c.get("mac", ""), "current_ip": c.get("ip", ""), "reserve_ip": target,
+            "already_reserved": bool(c.get("use_fixedip") and c.get("fixed_ip") == target),
+        }
+        if result["already_reserved"]:
+            return {**result, "applied": False, "note": "no change: already reserved"}
+        if not apply:
+            return {**result, "applied": False, "note": "preview only; call again with apply=True to write"}
+        if not uid:
+            return {**result, "applied": False, "error": "controller gave no user id for this client"}
+        resp = await session.put(
+            f"/proxy/network/api/s/default/rest/user/{uid}",
+            json={"use_fixedip": True, "fixed_ip": target, "network_id": c.get("network_id", "")},
+        )
+        rc = resp.json().get("meta", {}).get("rc", "")
+        if rc != "ok":
+            return {**result, "applied": False, "error": f"controller returned rc={rc!r}"}
+        return {**result, "applied": True}
