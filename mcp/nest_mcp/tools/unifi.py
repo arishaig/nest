@@ -34,13 +34,21 @@ async def _fetch_zones(session: UniFiSession) -> dict[str, str]:
     for path in [
         "/proxy/network/v2/api/site/default/firewall/zones",
         "/proxy/network/v2/api/site/default/zones",
+        "/proxy/network/v2/api/site/default/firewall/zone-matrix",
+        "/proxy/network/v2/api/site/default/firewall/zone",
     ]:
         payload = await _fetch_json(session, path)
         if payload is None:
             continue
         items = payload if isinstance(payload, list) else payload.get("data", [])
-        if items and isinstance(items[0], dict) and "_id" in items[0]:
-            return {z["_id"]: z.get("name", z["_id"]) for z in items}
+        zones = {
+            (z.get("_id") or z.get("zone_id") or z.get("id")): z.get("name", "")
+            for z in items
+            if isinstance(z, dict) and z.get("name")
+        }
+        zones.pop(None, None)
+        if zones:
+            return zones
     return {}
 
 
@@ -470,12 +478,21 @@ def register(mcp: MCPServer) -> None:
             conf = next((n for n in items if n.get("_id") == c.get("network_id")), {})
         client_zone = conf.get("firewall_zone_id", "")
         external = {zid for zid, zn in zones.items() if "external" in zn.lower()}
+        # Zone names unresolved: can't tell which destination zone is the internet, so
+        # list every rule that matches this client and covers "any" destination, and
+        # leave the verdict to the reader instead of guessing.
+        names_resolved = bool(external)
 
         decided: dict | None = None
         partial: list[dict] = []
+        matched: list[dict] = []
         undetermined: list[str] = []
         for p in sorted(policies, key=lambda x: x.get("index", 0)):
-            if not p.get("enabled", True) or p["destination"].get("zone_id") not in external:
+            if not p.get("enabled", True):
+                continue
+            if names_resolved and p["destination"].get("zone_id") not in external:
+                continue
+            if not names_resolved and p["destination"].get("zone_id") == p["source"].get("zone_id"):
                 continue
             if client_zone and p["source"].get("zone_id") != client_zone:
                 continue
@@ -488,11 +505,26 @@ def register(mcp: MCPServer) -> None:
             rule = _fmt_policy(p, zones, networks, groups)
             dst = p["destination"]
             narrow = dst.get("matching_target", "ANY") != "ANY" or dst.get("port") or p.get("protocol", "all") != "all"
+            matched.append(rule)
             if narrow:
                 partial.append(rule)
-            else:
+            elif names_resolved:
                 decided = rule
                 break
+
+        if not names_resolved:
+            return {
+                "client": c.get("hostname") or c.get("name") or c.get("mac", ""),
+                "ip": c.get("ip", ""),
+                "network": networks.get(c.get("network_id", ""), c.get("network", "")),
+                "fixed_ip": c.get("fixed_ip") if c.get("use_fixedip") else None,
+                "verdict": "unknown",
+                "note": "firewall zone names did not resolve, so the External zone could not be "
+                        "identified; matching_rules are the enabled rules whose source covers this "
+                        "client, in order. Read their dst_zone/action to judge.",
+                "matching_rules": matched,
+                "undetermined_rules": undetermined,
+            }
 
         verdict = "unknown" if decided is None else ("allowed" if decided["action"] == "ALLOW" else "blocked")
         return {
