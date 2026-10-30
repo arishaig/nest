@@ -122,6 +122,8 @@ resource "null_resource" "jumpbox_provision" {
   }
 
   provisioner "local-exec" {
-    command = "ANSIBLE_VARS_ENABLED=host_group_vars,community.sops.sops ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/jumpbox.yml --limit jumpbox"
+    # Runs from terraform/, where Ansible does not find the repo-root ansible.cfg,
+    # so host_key_checking must be disabled here for the VM's brand-new host key.
+    command = "ANSIBLE_HOST_KEY_CHECKING=False ANSIBLE_VARS_ENABLED=host_group_vars,community.sops.sops ansible-playbook -i ../inventory/hosts.yml ../playbooks/provision/jumpbox.yml --limit jumpbox"
   }
 }
