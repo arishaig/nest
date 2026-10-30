@@ -42,7 +42,7 @@
   <EnableIntelLowPowerHevcHwEncoder>false</EnableIntelLowPowerHevcHwEncoder>
   <EnableHardwareEncoding>true</EnableHardwareEncoding>
   <AllowHevcEncoding>true</AllowHevcEncoding>
-  <AllowAv1Encoding>true</AllowAv1Encoding>
+  <AllowAv1Encoding>false</AllowAv1Encoding>
   <EnableSubtitleExtraction>false</EnableSubtitleExtraction>
   <SubtitleExtractionTimeoutMinutes>30</SubtitleExtractionTimeoutMinutes>
   <HardwareDecodingCodecs>
