@@ -67,6 +67,8 @@ spec:
         pod:
           annotations:
             nest/scratch-mount-rev: "2"
+            # Bump to re-run the encoding.xml init container after editing the ConfigMap.
+            nest/encoding-config-rev: "1"
         # Installs the git-tracked encoding.xml before Jellyfin starts, every start,
         # so the transcode settings follow the pod across nodes and survive a
         # restored/blank config volume. Overwrites the file on purpose: the

@@ -16,7 +16,7 @@
   <EncoderAppPathDisplay>/offload/ffmpeg</EncoderAppPathDisplay>
   <VaapiDevice>/dev/dri/renderD128</VaapiDevice>
   <QsvDevice />
-  <EnableTonemapping>false</EnableTonemapping>
+  <EnableTonemapping>true</EnableTonemapping>
   <EnableVppTonemapping>false</EnableVppTonemapping>
   <EnableVideoToolboxTonemapping>false</EnableVideoToolboxTonemapping>
   <TonemappingAlgorithm>bt2390</TonemappingAlgorithm>
