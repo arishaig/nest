@@ -24,6 +24,10 @@ on:
       # k8s.yml now pushes only flux-system/sops-age (every other Secret is
       # reconciled by Flux from k8s/**/*.sops.yaml). This forces a re-push,
       # e.g. after rotating the age key.
+      force_tofu:
+        description: 'Force OpenTofu apply (e.g. retry after a failed run when terraform/** is unchanged)'
+        type: boolean
+        default: false
       force_k8s:
         description: 'Force re-run the k8s playbook (pushes k8s Secrets)'
         type: boolean
@@ -477,7 +481,7 @@ jobs:
 
   deploy-tofu:
     needs: changes
-    if: needs.changes.outputs.tofu == 'true'
+    if: needs.changes.outputs.tofu == 'true' || inputs.force_tofu == true
     runs-on: self-hosted
     env:
       TF_PLUGIN_CACHE_DIR: /opt/terraform-plugin-cache
