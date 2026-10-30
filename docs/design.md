@@ -47,8 +47,8 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 |---|---|---|---|
 | 107 | homeassistant | 192.168.4.50 (VLAN 4) | Home Assistant OS |
 | 110 | talos-alpha | 192.168.1.110 | Talos Linux — k8s **worker** "alpha" (8 vCPU, 40 GB RAM) |
-| 113 | jumpbox | 192.168.1.22 (main LAN) + 192.168.8.250 (VLAN 8, no gateway) | Dual-homed diagnostics host for Cloud IoT devices; no forwarding, no inbound from VLAN 8, kept stopped when idle |
 | 112 | talos-alpha-control | 192.168.1.119 | Talos Linux — **sole k8s control plane** (2 vCPU, 4 GB); cluster API VIP 192.168.1.115 |
+| 113 | jumpbox | 192.168.1.22 (main LAN) + 192.168.8.2 (VLAN 8, no gateway) | Dual-homed diagnostics host for Cloud IoT devices; no forwarding, no inbound from VLAN 8, kept stopped when idle |
 | 500 | backup | 192.168.1.113 | Proxmox Backup Server |
 
 ### Raspberry Pi 5 k8s nodes (physical)

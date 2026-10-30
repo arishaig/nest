@@ -6,9 +6,22 @@
 - name: Jumpbox provisioning
   hosts: jumpboxes
   become: true
-  gather_facts: true
+  gather_facts: false
 
   tasks:
+    # No guest agent, so Terraform returns before cloud-init has finished
+    # bringing up networking and installing the SSH keys.
+    - name: Wait for the VM to accept SSH
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Wait for cloud-init to finish
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
     - name: Install tools
       ansible.builtin.apt:
         name:
@@ -31,7 +44,8 @@
           net.ipv4.conf.all.rp_filter = 1
           net.ipv4.conf.default.rp_filter = 1
           net.ipv4.conf.all.accept_redirects = 0
-          net.ipv6.conf.all.accept_ra = 0
+          net.ipv6.conf.all.disable_ipv6 = 1
+          net.ipv6.conf.default.disable_ipv6 = 1
       notify: Apply sysctl
 
     - name: Harden sshd (key-only, no root)

@@ -66,6 +66,9 @@ resource "proxmox_virtual_environment_vm" "jumpbox" {
     vlan_id = 8
   }
 
+  # Cloud images expect a serial console.
+  serial_device {}
+
   operating_system {
     type = "l26"
   }
@@ -80,11 +83,11 @@ resource "proxmox_virtual_environment_vm" "jumpbox" {
       }
     }
     # No gateway on VLAN 8: the box must not route via that zone.
-    # 192.168.8.250 sits outside the DHCP pool's usual low range; confirm it
-    # is unused before relying on it.
+    # .2 is below UniFi's default DHCP pool (.6+); confirm against the
+    # CheapSlop network's actual range.
     ip_config {
       ipv4 {
-        address = "192.168.8.250/24"
+        address = "192.168.8.2/24"
       }
     }
 
@@ -94,9 +97,12 @@ resource "proxmox_virtual_environment_vm" "jumpbox" {
 
     user_account {
       username = "debian"
+      # Hardcoded (public keys, same as playbooks/provision/common.yml): this VM is
+      # created by the CI runner, which has no ~/.ssh/*.pub to read, and an empty
+      # list would leave the box with no way to log in.
       keys = [
-        for k in ["~/.ssh/id_ed25519.pub", "~/.ssh/ansible-on-nest.pub"] :
-        trimspace(file(pathexpand(k))) if fileexists(pathexpand(k))
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBM7Y+b/BRai//GJ7Sczob/rX8ck3ArKGQP/jsR5OlWn isaac@isaaclaptop",
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMxOgEao2c+jTY4NdsEp46M9Fs8i1Yx6WiX42rUAXSJh ansible-on-nest",
       ]
     }
   }
