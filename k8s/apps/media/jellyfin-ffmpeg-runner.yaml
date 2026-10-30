@@ -38,6 +38,11 @@ spec:
     controllers:
       jellyfin-ffmpeg-runner:
         strategy: Recreate
+        # Changing the scratch PV's mountOptions does not roll pods; bump this to
+        # remount the volume with the new options.
+        pod:
+          annotations:
+            nest/scratch-mount-rev: "2"
         containers:
           app:
             image:
