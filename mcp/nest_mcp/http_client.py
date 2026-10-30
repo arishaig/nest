@@ -49,14 +49,20 @@ class UniFiSession:
         if csrf:
             self._client.headers.update({"x-csrf-token": csrf})
 
-    async def get(self, path: str, **kwargs) -> httpx.Response:
+    async def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
         client = await self._ensure_client()
-        resp = await client.get(path, **kwargs)
+        resp = await client.request(method, path, **kwargs)
         if resp.status_code == 401:
             await self._login()
-            resp = await client.get(path, **kwargs)
+            resp = await client.request(method, path, **kwargs)
         resp.raise_for_status()
         return resp
+
+    async def get(self, path: str, **kwargs) -> httpx.Response:
+        return await self._request("GET", path, **kwargs)
+
+    async def put(self, path: str, **kwargs) -> httpx.Response:
+        return await self._request("PUT", path, **kwargs)
 
     async def aclose(self) -> None:
         if self._client:

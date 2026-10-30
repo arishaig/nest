@@ -121,3 +121,113 @@ async def test_wlan_config_allowlists_fields_and_filters(monkeypatch):
 
     filtered = await tools["unifi_wlan_config"](name="nest")
     assert [w["name"] for w in filtered] == ["The Nest"]
+
+
+class WriteSession(FakeSession):
+    def __init__(self, routes):
+        super().__init__(routes)
+        self.puts = []
+
+    async def put(self, path, **kwargs):
+        self.puts.append((path, kwargs["json"]))
+        return httpx.Response(200, json={"meta": {"rc": "ok"}, "data": []})
+
+
+def _access_routes(members):
+    return {
+        "/proxy/network/v2/api/site/default/firewall/zones":
+            [{"_id": "zi", "name": "IoT"}, {"_id": "zx", "name": "External"}],
+        "/proxy/network/api/s/default/rest/networkconf":
+            {"data": [{"_id": "n4", "name": "IoT net", "firewall_zone_id": "zi"}]},
+        "/proxy/network/api/s/default/stat/sta": {"data": [
+            {"hostname": "LGwebOSTV", "ip": "192.168.4.172", "mac": "14:7F:67:CC:BA:32",
+             "network_id": "n4", "user_id": "u1", "essid": "x"},
+            {"hostname": "other", "ip": "192.168.4.9", "mac": "aa:bb:cc:dd:ee:ff", "network_id": "n4", "essid": "x"},
+        ]},
+        "/proxy/network/api/s/default/rest/firewallgroup": {"data": [
+            {"_id": "g1", "name": "No Internet", "group_type": "address-group", "group_members": members},
+            {"_id": "g2", "name": "Ports", "group_type": "port-group", "group_members": ["80"]},
+        ]},
+        "/proxy/network/v2/api/site/default/firewall-policies": [
+            {"name": "NTP", "enabled": True, "action": "ALLOW", "index": 1, "protocol": "udp",
+             "source": {"zone_id": "zi", "matching_target": "ANY"},
+             "destination": {"zone_id": "zx", "matching_target": "ANY", "port": "123"}},
+            {"name": "Block No Internet", "enabled": True, "action": "BLOCK", "index": 2, "protocol": "all",
+             "source": {"zone_id": "zi", "matching_target": "IP", "matching_target_type": "OBJECT", "ip_group_id": "g1"},
+             "destination": {"zone_id": "zx", "matching_target": "ANY"}},
+            {"name": "Allow IoT Internet", "enabled": True, "action": "ALLOW", "index": 3, "protocol": "all",
+             "source": {"zone_id": "zi", "matching_target": "ANY"},
+             "destination": {"zone_id": "zx", "matching_target": "ANY"}},
+        ],
+    }
+
+
+async def test_rules_resolve_ip_group_members(monkeypatch):
+    _patch(monkeypatch, _access_routes(["192.168.4.172"]))
+    rules = await load_tools(unifi)["unifi_firewall_rules"](name="block")
+    assert rules[0]["src"] == "group:No Internet [192.168.4.172]"
+
+
+async def test_firewall_groups_lists_usage(monkeypatch):
+    _patch(monkeypatch, _access_routes(["192.168.4.0/30"]))
+    out = await load_tools(unifi)["unifi_firewall_groups"](name="no int")
+    assert out == [{"name": "No Internet", "type": "address-group", "members": ["192.168.4.0/30"],
+                    "used_by": ["Block No Internet (source)"]}]
+
+
+async def test_internet_access_blocked_when_in_group(monkeypatch):
+    _patch(monkeypatch, _access_routes(["192.168.4.170-192.168.4.175"]))
+    out = await load_tools(unifi)["unifi_client_internet_access"]("lgwebostv")
+    assert out["verdict"] == "blocked" and out["decided_by"]["name"] == "Block No Internet"
+    assert [r["name"] for r in out["partial_rules_before"]] == ["NTP"]
+    assert out["zone"] == "IoT"
+
+
+async def test_internet_access_allowed_when_not_in_group(monkeypatch):
+    _patch(monkeypatch, _access_routes(["192.168.4.59"]))
+    out = await load_tools(unifi)["unifi_client_internet_access"]("14:7f:67:cc:ba:32")
+    assert out["verdict"] == "allowed" and out["decided_by"]["name"] == "Allow IoT Internet"
+
+
+async def test_internet_access_unknown_client(monkeypatch):
+    _patch(monkeypatch, _access_routes([]))
+    out = await load_tools(unifi)["unifi_client_internet_access"]("nope")
+    assert "no active client" in out["error"]
+
+
+async def test_group_member_preview_then_apply(monkeypatch):
+    sess = WriteSession(_access_routes(["192.168.4.59"]))
+    monkeypatch.setattr(unifi, "get_session", lambda: sess)
+    tool = load_tools(unifi)["unifi_firewall_group_member"]
+    preview = await tool("no internet", "192.168.4.172")
+    assert preview["applied"] is False and sess.puts == []
+    assert preview["resulting_members"] == ["192.168.4.59", "192.168.4.172"]
+    assert preview["used_by_rules"] == ["Block No Internet (BLOCK, on)"]
+    done = await tool("no internet", "192.168.4.172", apply=True)
+    assert done["applied"] is True
+    path, body = sess.puts[0]
+    assert path.endswith("/rest/firewallgroup/g1")
+    assert body["group_members"] == ["192.168.4.59", "192.168.4.172"] and body["name"] == "No Internet"
+
+
+async def test_group_member_remove_noop_and_rejections(monkeypatch):
+    sess = WriteSession(_access_routes(["192.168.4.59"]))
+    monkeypatch.setattr(unifi, "get_session", lambda: sess)
+    tool = load_tools(unifi)["unifi_firewall_group_member"]
+    assert "no change" in (await tool("No Internet", "192.168.4.1", remove=True, apply=True))["note"]
+    assert "not a valid" in (await tool("No Internet", "banana"))["error"]
+    assert "port-group" in (await tool("Ports", "192.168.4.1"))["error"]
+    assert "no firewall group" in (await tool("Nope", "192.168.4.1"))["error"]
+    assert sess.puts == []
+
+
+async def test_set_fixed_ip(monkeypatch):
+    sess = WriteSession(_access_routes([]))
+    monkeypatch.setattr(unifi, "get_session", lambda: sess)
+    tool = load_tools(unifi)["unifi_set_fixed_ip"]
+    assert (await tool("lgwebostv"))["applied"] is False and sess.puts == []
+    assert "in use by other" in (await tool("lgwebostv", ip="192.168.4.9"))["error"]
+    assert (await tool("lgwebostv", apply=True))["applied"] is True
+    path, body = sess.puts[0]
+    assert path.endswith("/rest/user/u1")
+    assert body == {"use_fixedip": True, "fixed_ip": "192.168.4.172", "network_id": "n4"}
