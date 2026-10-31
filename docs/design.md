@@ -48,7 +48,7 @@ The Pi lives on VLAN 7. PVE and all LXCs are on the main LAN (192.168.1.x). Home
 | 107 | homeassistant | 192.168.4.50 (VLAN 4) | Home Assistant OS |
 | 110 | talos-alpha | 192.168.1.110 | Talos Linux — k8s **worker** "alpha" (8 vCPU, 40 GB RAM) |
 | 112 | talos-alpha-control | 192.168.1.119 | Talos Linux — **sole k8s control plane** (2 vCPU, 4 GB); cluster API VIP 192.168.1.115 |
-| 113 | jumpbox | 192.168.1.22 (main LAN) + 192.168.8.2 (VLAN 8, no gateway) | Dual-homed diagnostics host for Cloud IoT devices; no forwarding, no inbound from VLAN 8, kept stopped when idle |
+| 113 | jumpbox | 192.168.1.22 (main LAN) + 192.168.8.2 (VLAN 6, no gateway) | Dual-homed diagnostics host for Cloud IoT devices; no forwarding, no inbound from VLAN 6, kept stopped when idle |
 | 500 | backup | 192.168.1.113 | Proxmox Backup Server |
 
 ### Raspberry Pi 5 k8s nodes (physical)
@@ -106,9 +106,9 @@ them live. Networks are referred to here by VLAN and role, not SSID.
 | Work (VLAN 3) | 192.168.3.0/24 | Work devices | Internet, gateway, AdGuard DNS |
 | IoT (VLAN 4) | 192.168.4.0/24 | Home Assistant, ESPHome devices, speakers, TV | Per-device groups: internet / local-only / none; may reach Main LAN monitoring; DNS via gateway (encrypted DNS only to Infra) |
 | Infra (VLAN 7) | 192.168.7.0/24 | Primary/secondary AdGuard | Internet; may reach Main LAN monitoring |
-| Cloud IoT (VLAN 8) | 192.168.8.0/24 | Cloud-dependent consumer devices that won't onboard on the IoT SSID | Internet only; no rules to any other zone |
+| Cloud IoT (VLAN 6) | 192.168.8.0/24 | Cloud-dependent consumer devices that won't onboard on the IoT SSID | Internet only; no rules to any other zone |
 
-**Cloud IoT (VLAN 8)** has its own zone, network and SSID. It exists because cheap
+**Cloud IoT (VLAN 6)** has its own zone, network and SSID. It exists because cheap
 cloud-onboarded devices fail to pair on the IoT SSID and report it as "wrong password".
 Its SSID uses the lowest-common-denominator settings: 2.4 GHz only, WPA2-only, PMF
 disabled, and an alphanumeric SSID and passphrase. Known failure modes: WPA2/WPA3
