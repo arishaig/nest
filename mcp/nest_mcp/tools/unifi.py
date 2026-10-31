@@ -285,6 +285,76 @@ def register(mcp: MCPServer) -> None:
         ]
 
     @mcp.tool()
+    async def unifi_switch_ports(device: str = "", port: int = 0) -> list[dict]:
+        """Per-port config and link state for UniFi switches: profile, native network,
+        which VLANs are tagged, speed, PoE. Use it to debug "VLAN X doesn't reach this port".
+
+        device: case-insensitive substring of switch name or MAC; empty = all switches.
+        port: only this port index (0 = all ports).
+        `tagged` is "all" (every VLAN passes), "none", or the list of tagged networks
+        (VLAN IDs resolved from the network config)."""
+        session = get_session()
+        dev_resp = await session.get("/proxy/network/api/s/default/stat/device")
+        profiles = {
+            p["_id"]: p
+            for p in (await _fetch_json(session, "/proxy/network/api/s/default/rest/portconf") or {}).get("data", [])
+            if "_id" in p
+        }
+        nets = {
+            n["_id"]: n
+            for n in (await _fetch_json(session, "/proxy/network/api/s/default/rest/networkconf") or {}).get("data", [])
+            if "_id" in n
+        }
+
+        def net_label(nid: str) -> str:
+            n = nets.get(nid, {})
+            vlan = n.get("vlan")
+            name = n.get("name", nid)
+            return f"{name} (VLAN {vlan})" if vlan else name
+
+        needle = device.lower()
+        out: list[dict] = []
+        for d in sorted(dev_resp.json().get("data", []), key=lambda x: x.get("name", "")):
+            ports = d.get("port_table")
+            if not ports:
+                continue
+            name = d.get("name", d.get("hostname", ""))
+            if needle and needle not in name.lower() and needle not in d.get("mac", "").lower():
+                continue
+            for pt in ports:
+                if port and pt.get("port_idx") != port:
+                    continue
+                prof = profiles.get(pt.get("portconf_id", ""), {})
+                # Effective values: the port entry wins over the profile it references.
+                forward = pt.get("forward", prof.get("forward", ""))
+                mgmt = pt.get("tagged_vlan_mgmt", prof.get("tagged_vlan_mgmt", ""))
+                native_id = pt.get("native_networkconf_id", prof.get("native_networkconf_id", ""))
+                excluded = set(pt.get("excluded_networkconf_ids", prof.get("excluded_networkconf_ids", [])) or [])
+                if forward == "all" or mgmt == "auto":
+                    tagged: str | list[str] = "all"
+                elif forward in ("native", "disabled") or mgmt == "block_all":
+                    tagged = "none"
+                else:
+                    tagged = sorted(
+                        net_label(i) for i in nets if i not in excluded and i != native_id
+                    )
+                out.append({
+                    "device": name,
+                    "port": pt.get("port_idx"),
+                    "name": pt.get("name", ""),
+                    "up": pt.get("up", False),
+                    "speed_mbps": pt.get("speed", 0),
+                    "profile": prof.get("name", pt.get("portconf_id", "")),
+                    "forward": forward,
+                    "tagged_vlan_mgmt": mgmt,
+                    "native": net_label(native_id) if native_id else "",
+                    "tagged": tagged,
+                    "poe": pt.get("poe_enable", False),
+                    "is_uplink": pt.get("is_uplink", False),
+                })
+        return out
+
+    @mcp.tool()
     async def unifi_network_stats() -> dict:
         """Get UniFi WAN uplink status, client counts, and current throughput."""
         session = get_session()

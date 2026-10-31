@@ -46,6 +46,34 @@ async def test_devices(monkeypatch):
     assert out[0]["firmware"] == "6.0" and out[0]["num_sta"] == 3
 
 
+async def test_switch_ports(monkeypatch):
+    _patch(monkeypatch, {
+        "/proxy/network/api/s/default/stat/device": {"data": [
+            {"name": "sw", "mac": "aa:bb", "port_table": [
+                {"port_idx": 1, "up": True, "speed": 10000, "portconf_id": "p1"},
+                {"port_idx": 3, "up": True, "speed": 1000, "portconf_id": "p2"},
+            ]},
+            {"name": "ap", "mac": "cc:dd"},  # no port_table -> skipped
+        ]},
+        "/proxy/network/api/s/default/rest/portconf": {"data": [
+            {"_id": "p1", "name": "All", "forward": "all", "native_networkconf_id": "n1"},
+            {"_id": "p2", "name": "Custom", "forward": "customize", "tagged_vlan_mgmt": "custom",
+             "native_networkconf_id": "n1", "excluded_networkconf_ids": ["n8"]},
+        ]},
+        "/proxy/network/api/s/default/rest/networkconf": {"data": [
+            {"_id": "n1", "name": "LAN"},
+            {"_id": "n4", "name": "IoT", "vlan": 4},
+            {"_id": "n8", "name": "CheapSlop", "vlan": 8},
+        ]},
+    })
+    out = await load_tools(unifi)["unifi_switch_ports"]()
+    assert [p["port"] for p in out] == [1, 3]
+    assert out[0]["tagged"] == "all" and out[0]["native"] == "LAN"
+    assert out[1]["tagged"] == ["IoT (VLAN 4)"]  # CheapSlop excluded, native omitted
+    one = await load_tools(unifi)["unifi_switch_ports"](device="AA:BB", port=3)
+    assert len(one) == 1 and one[0]["profile"] == "Custom"
+
+
 async def test_network_stats(monkeypatch):
     _patch(monkeypatch, {"/proxy/network/api/s/default/stat/health": {"data": [
         {"subsystem": "wan", "status": "ok", "num_user": 10, "wan_ip": "1.2.3.4"},
