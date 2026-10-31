@@ -1,7 +1,7 @@
-# Provision VM 113: jumpbox (dual-homed: main LAN + Cloud IoT VLAN 8)
+# Provision VM 113: jumpbox (dual-homed: main LAN + Cloud IoT VLAN 6)
 # Self-contained — common.yml targets LXCs and is not used here.
 # The host bridges two security zones, so the baseline is: never forward,
-# never accept anything that arrived from VLAN 8, SSH from the main LAN only.
+# never accept anything that arrived from VLAN 6, SSH from the main LAN only.
 
 - name: Jumpbox provisioning
   hosts: jumpboxes

@@ -1,8 +1,8 @@
 # ──────────────────────────────────────────────
-# VM 113: jumpbox — Cloud IoT (VLAN 8) diagnostics
+# VM 113: jumpbox — Cloud IoT (VLAN 6) diagnostics
 # ──────────────────────────────────────────────
 # Dual-homed on purpose: net0 on the main LAN (SSH in, apt out), net1 on
-# VLAN 8 so it shares an L2 with the cloud IoT devices and needs no UniFi
+# VLAN 6 so it shares an L2 with the cloud IoT devices and needs no UniFi
 # rule between zones. It is the one host that touches both networks, so it
 # does not forward (playbooks/provision/jumpbox.yml) and is meant to sit
 # stopped except while in use. `started` is ignored below so a later apply
@@ -23,7 +23,7 @@ resource "proxmox_virtual_environment_vm" "jumpbox" {
   node_name   = var.pve_node
   vm_id       = 113
   name        = "jumpbox"
-  description = "Dual-homed diagnostics host for Cloud IoT (VLAN 8). Keep stopped when idle."
+  description = "Dual-homed diagnostics host for Cloud IoT (VLAN 6). Keep stopped when idle."
   tags        = ["jumpbox", "iot"]
 
   on_boot = false
@@ -60,10 +60,10 @@ resource "proxmox_virtual_environment_vm" "jumpbox" {
     bridge = "vmbr0"
   }
 
-  # net1 → Cloud IoT (VLAN 8)
+  # net1 → Cloud IoT (VLAN 6)
   network_device {
     bridge  = "vmbr0"
-    vlan_id = 8
+    vlan_id = 6
   }
 
   # Cloud images expect a serial console.
@@ -82,7 +82,7 @@ resource "proxmox_virtual_environment_vm" "jumpbox" {
         gateway = var.gateway
       }
     }
-    # No gateway on VLAN 8: the box must not route via that zone.
+    # No gateway on VLAN 6: the box must not route via that zone.
     # .2 is below UniFi's default DHCP pool (.6+); confirm against the
     # CheapSlop network's actual range.
     ip_config {
