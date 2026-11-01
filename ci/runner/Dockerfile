@@ -41,7 +41,7 @@ ARG TALOSCTL_VERSION=1.14.4
 ARG FLUX_LOCAL_VERSION=7.11.0
 # flux CLI — flux-local 7.x shells out to `flux build ks` to build Flux
 # Kustomizations. Pinned to the version the cluster bootstraps. renovate: datasource=github-releases depName=fluxcd/flux2
-ARG FLUX_VERSION=2.9.6
+ARG FLUX_VERSION=2.10.0
 # sops + age decrypt the SOPS-encrypted secrets (docs/secrets.md) for the
 # ansible/tofu jobs. renovate: datasource=github-releases depName=getsops/sops
 ARG SOPS_VERSION=3.13.3
