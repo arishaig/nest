@@ -25,7 +25,7 @@
     opentofu_version: "1.13.2"
     prometheus_version: "3.15.1"
     alertmanager_version: "0.34.1"
-    kubectl_version: "1.37.1"
+    kubectl_version: "1.37.2"
     kustomize_version: "5.8.3"
     kubeconform_version: "0.8.0"
     # helm/talosctl/flux-local back the helm-render and talos-config-validate
