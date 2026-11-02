@@ -13,7 +13,7 @@ meshcore-bridge = "meshcore_bridge.main:serve"
 
 [project.optional-dependencies]
 test = [
-    "pytest==9.1.1",
+    "pytest==9.2.0",
 ]
 
 [build-system]
