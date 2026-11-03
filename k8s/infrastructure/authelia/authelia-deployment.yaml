@@ -18,7 +18,7 @@ spec:
         # configuration.yml is mounted by subPath, so Authelia never sees a
         # changed Secret on its own. Bump this when authelia-config changes
         # (e.g. a new OIDC client) to roll the pod through GitOps.
-        nest.arishaig.site/config-rev: "2026-11-03-mailpit-notifier"
+        nest.arishaig.site/config-rev: "2026-11-03-ldap-backend"
     spec:
       enableServiceLinks: false
       containers:

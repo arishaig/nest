@@ -9,9 +9,25 @@ telemetry:
 log:
   level: info
 
+# Users and groups live in LLDAP (lldap-deployment.yaml). To fall back to the
+# old file backend, restore:
+#   file:
+#     path: /etc/authelia/users_database.yml
+# (the authelia-users ConfigMap is still rendered and mounted for that).
+# The bind account has LLDAP's lldap_password_manager role so Authelia can
+# write password changes and resets; it cannot touch lldap_admin members.
 authentication_backend:
-  file:
-    path: /etc/authelia/users_database.yml
+  refresh_interval: '1m'
+  ldap:
+    implementation: 'lldap'
+    address: 'ldap://lldap.authelia.svc.cluster.local:3890'
+    base_dn: 'DC=arishaig,DC=site'
+    user: 'UID=authelia,OU=people,DC=arishaig,DC=site'
+    password: '{{ lldap_authelia_bind_password }}'
+  password_reset:
+    disable: false
+  password_change:
+    disable: false
 
 session:
   expiration: 12h
