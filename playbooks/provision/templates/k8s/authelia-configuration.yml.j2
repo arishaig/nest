@@ -31,11 +31,36 @@ storage:
   # encryption_key is passed via AUTHELIA_STORAGE_ENCRYPTION_KEY env var
 
 access_control:
-  default_policy: two_factor
+  # Deny by default: a host matching no rule below is refused.
+  default_policy: deny
   rules:
     # Jellyfin bypasses Authelia — uses its own auth
     - domain: jellyfin.arishaig.site
       policy: bypass
+    # Apps regular (group "users") accounts may open. Admins keep 2FA; users
+    # are password-only (no SMTP, so they cannot enrol a 2FA device). Admin
+    # rule first: the first match wins.
+    - domain:
+        - globe.arishaig.site
+        - mealie.arishaig.site
+        - storyteller.arishaig.site
+        - kiwix.arishaig.site
+        - watchback.arishaig.site
+      policy: two_factor
+      subject: 'group:admins'
+    - domain:
+        - globe.arishaig.site
+        - mealie.arishaig.site
+        - storyteller.arishaig.site
+        - kiwix.arishaig.site
+        - watchback.arishaig.site
+      policy: one_factor
+      subject: 'group:users'
+    # Everything else (Sonarr, Radarr, Proxmox, ...) is admins-only, including
+    # services added later.
+    - domain: '*.arishaig.site'
+      policy: two_factor
+      subject: 'group:admins'
 
 regulation:
   max_retries: 5
@@ -50,6 +75,19 @@ notifier:
 
 identity_providers:
   oidc:
+    authorization_policies:
+      admins_only:
+        default_policy: deny
+        rules:
+          - policy: one_factor
+            subject: 'group:admins'
+      users_and_admins:
+        default_policy: deny
+        rules:
+          - policy: one_factor
+            subject:
+              - 'group:users'
+              - 'group:admins'
     hmac_secret: '{{ authelia_oidc_hmac_secret }}'
     jwks:
       - key_id: 'main'
@@ -85,7 +123,7 @@ identity_providers:
         response_types:
           - code
         pkce_challenge_method: S256
-        authorization_policy: one_factor
+        authorization_policy: 'admins_only'
         token_endpoint_auth_method: client_secret_post
         audience:
           - 'https://mcp.arishaig.site'
@@ -108,7 +146,7 @@ identity_providers:
         response_types:
           - code
         pkce_challenge_method: S256
-        authorization_policy: one_factor
+        authorization_policy: 'admins_only'
         token_endpoint_auth_method: client_secret_post
         audience:
           - 'https://globe-mcp.arishaig.site'
@@ -127,7 +165,7 @@ identity_providers:
           - authorization_code
         response_types:
           - code
-        authorization_policy: one_factor
+        authorization_policy: 'users_and_admins'
         token_endpoint_auth_method: client_secret_basic
       - client_id: 'storyteller'
         client_name: 'Storyteller'
@@ -142,5 +180,5 @@ identity_providers:
           - authorization_code
         response_types:
           - code
-        authorization_policy: one_factor
+        authorization_policy: 'users_and_admins'
         token_endpoint_auth_method: client_secret_basic
