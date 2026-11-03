@@ -42,6 +42,14 @@ spec:
               POSTGRES_DB: dispatcharr
               REDIS_HOST: dispatcharr-redis
               REDIS_PORT: "6379"
+              # Reverse proxy auth (Settings -> Reverse Proxy Auth, header
+              # Remote-User) only honors peers listed here, and only when set
+              # explicitly. Traefik reaches the pod from its own pod IP, which
+              # is not stable, so trust the pod CIDR (same as gods-eye-view).
+              # Loopback is left out on purpose: nginx inside the container
+              # proxies some paths via 127.0.0.1 and passes client headers
+              # through, so trusting it would let anyone assert Remote-User.
+              DISPATCHARR_TRUSTED_PROXIES: 10.244.0.0/16
             envFrom: &envFrom
               - secretRef:
                   name: dispatcharr-postgres-secret

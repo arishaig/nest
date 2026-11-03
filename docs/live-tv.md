@@ -7,7 +7,8 @@ public feeds and Jellyfin: it merges and filters channels and serves one stable
 M3U + XMLTV pair. Jellyfin does the recording.
 
 Manifest: `k8s/apps/media/dispatcharr.yaml`, UI at `dispatcharr.arishaig.site`
-(`local-only`). Jellyfin reaches it in-cluster at `dispatcharr-main:9191`.
+(`local-only` + Authelia, which signs admins in through Dispatcharr's
+Reverse Proxy Auth on `Remote-User`). Jellyfin reaches it in-cluster at `dispatcharr-main:9191`.
 
 ## Layout
 
