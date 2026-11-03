@@ -1,0 +1,19 @@
+# Holds one-time codes and password-reset links: admins only (the
+# *.arishaig.site catch-all rule), never routed without the Authelia middleware.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: mailpit
+  namespace: authelia
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`mailpit.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: mailpit
+          port: 8025
+  tls: {}
