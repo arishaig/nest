@@ -1,0 +1,19 @@
+# Admin UI for the Authelia user store. Behind Authelia, so only group admins
+# reach it (the *.arishaig.site catch-all rule).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: lldap
+  namespace: authelia
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: "Host(`lldap.arishaig.site`)"
+      kind: Rule
+      middlewares:
+        - name: authelia
+          namespace: traefik
+      services:
+        - name: lldap
+          port: 17170
+  tls: {}
