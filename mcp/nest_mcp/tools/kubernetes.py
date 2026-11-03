@@ -13,6 +13,12 @@ from nest_mcp import config
 _K8S_NAME_RE = re.compile(r"^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$")
 
 
+def _verify() -> str | bool:
+    """CA bundle for the API server: the in-pod service-account CA by default."""
+    ca = config.kubernetes.ca_file
+    return ca if ca and os.path.exists(ca) else True
+
+
 def _client() -> httpx.AsyncClient:
     token = os.environ.get("NEST_K8S_TOKEN") or config.kubernetes.token
     headers = {}
@@ -21,10 +27,9 @@ def _client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         base_url=config.kubernetes.api_url,
         headers=headers,
-        # Talos API VIP is a raw internal IP signed by the cluster's own CA,
-        # not a publicly trusted one — same situation as Proxmox/AdGuard/UniFi
-        # below, all of which also run with verify_tls off.
-        verify=False,
+        # The API cert is signed by the cluster's own CA (it covers the VIP as a
+        # SAN). Verify against that CA rather than disabling TLS checks.
+        verify=_verify(),
         timeout=15,
     )
 

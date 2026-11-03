@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import os
 import re
 import signal
@@ -251,16 +252,12 @@ async def _capture(url: str, seconds: int) -> dict:
     except asyncio.TimeoutError:
         timed_out = True
     except asyncio.IncompleteReadError:
-        pass
+        pass  # stream ended early: keep the frames read so far
     finally:
-        try:
+        with contextlib.suppress(ProcessLookupError):
             os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        try:
+        with contextlib.suppress(asyncio.TimeoutError):
             await asyncio.wait_for(proc.wait(), 3)
-        except asyncio.TimeoutError:
-            pass
     try:
         stderr = (await asyncio.wait_for(err_task, 3)).decode(errors="replace")
     except asyncio.TimeoutError:
