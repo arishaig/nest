@@ -165,6 +165,8 @@ class KubernetesSettings(BaseSettings):
     # API VIP (6443 only — not a scrape target). Token from k8s_mcp_sa_token vault var.
     api_url: str = "https://192.168.1.115:6443"
     token: str = ""
+    # Cluster CA; this path is mounted into every pod. Override with NEST_K8S_CA_FILE.
+    ca_file: str = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
 
 proxmox = ProxmoxSettings()

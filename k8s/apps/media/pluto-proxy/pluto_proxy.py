@@ -218,7 +218,7 @@ class Handler(BaseHTTPRequestHandler):
             if kind == "body":
                 return self.reply(200, value.encode(), "application/vnd.apple.mpegurl")
             return self.reply(302, headers={"Location": value})
-        self.reply(404, b"not found\n")
+        return self.reply(404, b"not found\n")
 
 
 def watch_script(path, interval=30, exit_fn=None):
