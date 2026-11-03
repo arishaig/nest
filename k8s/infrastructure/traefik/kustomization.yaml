@@ -10,3 +10,4 @@ resources:
   - wildcard-certificate.yaml
   - ingress-routes-infra.yaml
   - service.yaml
+  - service-pods.yaml

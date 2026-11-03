@@ -1,0 +1,16 @@
+# Headless Service: DNS returns the Traefik pod IPs. Apps that do forward auth
+# with a trusted-proxy check by hostname (WatchBack's "trusted host") use
+# traefik-pods.traefik.svc.cluster.local, so only Traefik is believed.
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik-pods
+  namespace: traefik
+spec:
+  clusterIP: None
+  selector:
+    app: traefik
+  ports:
+    - name: websecure
+      port: 443
+      targetPort: websecure
