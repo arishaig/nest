@@ -329,6 +329,19 @@ spec:
   tls: {}
 ---
 apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-remote-auth-headers
+  namespace: media
+spec:
+  headers:
+    customRequestHeaders:
+      Remote-User: ""
+      Remote-Groups: ""
+      Remote-Email: ""
+      Remote-Name: ""
+---
+apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: watchback
@@ -336,8 +349,14 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
+    # /mcp skips Authelia (it has its own API keys). WatchBack also accepts
+    # forward-auth identity from Remote-User, so strip any client-supplied
+    # Remote-* header here; on the Authelia-gated rule below Authelia
+    # overwrites them.
     - match: "Host(`watchback.arishaig.site`) && PathPrefix(`/mcp`)"
       kind: Rule
+      middlewares:
+        - name: strip-remote-auth-headers
       services:
         - name: watchback
           port: 8484

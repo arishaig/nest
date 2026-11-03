@@ -55,6 +55,10 @@ spec:
               OIDC_CONFIGURATION_URL: https://auth.arishaig.site/.well-known/openid-configuration
               OIDC_CLIENT_ID: mealie
               OIDC_PROVIDER_NAME: Authelia
+              # Members of the Authelia "admins" group become Mealie admins; everyone
+              # else is a basic user. No OIDC_USER_GROUP: Authelia already decides who
+              # gets in, and that setting would also lock out admins not in it.
+              OIDC_ADMIN_GROUP: admins
               OIDC_AUTO_REDIRECT: "false"
               OIDC_SIGNING_ALGORITHM: RS256
               OIDC_CLIENT_SECRET:
