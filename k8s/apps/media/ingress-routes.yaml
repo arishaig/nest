@@ -399,8 +399,13 @@ spec:
   routes:
     - match: "Host(`dispatcharr.arishaig.site`)"
       kind: Rule
+      # Authelia signs admins in via Dispatcharr's Reverse Proxy Auth
+      # (Remote-User). Authelia overwrites any client-sent Remote-* header.
+      # Jellyfin and nest-mcp use dispatcharr-main in-cluster, not this host.
       middlewares:
         - name: local-only
+          namespace: traefik
+        - name: authelia
           namespace: traefik
       services:
         - name: dispatcharr-main
