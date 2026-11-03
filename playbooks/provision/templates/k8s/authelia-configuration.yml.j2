@@ -69,9 +69,16 @@ regulation:
 
 theme: 'dark'
 
+# Mailpit (mailpit-deployment.yaml) is a local sink: codes and reset links are
+# read in its admin-only UI and relayed by hand. No mail leaves the cluster.
+# The startup check is off so a down Mailpit can never stop Authelia booting
+# (and with it every forward-auth route).
 notifier:
-  filesystem:
-    filename: /config/notification.txt
+  disable_startup_check: true
+  smtp:
+    address: 'smtp://mailpit.authelia.svc.cluster.local:1025'
+    sender: 'Authelia <authelia@arishaig.site>'
+    disable_require_tls: true
 
 identity_providers:
   oidc:

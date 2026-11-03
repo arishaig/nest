@@ -1,0 +1,44 @@
+# Mailpit: a local SMTP sink for Authelia's notifier. Nothing is delivered
+# anywhere; the admin reads one-time codes and reset links in the web UI
+# (mailpit.arishaig.site, admins-only) and relays them to the user. Messages
+# live in memory only, so a restart drops them (they expire in minutes anyway).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+  namespace: authelia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mailpit
+  template:
+    metadata:
+      labels:
+        app: mailpit
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: mailpit
+          image: axllent/mailpit:v1.33.0
+          ports:
+            - containerPort: 1025
+            - containerPort: 8025
+          env:
+            - name: MP_MAX_MESSAGES
+              value: "200"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          livenessProbe:
+            tcpSocket:
+              port: 8025
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: 1025
+            periodSeconds: 10
