@@ -1,0 +1,63 @@
+# LLDAP: the user/group store behind Authelia.
+# Only the web UI is routed (lldap-ingress-route.yaml); LDAP (3890) is
+# reachable only inside the cluster, by Authelia.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lldap
+  namespace: authelia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lldap
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: lldap
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: lldap
+          image: lldap/lldap:v0.6.3-alpine
+          ports:
+            - containerPort: 3890
+            - containerPort: 17170
+          env:
+            - name: TZ
+              value: UTC
+            - name: LLDAP_LDAP_BASE_DN
+              value: dc=arishaig,dc=site
+            - name: LLDAP_HTTP_URL
+              value: https://lldap.arishaig.site
+          envFrom:
+            - secretRef:
+                name: lldap-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          livenessProbe:
+            tcpSocket:
+              port: 17170
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 4
+          readinessProbe:
+            tcpSocket:
+              port: 17170
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: lldap-data
