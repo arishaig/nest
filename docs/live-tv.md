@@ -79,8 +79,9 @@ package). It keeps no state:
   segments keep their own timestamps within each discontinuity run.
 - `PLUTO_DEBUG=1` (env) logs every segment's placement (run, date, source
   start, output start).
-- **Ads are replaced** (any segment whose URL contains `_ad/creative/`;
-  Pluto's own bumpers are kept) by a clip from the breaks folder (below), or
+- **Ads are replaced** (segments whose URL contains `/creative/` or the
+  repackaged-ad marker `id3(p=clik`, plus Pluto's "ad break" bumper
+  animations; channel idents such as "you're watching" bumpers are kept) by a clip from the breaks folder (below), or
   black and silence when there is none.
 - **Ad-break clips** live in `/data/media/live-tv-breaks` on the NAS
   (mounted read-only at `/breaks`, `BREAKS_DIR`). Each break picks one clip

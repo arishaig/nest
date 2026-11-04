@@ -22,7 +22,7 @@ profile) fixes its output streams at startup, so when the layout changes the
 streams it mapped starve and the channel stalls at every ad break. Each segment
 is therefore decrypted and copy-remuxed into one fixed layout: video on PID
 0x100, audio on 0x101, nothing else, timestamps unchanged. Ad segments
-(`_ad/creative/` in the URL) are replaced with a black, silent segment of the
+(AD_RE: ad creatives and Pluto's ad-break bumpers) are replaced with a black, silent segment of the
 same length, at the same timestamps, or with a slice of a clip from
 BREAKS_DIR (one picked per break, looped).
 
@@ -56,7 +56,13 @@ FFMPEG = os.environ.get("FFMPEG", "ffmpeg")
 FFPROBE = os.environ.get("FFPROBE", "ffprobe")
 CLIENT_ID = str(uuid.uuid4())
 ID_RE = re.compile(r"^[0-9a-f]{24}$")
-AD_RE = re.compile(r"_ad/creative/")
+# Ads: raw creatives (`.../N_ad/creative/<id>_ad/...` or
+# `.../creative/N_ad/<id>_ad/...`), creatives Pluto repackages as TS on
+# the fly (`/mp4/v1/...id3(p=clik,...)`: about 3 in 10 ad segments, and the
+# path then has no `_ad/creative/`), and Pluto's "ad break" bumper animations.
+# Surveyed 2026-11-04 over all 456 channels: every repackaged segment carried
+# p=clik and was an ad; shows come from /live/ or plain .../clip/ HLS.
+AD_RE = re.compile(r"/creative/|[0-9a-f]{24}_ad/|id3\(p=clik[,)]|ad_?bumper", re.I)
 VIDEO_PID, AUDIO_PID = 0x100, 0x101
 # Used for a slate when neither the show nor the ad says otherwise.
 DEFAULT_VIDEO = {"width": 1280, "height": 720, "fps": "30/1"}
