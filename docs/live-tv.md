@@ -50,11 +50,17 @@ package). It keeps no state:
 - `/playlist.m3u`: ~430 channels; `tvg-id` is Pluto's channel id. The channel
   list and its session refresh every 6h; the last good copy is served if Pluto
   is unreachable.
-- `/ch/<id>.m3u8`: a one-variant master playlist (best quality, plus the
-  original audio when it is a separate rendition; never the audio-description
-  or subtitle tracks), whose media playlists and segments are served by the
-  proxy itself under `/s/<key>/`. `MAX_BANDWIDTH` (bits/s, default unlimited)
-  caps the quality pick.
+- `/ch/<id>.m3u8`: a one-variant master playlist (best quality, never the
+  audio-description or subtitle tracks) whose media playlist and segments are
+  served by the proxy itself under `/s/<key>/`. `MAX_BANDWIDTH` (bits/s,
+  default unlimited) caps the quality pick.
+- **Separate audio is merged in.** About half of Pluto's channels carry the
+  original audio as its own rendition. Served as two playlists, ffmpeg's HLS
+  reader can starve one of them (on 2026-11-04 it read no audio for 90 s
+  through an ad break, then skipped ahead: a black picture over the show's
+  sound, then a freeze). So the proxy always serves one playlist and puts the
+  matching audio segment (by `PROGRAM-DATE-TIME`) into each video segment; if
+  Pluto's audio segment isn't there yet, that segment is silent.
 - **One Pluto session per stream.** Pluto plays one stream per session: a
   second stream on the same session ends the first (its playlist turns empty
   with `EXT-X-ENDLIST`; Dispatcharr then sees "Server closed connection" and
@@ -69,7 +75,10 @@ package). It keeps no state:
   streams starve and the channel stalls; with separate audio the jump is also
   absorbed differently per track. The proxy outputs one fixed layout (video
   PID 0x100, audio 0x101, nothing else) on one continuous timeline, placed
-  by Pluto's `PROGRAM-DATE-TIME` (shared by the video and audio playlists).
+  by Pluto's `PROGRAM-DATE-TIME`. Ad slates are placed by date alone; show
+  segments keep their own timestamps within each discontinuity run.
+- `PLUTO_DEBUG=1` (env) logs every segment's placement (run, date, source
+  start, output start).
 - **Ads are replaced** by black, silent segments of the same length (any
   segment whose URL contains `_ad/creative/`; Pluto's own bumpers are kept).
 - Cost: the proxy is in the video path, about 3 Mbit/s and one ffprobe plus

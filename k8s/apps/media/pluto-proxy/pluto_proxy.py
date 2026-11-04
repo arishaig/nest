@@ -6,12 +6,13 @@ boot API, so there is no static playlist. This serves:
 
   /playlist.m3u            channels as an M3U; tvg-id is Pluto's channel id,
                            which is also the id in i.mjh.nz's PlutoTV/us.xml guide
-  /ch/<id>.m3u8            a one-variant master (best quality, plus the original
-                           audio when it is a separate rendition) whose media
-                           playlists are served from here
-  /s/<key>/<t>.m3u8        Pluto's media playlist (t = v video, a audio) with
-                           every segment pointed back here
-  /s/<key>/<t>/<seq>.ts    one segment, normalised (below)
+  /ch/<id>.m3u8            a one-variant master (best quality) whose media
+                           playlist is served from here
+  /s/<key>/v.m3u8          Pluto's media playlist with every segment pointed
+                           back here
+  /s/<key>/v/<seq>.ts      one segment, normalised (below); where Pluto's
+                           original audio is a separate rendition (about half
+                           the channels) it is merged into each segment
   /healthz                 200 once a session and channel list are loaded
 
 Why every segment goes through here: Pluto's segments do not share a stream
@@ -59,6 +60,8 @@ VIDEO_PID, AUDIO_PID = 0x100, 0x101
 DEFAULT_VIDEO = {"width": 1280, "height": 720, "fps": "30/1"}
 DEFAULT_AUDIO = {"sample_rate": 48000, "channels": 2}
 TIMELINE_START = 10.0  # output seconds at the first segment's date
+RUN_MATCH = 2.0        # s: video and audio runs this close in date are the same run
+DEBUG = os.environ.get("PLUTO_DEBUG") == "1"  # log every segment's placement
 SEGMENTS_KEPT = 60     # per track: a few playlist windows
 BUILT_KEPT = 3         # per track: finished segments kept for retried requests (~2 MB each)
 
@@ -196,12 +199,12 @@ def pick_renditions(master, base_url, max_bw=0):
     return bw, video, audio
 
 
-def master_playlist(key, bandwidth, has_audio_track):
-    if has_audio_track:
-        return ("#EXTM3U\n"
-                '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="Original",DEFAULT=YES,AUTOSELECT=YES,'
-                'URI="/s/%s/a.m3u8"\n'
-                '#EXT-X-STREAM-INF:BANDWIDTH=%d,AUDIO="audio"\n/s/%s/v.m3u8\n') % (key, bandwidth, key)
+def master_playlist(key, bandwidth):
+    """Always one variant with muxed audio, even where Pluto's audio is a
+    separate rendition: the proxy merges it into each segment. With two
+    playlists, ffmpeg's HLS reader can starve one of them (it stopped reading
+    audio for 90 s through an ad break and then skipped ahead), which showed as
+    a black picture over the show's sound and then a freeze."""
     return "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=%d\n/s/%s/v.m3u8\n" % (bandwidth, key)
 
 
@@ -314,12 +317,13 @@ def _fps(rate):
         return None
 
 
-def source_args(key):
-    """(input options, input URL) for a segment arriving on stdin, decrypted
-    by ffmpeg's crypto protocol when the segment is AES-128."""
+def source_args(key, fd=0):
+    """(input options, input URL) for a segment arriving on file descriptor
+    fd (stdin by default), decrypted by ffmpeg's crypto protocol when the
+    segment is AES-128."""
     if key:
-        return ["-key", key[0], "-iv", key[1]], "crypto:pipe:0"
-    return [], "pipe:0"
+        return ["-key", key[0], "-iv", key[1]], "crypto:pipe:%d" % fd
+    return [], "pipe:%d" % fd
 
 
 def parse_probe(out):
@@ -334,13 +338,17 @@ def parse_probe(out):
             start = float(st.get("start_time"))
         except (TypeError, ValueError):
             continue
+        try:
+            length = float(st.get("duration"))
+        except (TypeError, ValueError):
+            length = 0.0
         if t == "v":
             if not st.get("width") or not st.get("height"):
                 continue
-            info[t] = {"start": start, "width": int(st["width"]), "height": int(st["height"]),
+            info[t] = {"start": start, "length": length, "width": int(st["width"]), "height": int(st["height"]),
                        "fps": st.get("r_frame_rate") if _fps(st.get("r_frame_rate")) else "30/1"}
         else:
-            info[t] = {"start": start, "sample_rate": int(st.get("sample_rate") or 48000),
+            info[t] = {"start": start, "length": length, "sample_rate": int(st.get("sample_rate") or 48000),
                        "channels": int(st.get("channels") or 2)}
     starts = [v["start"] for v in info.values()]
     if starts:
@@ -351,19 +359,24 @@ def parse_probe(out):
 def probe(data, key):
     opts, url = source_args(key)
     r = subprocess.run([FFPROBE, "-v", "error"] + opts + [
-        "-show_entries", "stream=codec_type,width,height,r_frame_rate,sample_rate,channels,start_time",
+        "-show_entries", "stream=codec_type,width,height,r_frame_rate,sample_rate,channels,start_time,duration",
         "-of", "json", url], input=data, capture_output=True, timeout=20)
     return parse_probe(r.stdout.decode("utf-8", "replace"))
 
 
-def build_args(key, need, info, dur, ad, video, audio, shift=0.0):
+def build_args(key, need, info, dur, ad, video, audio, shift=0.0, at=None, sep=None):
     """ffmpeg arguments that write one normalised MPEG-TS segment to stdout.
 
     need: the output streams, 'va' (muxed), 'v' or 'a' (one HLS rendition each).
     Show streams found by the probe (info) are copied. Anything missing, and
     everything in an ad, is generated instead (black video in `video`'s size
     and rate, silence in `audio`'s format), so the layout never changes from
-    segment to segment. Every timestamp is the source's plus `shift`."""
+    segment to segment. Every timestamp is the source's plus `shift`, except
+    an ad's when `at` is given: the slate then starts there.
+
+    sep: (key, probe info, fd) of a separate audio segment to merge in,
+    read from that file descriptor; it shares the video's clock, so it takes
+    the same shift."""
     start = info.get("start", 0.0)
     copy = "" if ad else "".join(t for t in need if t in info)
     # -copyts keeps the source timestamps (moved by -itsoffset only);
@@ -374,12 +387,22 @@ def build_args(key, need, info, dur, ad, video, audio, shift=0.0):
         opts, url = source_args(key)
         args += opts + ["-itsoffset", "%.6f" % shift, "-i", url]
     inputs, maps, codecs = (1 if copy else 0), [], []
+    sep_input = None
+    if sep and not ad and "a" in need and "a" not in copy and "a" in sep[1]:
+        opts, url = source_args(sep[0], sep[2])
+        args += opts + ["-itsoffset", "%.6f" % shift, "-i", url]
+        copy, sep_input = copy + "A", inputs
+        inputs += 1
     for i, t in enumerate(need):
         if t in copy:
             maps += ["-map", "0:%s:0" % t]
             codecs += ["-c:%d" % i, "copy"]
             continue
-        offset = info.get(t, {}).get("start", start) + shift
+        if t == "a" and sep_input is not None:
+            maps += ["-map", "%d:a:0" % sep_input]
+            codecs += ["-c:%d" % i, "copy"]
+            continue
+        offset = at if at is not None else info.get(t, {}).get("start", start) + shift
         if t == "v":
             src = "color=c=black:s=%dx%d:r=%s" % (video["width"], video["height"], video["fps"])
             frames = max(1, round(dur * _fps(video["fps"])))
@@ -405,19 +428,22 @@ class Stream:
 
     def __init__(self, key, video, audio):
         self.key = key
-        self.upstream = {"v": video, "a": audio} if audio else {"v": video}
-        self.need = {"v": "v", "a": "a"} if audio else {"v": "va"}
+        self.upstream = {"v": video}
+        self.audio = audio     # Pluto's separate audio playlist, merged in, or None
+        self.audio_segs = collections.OrderedDict()
+        self.need = {"v": "va"}
         self.segs = {t: collections.OrderedDict() for t in self.upstream}
         self.built = {t: collections.OrderedDict() for t in self.upstream}
         self.params = {"v": None, "a": None}   # last show format seen, for slates
         # Output timeline (see run_shift): epoch is the PROGRAM-DATE-TIME that
         # maps to TIMELINE_START; shifts[track][dseq] is the offset applied
-        # to every segment of one discontinuity run.
+        # to every show segment of one discontinuity run.
         self.epoch = None
         self.last_playlist = {}
         self.shifts = {t: {} for t in self.upstream}
-        self.runs = {}         # dseq -> (clock, output time) where the run was anchored
-        self.out_end = 0.0     # furthest output time served on any track
+        self.run_clock = {t: {} for t in self.upstream}  # dseq -> date of the run's first segment seen
+        self.anchors = []      # (run date, output time), shared by the tracks
+        self.track_end = {}    # track -> furthest output time served
         self.used = time.time()
         self.lock = threading.Lock()
 
@@ -481,7 +507,43 @@ def media(stream, track):
             known.popitem(last=False)
         body = render_media(headers, segs, "/s/%s/%s" % (stream.key, track), False)
         stream.last_playlist[track] = body
+    if stream.audio:
+        refresh_audio(stream)
     return body
+
+
+def refresh_audio(stream):
+    """Read Pluto's separate audio playlist into stream.audio_segs."""
+    try:
+        text, final = fetch_bytes(stream.audio, timeout=10)
+        _, segs, _ = parse_media(text.decode("utf-8", "replace"), final)
+    except Exception as e:  # noqa: BLE001 - the video still plays, with silence
+        print("audio playlist failed: %s" % type(e).__name__, flush=True)
+        return
+    with stream.lock:
+        for s in segs:
+            stream.audio_segs[s["seq"]] = s
+        while len(stream.audio_segs) > SEGMENTS_KEPT:
+            stream.audio_segs.popitem(last=False)
+
+
+def audio_for(stream, seg):
+    """The separate audio segment covering the same time as video segment
+    seg (same date, give or take a second), or None."""
+    def find():
+        with stream.lock:
+            cands = [a for a in stream.audio_segs.values()
+                     if a["clock"] is not None and seg["clock"] is not None
+                     and abs(a["clock"] - seg["clock"]) < 1.0]
+            same = stream.audio_segs.get(seg["seq"])
+        if cands:
+            return min(cands, key=lambda a: abs(a["clock"] - seg["clock"]))
+        return same if seg["clock"] is None else None
+    found = find()
+    if found is None:
+        refresh_audio(stream)  # Pluto's audio playlist can lag the video's
+        found = find()
+    return found
 
 
 def segment(stream, track, seq):
@@ -500,66 +562,127 @@ def segment(stream, track, seq):
         if not seg["ad"]:
             for t in "va":
                 if t in info:
-                    stream.params[t] = {k: v for k, v in info[t].items() if k != "start"}
-        video = stream.params["v"] or {k: v for k, v in info.get("v", DEFAULT_VIDEO).items() if k != "start"}
-        audio = stream.params["a"] or {k: v for k, v in info.get("a", DEFAULT_AUDIO).items() if k != "start"}
+                    stream.params[t] = {k: v for k, v in info[t].items() if k not in ("start", "length")}
+        video = stream.params["v"] or {k: v for k, v in info.get("v", DEFAULT_VIDEO).items() if k not in ("start", "length")}
+        audio = stream.params["a"] or {k: v for k, v in info.get("a", DEFAULT_AUDIO).items() if k not in ("start", "length")}
     if "start" not in info:
         raise RuntimeError("segment has no readable streams")
-    shift = run_shift(stream, track, seg, info)
-    r = subprocess.run(build_args(key, need, info, seg["dur"], seg["ad"], video, audio, shift),
-                       input=data, capture_output=True, timeout=30)
-    if r.returncode or not r.stdout:
-        raise RuntimeError("ffmpeg: " + r.stderr.decode("utf-8", "replace").strip()[-300:])
-    served(stream, track, info, shift, seg["dur"])
+    shift, at = run_shift(stream, track, seg, info)
+    sep = None
+    if stream.audio and not seg["ad"]:
+        aseg = audio_for(stream, seg)
+        if aseg is None:
+            print("no audio segment for %s/%d: silence" % (track, seq), flush=True)
+        else:
+            adata, _ = fetch_bytes(aseg["uri"])
+            akey = (aes_key(aseg["key"][0]), aseg["key"][1]) if aseg["key"] else None
+            ainfo = probe(adata, akey)
+            if "a" in ainfo:
+                with stream.lock:
+                    stream.params["a"] = {k: v for k, v in ainfo["a"].items() if k not in ("start", "length")}
+                    audio = stream.params["a"]
+                sep = (akey, ainfo, adata)
+    out, err, code = run_ffmpeg(
+        lambda fd: build_args(key, need, info, seg["dur"], seg["ad"], video, audio, shift,
+                              at if seg["ad"] else None, sep and (sep[0], sep[1], fd)),
+        data, sep[2] if sep else None)
+    if code or not out:
+        raise RuntimeError("ffmpeg: " + err.decode("utf-8", "replace").strip()[-300:])
+    start = at if seg["ad"] else (info[need]["start"] if need in info else info["start"]) + shift
+    # A show segment can run past its EXTINF (by 0.7 s seen): record where its
+    # streams really end, or the next run is placed on top of the tail.
+    end = start + seg["dur"]
+    if not seg["ad"]:
+        sources = [v for k, v in info.items() if k in "va"] + ([sep[1]["a"]] if sep else [])
+        end = max([end] + [v["start"] + shift + v["length"] for v in sources])
+    served(stream, track, end)
+    if DEBUG:
+        print("seg %s %s/%d dseq=%d %s clock=%.3f src=%s shift=%.3f out=%.3f+%s" % (
+            stream.key[:6], track, seq, seg["dseq"], "AD" if seg["ad"] else "show", seg["clock"] or 0,
+            {k: round(v["start"], 3) for k, v in info.items() if k in "va"}, shift, start, seg["extinf"]),
+            flush=True)
     with stream.lock:
-        stream.built[track][seq] = r.stdout
+        stream.built[track][seq] = out
         while len(stream.built[track]) > BUILT_KEPT:
             stream.built[track].popitem(last=False)
-    return r.stdout
+    return out
+
+
+def run_ffmpeg(make_args, data, extra=None):
+    """Run ffmpeg with `data` on stdin and, if given, `extra` on a second
+    pipe whose descriptor is passed to make_args. (stdout, stderr, code)."""
+    if extra is None:
+        r = subprocess.run(make_args(None), input=data, capture_output=True, timeout=30)
+        return r.stdout, r.stderr, r.returncode
+    rfd, wfd = os.pipe()
+    try:
+        proc = subprocess.Popen(make_args(rfd), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, pass_fds=(rfd,))
+    except Exception:
+        os.close(wfd)
+        raise
+    finally:
+        os.close(rfd)
+
+    def feed():
+        try:
+            with os.fdopen(wfd, "wb") as w:
+                w.write(extra)
+        except OSError:
+            pass  # ffmpeg exited early; its error is in stderr
+    t = threading.Thread(target=feed, daemon=True)
+    t.start()
+    try:
+        out, err = proc.communicate(data, timeout=30)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out, err = proc.communicate()
+    t.join(5)
+    return out, err, proc.returncode
 
 
 def run_shift(stream, track, seg, info):
-    """The timestamp shift for seg's discontinuity run on this track.
+    """(shift, at) for one segment. Show segments keep their own timestamps
+    plus `shift`; ad slates are generated starting at output time `at`.
 
     Pluto's timestamps jump at every discontinuity (a show at 94000 s, a raw
-    ad restarting at 1 s), and when audio is a separate playlist ffmpeg
-    absorbs the jump differently on each track, so they drift apart and the
-    reader starves. Instead, every run is placed on one continuous timeline.
-
-    The first track to reach a run fixes where it starts, for both tracks: at
-    TIMELINE_START plus its PROGRAM-DATE-TIME's distance from the stream's
-    epoch (the video and audio playlists share those dates), but never before
-    the end of what has been served already, since Pluto's dates and its
-    media durations can disagree by a fraction of a second and an overlap
-    would again be corrected differently per track. Within a run each track
-    keeps one shift, so the show's own timestamps stay intact."""
+    ad restarting at 1 s), which a remuxer absorbs badly. Instead every run
+    (the segments between two discontinuities) is placed on one continuous
+    timeline by its PROGRAM-DATE-TIME: at TIMELINE_START plus the run's
+    distance from the stream's epoch, pushed later only to avoid overlapping
+    what was already served (Pluto's dates and media durations can disagree by
+    a fraction of a second). Show segments keep one shift per run, so their own
+    timestamps stay intact. Ad slates ignore the ad's timestamps and sit at
+    their date's place. (The anchors are written to be shared by several
+    tracks; since separate audio is merged in, there is only one.)"""
     with stream.lock:
-        shifts = stream.shifts[track]
-        if seg["dseq"] in shifts:
-            return shifts[seg["dseq"]]
-        need = stream.need[track]
-        src = info[need]["start"] if need in info else info["start"]
         if seg["clock"] is None or stream.epoch is None:
-            shift = 0.0  # no dates in the playlist: leave the timestamps alone
-        else:
-            anchor = stream.runs.get(seg["dseq"])
-            if anchor is None:
-                at = max(TIMELINE_START + (seg["clock"] - stream.epoch), stream.out_end)
-                anchor = stream.runs[seg["dseq"]] = (seg["clock"], at)
-            shift = anchor[1] + (seg["clock"] - anchor[0]) - src
-        shifts[seg["dseq"]] = shift
-        for d in (shifts, stream.runs):
+            return 0.0, info["start"]  # no dates in the playlist: leave timestamps alone
+        runs = stream.run_clock[track]
+        rc = runs.setdefault(seg["dseq"], seg["clock"])
+        anchor = next((a for a in stream.anchors if abs(a[0] - rc) <= RUN_MATCH), None)
+        if anchor is None:
+            at = TIMELINE_START + (rc - stream.epoch)
+            ends = [e for t, e in stream.track_end.items() if t == track or e - at < RUN_MATCH]
+            anchor = (rc, max([at] + ends))
+            stream.anchors.append(anchor)
+            del stream.anchors[:-32]
+        at = anchor[1] + (seg["clock"] - anchor[0])
+        shifts = stream.shifts[track]
+        if seg["dseq"] not in shifts:
+            need = stream.need[track]
+            src = info[need]["start"] if need in info else info["start"]
+            shifts[seg["dseq"]] = at - src
+        for d in (shifts, runs):
             while len(d) > 32:
                 d.pop(next(iter(d)))
-        return shift
+        return shifts[seg["dseq"]], at
 
 
-def served(stream, track, info, shift, dur):
-    """Record how far the output timeline now reaches (see run_shift)."""
-    need = stream.need[track]
-    src = info[need]["start"] if need in info else info["start"]
+def served(stream, track, end):
+    """Record how far this track's output now reaches (see run_shift)."""
     with stream.lock:
-        stream.out_end = max(stream.out_end, src + shift + dur)
+        stream.track_end[track] = max(stream.track_end.get(track, 0.0), end)
 
 
 def have_ffmpeg():
@@ -602,7 +725,7 @@ def open_channel(session, channel):
             if not have_ffmpeg():
                 print("ffmpeg/ffprobe not found: passing Pluto's stream through as is", flush=True)
                 return passthrough(bw, video, audio)
-            return "body", master_playlist(new_stream(video, audio), bw, audio is not None)
+            return "body", master_playlist(new_stream(video, audio), bw)
     except Exception as e:  # noqa: BLE001
         print("master failed: %s" % type(e).__name__, flush=True)
     return "redirect", master_url
