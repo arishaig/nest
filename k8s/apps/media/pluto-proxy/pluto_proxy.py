@@ -415,7 +415,7 @@ def probe(data, key):
     return parse_probe(r.stdout.decode("utf-8", "replace"))
 
 
-def build_args(key, need, info, dur, ad, video, audio, shift=0.0, at=None, sep=None):
+def build_args(key, need, info, dur, ad, video, audio, shift=0.0, at=None, sep=None, subs=False):
     """ffmpeg arguments that write one normalised MPEG-TS segment to stdout.
 
     need: the output streams, 'va' (muxed), 'v' or 'a' (one HLS rendition each).
@@ -427,7 +427,10 @@ def build_args(key, need, info, dur, ad, video, audio, shift=0.0, at=None, sep=N
 
     sep: (key, probe info, fd) of a separate audio segment to merge in,
     read from that file descriptor; it shares the video's clock, so it takes
-    the same shift."""
+    the same shift.
+
+    subs: copy the input's DVB subtitle track, if it has one, after the
+    video and audio (PID SUB_PID)."""
     start = info.get("start", 0.0)
     copy = "" if ad else "".join(t for t in need if t in info)
     # -copyts keeps the source timestamps (moved by -itsoffset only);
@@ -468,6 +471,10 @@ def build_args(key, need, info, dur, ad, video, audio, shift=0.0, at=None, sep=N
     pids = []
     for i, t in enumerate(need):
         pids += ["-streamid", "%d:%d" % (i, VIDEO_PID if t == "v" else AUDIO_PID)]
+    if subs and not ad and "v" in copy:
+        maps += ["-map", "0:s:0?"]
+        codecs += ["-c:s", "copy"]
+        pids += ["-streamid", "%d:%d" % (len(need), SUB_PID)]
     return args + maps + codecs + pids + [
         "-mpegts_service_id", "1", "-mpegts_pmt_start_pid", "4096", "-mpegts_copyts", "1",
         "-mpegts_flags", "+initial_discontinuity", "-f", "mpegts", "pipe:1"]
@@ -874,10 +881,14 @@ def refresh_subs(stream):
                     del stream.cues[k]
 
 
-# ATSC A/65 caption_service_descriptor: one service, English, CEA-608
-# (digital_cc 0, line21 field 1), no easy-reader/wide flags.
-CC_DESCRIPTOR = bytes([0x86, 7, 0xE1]) + b"eng" + bytes([0x7E, 0x3F, 0xFF])
+# The DVB subtitle track (add_dvb): its PID, page and PMT entry.
+SUB_PID = 0x102
+DVB_PAGE = 1
+# subtitling_descriptor: English, DVB subtitles (normal), composition and
+# ancillary page DVB_PAGE (the page dvbsubenc writes)
+SUBTITLING_DESCRIPTOR = bytes([0x59, 8]) + b"eng" + bytes([0x10, 0, DVB_PAGE, 0, DVB_PAGE])
 PMT_PID = 4096         # -mpegts_pmt_start_pid in every ffmpeg run here
+GST_TS_BASE = 3600.0   # s: mpegtsmux's first timestamp
 
 
 def _crc32_mpeg2(data):
@@ -889,14 +900,14 @@ def _crc32_mpeg2(data):
     return crc
 
 
-def declare_captions(ts, video_pid=VIDEO_PID):
-    """ts with the caption service descriptor added to the video stream's
-    entry in every PMT. Players only look for CEA-608 in the video when the
-    PMT declares it: Media3/ExoPlayer (Wholphin, Jellyfin's Android apps)
-    exposes no caption track otherwise, whatever its docs say. Only survives
-    to the player if nothing remuxes the stream on the way (Dispatcharr's
-    ffmpeg profiles do; its Streamlink profile doesn't)."""
+def declare_subtitles(ts):
+    """ts with the DVB subtitle track in every PMT, always the same entry
+    (PID SUB_PID, private data, SUBTITLING_DESCRIPTOR), whether or not this
+    segment carries any subtitle packets. A player reads the track list from
+    the first PMT it sees and ignores later ones (Media3), so a segment
+    without captions, an ad or a slate must still list it."""
     out = bytearray(ts)
+    entry = bytes([0x06, 0xE0 | SUB_PID >> 8, SUB_PID & 0xFF, 0xF0, len(SUBTITLING_DESCRIPTOR)]) + SUBTITLING_DESCRIPTOR
     for off in range(0, len(out) - 187, 188):
         if out[off] != 0x47 or not out[off + 1] & 0x40:
             continue
@@ -912,33 +923,109 @@ def declare_captions(ts, video_pid=VIDEO_PID):
             continue
         end = s + 3 + ((out[s + 1] & 0x0F) << 8 | out[s + 2])  # section end, CRC included
         pil = (out[s + 10] & 0x0F) << 8 | out[s + 11]
-        q, es, changed = s + 12 + pil, bytearray(), False
+        q, es = s + 12 + pil, bytearray()
         while q + 5 <= end - 4:
             pid = (out[q + 1] & 0x1F) << 8 | out[q + 2]
             ilen = (out[q + 3] & 0x0F) << 8 | out[q + 4]
-            info = bytes(out[q + 5:q + 5 + ilen])
-            tags, i = set(), 0
-            while i + 2 <= len(info):
-                tags.add(info[i])
-                i += 2 + info[i + 1]
-            if pid == video_pid and 0x86 not in tags:
-                info += CC_DESCRIPTOR
-                changed = True
-            es += bytes([out[q], out[q + 1], out[q + 2], 0xF0 | len(info) >> 8, len(info) & 0xFF]) + info
+            if pid != SUB_PID:
+                es += out[q:q + 5 + ilen]
             q += 5 + ilen
-        if not changed:
-            continue
+        es += entry
         head = bytearray(out[s:s + 12 + pil])
         length = len(head) - 3 + len(es) + 4
         head[1] = (head[1] & 0xF0) | length >> 8
         head[2] = length & 0xFF
         section = bytes(head + es)
         section += _crc32_mpeg2(section).to_bytes(4, "big")
-        if s + len(section) > off + 188:
-            continue                                         # doesn't fit: leave this PMT alone
+        if s + len(section) > off + 188 or section == bytes(out[s:end]):
+            continue                                         # doesn't fit, or already so
         out[s:s + len(section)] = section
         out[s + len(section):off + 188] = b"\xff" * (off + 188 - s - len(section))
     return bytes(out)
+
+
+def srt_time(t):
+    ms = int(round(max(t, 0.0) * 1000))
+    return "%02d:%02d:%02d,%03d" % (ms // 3600000, ms // 60000 % 60, ms // 1000 % 60, ms % 1000)
+
+
+def dvb_srt(cues, t0, t1):
+    """SubRip of the cues on screen between t0 and t1, timed from t0, or None
+    if none are. Each of Pluto's cues is the whole caption display for its
+    time. A cue still on at t1 runs past the end: nothing then takes it off
+    screen before the next segment shows it again (no blink at segment
+    boundaries). An invisible entry just before t1 makes dvbsubenc clear a
+    caption that ended earlier in the segment (it only ends one when the
+    next arrives)."""
+    entries = []
+    for start, end, lines in sorted(cues):
+        if not lines or end <= t0 or start >= t1:
+            continue
+        # SubRip text is markup to subparse
+        text = "\n".join(l.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") for l in lines)
+        # one that ends in this segment must end before the clearing entry
+        stop = min(end, t1 - 0.03) if end <= t1 else end
+        entries.append((max(start, t0) - t0, max(stop, start + 0.01) - t0, text))
+    if not entries:
+        return None
+    entries.append((t1 - t0 - 0.02, t1 - t0 - 0.01, "\u200b"))
+    return "\n".join("%d\n%s --> %s\n%s\n" % (i + 1, srt_time(a), srt_time(b), x)
+                     for i, (a, b, x) in enumerate(entries))
+
+
+def dvb_args(width, height):
+    """gst-launch arguments: SubRip on stdin, MPEG-TS with a DVB subtitle
+    track on stdout (timestamps from GST_TS_BASE). Centred: dvbsubenc only
+    finds a picture's right edge if it reaches the right half of the frame
+    (find_largest_subregion scans each row from both ends to the middle), so
+    short left-aligned captions came out empty."""
+    return [GST_LAUNCH, "-q", "fdsrc", "fd=0", "!", "subparse", "!",
+            "textrender", "font-desc=DejaVu Sans Mono Bold %d" % max(10, round(height * 26 / 720)),
+            "halignment=center", "valignment=bottom", "line-alignment=left", "ypad=%d" % round(height * 0.06), "!",
+            "video/x-raw,format=AYUV,width=%d,height=%d" % (width, height), "!",
+            "dvbsubenc", "!", "mpegtsmux", "!", "fdsink", "fd=1"]
+
+
+def plain_ts(data, key):
+    """The segment decrypted, every stream copied, timestamps unchanged."""
+    if not key:
+        return data
+    opts, url = source_args(key)
+    r = subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-nostdin", "-copyts"] + opts + [
+        "-i", url, "-map", "0", "-c", "copy", "-mpegts_copyts", "1", "-f", "mpegts", "pipe:1"],
+        input=data, capture_output=True, timeout=CC_TIMEOUT)
+    if r.returncode or not r.stdout:
+        raise RuntimeError("decrypt: " + r.stderr.decode("utf-8", "replace").strip()[-200:])
+    return r.stdout
+
+
+def add_dvb(stream, seg, plain, info, video):
+    """plain (unencrypted MPEG-TS) with a DVB subtitle track of Pluto's
+    captions beside its video and audio, or None if no caption is on screen
+    in this segment. A real track: players that render DVB subtitles show it
+    (Wholphin and Jellyfin's Android apps, through Media3), and a server
+    that burns subtitles in (Jellyfin transcoding for other clients) has a
+    stream to burn."""
+    if "v" not in info:
+        return None
+    t0 = info["v"]["start"]
+    t1 = t0 + seg["dur"]
+    text = dvb_srt(cues_until(stream, t1), t0, t1)
+    if not text:
+        return None
+    r = subprocess.run(dvb_args(video["width"], video["height"]), input=text.encode("utf-8"),
+                       capture_output=True, timeout=CC_TIMEOUT)
+    if r.returncode or not r.stdout:
+        raise RuntimeError("dvbsubenc: " + r.stderr.decode("utf-8", "replace").strip()[-200:])
+    out, err, code = run_ffmpeg(
+        lambda fd: [FFMPEG, "-hide_banner", "-loglevel", "error", "-nostdin", "-copyts",
+                    "-i", "pipe:0", "-itsoffset", "%.6f" % (t0 - GST_TS_BASE), "-i", "pipe:%d" % fd,
+                    "-map", "0:v:0", "-map", "0:a?", "-map", "1:s:0", "-c", "copy",
+                    "-mpegts_copyts", "1", "-f", "mpegts", "pipe:1"],
+        plain, r.stdout, timeout=CC_TIMEOUT)
+    if code or not out:
+        raise RuntimeError("dvb merge: " + err.decode("utf-8", "replace").strip()[-200:])
+    return out
 
 
 def gst_caption_args(fd):
@@ -1059,15 +1146,7 @@ def add_captions(stream, seg, data, key, info):
         # its own caption, with time to send it (2 characters a frame)
         ready = t0 + (len(carry) + 8) / 60.0
         words = [(t0, carry)] + [(max(t, ready), w) for t, w in words]
-    plain = data
-    if key:
-        opts, url = source_args(key)
-        r = subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-nostdin", "-copyts"] + opts + [
-            "-i", url, "-map", "0", "-c", "copy", "-mpegts_copyts", "1", "-f", "mpegts", "pipe:1"],
-            input=data, capture_output=True, timeout=CC_TIMEOUT)
-        if r.returncode or not r.stdout:
-            raise RuntimeError("decrypt: " + r.stderr.decode("utf-8", "replace").strip()[-200:])
-        plain = r.stdout
+    plain = plain_ts(data, key)
     text = srt(words, t0, t1).encode("utf-8")
     ccv, err, code = run_ffmpeg(gst_caption_args, plain, text, timeout=CC_TIMEOUT)
     if code or not ccv:
@@ -1158,7 +1237,10 @@ def _build(stream, track, seq):
             if stream.burn:
                 cc = burn_captions(stream, seg, data, key, info, video)
             else:
+                # CEA-608 in the video (players that read it) and a DVB
+                # subtitle track (Media3, and servers that burn subtitles in)
                 cc = add_captions(stream, seg, data, key, info)
+                cc = add_dvb(stream, seg, cc or plain_ts(data, key), info, video) or cc
             if cc:
                 data, key = cc, None
         except Exception as e:  # noqa: BLE001 - sent without captions instead
@@ -1194,7 +1276,8 @@ def _build(stream, track, seq):
     if out is None:
         out, err, code = run_ffmpeg(
             lambda fd: build_args(key, need, info, seg["dur"], seg["ad"], video, audio, shift,
-                                  at if seg["ad"] else None, sep and (sep[0], sep[1], fd)),
+                                  at if seg["ad"] else None, sep and (sep[0], sep[1], fd),
+                                  subs=bool(stream.subs and not stream.burn)),
             data, sep[2] if sep else None)
     if code or not out:
         raise RuntimeError("ffmpeg: " + err.decode("utf-8", "replace").strip()[-300:])
@@ -1207,7 +1290,7 @@ def _build(stream, track, seq):
         end = max([end] + [v["start"] + shift + v["length"] for v in sources])
     served(stream, track, end)
     if stream.subs and not stream.burn:
-        out = declare_captions(out)   # every segment, ads too: the PMT must not change
+        out = declare_subtitles(out)  # every segment, ads too: the PMT must not change
     if DEBUG:
         print("seg %s %s/%d dseq=%d %s clock=%.3f src=%s shift=%.3f out=%.3f+%s%s" % (
             stream.key[:6], track, seq, seg["dseq"], "AD" if seg["ad"] else "show", seg["clock"] or 0,

@@ -805,27 +805,33 @@ def pmt_entries(ts):
 
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "needs ffmpeg")
-class CaptionDescriptorTest(unittest.TestCase):
-    def test_declared_on_video_only(self):
+class SubtitleDeclarationTest(unittest.TestCase):
+    def test_every_pmt_lists_the_dvb_track(self):
         seg = ts(["-f", "lavfi", "-t", "1", "-i", "testsrc=s=160x90:r=30", "-f", "lavfi", "-t", "1",
                   "-i", "sine", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac",
                   "-streamid", "0:256", "-streamid", "1:257", "-mpegts_service_id", "1",
                   "-mpegts_pmt_start_pid", "4096"])
-        before, ok = pmt_entries(seg)
-        self.assertTrue(ok)
-        out = pp.declare_captions(seg)
+        out = pp.declare_subtitles(seg)
         self.assertEqual(len(out), len(seg))
-        after, ok = pmt_entries(out)
+        entries, ok = pmt_entries(out)
         self.assertTrue(ok)                                   # CRC recomputed
-        self.assertEqual([pid for pid, _ in after], [pid for pid, _ in before])
-        info = dict(after)
-        self.assertTrue(info[0x100].endswith(pp.CC_DESCRIPTOR))
-        self.assertEqual(info[0x101], dict(before)[0x101])
-        self.assertEqual(pp.declare_captions(out), out)       # only once
-        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0",
+        self.assertEqual([pid for pid, _ in entries], [0x100, 0x101, pp.SUB_PID])
+        self.assertEqual(dict(entries)[pp.SUB_PID], pp.SUBTITLING_DESCRIPTOR)
+        self.assertEqual(pp.declare_subtitles(out), out)      # idempotent
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_name", "-of", "csv=p=0",
                             "pipe:0"], input=out, capture_output=True)
         self.assertEqual(r.stderr, b"")
-        self.assertEqual(set(r.stdout.split()), {b"video", b"audio"})
+        self.assertIn(b"dvb_subtitle", r.stdout.split())
+
+    def test_dvb_srt(self):
+        cues = [(9.0, 10.5, ["BEFORE"]), (10.5, 12.0, ["A & B >> C"]), (14.9, 16.0, ["RUNS ON"]), (20.0, 21.0, ["LATER"])]
+        text = pp.dvb_srt(cues, 10.0, 15.0)
+        self.assertIn("00:00:00,000 --> 00:00:00,500\nBEFORE", text)          # on screen at the start
+        self.assertIn("A &amp; B &gt;&gt; C", text)
+        self.assertIn("00:00:04,900 --> 00:00:06,000\nRUNS ON", text)         # not cut at the segment end
+        self.assertIn("00:00:04,980 --> 00:00:04,990\n\u200b", text)          # clears a caption that ended
+        self.assertNotIn("LATER", text)
+        self.assertIsNone(pp.dvb_srt(cues, 30.0, 35.0))
 
 
 class BurnTextTest(unittest.TestCase):
@@ -910,7 +916,8 @@ def have_caption_elements():
     if not (pp.have_gst() and shutil.which("ffmpeg")):
         return False
     return all(subprocess.run(["gst-inspect-1.0", e], capture_output=True).returncode == 0
-               for e in ("tttocea608", "cccombiner", "h264ccinserter", "tsdemux", "mpegtsmux", "subparse"))
+               for e in ("tttocea608", "cccombiner", "h264ccinserter", "tsdemux", "mpegtsmux", "subparse",
+                         "textrender", "dvbsubenc"))
 
 
 @unittest.skipUnless(have_caption_elements(), "needs GStreamer with the closed-caption elements")
@@ -949,13 +956,21 @@ class CaptionPipelineTest(unittest.TestCase):
         out = b"".join(pp.segment(s, "v", n) for n in (1, 2))
         p = packets(out)
         self.assertEqual(sorted((st["id"], st["codec_type"]) for st in p["streams"]),
-                         [("0x100", "video"), ("0x101", "audio")])
+                         [("0x100", "video"), ("0x101", "audio"), ("0x102", "subtitle")])
         for want in ("video", "audio"):
             idx = next(st["index"] for st in p["streams"] if st["codec_type"] == want)
             t = sorted(float(x["pts_time"]) for x in p["packets"] if x["stream_index"] == idx)
             self.assertLess(abs(t[0] - pp.TIMELINE_START), 0.1, want)
             self.assertLess(max(b - a for a, b in zip(t, t[1:])), 0.2, want)
             self.assertGreater(t[-1] - t[0], 9.5, want)
+        # DVB pages at the cues' times on the output timeline (cues at 0.5,
+        # 2.5, 4.5 and 6.5 s into the stream; the 4.5 s one is shown again
+        # at the start of the second segment)
+        sub = next(st["index"] for st in p["streams"] if st["codec_type"] == "subtitle")
+        pages = sorted(round(float(x["pts_time"]) - pp.TIMELINE_START, 1) for x in p["packets"] if x["stream_index"] == sub)
+        for want in (0.5, 2.5, 4.5, 5.0, 6.5):
+            self.assertIn(want, pages, pages)
+        self.assertTrue(all(0 <= x < 10 for x in pages), pages)
         with tempfile.NamedTemporaryFile(suffix=".ts") as f:
             f.write(out)
             f.flush()
