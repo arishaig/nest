@@ -130,6 +130,12 @@ package). It keeps no state:
     31-column word wrap); otherwise the words at each boundary vanish.
   - Words due in a segment's last 0.5 s go in the next one, so they aren't cut
     off mid-send (608 carries about 2 characters a frame).
+  - The PMT declares the captions (ATSC caption_service_descriptor on the
+    video stream, `declare_captions`): Media3/ExoPlayer (Wholphin, Jellyfin's
+    Android apps) exposes no caption track without it. Dispatcharr's ffmpeg
+    profiles rewrite the PMT and drop it, so a caption channel needs the
+    **Streamlink** stream profile, which passes the segments through as they
+    are. The Live TV Subtitles Jellyfin plugin then offers the track.
   - To check a stream by hand, `ffmpeg -real_time 1 -f lavfi -i
     "movie=X.ts[out0+subcc]" -map 0:s -f srt -`: without `-real_time` ffmpeg
     only prints a roll-up line once it scrolls, so short tests look empty.

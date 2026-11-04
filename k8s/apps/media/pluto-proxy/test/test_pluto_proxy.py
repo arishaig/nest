@@ -787,6 +787,47 @@ class CaptionTextTest(unittest.TestCase):
         self.assertIsNone(pp.pick_subtitles("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nv.m3u8\n", "https://h/p/m.m3u8"))
 
 
+def pmt_entries(ts):
+    """[(pid, es_info bytes)] of the first PMT in ts, and whether its CRC holds."""
+    for off in range(0, len(ts) - 187, 188):
+        if ts[off + 1] & 0x40 and ((ts[off + 1] & 0x1F) << 8 | ts[off + 2]) == pp.PMT_PID:
+            p = off + 4 + (1 + ts[off + 4] if ts[off + 3] & 0x20 else 0)
+            s = p + 1 + ts[p]
+            end = s + 3 + ((ts[s + 1] & 0x0F) << 8 | ts[s + 2])
+            q = s + 12 + ((ts[s + 10] & 0x0F) << 8 | ts[s + 11])
+            out = []
+            while q + 5 <= end - 4:
+                ilen = (ts[q + 3] & 0x0F) << 8 | ts[q + 4]
+                out.append(((ts[q + 1] & 0x1F) << 8 | ts[q + 2], bytes(ts[q + 5:q + 5 + ilen])))
+                q += 5 + ilen
+            return out, pp._crc32_mpeg2(ts[s:end]) == 0
+    return None, False
+
+
+@unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "needs ffmpeg")
+class CaptionDescriptorTest(unittest.TestCase):
+    def test_declared_on_video_only(self):
+        seg = ts(["-f", "lavfi", "-t", "1", "-i", "testsrc=s=160x90:r=30", "-f", "lavfi", "-t", "1",
+                  "-i", "sine", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac",
+                  "-streamid", "0:256", "-streamid", "1:257", "-mpegts_service_id", "1",
+                  "-mpegts_pmt_start_pid", "4096"])
+        before, ok = pmt_entries(seg)
+        self.assertTrue(ok)
+        out = pp.declare_captions(seg)
+        self.assertEqual(len(out), len(seg))
+        after, ok = pmt_entries(out)
+        self.assertTrue(ok)                                   # CRC recomputed
+        self.assertEqual([pid for pid, _ in after], [pid for pid, _ in before])
+        info = dict(after)
+        self.assertTrue(info[0x100].endswith(pp.CC_DESCRIPTOR))
+        self.assertEqual(info[0x101], dict(before)[0x101])
+        self.assertEqual(pp.declare_captions(out), out)       # only once
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0",
+                            "pipe:0"], input=out, capture_output=True)
+        self.assertEqual(r.stderr, b"")
+        self.assertEqual(set(r.stdout.split()), {b"video", b"audio"})
+
+
 class BurnTextTest(unittest.TestCase):
     def test_ass_doc_draws_overlapping_cues(self):
         doc = pp.ass_doc([(10.0, 12.5, ["HELLO {X}", "A\\B"]), (20.0, 21.0, ["LATER"]), (8.0, 9.5, ["EARLIER"])],
