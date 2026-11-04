@@ -827,7 +827,7 @@ class SubtitleDeclarationTest(unittest.TestCase):
         cues = [(9.0, 10.5, ["BEFORE"]), (10.5, 12.0, ["A & B >> C"]), (14.9, 16.0, ["RUNS ON"]), (20.0, 21.0, ["LATER"])]
         text = pp.dvb_srt(cues, 10.0, 15.0)
         self.assertIn("00:00:00,000 --> 00:00:00,500\nBEFORE", text)          # on screen at the start
-        self.assertIn("A &amp; B &gt;&gt; C", text)
+        self.assertIn("A & B >> C", text)                                       # subparse escapes these itself
         self.assertIn("00:00:04,900 --> 00:00:06,000\nRUNS ON", text)         # not cut at the segment end
         self.assertIn("00:00:04,980 --> 00:00:04,990\n\u200b", text)          # clears a caption that ended
         self.assertNotIn("LATER", text)
