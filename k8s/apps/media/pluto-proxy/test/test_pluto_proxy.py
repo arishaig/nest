@@ -686,5 +686,147 @@ class BreakClipPipelineTest(unittest.TestCase):
             self.assertGreater(frame[0], 200, n)    # white clip, not black
 
 
+VTT = """WEBVTT
+
+12:56:34.755 --> 12:56:34.921 position:10% line:63.33% size:80% align:start
+WE'RE DEALING WITH. BUT THE     
+SPEAKER WAS FANTASTIC. THE THE  
+
+12:56:34.921 --> 12:56:35.121 position:10% line:63.33% size:80% align:start
+SPEAKER WAS FANTASTIC. THE THE  
+
+12:56:35.121 --> 12:56:35.388 position:10% line:63.33% size:80% align:start
+SPEAKER WAS FANTASTIC. THE THE  
+PEOPLE                          
+
+12:56:35.388 --> 12:56:35.588 position:10% line:63.33% size:80% align:start
+SPEAKER WAS FANTASTIC. THE THE  
+PEOPLE UNDER                    
+
+12:56:36.588 --> 12:56:36.888 position:10% line:63.33% size:80% align:start
+SPEAKER WAS FANTASTIC. THE THE  
+PEOPLE UNDER <c.yellow>HIM</c>  
+"""
+
+
+class CaptionTextTest(unittest.TestCase):
+    """Pluto's WebVTT (a real live cue sequence, 2026-11-04) -> roll-up words."""
+
+    def test_parse_vtt_on_the_video_clock(self):
+        cues = pp.parse_vtt(VTT)
+        self.assertEqual(len(cues), 5)
+        self.assertAlmostEqual(cues[0][0], 12 * 3600 + 56 * 60 + 34.755, places=3)
+        self.assertEqual(cues[0][2], ["WE'RE DEALING WITH. BUT THE", "SPEAKER WAS FANTASTIC. THE THE"])
+        self.assertEqual(cues[4][2][-1], "PEOPLE UNDER HIM")     # styling tags dropped
+
+    def test_parse_vtt_timestamp_map(self):
+        cues = pp.parse_vtt("WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:900000,LOCAL:00:00:00.000\n\n"
+                            "00:00:01.000 --> 00:00:02.000\nHELLO\n")
+        self.assertEqual(cues, [(11.0, 12.0, ["HELLO"])])
+
+    def test_caption_words_sends_only_new_words(self):
+        cues = pp.parse_vtt(VTT)
+        t0 = cues[0][0]
+        words = pp.caption_words(cues, t0, t0 + 5)
+        # the first cue's last line, then a new line (PEOPLE) and UNDER grouped
+        # with it (0.27 s apart), then HIM a second later on its own
+        self.assertEqual([w for _, w in words], ["SPEAKER WAS FANTASTIC. THE THE", "PEOPLE UNDER", "HIM"])
+        self.assertAlmostEqual(words[1][0] - t0, 0.366, places=3)
+        # a window gets only its own words, but knows the cues before it
+        self.assertEqual([w for _, w in pp.caption_words(cues, t0 + 1, t0 + 5)], ["HIM"])
+        self.assertEqual(pp.caption_words(cues, t0 + 3, t0 + 5), [])
+
+    def test_bottom_row_wraps_like_tttocea608(self):
+        # rows end before a word that would take them past 31 characters,
+        # wherever the captions themselves were split
+        self.assertEqual(pp.bottom_row(["OFFICE IN THREE DECADES.", "SHE IS", "ALSO THE"]), "ALSO THE")
+        self.assertEqual(pp.bottom_row(["OFFICE IN THREE DECADES. SHE IS"]), "OFFICE IN THREE DECADES. SHE IS")
+        self.assertEqual(pp.bottom_row(["OFFICE IN THREE DECADES. SHE", "WAS"]), "WAS")    # 32 > 31
+        self.assertEqual(pp.bottom_row([]), "")
+
+    def test_srt(self):
+        self.assertEqual(pp.srt([(10.5, "A B"), (11.0, "C")], 10.0, 15.0),
+                         "1\n00:00:00,500 --> 00:00:01,000\nA B\n\n2\n00:00:01,000 --> 00:00:05,000\nC\n")
+
+    def test_pick_subtitles(self):
+        master = ('#EXTM3U\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Español",LANGUAGE="es",URI="s/es.m3u8"\n'
+                  '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",DEFAULT=NO,URI="subtitle/subs/en/playlist.m3u8?sid=1"\n'
+                  '#EXT-X-STREAM-INF:BANDWIDTH=1,SUBTITLES="subs"\nv.m3u8\n')
+        self.assertEqual(pp.pick_subtitles(master, "https://h/p/m.m3u8"), "https://h/p/subtitle/subs/en/playlist.m3u8?sid=1")
+        self.assertEqual(pp.pick_subtitles(MASTER, "https://h/p/m.m3u8"), "https://h/p/subtitle/en/playlist.m3u8?sid=S")
+        self.assertIsNone(pp.pick_subtitles("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nv.m3u8\n", "https://h/p/m.m3u8"))
+
+
+def have_caption_elements():
+    if not (pp.have_gst() and shutil.which("ffmpeg")):
+        return False
+    return all(subprocess.run(["gst-inspect-1.0", e], capture_output=True).returncode == 0
+               for e in ("tttocea608", "cccombiner", "h264ccinserter", "tsdemux", "mpegtsmux", "subparse"))
+
+
+@unittest.skipUnless(have_caption_elements(), "needs GStreamer with the closed-caption elements")
+class CaptionPipelineTest(unittest.TestCase):
+    """Show segments with B-frames at 94000 s plus a subtitle playlist: the
+    output keeps its layout and timeline, and its video carries the words as
+    CEA-608 in order."""
+
+    WORDS = ["HELLO THERE", "THIS IS A TEST", "OF CLOSED", "CAPTIONS"]
+
+    def test_captions_in_video(self):
+        up = Upstream()
+        pp.fetch_bytes = up
+        for i in range(2):
+            up.files["https://s/%d.ts" % i] = ts([
+                "-f", "lavfi", "-t", "5", "-i", "testsrc=s=320x180:r=30", "-f", "lavfi", "-t", "5",
+                "-i", "sine=f=440:r=48000", "-c:v", "libx264", "-preset", "veryfast", "-bf", "2",
+                "-c:a", "aac", "-output_ts_offset", str(94000 + 5 * i), "-mpegts_copyts", "1", "-copyts",
+                "-streamid", "0:80", "-streamid", "1:81"])
+        line = ""
+        cues = []
+        for n, w in enumerate(self.WORDS):
+            line = (line + " " + w).strip() if n != 2 else w     # a new line starts at word 2
+            cues.append("%s --> %s\n%s\n" % (self._t(94000.5 + 2 * n), self._t(94001 + 2 * n), line))
+        up.files["https://s/0.vtt"] = ("WEBVTT\n\n" + "\n".join(cues[:3])).encode()
+        up.files["https://s/1.vtt"] = ("WEBVTT\n\n" + "\n".join(cues[3:])).encode()
+        up.files["https://up/v.m3u8"] = (
+            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:1\n"
+            "#EXT-X-PROGRAM-DATE-TIME:2026-11-04T05:00:00.000Z\n"
+            "#EXTINF:5,\nhttps://s/0.ts\n#EXTINF:5,\nhttps://s/1.ts\n").encode()
+        up.files["https://up/s.m3u8"] = (
+            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:1\n"
+            "#EXTINF:5,\nhttps://s/0.vtt\n#EXTINF:5,\nhttps://s/1.vtt\n").encode()
+        s = pp.get_stream(pp.new_stream("https://up/v.m3u8", None, "https://up/s.m3u8"))
+        pp.media(s, "v")
+        out = b"".join(pp.segment(s, "v", n) for n in (1, 2))
+        p = packets(out)
+        self.assertEqual(sorted((st["id"], st["codec_type"]) for st in p["streams"]),
+                         [("0x100", "video"), ("0x101", "audio")])
+        for want in ("video", "audio"):
+            idx = next(st["index"] for st in p["streams"] if st["codec_type"] == want)
+            t = sorted(float(x["pts_time"]) for x in p["packets"] if x["stream_index"] == idx)
+            self.assertLess(abs(t[0] - pp.TIMELINE_START), 0.1, want)
+            self.assertLess(max(b - a for a, b in zip(t, t[1:])), 0.2, want)
+            self.assertGreater(t[-1] - t[0], 9.5, want)
+        with tempfile.NamedTemporaryFile(suffix=".ts") as f:
+            f.write(out)
+            f.flush()
+            # real_time: write out every caption update (ffmpeg's decoder
+            # otherwise only writes a roll-up line once it scrolls)
+            r = subprocess.run(["ffmpeg", "-v", "error", "-real_time", "1", "-f", "lavfi",
+                                "-i", "movie=%s[out0+subcc]" % f.name,
+                                "-map", "0:s", "-f", "srt", "pipe:1"], capture_output=True, text=True)
+        text = " ".join(r.stdout.replace("\n", " ").split())
+        last = -1
+        for w in self.WORDS:     # every word, in order, unscrambled
+            at = text.find(w, last + 1)
+            self.assertGreater(at, last, "%r not after position %d in %r" % (w, last, text))
+            last = at
+
+    @staticmethod
+    def _t(sec):
+        return "%02d:%02d:%06.3f" % (sec // 3600, sec // 60 % 60, sec % 60)
+
+
+
 if __name__ == "__main__":
     unittest.main()

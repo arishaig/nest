@@ -24,7 +24,9 @@ is therefore decrypted and copy-remuxed into one fixed layout: video on PID
 0x100, audio on 0x101, nothing else, timestamps unchanged. Ad segments
 (AD_RE: ad creatives and Pluto's ad-break bumpers) are replaced with a black, silent segment of the
 same length, at the same timestamps, or with a slice of a clip from
-BREAKS_DIR (one picked per break, looped).
+BREAKS_DIR (one picked per break, looped). Channels in CC_CHANNELS also get
+Pluto's subtitles as closed captions in the video (add_captions; needs
+GStreamer's gst-launch-1.0, skipped without it).
 
 Needs ffmpeg and ffprobe on PATH; without them /ch falls back to pointing the
 client straight at Pluto (no normalising). Usage and caveats: docs/live-tv.md.
@@ -75,6 +77,15 @@ BUILT_KEPT = 6         # per track: finished segments kept for retried and built
 # Ad breaks are filled from video clips in this folder (read-only), one
 # picked at random per break, played from its start and looped; empty or
 # unset means black. See docs/live-tv.md for how to add clips.
+# Closed captions (see add_captions): channels listed in CC_CHANNELS (Pluto
+# channel ids, comma-separated, or "*" for all) get Pluto's subtitle track
+# as CEA-608 captions in the video, which players show as a CC track.
+CC_CHANNELS = {c.strip() for c in os.environ.get("CC_CHANNELS", "").split(",") if c.strip()}
+GST_LAUNCH = os.environ.get("GST_LAUNCH", "gst-launch-1.0")
+CC_TIMEOUT = 10        # s: a segment whose captioning takes longer goes out without
+CC_GROUP = 0.5         # s: words this close together are sent as one caption
+CC_TAIL = 0.5          # s: words due this close to a segment's end go in the next one
+CUES_KEPT = 3000       # per stream: Pluto sends a cue per word, ~3/s
 BREAKS_DIR = os.environ.get("BREAKS_DIR", "")
 BREAKS_RESCAN = int(os.environ.get("BREAKS_RESCAN_SECONDS", "300"))
 BREAK_EXTS = (".mp4", ".m4v", ".mkv", ".webm", ".mov", ".ts")
@@ -213,6 +224,17 @@ def pick_renditions(master, base_url, max_bw=0):
             line = next((l for l in media if "DEFAULT=YES" in l), media[0])
             audio = urllib.parse.urljoin(base_url, re.search(r'URI="([^"]*)"', line).group(1))
     return bw, video, audio
+
+
+def pick_subtitles(master, base_url):
+    """URL of the master's English subtitle rendition (else its first), or
+    None if it lists none."""
+    media = [l for l in master.splitlines()
+             if l.startswith("#EXT-X-MEDIA:") and "TYPE=SUBTITLES" in l and 'URI="' in l]
+    if not media:
+        return None
+    line = next((l for l in media if 'LANGUAGE="en' in l or 'NAME="English' in l), media[0])
+    return urllib.parse.urljoin(base_url, re.search(r'URI="([^"]*)"', line).group(1))
 
 
 def master_playlist(key, bandwidth):
@@ -562,10 +584,14 @@ class Stream:
     """One client's view of one channel: Pluto's media playlist URLs and the
     segments listed in them so far."""
 
-    def __init__(self, key, video, audio):
+    def __init__(self, key, video, audio, subs=None):
         self.key = key
         self.upstream = {"v": video}
         self.audio = audio     # Pluto's separate audio playlist, merged in, or None
+        self.subs = subs       # Pluto's subtitle playlist, turned into captions, or None
+        self.sub_seen = collections.OrderedDict()  # subtitle segment URLs read
+        self.cues = {}         # (start, text) -> (start, end, lines), on the video's clock
+        self.cc_origin = None  # caption time the first captioned segment started from
         self.audio_segs = collections.OrderedDict()
         self.need = {"v": "va"}
         self.segs = {t: collections.OrderedDict() for t in self.upstream}
@@ -592,13 +618,13 @@ _keys = collections.OrderedDict()
 _keys_lock = threading.Lock()
 
 
-def new_stream(video, audio):
+def new_stream(video, audio, subs=None):
     key = secrets.token_urlsafe(12)
     now = time.time()
     with _streams_lock:
         for k in [k for k, s in _streams.items() if now - s.used > STREAM_TTL]:
             del _streams[k]
-        _streams[key] = Stream(key, video, audio)
+        _streams[key] = Stream(key, video, audio, subs)
     return key
 
 
@@ -647,6 +673,8 @@ def media(stream, track):
         stream.last_playlist[track] = body
     if stream.audio:
         refresh_audio(stream)
+    if stream.subs:
+        refresh_subs(stream)
     return body
 
 
@@ -682,6 +710,211 @@ def audio_for(stream, seg):
         refresh_audio(stream)  # Pluto's audio playlist can lag the video's
         found = find()
     return found
+
+
+# --- closed captions -----------------------------------------------------------
+#
+# Pluto's subtitle track is WebVTT: on live channels, the broadcast's own
+# roll-up captions redrawn after every word, timed on the video's MPEG-TS
+# clock. Players fed through Dispatcharr (one MPEG-TS with video and audio)
+# can't receive a text track, but every player that does closed captions reads
+# CEA-608 from the H.264 video itself. So each show segment's new words go back
+# into its video as roll-up CEA-608 (GStreamer's tttocea608 + h264ccinserter),
+# without re-encoding the picture. Ads get none.
+
+def vtt_seconds(s):
+    m = re.match(r"^(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{3})$", s.strip())
+    if not m:
+        return None
+    return int(m.group(1) or 0) * 3600 + int(m.group(2)) * 60 + int(m.group(3)) + int(m.group(4)) / 1000.0
+
+
+def parse_vtt(text):
+    """[(start, end, [lines])] in MPEG-TS seconds. Pluto's live cues are
+    already on the video's clock; an X-TIMESTAMP-MAP header, where present,
+    maps them onto it."""
+    offset = 0.0
+    m = re.search(r"X-TIMESTAMP-MAP=([^\r\n]*)", text)
+    if m:
+        ts, local = re.search(r"MPEGTS:(\d+)", m.group(1)), re.search(r"LOCAL:([\d:.]+)", m.group(1))
+        if ts and local and vtt_seconds(local.group(1)) is not None:
+            offset = int(ts.group(1)) / 90000.0 - vtt_seconds(local.group(1))
+    cues = []
+    for block in re.split(r"\r?\n[ \t]*\r?\n", text):
+        lines = block.strip("\r\n").splitlines()
+        for i, line in enumerate(lines):
+            m = re.match(r"^\s*(\S+)\s+-->\s+(\S+)", line)
+            if not m:
+                continue
+            a, b = vtt_seconds(m.group(1)), vtt_seconds(m.group(2))
+            if a is not None and b is not None:
+                body = [" ".join(re.sub(r"<[^>]*>", "", l).split()) for l in lines[i + 1:]]
+                cues.append((a + offset, b + offset, [l for l in body if l]))
+            break
+    return cues
+
+
+def caption_words(cues, t0, t1):
+    """[(time, text)]: the words to add to roll-up captions between t0 and
+    t1. Each of Pluto's cues is the whole caption display after one more
+    word, so its new words are its last line minus the previous cue's (or
+    all of it when a new line starts). Words close together go as one
+    caption: CEA-608 carries about 2 characters per frame, and each caption
+    sent costs a few control codes, so one per word drops words in fast
+    speech."""
+    out, prev = [], ""
+    for start, _, lines in sorted(cues):
+        if not lines or lines[-1] == prev:
+            continue
+        cur = lines[-1]
+        new = cur[len(prev):] if prev and cur.startswith(prev) else cur
+        prev = cur
+        new = " ".join(new.split())
+        if not new or not t0 <= start < t1:
+            continue
+        if out and start - out[-1][0] < CC_GROUP and len(out[-1][1]) + len(new) < 32:
+            out[-1] = (out[-1][0], out[-1][1] + " " + new)
+        else:
+            out.append((start, new))
+    return out
+
+
+def srt(words, origin, end):
+    """SubRip text for words ([(time, text)]), timed from origin."""
+    def fmt(t):
+        ms = int(round(max(t, 0.0) * 1000))
+        return "%02d:%02d:%02d,%03d" % (ms // 3600000, ms // 60000 % 60, ms // 1000 % 60, ms % 1000)
+    parts = []
+    for i, (t, text) in enumerate(words):
+        a = t - origin
+        b = max((words[i + 1][0] if i + 1 < len(words) else end) - origin, a + 0.04)
+        parts.append("%d\n%s --> %s\n%s\n" % (i + 1, fmt(a), fmt(b), text))
+    return "\n".join(parts)
+
+
+def bottom_row(captions):
+    """The bottom row of roll-up captions after showing captions (texts) in
+    turn. tttocea608 word-wraps the whole stream as one: after each space it
+    starts a new row if the next word would take the row past 31 characters
+    (gst-plugins-rs video/closedcaption/src/tttocea608/translate.rs)."""
+    row = ""
+    for text in captions:
+        for w in text.split():
+            row = w if not row or len(row) + 1 + len(w) > 31 else row + " " + w
+    return row
+
+
+def have_gst():
+    return bool(shutil.which(GST_LAUNCH))
+
+
+def refresh_subs(stream):
+    """Read Pluto's subtitle playlist and any new WebVTT segments in it into
+    stream.cues."""
+    try:
+        text, final = fetch_bytes(stream.subs, timeout=10)
+        _, segs, _ = parse_media(text.decode("utf-8", "replace"), final)
+    except Exception as e:  # noqa: BLE001 - the stream still plays, without captions
+        print("subtitle playlist failed: %s" % type(e).__name__, flush=True)
+        return
+    for s in segs:
+        with stream.lock:
+            if s["uri"] in stream.sub_seen:
+                continue
+        try:
+            body, _ = fetch_bytes(s["uri"], timeout=10)
+        except Exception:  # noqa: BLE001 - tried again on the next refresh
+            continue
+        cues = parse_vtt(body.decode("utf-8", "replace"))
+        with stream.lock:
+            stream.sub_seen[s["uri"]] = True
+            while len(stream.sub_seen) > SEGMENTS_KEPT:
+                stream.sub_seen.popitem(last=False)
+            for c in cues:
+                stream.cues[(c[0], "\n".join(c[2]))] = c
+            if len(stream.cues) > CUES_KEPT:
+                for k in sorted(stream.cues)[:len(stream.cues) - CUES_KEPT]:
+                    del stream.cues[k]
+
+
+def gst_caption_args(fd):
+    """gst-launch arguments: MPEG-TS on stdin, SubRip on fd, the video with
+    the captions inserted on stdout (as MPEG-TS, timestamps moved; see
+    add_captions). caption-meta-order=display: cccombiner attaches captions
+    in presentation order, and with B-frames the inserter must put them back
+    in decoding order or the letters come out scrambled."""
+    return [GST_LAUNCH, "-q",
+            "fdsrc", "fd=0", "!", "tsdemux", "!", "h264parse", "!",
+            "video/x-h264,stream-format=byte-stream,alignment=au", "!",
+            "cccombiner", "name=c", "!", "h264ccinserter", "caption-meta-order=display", "!",
+            "h264parse", "!", "mpegtsmux", "!", "fdsink", "fd=1",
+            "fdsrc", "fd=%d" % fd, "!", "subparse", "!", "text/x-raw,format=utf8", "!",
+            "tttocea608", "!", "ccconverter", "!", "closedcaption/x-cea-708,format=cc_data", "!", "c.caption"]
+
+
+def add_captions(stream, seg, data, key, info):
+    """The segment (data, encrypted with key) with captions in its video, as
+    unencrypted MPEG-TS with the same streams and timestamps, or None to send
+    it as it is (no video, no new words, or a step failed)."""
+    if "v" not in info:
+        return None
+    t0 = info["v"]["start"]
+    t1 = t0 + seg["dur"]
+    with stream.lock:
+        cues = list(stream.cues.values())
+    if not cues or max(c[0] for c in cues) < t1 - 1.0:
+        refresh_subs(stream)  # Pluto's subtitle playlist can lag the video's
+        with stream.lock:
+            cues = list(stream.cues.values())
+    # Each segment's captions are sent within it, at ~2 characters per frame:
+    # words due in its last moments would be cut off, so they go at the start
+    # of the next segment instead (up to CC_TAIL late).
+    words = [(max(t, t0), w) for t, w in caption_words(cues, t0 - CC_TAIL, t1 - CC_TAIL)]
+    if not words:
+        return None
+    # Every segment's captions come from a new encoder, which starts by
+    # writing on the bottom row without rolling it up first: the row the last
+    # segment left half full would be overwritten. So its text is sent again
+    # ahead of this segment's first words.
+    with stream.lock:
+        if stream.cc_origin is None:
+            stream.cc_origin = t0 - CC_TAIL
+        origin = stream.cc_origin
+    carry = bottom_row(w for _, w in caption_words(cues, origin, t0 - CC_TAIL))
+    if carry:
+        # its own caption, with time to send it (2 characters a frame)
+        ready = t0 + (len(carry) + 8) / 60.0
+        words = [(t0, carry)] + [(max(t, ready), w) for t, w in words]
+    plain = data
+    if key:
+        opts, url = source_args(key)
+        r = subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-nostdin", "-copyts"] + opts + [
+            "-i", url, "-map", "0", "-c", "copy", "-mpegts_copyts", "1", "-f", "mpegts", "pipe:1"],
+            input=data, capture_output=True, timeout=CC_TIMEOUT)
+        if r.returncode or not r.stdout:
+            raise RuntimeError("decrypt: " + r.stderr.decode("utf-8", "replace").strip()[-200:])
+        plain = r.stdout
+    text = srt(words, t0, t1).encode("utf-8")
+    ccv, err, code = run_ffmpeg(gst_caption_args, plain, text, timeout=CC_TIMEOUT)
+    if code or not ccv:
+        raise RuntimeError("gstreamer: " + err.decode("utf-8", "replace").strip()[-200:])
+    # GStreamer restarts the clock at its own origin; move the captioned video
+    # back onto the source's timestamps and put the other streams beside it.
+    r = subprocess.run([FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=start_time",
+                        "-of", "csv=p=0", "pipe:0"], input=ccv, capture_output=True, timeout=CC_TIMEOUT)
+    try:
+        moved = t0 - float(r.stdout.decode().split()[0])
+    except (IndexError, ValueError):
+        raise RuntimeError("captioned video unreadable")
+    out, err, code = run_ffmpeg(
+        lambda fd: [FFMPEG, "-hide_banner", "-loglevel", "error", "-nostdin", "-copyts",
+                    "-itsoffset", "%.6f" % moved, "-i", "pipe:0", "-i", "pipe:%d" % fd,
+                    "-map", "0:v:0", "-map", "1:a?", "-c", "copy", "-mpegts_copyts", "1",
+                    "-f", "mpegts", "pipe:1"],
+        ccv, plain, timeout=CC_TIMEOUT)
+    if code or not out:
+        raise RuntimeError("restore: " + err.decode("utf-8", "replace").strip()[-200:])
+    return out
 
 
 def segment(stream, track, seq):
@@ -746,6 +979,13 @@ def _build(stream, track, seq):
         audio = stream.params["a"] or {k: v for k, v in info.get("a", DEFAULT_AUDIO).items() if k not in ("start", "length")}
     if "start" not in info:
         raise RuntimeError("segment has no readable streams")
+    if stream.subs and not seg["ad"]:
+        try:
+            cc = add_captions(stream, seg, data, key, info)
+            if cc:
+                data, key = cc, None
+        except Exception as e:  # noqa: BLE001 - sent without captions instead
+            print("captions failed for %s/%d: %s %s" % (track, seq, type(e).__name__, str(e)[:200]), flush=True)
     shift, at = run_shift(stream, track, seg, info)
     sep = None
     if stream.audio and not seg["ad"]:
@@ -801,11 +1041,12 @@ def _build(stream, track, seq):
     return out
 
 
-def run_ffmpeg(make_args, data, extra=None):
-    """Run ffmpeg with `data` on stdin and, if given, `extra` on a second
-    pipe whose descriptor is passed to make_args. (stdout, stderr, code)."""
+def run_ffmpeg(make_args, data, extra=None, timeout=30):
+    """Run ffmpeg (or any command) with `data` on stdin and, if given, `extra`
+    on a second pipe whose descriptor is passed to make_args. (stdout, stderr,
+    code)."""
     if extra is None:
-        r = subprocess.run(make_args(None), input=data, capture_output=True, timeout=30)
+        r = subprocess.run(make_args(None), input=data, capture_output=True, timeout=timeout)
         return r.stdout, r.stderr, r.returncode
     rfd, wfd = os.pipe()
     try:
@@ -826,7 +1067,7 @@ def run_ffmpeg(make_args, data, extra=None):
     t = threading.Thread(target=feed, daemon=True)
     t.start()
     try:
-        out, err = proc.communicate(data, timeout=30)
+        out, err = proc.communicate(data, timeout=timeout)
     except subprocess.TimeoutExpired:
         proc.kill()
         out, err = proc.communicate()
@@ -920,7 +1161,7 @@ def stream_session(shared):
     return shared
 
 
-def open_channel(session, channel):
+def open_channel(session, channel, channel_id=None):
     """('body', our master playlist) for a channel, or ('redirect', Pluto's own
     master URL) if Pluto's master can't be read: the client then still gets a
     stream, though one that stalls at ad breaks."""
@@ -933,7 +1174,13 @@ def open_channel(session, channel):
             if not have_ffmpeg():
                 print("ffmpeg/ffprobe not found: passing Pluto's stream through as is", flush=True)
                 return passthrough(bw, video, audio)
-            return "body", master_playlist(new_stream(video, audio), bw)
+            subs = None
+            if channel_id and ("*" in CC_CHANNELS or channel_id in CC_CHANNELS):
+                subs = pick_subtitles(text, final)
+                if subs and not have_gst():
+                    print("gst-launch-1.0 not found: no captions", flush=True)
+                    subs = None
+            return "body", master_playlist(new_stream(video, audio, subs), bw)
     except Exception as e:  # noqa: BLE001
         print("master failed: %s" % type(e).__name__, flush=True)
     return "redirect", master_url
@@ -968,7 +1215,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, playlist(base, channels).encode(), "audio/x-mpegurl")
         m = re.match(r"^/ch/([0-9a-f]{24})\.m3u8$", path)
         if m and m.group(1) in channels:
-            kind, value = open_channel(session, channels[m.group(1)])
+            kind, value = open_channel(session, channels[m.group(1)], m.group(1))
             if kind == "body":
                 return self.reply(200, value.encode(), "application/vnd.apple.mpegurl")
             return self.reply(302, headers={"Location": value})
