@@ -874,6 +874,73 @@ def refresh_subs(stream):
                     del stream.cues[k]
 
 
+# ATSC A/65 caption_service_descriptor: one service, English, CEA-608
+# (digital_cc 0, line21 field 1), no easy-reader/wide flags.
+CC_DESCRIPTOR = bytes([0x86, 7, 0xE1]) + b"eng" + bytes([0x7E, 0x3F, 0xFF])
+PMT_PID = 4096         # -mpegts_pmt_start_pid in every ffmpeg run here
+
+
+def _crc32_mpeg2(data):
+    crc = 0xFFFFFFFF
+    for byte in data:
+        crc ^= byte << 24
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x04C11DB7) & 0xFFFFFFFF if crc & 0x80000000 else (crc << 1) & 0xFFFFFFFF
+    return crc
+
+
+def declare_captions(ts, video_pid=VIDEO_PID):
+    """ts with the caption service descriptor added to the video stream's
+    entry in every PMT. Players only look for CEA-608 in the video when the
+    PMT declares it: Media3/ExoPlayer (Wholphin, Jellyfin's Android apps)
+    exposes no caption track otherwise, whatever its docs say. Only survives
+    to the player if nothing remuxes the stream on the way (Dispatcharr's
+    ffmpeg profiles do; its Streamlink profile doesn't)."""
+    out = bytearray(ts)
+    for off in range(0, len(out) - 187, 188):
+        if out[off] != 0x47 or not out[off + 1] & 0x40:
+            continue
+        if ((out[off + 1] & 0x1F) << 8 | out[off + 2]) != PMT_PID:
+            continue
+        p = off + 4
+        if out[off + 3] & 0x20:
+            p += 1 + out[p]
+        if not out[off + 3] & 0x10 or p >= off + 188:
+            continue
+        s = p + 1 + out[p]                                   # pointer field
+        if s + 12 > off + 188 or out[s] != 0x02:
+            continue
+        end = s + 3 + ((out[s + 1] & 0x0F) << 8 | out[s + 2])  # section end, CRC included
+        pil = (out[s + 10] & 0x0F) << 8 | out[s + 11]
+        q, es, changed = s + 12 + pil, bytearray(), False
+        while q + 5 <= end - 4:
+            pid = (out[q + 1] & 0x1F) << 8 | out[q + 2]
+            ilen = (out[q + 3] & 0x0F) << 8 | out[q + 4]
+            info = bytes(out[q + 5:q + 5 + ilen])
+            tags, i = set(), 0
+            while i + 2 <= len(info):
+                tags.add(info[i])
+                i += 2 + info[i + 1]
+            if pid == video_pid and 0x86 not in tags:
+                info += CC_DESCRIPTOR
+                changed = True
+            es += bytes([out[q], out[q + 1], out[q + 2], 0xF0 | len(info) >> 8, len(info) & 0xFF]) + info
+            q += 5 + ilen
+        if not changed:
+            continue
+        head = bytearray(out[s:s + 12 + pil])
+        length = len(head) - 3 + len(es) + 4
+        head[1] = (head[1] & 0xF0) | length >> 8
+        head[2] = length & 0xFF
+        section = bytes(head + es)
+        section += _crc32_mpeg2(section).to_bytes(4, "big")
+        if s + len(section) > off + 188:
+            continue                                         # doesn't fit: leave this PMT alone
+        out[s:s + len(section)] = section
+        out[s + len(section):off + 188] = b"\xff" * (off + 188 - s - len(section))
+    return bytes(out)
+
+
 def gst_caption_args(fd):
     """gst-launch arguments: MPEG-TS on stdin, SubRip on fd, the video with
     the captions inserted on stdout (as MPEG-TS, timestamps moved; see
@@ -1139,6 +1206,8 @@ def _build(stream, track, seq):
         sources = [v for k, v in info.items() if k in "va"] + ([sep[1]["a"]] if sep else [])
         end = max([end] + [v["start"] + shift + v["length"] for v in sources])
     served(stream, track, end)
+    if stream.subs and not stream.burn:
+        out = declare_captions(out)   # every segment, ads too: the PMT must not change
     if DEBUG:
         print("seg %s %s/%d dseq=%d %s clock=%.3f src=%s shift=%.3f out=%.3f+%s%s" % (
             stream.key[:6], track, seq, seg["dseq"], "AD" if seg["ad"] else "show", seg["clock"] or 0,
