@@ -16,9 +16,12 @@ spec:
         name: bjw-s
         namespace: flux-system
   values:
-    # Playlist + stream redirector for Pluto TV, feeding Dispatcharr
-    # (docs/live-tv.md). Stdlib-only script in the pluto-proxy-script
-    # ConfigMap (pluto-proxy/); no state, nothing to back up.
+    # Playlist + normalising HLS proxy for Pluto TV, feeding Dispatcharr
+    # (docs/live-tv.md). Every segment passes through it (decrypt, copy-remux
+    # to fixed PIDs, ads replaced by black/silent slates), so it is in the
+    # video path: about 3 Mbit/s and one short ffmpeg run per 5 s segment per
+    # stream. Script in the pluto-proxy-script ConfigMap (pluto-proxy/); no
+    # state, nothing to back up.
     controllers:
       pluto-proxy:
         pod:
@@ -29,9 +32,12 @@ spec:
         containers:
           app:
             image:
-              # renovate: datasource=docker depName=python
-              repository: python
-              tag: 3.15-alpine
+              # ghcr.io/arishaig/pluto-proxy:latest — own CI image (pluto-proxy/
+              # Dockerfile: python + Alpine's ffmpeg), rolling tag, no
+              # annotation. The GHCR package must be public, like nest-mcp's.
+              repository: ghcr.io/arishaig/pluto-proxy
+              tag: latest
+              pullPolicy: Always
             command: [python, -I, /app/pluto_proxy.py]
             env:
               TZ: America/Los_Angeles
@@ -64,11 +70,13 @@ spec:
               capabilities:
                 drop: [ALL]
             resources:
+              # ffmpeg/ffprobe run as subprocesses per segment, and a few
+              # finished segments are kept per stream for repeat requests.
               requests:
-                cpu: 10m
-                memory: 32Mi
+                cpu: 50m
+                memory: 96Mi
               limits:
-                memory: 128Mi
+                memory: 512Mi
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true

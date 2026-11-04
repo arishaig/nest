@@ -16,7 +16,7 @@ Reverse Proxy Auth on `Remote-User`). Jellyfin reaches it in-cluster at `dispatc
 |---|---|
 | web + celery | two containers, one pod (same image, shared `/data`; celery reaches web on localhost) |
 | Postgres | shared `media/postgres`, role and database `dispatcharr` ([postgres.md](postgres.md)) |
-| pluto-proxy | `pluto-proxy:8181`, playlist/redirect helper for Pluto (below) |
+| pluto-proxy | `pluto-proxy:8181`, playlist and normalising stream proxy for Pluto (below) |
 | Redis | private Valkey `dispatcharr-redis`, no persistence (broker and stream state only) |
 | Data | `dispatcharr-config` PVC (`nfs-nvme`) at `/data` |
 
@@ -42,26 +42,51 @@ Configured in the Dispatcharr UI (not in git). Two sources:
 **Pluto TV** via `pluto-proxy` (`k8s/apps/media/pluto-proxy/pluto_proxy.py`).
 Pluto's streams need a short-lived session token from its own boot API, so
 nothing publishes a static playlist; the old i.mjh.nz Pluto/Samsung/Plex
-playlists are gone (reportedly a takedown, 2024). The helper is a stdlib-only
-Python script in a ConfigMap on `python:3.13-alpine`, no state:
+playlists are gone (reportedly a takedown, 2024). The helper is a Python script
+(stdlib only) in a ConfigMap, run on `ghcr.io/arishaig/pluto-proxy` (built from
+`pluto-proxy/Dockerfile`: `python:3.15-alpine` plus Alpine's `ffmpeg`
+package). It keeps no state:
 
-- `/playlist.m3u`: ~430 channels; `tvg-id` is Pluto's channel id.
-- `/ch/<id>.m3u8`: 302 to the best single quality level of Pluto's stitched
-  stream, with a fresh token (tokens last 24h;
-  the channel list and session refresh every 6h, and the last good copy is
-  served if Pluto is unreachable). Pluto's master playlist lists five qualities
-  plus audio-description and subtitle tracks; Dispatcharr's default ffmpeg
-  profile maps all of them (`-map 0`), which made channels slow to probe and
-  heavy to stream. `MAX_BANDWIDTH` (bits/s, default unlimited) caps the pick.
-  A script change needs `kubectl -n media rollout restart deploy/pluto-proxy`
-  (the ConfigMap has no name hash).
+- `/playlist.m3u`: ~430 channels; `tvg-id` is Pluto's channel id. The channel
+  list and its session refresh every 6h; the last good copy is served if Pluto
+  is unreachable.
+- `/ch/<id>.m3u8`: a one-variant master playlist (best quality, plus the
+  original audio when it is a separate rendition; never the audio-description
+  or subtitle tracks), whose media playlists and segments are served by the
+  proxy itself under `/s/<key>/`. `MAX_BANDWIDTH` (bits/s, default unlimited)
+  caps the quality pick.
+- **One Pluto session per stream.** Pluto plays one stream per session: a
+  second stream on the same session ends the first (its playlist turns empty
+  with `EXT-X-ENDLIST`; Dispatcharr then sees "Server closed connection" and
+  restarts). So every `/ch` request boots its own session with its own client
+  id.
+- **Every segment goes through the proxy** (decrypted, copy-remuxed: no
+  re-encoding of shows). Pluto's segments don't share one stream layout:
+  shows, raw ads and repackaged ads use different PIDs, some carry their own
+  audio or an ID3 track, and their timestamps jump at every break (a show at
+  94000 s, an ad restarting at 1 s). An ffmpeg remuxer like Dispatcharr's
+  fixes its output streams at startup, so on a layout change the mapped
+  streams starve and the channel stalls; with separate audio the jump is also
+  absorbed differently per track. The proxy outputs one fixed layout (video
+  PID 0x100, audio 0x101, nothing else) on one continuous timeline, placed
+  by Pluto's `PROGRAM-DATE-TIME` (shared by the video and audio playlists).
+- **Ads are replaced** by black, silent segments of the same length (any
+  segment whose URL contains `_ad/creative/`; Pluto's own bumpers are kept).
+- Cost: the proxy is in the video path, about 3 Mbit/s and one ffprobe plus
+  one short ffmpeg run per 5 s segment per stream. If it is down, Pluto
+  channels stop.
+- A script change reloads by itself (the process re-execs when its ConfigMap
+  file changes). A change to `pluto-proxy/Dockerfile` is built by the
+  `build-pluto-proxy` deploy job. The GHCR package must be public.
 - Dispatcharr M3U account (type **Standard**): `http://pluto-proxy:8181/playlist.m3u`.
 - Dispatcharr EPG (XMLTV): `https://i.mjh.nz/PlutoTV/us.xml`. Its channel ids
   match Pluto's (426 of 429 when checked), so EPG matching is by id.
-- Pluto's API is unofficial and against the spirit of its terms; it can change
-  or block at any time. Streams carry Pluto's ads (server-side stitched).
+- Pluto's API is unofficial and against the spirit of its terms (more so now
+  that ads are blanked); it can change or block at any time.
 - Tests: `python3 -m unittest discover -s k8s/apps/media/pluto-proxy/test`
-  (offline, Pluto stubbed).
+  (offline, Pluto stubbed; the segment pipeline cases need ffmpeg on PATH).
+- Known: a few `Non-monotonic DTS` warnings per hour in Dispatcharr's ffmpeg
+  (audio, a few ms at segment edges); ffmpeg corrects them.
 
 **Free-TV/IPTV** (`playlists/playlist_usa.m3u8` on raw.githubusercontent.com):
 28 US channels (news, NASA, Newsmax, etc.). Its published guide files don't
@@ -88,7 +113,8 @@ Dashboard → Live TV:
 
 ## Limits
 
-- Pluto streams have ads stitched in, so recordings contain them.
+- Pluto's ads are blanked by pluto-proxy, so recordings contain black,
+  silent stretches where the breaks were.
 - The guide is thin and episodes often look identical, so "record new episodes"
   series rules are unreliable. Use timed or one-off recordings.
 - Dispatcharr has its own DVR; it's unused here so Jellyfin stays the single
