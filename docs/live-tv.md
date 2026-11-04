@@ -108,6 +108,28 @@ package). It keeps no state:
   The pod prefers an amd64 node (never omega): a 5 s clip segment takes about
   1.3 s on a Pi 5, two at once up to 4.4 s; break segments are built one
   ahead in the background.
+- **Closed captions** (`CC_CHANNELS`: Pluto channel ids, comma-separated,
+  or `*`; NBC News NOW only for now). Pluto's subtitles are a separate WebVTT
+  track, which can't reach players through Dispatcharr (one MPEG-TS, video
+  and audio only). For listed channels each show segment's new words are put
+  back into its H.264 video as roll-up CEA-608 captions (GStreamer:
+  `tttocea608` → `cccombiner` → `h264ccinserter`), without re-encoding the
+  picture; players show them under their CC/subtitle setting. About 0.1–0.4 s
+  of extra work per segment; ads get none; any failure sends the segment
+  uncaptioned. Pluto's live cues are the broadcast's own roll-up captions
+  redrawn after every word, already timed on the video's clock. Details that
+  matter:
+  - `caption-meta-order=display` on `h264ccinserter`: with B-frames the
+    letters come out scrambled otherwise.
+  - Every segment's captions come from a fresh encoder that starts on the
+    bottom row without rolling it up, so the row the previous segment left
+    half full is re-sent first (`bottom_row`, which mirrors tttocea608's
+    31-column word wrap); otherwise the words at each boundary vanish.
+  - Words due in a segment's last 0.5 s go in the next one, so they aren't cut
+    off mid-send (608 carries about 2 characters a frame).
+  - To check a stream by hand, `ffmpeg -real_time 1 -f lavfi -i
+    "movie=X.ts[out0+subcc]" -map 0:s -f srt -`: without `-real_time` ffmpeg
+    only prints a roll-up line once it scrolls, so short tests look empty.
 - Cost: the proxy is in the video path, about 3 Mbit/s and one ffprobe plus
   one short ffmpeg run per 5 s segment per stream. If it is down, Pluto
   channels stop.
@@ -120,7 +142,8 @@ package). It keeps no state:
 - Pluto's API is unofficial and against the spirit of its terms (more so now
   that ads are blanked); it can change or block at any time.
 - Tests: `python3 -m unittest discover -s k8s/apps/media/pluto-proxy/test`
-  (offline, Pluto stubbed; the segment pipeline cases need ffmpeg on PATH).
+  (offline, Pluto stubbed; the segment pipeline cases need ffmpeg on PATH,
+  the caption pipeline case GStreamer as in the image).
 - Known: a few `Non-monotonic DTS` warnings per hour in Dispatcharr's ffmpeg
   (audio, a few ms at segment edges); ffmpeg corrects them.
 

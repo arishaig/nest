@@ -33,7 +33,8 @@ spec:
           app:
             image:
               # ghcr.io/arishaig/pluto-proxy:latest — own CI image (pluto-proxy/
-              # Dockerfile: python + Alpine's ffmpeg), rolling tag, no
+              # Dockerfile: python + Alpine's ffmpeg + GStreamer's closed-caption
+              # elements), rolling tag, no
               # annotation. The GHCR package must be public, like nest-mcp's.
               repository: ghcr.io/arishaig/pluto-proxy
               tag: latest
@@ -47,6 +48,11 @@ spec:
               # Ad breaks are filled from clips here (one per break, looped);
               # empty folder = black. docs/live-tv.md "Ad-break clips".
               BREAKS_DIR: /breaks
+              # Channels (Pluto ids, comma-separated, or "*") whose subtitles
+              # are put into the video as closed captions (CEA-608), shown by
+              # the player's CC setting. docs/live-tv.md "Closed captions".
+              # 5df97894467dfa00091c873c = NBC News NOW (trial).
+              CC_CHANNELS: "5df97894467dfa00091c873c"
             probes:
               liveness:
                 enabled: true
