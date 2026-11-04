@@ -53,6 +53,11 @@ spec:
               # the player's CC setting. docs/live-tv.md "Closed captions".
               # 5df97894467dfa00091c873c = NBC News NOW (trial).
               CC_CHANNELS: "5df97894467dfa00091c873c"
+              # Same form: these also get a "<name> (CC)" twin in the playlist
+              # with the captions drawn into the picture, for players that
+              # can't show CEA-608 (Jellyfin never offers a caption track for
+              # live TV). Re-encodes the show (~0.5 s CPU per 5 s segment).
+              CC_BURN_CHANNELS: "5df97894467dfa00091c873c"
             probes:
               liveness:
                 enabled: true

@@ -133,6 +133,18 @@ package). It keeps no state:
   - To check a stream by hand, `ffmpeg -real_time 1 -f lavfi -i
     "movie=X.ts[out0+subcc]" -map 0:s -f srt -`: without `-real_time` ffmpeg
     only prints a roll-up line once it scrolls, so short tests look empty.
+- **Captions drawn into the picture** (`CC_BURN_CHANNELS`, same form; NBC
+  News NOW only for now). Jellyfin never offers a subtitle track for live TV
+  (its live-stream probe keeps one video and one audio stream and ignores
+  CEA-608), so Wholphin can't switch the CEA-608 captions on. Each listed
+  channel gets a twin, `<name> (CC)` at `/cc/<id>.m3u8`, whose show segments
+  are re-encoded with Pluto's cues drawn in via libass (`ass_doc`: each cue
+  is the whole caption display for its time; white DejaVu Sans Mono on black
+  boxes, bottom left). Every show segment is re-encoded, captioned or not,
+  with the show's H.264 settings and exact source timestamps
+  (`-enc_time_base demux`). About 0.5 s of CPU per 5 s segment on amd64. In
+  Dispatcharr the twin is a separate stream: make a channel from it and give
+  it the original's EPG.
 - Cost: the proxy is in the video path, about 3 Mbit/s and one ffprobe plus
   one short ffmpeg run per 5 s segment per stream. If it is down, Pluto
   channels stop.
