@@ -295,10 +295,12 @@ class TimelineTest(unittest.TestCase):
 
     @staticmethod
     def place(s, track, dseq, clock, src, dur=5.0, ad=False):
-        """Output start of one segment, recorded as served like segment() does."""
+        """Output start of the next segment, recorded as served like segment() does."""
         need = s.need[track]
         info = {need[0]: {"start": src}, "start": src}
-        shift, at = pp.run_shift(s, track, {"dseq": dseq, "clock": clock}, info)
+        seq = len(s.segs[track]) + 1
+        seg = s.segs[track][seq] = {"seq": seq, "dseq": dseq, "clock": clock, "ad": ad, "dur": dur}
+        shift, at = pp.run_shift(s, track, seg, info)
         out = at if ad else src + shift
         pp.served(s, track, out + dur)
         return out
@@ -333,9 +335,22 @@ class TimelineTest(unittest.TestCase):
         self.assertEqual(info["a"]["length"], 0.0)
         self.assertEqual(info["start"], 9.98)
 
+    def test_show_and_ad_in_one_run_never_overlap(self):
+        """No discontinuity between show and ad (Scripps News): the show's
+        media ran 0.08 s past the date where the ad starts."""
+        s = self.stream()
+        T = pp.TIMELINE_START
+        self.place(s, "v", 0, 1000.0, 50.0, dur=5.08)                      # show ends at T+5.08
+        ad = self.place(s, "v", 0, 1005.0, 55.0, ad=True)                  # dates say T+5
+        self.assertAlmostEqual(ad, T + 5.08)
+        self.assertAlmostEqual(self.place(s, "v", 0, 1010.0, 60.0, ad=True), T + 10.08)
+        show = self.place(s, "v", 0, 1015.0, 65.0)                         # back to the show
+        self.assertGreaterEqual(show, T + 15.08 - 1e-9)
+
     def test_no_dates_leaves_timestamps_alone(self):
         s = self.stream()
-        self.assertEqual(pp.run_shift(s, "v", {"dseq": 0, "clock": None}, {"start": 5.0}), (0.0, 5.0))
+        self.assertEqual(pp.run_shift(s, "v", {"seq": 1, "dseq": 0, "clock": None, "ad": False}, {"start": 5.0}),
+                         (0.0, 5.0))
 
 
 class BuildArgsTest(unittest.TestCase):
@@ -484,6 +499,166 @@ class SeparateAudioPipelineTest(unittest.TestCase):
         vol = subprocess.run(["ffmpeg", "-hide_banner", "-i", "pipe:0", "-af", "volumedetect", "-vn", "-f", "null", "-"],
                              input=pp.segment(s, "v", 3), capture_output=True).stderr.decode()
         self.assertNotIn("max_volume: -91", vol)                      # the show has sound
+
+
+class BreakClipTest(unittest.TestCase):
+    CLIPS = [("/b/a.mp4", 30.0, True), ("/b/b.mp4", 140.0, True), ("/b/c.mp4", 600.0, False)]
+
+    def setUp(self):
+        self.old = pp.break_clips
+        pp.break_clips = lambda now=None: self.CLIPS
+
+    def tearDown(self):
+        pp.break_clips = self.old
+
+    def stream(self, ads):
+        """A stream whose playlist has a show segment then `ads` ad segments."""
+        s = pp.Stream("Q" * 16, "https://v", None)
+        segs = [{"seq": 10, "ad": False, "clock": 1000.0, "dur": 5.0}]
+        segs += [{"seq": 11 + i, "ad": True, "clock": 1005.0 + 5 * i, "dur": 5.0} for i in range(ads)]
+        for x in segs:
+            s.segs["v"][x["seq"]] = x
+        return s
+
+    def test_file_filter(self):
+        ok = ["clip.mp4", "Please stand by.webm", "x.MKV", "a.ts"]
+        bad = [".hidden.mp4", "a.mp4.part", "a.f399.mp4", "a.f251.webm", "a.nfo", "a.srt", "a-thumb.jpg", "a.flac"]
+        self.assertTrue(all(pp.usable_clip_name(n) for n in ok))
+        self.assertFalse(any(pp.usable_clip_name(n) for n in bad))
+
+    def test_one_clip_per_break_from_its_start(self):
+        s = self.stream(4)
+        picks = [pp.clip_for(s, "v", s.segs["v"][q]) for q in (11, 12, 13, 14)]
+        self.assertEqual(len({p[0] for p in picks}), 1)               # same clip through the break
+        self.assertEqual([p[1] for p in picks], [0.0, 5.0, 10.0, 15.0])  # from the start, continuous
+
+    def test_retries_and_out_of_order_requests_agree(self):
+        s = self.stream(4)
+        late = pp.clip_for(s, "v", s.segs["v"][14])
+        early = pp.clip_for(s, "v", s.segs["v"][11])
+        again = pp.clip_for(s, "v", s.segs["v"][14])
+        self.assertEqual(late, again)
+        self.assertEqual(early[0], late[0])
+        self.assertEqual(late[1] - early[1], 15.0)
+
+    def test_short_clip_loops(self):
+        pp.break_clips = lambda now=None: [("/b/a.mp4", 12.0, True)]
+        s = self.stream(4)
+        self.assertEqual([pp.clip_for(s, "v", s.segs["v"][q])[1] for q in (11, 12, 13, 14)], [0.0, 5.0, 10.0, 3.0])
+
+    def test_breaks_pick_independently(self):
+        seen = set()
+        for k in range(40):
+            s = self.stream(1)
+            s.key = "K%015d" % k
+            seen.add(pp.clip_for(s, "v", s.segs["v"][11])[0])
+        self.assertEqual(seen, {c[0] for c in self.CLIPS})              # random over the folder
+
+    def test_no_clips_means_none(self):
+        pp.break_clips = lambda now=None: []
+        s = self.stream(1)
+        self.assertIsNone(pp.clip_for(s, "v", s.segs["v"][11]))
+
+    def test_clip_args(self):
+        j = " ".join(pp.clip_args("/b/c.mp4", 593.5, False, 5.033, 812.25,
+                                  {"width": 1216, "height": 684, "fps": "30000/1001"},
+                                  {"sample_rate": 44100, "channels": 2}))
+        self.assertIn("-stream_loop -1 -ss 593.500 -i /b/c.mp4", j)
+        self.assertIn("anullsrc=r=44100:cl=stereo", j)                 # clip without sound
+        self.assertIn("scale=1216:684:force_original_aspect_ratio=decrease,pad=1216:684", j)
+        self.assertIn("-frames:v 151", j)
+        self.assertIn("-output_ts_offset 812.250000", j)
+        self.assertIn("-streamid 0:256 -streamid 1:257", j)
+
+
+@unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "needs ffmpeg")
+class BreakFolderTest(unittest.TestCase):
+    def test_scan(self):
+        d = tempfile.mkdtemp()
+        old = os.path.getmtime(d) - 3600
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=s=160x90:r=10:d=3",
+                        "-f", "lavfi", "-i", "sine=d=3", "-shortest", os.path.join(d, "good.mp4")], check=True)
+        for n in ("broken.mp4", "x.f399.mp4"):
+            with open(os.path.join(d, n), "w") as f:
+                f.write("nope")
+        for n in ("good.mp4", "broken.mp4", "x.f399.mp4"):
+            os.utime(os.path.join(d, n), (old, old))
+        shutil.copy(os.path.join(d, "good.mp4"), os.path.join(d, "fresh.mp4"))   # still arriving
+        saved = (pp.BREAKS_DIR, dict(pp._breaks))
+        pp.BREAKS_DIR = d
+        pp._breaks.update({"at": 0.0, "clips": [], "known": {}})
+        try:
+            clips = pp.break_clips()
+            self.assertEqual([os.path.basename(c[0]) for c in clips], ["good.mp4"])
+            self.assertAlmostEqual(clips[0][1], 3.0, places=0)
+            self.assertTrue(clips[0][2])
+        finally:
+            pp.BREAKS_DIR = saved[0]
+            pp._breaks.clear()
+            pp._breaks.update(saved[1])
+            shutil.rmtree(d)
+
+
+@unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "needs ffmpeg")
+class BreakClipPipelineTest(unittest.TestCase):
+    """Show, a 3-segment break filled from a 7 s clip in another size, rate
+    and audio format (so it loops), show again: one layout, exact frame
+    counts, continuous timestamps, and the clip's picture in the break."""
+
+    def test_break_from_clip(self):
+        d = tempfile.mkdtemp()
+        clip = os.path.join(d, "clip.mp4")
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=white:s=640x480:r=25:d=7",
+                        # audio ends 0.5 s before the video, as in real clips: the loop
+                        # wrap then restarts the timestamps mid-segment
+                        "-f", "lavfi", "-i", "sine=f=880:r=44100:d=6.5", "-c:v", "libx264",
+                        "-c:a", "aac", clip], check=True)
+        up = Upstream()
+        pp.fetch_bytes = up
+        seg = SegmentPipelineTest.segment_bytes
+        up.files["https://s/1.ts"] = seg(94000, 0x50, 0x51, "red")
+        for i in range(3):
+            up.files["https://s/0_ad/creative/x_ad/%d.ts" % i] = seg(1 + 5 * i, 0x100, 0x101, "white")
+        up.files["https://s/5.ts"] = seg(94020, 0x50, 0x51, "red")
+        up.files["https://up/v.m3u8"] = (
+            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:1\n"
+            "#EXT-X-PROGRAM-DATE-TIME:2026-11-04T05:00:00.000Z\n#EXTINF:5,\nhttps://s/1.ts\n"
+            "#EXT-X-DISCONTINUITY\n#EXT-X-PROGRAM-DATE-TIME:2026-11-04T05:00:05.000Z\n"
+            + "".join("#EXTINF:5,\nhttps://s/0_ad/creative/x_ad/%d.ts\n" % i for i in range(3))
+            + "#EXT-X-DISCONTINUITY\n#EXT-X-PROGRAM-DATE-TIME:2026-11-04T05:00:20.000Z\n"
+            "#EXTINF:5,\nhttps://s/5.ts\n").encode()
+        old = pp.break_clips
+        pp.break_clips = lambda now=None: [(clip, 7.0, True)]
+        try:
+            s = pp.get_stream(pp.new_stream("https://up/v.m3u8", None))
+            pp.media(s, "v")
+            parts = [pp.segment(s, "v", n) for n in (1, 2, 3, 4, 5)]
+        finally:
+            pp.break_clips = old
+            shutil.rmtree(d)
+        p = packets(b"".join(parts))
+        self.assertEqual(sorted((st["id"], st["codec_type"]) for st in p["streams"]),
+                         [("0x100", "video"), ("0x101", "audio")])
+        for want in ("video", "audio"):
+            idx = next(st["index"] for st in p["streams"] if st["codec_type"] == want)
+            t = sorted(float(x["pts_time"]) for x in p["packets"] if x["stream_index"] == idx)
+            self.assertLess(abs(t[0] - pp.TIMELINE_START), 0.1, want)
+            self.assertLess(max(b - a for a, b in zip(t, t[1:])), 0.2, want)
+            self.assertGreater(t[-1] - t[0], 24.5, want)
+        for n in (2, 3, 4):                        # the break: the clip, in the show's format
+            info = json.loads(subprocess.run(
+                ["ffprobe", "-v", "error", "-count_frames", "-show_entries",
+                 "stream=codec_type,width,height,nb_read_frames,sample_rate", "-of", "json", "pipe:0"],
+                input=parts[n - 1], capture_output=True).stdout)["streams"]
+            v = next(x for x in info if x["codec_type"] == "video")
+            a = next(x for x in info if x["codec_type"] == "audio")
+            self.assertEqual((v["width"], v["height"], int(v["nb_read_frames"])), (320, 180, 150))
+            self.assertEqual(a["sample_rate"], "48000")
+            self.assertTrue(232 <= int(a["nb_read_frames"]) <= 238, (n, a["nb_read_frames"]))  # 5 s, even across the loop
+            frame = subprocess.run(["ffmpeg", "-v", "error", "-i", "pipe:0", "-frames:v", "1", "-vf", "scale=1:1",
+                                    "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"],
+                                   input=parts[n - 1], capture_output=True).stdout
+            self.assertGreater(frame[0], 200, n)    # white clip, not black
 
 
 if __name__ == "__main__":

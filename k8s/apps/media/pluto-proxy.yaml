@@ -44,6 +44,9 @@ spec:
               PORT: "8181"
               PYTHONDONTWRITEBYTECODE: "1"
               PYTHONUNBUFFERED: "1"
+              # Ad breaks are filled from clips here (one per break, looped);
+              # empty folder = black. docs/live-tv.md "Ad-break clips".
+              BREAKS_DIR: /breaks
             probes:
               liveness:
                 enabled: true
@@ -78,6 +81,24 @@ spec:
               limits:
                 memory: 512Mi
     defaultPodOptions:
+      # Cutting break clips is CPU work: prefer an amd64 node (about 4x a
+      # Pi 5 per segment), never omega (a gaming PC that goes offline), and
+      # still run on a Pi when alpha is unavailable.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [talos-omega]
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: [amd64]
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -91,6 +112,14 @@ spec:
             port: 8181
             targetPort: 8181
     persistence:
+      breaks:
+        existingClaim: media-nfs
+        advancedMounts:
+          pluto-proxy:
+            app:
+              - path: /breaks
+                subPath: media/live-tv-breaks
+                readOnly: true
       script:
         type: configMap
         name: pluto-proxy-script
