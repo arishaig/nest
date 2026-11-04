@@ -387,6 +387,7 @@ def build_args(key, need, info, dur, ad, video, audio, shift=0.0, at=None, sep=N
         opts, url = source_args(key)
         args += opts + ["-itsoffset", "%.6f" % shift, "-i", url]
     inputs, maps, codecs = (1 if copy else 0), [], []
+    sep_input = None
     if sep and not ad and "a" in need and "a" not in copy and "a" in sep[1]:
         opts, url = source_args(sep[0], sep[2])
         args += opts + ["-itsoffset", "%.6f" % shift, "-i", url]
@@ -397,7 +398,7 @@ def build_args(key, need, info, dur, ad, video, audio, shift=0.0, at=None, sep=N
             maps += ["-map", "0:%s:0" % t]
             codecs += ["-c:%d" % i, "copy"]
             continue
-        if t == "a" and "A" in copy:
+        if t == "a" and sep_input is not None:
             maps += ["-map", "%d:a:0" % sep_input]
             codecs += ["-c:%d" % i, "copy"]
             continue
