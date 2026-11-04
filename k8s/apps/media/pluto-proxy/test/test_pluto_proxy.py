@@ -193,12 +193,11 @@ class ProxyTest(unittest.TestCase):
         pp.fetch_master = lambda url: (SPLIT_AUDIO, BASE)
         status, _, body = self.get("/ch/%s.m3u8" % CID)
         self.assertEqual(status, 200)
-        self.assertIn('AUDIO="audio"', body)
-        self.assertRegex(body, r'URI="/s/[A-Za-z0-9_-]{16}/a\.m3u8"')
+        self.assertNotIn("EXT-X-MEDIA", body)        # one playlist, audio merged in
         key = body.strip().splitlines()[-1].split("/")[2]
         s = pp.get_stream(key)
-        self.assertEqual(s.upstream["a"], "https://stitch.example/v2/stitch/hls/channel/x/audio/orig/audio.m3u8?sid=S")
-        self.assertEqual(s.need, {"v": "v", "a": "a"})
+        self.assertEqual(s.audio, "https://stitch.example/v2/stitch/hls/channel/x/audio/orig/audio.m3u8?sid=S")
+        self.assertEqual(s.need, {"v": "va"})
 
     def test_pick_renditions(self):
         self.assertEqual(pp.pick_renditions(MASTER, "https://h/p/m.m3u8", 2300000),
@@ -289,49 +288,54 @@ class ProxyTest(unittest.TestCase):
 
 
 class TimelineTest(unittest.TestCase):
-    def stream(self, audio=None):
-        s = pp.Stream("K" * 16, "https://v", audio)
+    def stream(self):
+        s = pp.Stream("K" * 16, "https://v", None)
         s.epoch = 1000.0
         return s
 
+    @staticmethod
+    def place(s, track, dseq, clock, src, dur=5.0, ad=False):
+        """Output start of one segment, recorded as served like segment() does."""
+        need = s.need[track]
+        info = {need[0]: {"start": src}, "start": src}
+        shift, at = pp.run_shift(s, track, {"dseq": dseq, "clock": clock}, info)
+        out = at if ad else src + shift
+        pp.served(s, track, out + dur)
+        return out
+
     def test_runs_land_on_one_timeline(self):
         s = self.stream()
-        show = {"dseq": 0, "clock": 1000.0}
-        ad = {"dseq": 1, "clock": 1030.0}
-        self.assertAlmostEqual(pp.run_shift(s, "v", show, {"start": 94000.0}), pp.TIMELINE_START - 94000.0)
-        # the ad restarts its clock at 1 s; it must land 30 s later on the output
-        self.assertAlmostEqual(1.0 + pp.run_shift(s, "v", ad, {"start": 1.0}), pp.TIMELINE_START + 30.0)
-        # later segments of a run keep its shift, whatever they start at
-        self.assertAlmostEqual(pp.run_shift(s, "v", dict(ad), {"start": 6.0}), pp.TIMELINE_START + 29.0)
+        T = pp.TIMELINE_START
+        self.assertAlmostEqual(self.place(s, "v", 0, 1000.0, 94000.0), T)
+        self.assertAlmostEqual(self.place(s, "v", 0, 1005.0, 94005.0), T + 5)
+        # an ad restarting its clock at 1 s lands 10 s in, by its date
+        self.assertAlmostEqual(self.place(s, "v", 1, 1010.0, 1.0), T + 10)
+        self.assertAlmostEqual(self.place(s, "v", 1, 1015.0, 6.0), T + 15)
 
-    def test_split_tracks_share_the_timeline(self):
-        s = self.stream("https://a")
-        seg = {"dseq": 2, "clock": 1010.0}
-        v = 50.0 + pp.run_shift(s, "v", seg, {"v": {"start": 50.0}, "start": 50.0})
-        a = 7.0 + pp.run_shift(s, "a", dict(seg), {"a": {"start": 7.0}, "start": 7.0})
-        self.assertAlmostEqual(v, a)
+    def test_ad_slates_follow_dates_not_ad_timestamps(self):
+        s = self.stream()
+        T = pp.TIMELINE_START
+        # repackaged ad segments whose own clock restarts every segment
+        for i in range(4):
+            self.assertAlmostEqual(self.place(s, "v", 1, 1000.0 + 5 * i, 10.0, ad=True), T + 5 * i)
 
     def test_overlap_is_pushed_after_what_was_served(self):
-        s = self.stream("https://a")
-        show = {"dseq": 0, "clock": 1000.0}
-        sh = pp.run_shift(s, "v", show, {"v": {"start": 100.0}, "start": 100.0})
-        pp.served(s, "v", {"v": {"start": 100.0}, "start": 100.0}, sh, 10.5)   # media ran 0.5 s long
-        ad = {"dseq": 1, "clock": 1010.0}                                       # dates say 10 s
-        v = 1.0 + pp.run_shift(s, "v", ad, {"v": {"start": 1.0}, "start": 1.0})
-        a = 3.0 + pp.run_shift(s, "a", dict(ad), {"a": {"start": 3.0}, "start": 3.0})
-        self.assertAlmostEqual(v, pp.TIMELINE_START + 10.5)
-        self.assertAlmostEqual(a, v)                                            # same fix on both tracks
+        s = self.stream()
+        self.place(s, "v", 0, 1000.0, 100.0, dur=10.5)              # media ran 0.5 s long
+        self.assertAlmostEqual(self.place(s, "v", 1, 1010.0, 1.0), pp.TIMELINE_START + 10.5)
 
-    def test_run_anchor_is_shared_by_position(self):
-        s = self.stream("https://a")
-        pp.run_shift(s, "v", {"dseq": 3, "clock": 1020.0}, {"v": {"start": 50.0}, "start": 50.0})
-        # audio reaches the run one segment later: still on the same timeline
-        a = 9.0 + pp.run_shift(s, "a", {"dseq": 3, "clock": 1025.0}, {"a": {"start": 9.0}, "start": 9.0})
-        self.assertAlmostEqual(a, pp.TIMELINE_START + 25.0)
+    def test_parse_probe_reads_lengths(self):
+        info = pp.parse_probe(json.dumps({"streams": [
+            {"codec_type": "video", "width": 1280, "height": 720, "r_frame_rate": "30/1",
+             "start_time": "10.0", "duration": "5.7"},
+            {"codec_type": "audio", "sample_rate": "48000", "channels": 2, "start_time": "9.98"}]}))
+        self.assertEqual(info["v"]["length"], 5.7)
+        self.assertEqual(info["a"]["length"], 0.0)
+        self.assertEqual(info["start"], 9.98)
 
     def test_no_dates_leaves_timestamps_alone(self):
         s = self.stream()
-        self.assertEqual(pp.run_shift(s, "v", {"dseq": 0, "clock": None}, {"start": 5.0}), 0.0)
+        self.assertEqual(pp.run_shift(s, "v", {"dseq": 0, "clock": None}, {"start": 5.0}), (0.0, 5.0))
 
 
 class BuildArgsTest(unittest.TestCase):
@@ -350,10 +354,10 @@ class BuildArgsTest(unittest.TestCase):
 
     def test_ad_is_all_generated_at_shifted_times(self):
         info = {"v": {"start": 1.0}, "a": {"start": 0.98}, "start": 0.98}
-        j = " ".join(pp.build_args(None, "va", info, 4.992, True, self.V, self.A, shift=100.0))
+        j = " ".join(pp.build_args(None, "va", info, 4.992, True, self.V, self.A, shift=100.0, at=250.0))
         self.assertNotIn("pipe:0", j)
-        self.assertIn("-itsoffset 101.000000 -t 4.992000 -f lavfi -i color=c=black:s=1280x720:r=30/1", j)
-        self.assertIn("-itsoffset 100.980000 -t 4.992000 -f lavfi -i anullsrc=r=48000:cl=stereo", j)
+        self.assertIn("-itsoffset 250.000000 -t 4.992000 -f lavfi -i color=c=black:s=1280x720:r=30/1", j)
+        self.assertIn("-itsoffset 250.000000 -t 4.992000 -f lavfi -i anullsrc=r=48000:cl=stereo", j)
         self.assertIn("-frames:0 150", j)
 
     def test_missing_audio_is_filled_with_silence(self):
@@ -430,6 +434,56 @@ class SegmentPipelineTest(unittest.TestCase):
                                 "-vf", "scale=1:1", "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"],
                                input=pp.segment(s, "v", 3), capture_output=True).stdout
         self.assertLess(frame[0], 30)
+
+
+@unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "needs ffmpeg")
+class SeparateAudioPipelineTest(unittest.TestCase):
+    """Video-only show segments with a separate audio playlist, an ad in
+    between: the output is one muxed stream, sound copied for the show,
+    silence for the ad, both continuous."""
+
+    @staticmethod
+    def video(start):
+        return ts(["-f", "lavfi", "-t", "5", "-i", "testsrc=s=320x180:r=30", "-c:v", "libx264",
+                   "-preset", "ultrafast", "-output_ts_offset", str(start), "-mpegts_copyts", "1",
+                   "-copyts", "-streamid", "0:80"])
+
+    @staticmethod
+    def audio(start):
+        return ts(["-f", "lavfi", "-t", "5", "-i", "sine=f=440:r=48000", "-c:a", "aac",
+                   "-output_ts_offset", str(start), "-mpegts_copyts", "1", "-copyts", "-streamid", "0:80"])
+
+    def test_merge(self):
+        up = Upstream()
+        pp.fetch_bytes = up
+        head = "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:1\n#EXT-X-PROGRAM-DATE-TIME:2026-11-04T05:00:00.000Z\n"
+        mid = ("#EXT-X-DISCONTINUITY\n#EXT-X-PROGRAM-DATE-TIME:2026-11-04T05:00:05.000Z\n#EXTINF:5,\n%s\n"
+               "#EXT-X-DISCONTINUITY\n#EXT-X-PROGRAM-DATE-TIME:2026-11-04T05:00:10.000Z\n#EXTINF:5,\n%s\n")
+        up.files["https://up/v.m3u8"] = (head + "#EXTINF:5,\nhttps://s/v1.ts\n" + mid % (
+            "https://s/0_ad/creative/x_ad/v.ts", "https://s/v3.ts")).encode()
+        up.files["https://up/a.m3u8"] = (head + "#EXTINF:5,\nhttps://s/a1.ts\n" + mid % (
+            "https://s/0_ad/creative/x_ad/a.ts", "https://s/a3.ts")).encode()
+        up.files["https://s/v1.ts"], up.files["https://s/a1.ts"] = self.video(94000), self.audio(94000)
+        up.files["https://s/0_ad/creative/x_ad/v.ts"] = self.video(1)
+        up.files["https://s/v3.ts"], up.files["https://s/a3.ts"] = self.video(94010), self.audio(94010)
+        s = pp.get_stream(pp.new_stream("https://up/v.m3u8", "https://up/a.m3u8"))
+        pp.media(s, "v")
+        out = b"".join(pp.segment(s, "v", n) for n in (1, 2, 3))
+        p = packets(out)
+        self.assertEqual(sorted((st["id"], st["codec_type"]) for st in p["streams"]),
+                         [("0x100", "video"), ("0x101", "audio")])
+        for want in ("video", "audio"):
+            idx = next(st["index"] for st in p["streams"] if st["codec_type"] == want)
+            t = sorted(float(x["pts_time"]) for x in p["packets"] if x["stream_index"] == idx)
+            self.assertLess(abs(t[0] - pp.TIMELINE_START), 0.1, want)
+            self.assertLess(max(b - a for a, b in zip(t, t[1:])), 0.2, want)
+            self.assertGreater(t[-1] - t[0], 14.5, want)
+        vol = subprocess.run(["ffmpeg", "-hide_banner", "-i", "pipe:0", "-af", "volumedetect", "-vn", "-f", "null", "-"],
+                             input=pp.segment(s, "v", 2), capture_output=True).stderr.decode()
+        self.assertIn("max_volume: -91", vol)                         # the ad is silent
+        vol = subprocess.run(["ffmpeg", "-hide_banner", "-i", "pipe:0", "-af", "volumedetect", "-vn", "-f", "null", "-"],
+                             input=pp.segment(s, "v", 3), capture_output=True).stderr.decode()
+        self.assertNotIn("max_volume: -91", vol)                      # the show has sound
 
 
 if __name__ == "__main__":
