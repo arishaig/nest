@@ -211,7 +211,7 @@ class ProxyTest(unittest.TestCase):
         self.assertFalse(endlist)
         self.assertIn("#EXT-X-MEDIA-SEQUENCE:31", headers)
         self.assertEqual([s["seq"] for s in segs], [31, 32, 33, 34])
-        self.assertEqual([s["ad"] for s in segs], [False, True, True, False])  # bumper is not an ad
+        self.assertEqual([s["ad"] for s in segs], [False, True, True, True])  # the ad-break bumper is part of the break
         self.assertEqual([s["dseq"] for s in segs], [3, 4, 4, 5])
         self.assertEqual(segs[0]["key"], ("https://k.example/show.key", "0000000000000000000000000000000a"))
         self.assertEqual(segs[1]["key"], ("https://k.example/ad.key", "%032x" % 32))  # IV = sequence number
@@ -221,6 +221,31 @@ class ProxyTest(unittest.TestCase):
         self.assertEqual(segs[2]["extinf"], "0.033")
         with self.assertRaises(ValueError):
             pp.parse_media('#EXT-X-KEY:METHOD=SAMPLE-AES,URI="k"\n#EXTINF:5,\nx.ts\n', "https://h/")
+
+    def test_ad_patterns(self):
+        """Real segment paths seen 2026-11-04 (hosts dropped)."""
+        ads = [
+            "/prd/creative/57_ad/6650810d9e19600a860bd9ee_ad/720p/20240524_115909/hls/hls_2400_00000.ts",
+            "/v1/mp4/c(ts)/h(default)/max(6)/rev(1)/p(6_ad/creative/69ed2e02b20baf9752aa8814_ad/720p/"
+            "20260425_211130_923677051_x_c2ac985e/video_2400.mp4)/id3(p=clik,id=69ed2e02b20baf9752aa8814)/seg-1.ts",
+            # repackaged creative without `_ad/creative/` in its path
+            "/mp4/v1/c(ts)/h(default)/max(18)/rev(1)/p(52e/6ae88bdc8002ec01f03740dd/720p/"
+            "20261102_131052_544305688_x_33c825ca/video_2400.mp4)/id3(p=clik,id=6ae88bdc8002ec01f03740dd)/seg-3.ts",
+            "/384_Pluto_TV_OandO/clip/5e1f_ptv-7424_ad_bumper_animation_dots_normal_30_1/720p/hls/hls_2400-00000.ts",
+            "/384_Pluto_TV_OandO/clip/5e1f_ptv_7424adbumperanimationdotsinverted01/720p/hls/hls_2400-00000.ts",
+        ]
+        shows = [
+            "/live/v1/prd/NBCNewsNow/ts_aes/20260925_205356/video/720p-2400000/161443230300000.ts",
+            "/550_NewID/clip/61730bf6829284001a93fd63_Pinkfong_Playfong_Ep4_S1E4/720pDRM/20241125_082415/"
+            "hls/360729-752286/hls_2400-00043.ts",
+            "/878_Pluto_TV_OandO/clip/622721a4e1977a00079c93ff_plutotv_kidsbumpers_yourewatching_babysharktv_girl_v1/"
+            "1080pDRM/20251117_205900/hls/0-end/hls_2400-00000.ts",
+            "/123_pluto/clip/5f00_Padded_Bumpers_Season_1/720p/hls/hls_2400-00001.ts",
+        ]
+        for u in ads:
+            self.assertTrue(pp.AD_RE.search(u), u)
+        for u in shows:
+            self.assertFalse(pp.AD_RE.search(u), u)
 
     def test_render_media(self):
         headers, segs, _ = pp.parse_media(MEDIA, "https://stitch.example/a/b.m3u8")
