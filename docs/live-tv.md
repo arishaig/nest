@@ -104,7 +104,10 @@ package). It keeps no state:
   ```
 
   (loudness normalised to -24 LUFS, so a break is never louder than the
-  show). A clip segment taking over 12 s, or failing, falls back to black.
+  show). Break clips and black slates are encoded with the show's own H.264
+  profile, reference frames and B-frames (`x264_args`): the player's decoder
+  gets show and break as one stream, and Baseline slates inside a High show
+  flashed green on Android TV at break boundaries. A clip segment taking over 12 s, or failing, falls back to black.
   The pod prefers an amd64 node (never omega): a 5 s clip segment takes about
   1.3 s on a Pi 5, two at once up to 4.4 s; break segments are built one
   ahead in the background.
