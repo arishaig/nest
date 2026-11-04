@@ -961,8 +961,9 @@ def dvb_srt(cues, t0, t1):
     for start, end, lines in sorted(cues):
         if not lines or end <= t0 or start >= t1:
             continue
-        # SubRip text is markup to subparse
-        text = "\n".join(l.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") for l in lines)
+        # subparse escapes &, < and > itself (escaping them here showed
+        # "&gt;&gt;" on screen) but reads <...> as a tag
+        text = "\n".join(l.replace("<", "\u2039") for l in lines)
         # one that ends in this segment must end before the clearing entry
         stop = min(end, t1 - 0.03) if end <= t1 else end
         entries.append((max(start, t0) - t0, max(stop, start + 0.01) - t0, text))
