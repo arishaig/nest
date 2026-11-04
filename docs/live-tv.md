@@ -130,12 +130,26 @@ package). It keeps no state:
     31-column word wrap); otherwise the words at each boundary vanish.
   - Words due in a segment's last 0.5 s go in the next one, so they aren't cut
     off mid-send (608 carries about 2 characters a frame).
-  - The PMT declares the captions (ATSC caption_service_descriptor on the
-    video stream, `declare_captions`): Media3/ExoPlayer (Wholphin, Jellyfin's
-    Android apps) exposes no caption track without it. Dispatcharr's ffmpeg
-    profiles rewrite the PMT and drop it, so a caption channel needs the
-    **Streamlink** stream profile, which passes the segments through as they
-    are. The Live TV Subtitles Jellyfin plugin then offers the track.
+  - The same channels also get a **DVB subtitle track** (PID 0x102,
+    `add_dvb`): each show segment's on-screen cues rendered by GStreamer
+    (`subparse` → `textrender` → `dvbsubenc`, centred white monospace with a
+    shadow) and merged in beside video and audio. A real track: Media3 clients
+    (Wholphin, Jellyfin for Android TV) render it, and a client that can't has
+    Jellyfin burn it in. Media3 ignores the CEA-608 in the video unless the
+    PMT declares it, and a declared-but-fake track breaks every burn-in.
+    Details: centred because `dvbsubenc` only finds a picture's right edge
+    if it reaches the right half of the frame (short left-aligned captions
+    came out empty); a cue still on at a segment's end runs past it (no blink
+    at boundaries), and an invisible entry just before the end clears one
+    that ended earlier (`dvbsubenc` ends a page only when the next arrives).
+    Every segment's PMT lists the track (`declare_subtitles`), ads and
+    caption-less segments too: Media3 reads the track list from the first
+    PMT only.
+  - Dispatcharr's ffmpeg profiles keep only video and audio, so a caption
+    channel uses the **Streamlink** stream profile (segments passed through
+    unchanged). Jellyfin drops subtitle tracks of live TV; the
+    [Live TV Subtitles](https://github.com/arishaig/jellyfin-live-tv-subtitles)
+    plugin offers them again for the channels it lists.
   - To check a stream by hand, `ffmpeg -real_time 1 -f lavfi -i
     "movie=X.ts[out0+subcc]" -map 0:s -f srt -`: without `-real_time` ffmpeg
     only prints a roll-up line once it scrolls, so short tests look empty.
