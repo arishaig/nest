@@ -79,8 +79,34 @@ package). It keeps no state:
   segments keep their own timestamps within each discontinuity run.
 - `PLUTO_DEBUG=1` (env) logs every segment's placement (run, date, source
   start, output start).
-- **Ads are replaced** by black, silent segments of the same length (any
-  segment whose URL contains `_ad/creative/`; Pluto's own bumpers are kept).
+- **Ads are replaced** (any segment whose URL contains `_ad/creative/`;
+  Pluto's own bumpers are kept) by a clip from the breaks folder (below), or
+  black and silence when there is none.
+- **Ad-break clips** live in `/data/media/live-tv-breaks` on the NAS
+  (mounted read-only at `/breaks`, `BREAKS_DIR`). Each break picks one clip
+  at random, plays it from its start and loops it until the show returns; the
+  pick holds for the whole break. Every 5 s break segment is cut from the clip
+  in the show's own size, frame rate and audio format. The folder is rescanned
+  every 5 minutes, so adding or removing a clip needs no deploy; files changed
+  in the last 2 minutes, partial downloads and non-video files are ignored. It
+  is deliberately not under `filler/` (subgen transcribes that) or the MeTube
+  folder (every download would become break filler).
+  Convert a new clip first so the proxy only ever decodes cheap 720p H.264
+  (keep long ones to their first 10 minutes, since no break is that long):
+
+  ```sh
+  ffmpeg -t 600 -i IN -map 0:v:0 -map 0:a:0 \
+    -vf "fps=30,scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p" \
+    -c:v libx264 -preset veryfast -crf 22 -g 30 -keyint_min 30 -sc_threshold 0 \
+    -af "loudnorm=I=-24:TP=-2:LRA=11,aresample=48000" -ac 2 -c:a aac -b:a 128k \
+    -movflags +faststart OUT.mp4
+  ```
+
+  (loudness normalised to -24 LUFS, so a break is never louder than the
+  show). A clip segment taking over 12 s, or failing, falls back to black.
+  The pod prefers an amd64 node (never omega): a 5 s clip segment takes about
+  1.3 s on a Pi 5, two at once up to 4.4 s; break segments are built one
+  ahead in the background.
 - Cost: the proxy is in the video path, about 3 Mbit/s and one ffprobe plus
   one short ffmpeg run per 5 s segment per stream. If it is down, Pluto
   channels stop.

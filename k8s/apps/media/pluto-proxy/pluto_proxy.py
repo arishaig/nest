@@ -23,7 +23,8 @@ streams it mapped starve and the channel stalls at every ad break. Each segment
 is therefore decrypted and copy-remuxed into one fixed layout: video on PID
 0x100, audio on 0x101, nothing else, timestamps unchanged. Ad segments
 (`_ad/creative/` in the URL) are replaced with a black, silent segment of the
-same length, at the same timestamps.
+same length, at the same timestamps, or with a slice of a clip from
+BREAKS_DIR (one picked per break, looped).
 
 Needs ffmpeg and ffprobe on PATH; without them /ch falls back to pointing the
 client straight at Pluto (no normalising). Usage and caveats: docs/live-tv.md.
@@ -32,6 +33,7 @@ import collections
 import datetime
 import json
 import os
+import random
 import re
 import secrets
 import shutil
@@ -63,7 +65,15 @@ TIMELINE_START = 10.0  # output seconds at the first segment's date
 RUN_MATCH = 2.0        # s: video and audio runs this close in date are the same run
 DEBUG = os.environ.get("PLUTO_DEBUG") == "1"  # log every segment's placement
 SEGMENTS_KEPT = 60     # per track: a few playlist windows
-BUILT_KEPT = 3         # per track: finished segments kept for retried requests (~2 MB each)
+BUILT_KEPT = 6         # per track: finished segments kept for retried and built-ahead requests (~2 MB each)
+# Ad breaks are filled from video clips in this folder (read-only), one
+# picked at random per break, played from its start and looped; empty or
+# unset means black. See docs/live-tv.md for how to add clips.
+BREAKS_DIR = os.environ.get("BREAKS_DIR", "")
+BREAKS_RESCAN = int(os.environ.get("BREAKS_RESCAN_SECONDS", "300"))
+BREAK_EXTS = (".mp4", ".m4v", ".mkv", ".webm", ".mov", ".ts")
+BREAK_SETTLE = 120     # s: files modified more recently may still be being written
+CLIP_TIMEOUT = 12      # s: a clip segment taking longer falls back to black
 
 _lock = threading.Lock()
 _state = {"session": None, "channels": None, "at": 0.0}
@@ -422,6 +432,126 @@ def build_args(key, need, info, dur, ad, video, audio, shift=0.0, at=None, sep=N
         "-mpegts_flags", "+initial_discontinuity", "-f", "mpegts", "pipe:1"]
 
 
+# --- ad-break clips -------------------------------------------------------------
+
+_breaks = {"at": 0.0, "clips": [], "known": {}}
+_breaks_lock = threading.Lock()
+
+
+def usable_clip_name(name):
+    """Whether a file in BREAKS_DIR is a clip to use: a video extension, not
+    hidden, not a partial download (.part, yt-dlp's .fNNN.ext pieces)."""
+    low = name.lower()
+    return (not low.startswith(".") and low.endswith(BREAK_EXTS)
+            and not re.search(r"\.f\d+\.\w+$", low) and ".part" not in low)
+
+
+def probe_clip(path):
+    """(duration s, has audio) of a clip file, or None if unreadable."""
+    r = subprocess.run([FFPROBE, "-v", "error", "-show_entries", "format=duration:stream=codec_type",
+                        "-of", "json", path], capture_output=True, timeout=30)
+    try:
+        d = json.loads(r.stdout or b"{}")
+        dur = float(d["format"]["duration"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    types = {st.get("codec_type") for st in d.get("streams", [])}
+    return (dur, "audio" in types) if dur >= 1 and "video" in types else None
+
+
+def break_clips(now=None):
+    """[(path, duration, has audio)] in BREAKS_DIR, rescanned every
+    BREAKS_RESCAN seconds; each file is probed once per size and mtime."""
+    now = time.time() if now is None else now
+    with _breaks_lock:
+        if not BREAKS_DIR or (_breaks["at"] and now - _breaks["at"] < BREAKS_RESCAN):
+            return _breaks["clips"]
+        _breaks["at"] = now
+        known = _breaks["known"]
+    clips = []
+    try:
+        names = sorted(os.listdir(BREAKS_DIR))
+    except OSError as e:
+        print("breaks folder unreadable: %s" % type(e).__name__, flush=True)
+        names = []
+    for name in names:
+        path = os.path.join(BREAKS_DIR, name)
+        if not usable_clip_name(name):
+            continue
+        try:
+            st = os.stat(path)
+        except OSError:
+            continue
+        if now - st.st_mtime < BREAK_SETTLE:
+            continue  # still arriving
+        sig = (st.st_size, st.st_mtime)
+        if path not in known or known[path][0] != sig:
+            known[path] = (sig, probe_clip(path))
+            if known[path][1] is None:
+                print("break clip unreadable, skipped: %s" % name, flush=True)
+        if known[path][1]:
+            clips.append((path,) + known[path][1])
+    with _breaks_lock:
+        _breaks["clips"] = clips
+    return clips
+
+
+def clip_for(stream, track, seg):
+    """(path, position s, has audio) to fill ad segment seg from, or None.
+
+    A break is a run of consecutive ad segments; its first one we know of
+    picks a clip at random (seeded by stream and break, so a retried request
+    gets the same bytes). Every clip starts from its beginning and loops; the
+    position comes from the segment's date (or its place in the break)."""
+    clips = break_clips()
+    if not clips:
+        return None
+    with stream.lock:
+        segs = stream.segs[track]
+        first = seg["seq"]
+        while first - 1 in segs and segs[first - 1]["ad"]:
+            first -= 1
+        pick = stream.break_pick.get(first)
+        if pick is None:
+            rnd = random.Random("%s:%d" % (stream.key, first))
+            pick = stream.break_pick[first] = (rnd.choice(clips), segs[first]["clock"])
+            while len(stream.break_pick) > 32:
+                stream.break_pick.pop(next(iter(stream.break_pick)))
+        (path, length, has_audio), first_clock = pick
+        if seg["clock"] is not None and first_clock is not None:
+            elapsed = seg["clock"] - first_clock
+        else:
+            elapsed = sum(s["dur"] for q, s in segs.items() if first <= q < seg["seq"])
+    return path, max(0.0, elapsed) % length, has_audio
+
+
+def clip_args(path, pos, has_audio, dur, at, video, audio):
+    """ffmpeg arguments for one ad segment cut from a clip: `dur` seconds from
+    `pos` (looping past the end), in the show's size, rate and audio format,
+    starting at output time `at`, with the fixed PIDs."""
+    fps = video["fps"]
+    frames = max(1, round(dur * _fps(fps)))
+    w, h = video["width"], video["height"]
+    rate, ch = audio["sample_rate"], audio["channels"]
+    args = [FFMPEG, "-hide_banner", "-loglevel", "error", "-nostdin",
+            "-stream_loop", "-1", "-ss", "%.3f" % pos, "-i", path]
+    if not has_audio:
+        args += ["-f", "lavfi", "-i", "anullsrc=r=%d:cl=%s" % (rate, "mono" if ch == 1 else "stereo")]
+    return args + [
+        "-map", "0:v:0", "-map", "0:a:0" if has_audio else "1:a:0",
+        # Timestamps restart when the loop wraps, so frames and samples are
+        # renumbered by count before anything that looks at time.
+        "-vf", "setpts=N/FRAME_RATE/TB,fps=%s,scale=%d:%d:force_original_aspect_ratio=decrease,"
+               "pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p" % (fps, w, h, w, h),
+        "-frames:v", str(frames), "-c:v", "libx264", "-preset", "ultrafast",
+        "-af", "aresample=%d,asetpts=N/SR/TB,apad,atrim=duration=%.6f" % (rate, max(dur, 0.04)),
+        "-ac", str(ch), "-c:a", "aac", "-b:a", "128k",
+        "-output_ts_offset", "%.6f" % at,
+        "-streamid", "0:%d" % VIDEO_PID, "-streamid", "1:%d" % AUDIO_PID,
+        "-mpegts_service_id", "1", "-mpegts_pmt_start_pid", "4096", "-mpegts_copyts", "1",
+        "-mpegts_flags", "+initial_discontinuity", "-f", "mpegts", "pipe:1"]
+
+
 class Stream:
     """One client's view of one channel: Pluto's media playlist URLs and the
     segments listed in them so far."""
@@ -441,9 +571,11 @@ class Stream:
         self.epoch = None
         self.last_playlist = {}
         self.shifts = {t: {} for t in self.upstream}
-        self.run_clock = {t: {} for t in self.upstream}  # dseq -> date of the run's first segment seen
+        self.run_clock = {t: {} for t in self.upstream}  # block -> date of its first segment seen
         self.anchors = []      # (run date, output time), shared by the tracks
         self.track_end = {}    # track -> furthest output time served
+        self.break_pick = {}   # first ad seq of a break -> (clip, that segment's date)
+        self.inflight = {}     # (track, seq) -> threading.Event while being built
         self.used = time.time()
         self.lock = threading.Lock()
 
@@ -547,10 +679,51 @@ def audio_for(stream, seg):
 
 
 def segment(stream, track, seq):
-    """The normalised bytes of one segment, or None if it isn't known."""
+    """The normalised bytes of one segment, or None if it isn't known. A
+    segment being built (e.g. ahead, see build_ahead) is waited for rather
+    than built twice."""
+    while True:
+        with stream.lock:
+            if seq in stream.built[track]:
+                return stream.built[track][seq]
+            if seq not in stream.segs[track]:
+                return None
+            ev = stream.inflight.get((track, seq))
+            if ev is None:
+                ev = stream.inflight[(track, seq)] = threading.Event()
+                break
+        if not ev.wait(30):
+            raise RuntimeError("segment build timed out")
+    try:
+        out = _build(stream, track, seq)
+    finally:
+        with stream.lock:
+            stream.inflight.pop((track, seq), None)
+        ev.set()
+    build_ahead(stream, track, seq + 1)
+    return out
+
+
+def build_ahead(stream, track, seq):
+    """Build the next segment in the background if it is an ad cut from a
+    clip (the slowest kind), so it is ready when asked for. Chained in order:
+    each built segment starts the next."""
     with stream.lock:
-        if seq in stream.built[track]:
-            return stream.built[track][seq]
+        seg = stream.segs[track].get(seq)
+        if (seg is None or not seg["ad"] or seq in stream.built[track]
+                or (track, seq) in stream.inflight or not break_clips()):
+            return
+
+    def run():
+        try:
+            segment(stream, track, seq)
+        except Exception as e:  # noqa: BLE001 - the client's own request retries
+            print("build ahead %s/%d failed: %s" % (track, seq, type(e).__name__), flush=True)
+    threading.Thread(target=run, daemon=True).start()
+
+
+def _build(stream, track, seq):
+    with stream.lock:
         seg = stream.segs[track].get(seq)
     if seg is None:
         return None
@@ -582,10 +755,24 @@ def segment(stream, track, seq):
                     stream.params["a"] = {k: v for k, v in ainfo["a"].items() if k not in ("start", "length")}
                     audio = stream.params["a"]
                 sep = (akey, ainfo, adata)
-    out, err, code = run_ffmpeg(
-        lambda fd: build_args(key, need, info, seg["dur"], seg["ad"], video, audio, shift,
-                              at if seg["ad"] else None, sep and (sep[0], sep[1], fd)),
-        data, sep[2] if sep else None)
+    out, code, filled = None, None, "black"
+    clip = clip_for(stream, track, seg) if seg["ad"] else None
+    if clip:
+        try:
+            r = subprocess.run(clip_args(clip[0], clip[1], clip[2], seg["dur"], at, video, audio),
+                               capture_output=True, timeout=CLIP_TIMEOUT)
+            if r.returncode == 0 and r.stdout:
+                out, code, filled = r.stdout, 0, os.path.basename(clip[0])
+            else:
+                print("clip segment failed, black instead: %s" % r.stderr.decode("utf-8", "replace")[-200:],
+                      flush=True)
+        except subprocess.TimeoutExpired:
+            print("clip segment too slow, black instead", flush=True)
+    if out is None:
+        out, err, code = run_ffmpeg(
+            lambda fd: build_args(key, need, info, seg["dur"], seg["ad"], video, audio, shift,
+                                  at if seg["ad"] else None, sep and (sep[0], sep[1], fd)),
+            data, sep[2] if sep else None)
     if code or not out:
         raise RuntimeError("ffmpeg: " + err.decode("utf-8", "replace").strip()[-300:])
     start = at if seg["ad"] else (info[need]["start"] if need in info else info["start"]) + shift
@@ -597,10 +784,10 @@ def segment(stream, track, seq):
         end = max([end] + [v["start"] + shift + v["length"] for v in sources])
     served(stream, track, end)
     if DEBUG:
-        print("seg %s %s/%d dseq=%d %s clock=%.3f src=%s shift=%.3f out=%.3f+%s" % (
+        print("seg %s %s/%d dseq=%d %s clock=%.3f src=%s shift=%.3f out=%.3f+%s%s" % (
             stream.key[:6], track, seq, seg["dseq"], "AD" if seg["ad"] else "show", seg["clock"] or 0,
-            {k: round(v["start"], 3) for k, v in info.items() if k in "va"}, shift, start, seg["extinf"]),
-            flush=True)
+            {k: round(v["start"], 3) for k, v in info.items() if k in "va"}, shift, start, seg["extinf"],
+            " fill=%s@%.1f" % (filled, clip[1]) if seg["ad"] and clip else ""), flush=True)
     with stream.lock:
         stream.built[track][seq] = out
         while len(stream.built[track]) > BUILT_KEPT:
@@ -659,7 +846,8 @@ def run_shift(stream, track, seg, info):
         if seg["clock"] is None or stream.epoch is None:
             return 0.0, info["start"]  # no dates in the playlist: leave timestamps alone
         runs = stream.run_clock[track]
-        rc = runs.setdefault(seg["dseq"], seg["clock"])
+        block = block_key(stream, track, seg)
+        rc = runs.setdefault(block, seg["clock"])
         anchor = next((a for a in stream.anchors if abs(a[0] - rc) <= RUN_MATCH), None)
         if anchor is None:
             at = TIMELINE_START + (rc - stream.epoch)
@@ -669,14 +857,28 @@ def run_shift(stream, track, seg, info):
             del stream.anchors[:-32]
         at = anchor[1] + (seg["clock"] - anchor[0])
         shifts = stream.shifts[track]
-        if seg["dseq"] not in shifts:
+        if block not in shifts:
             need = stream.need[track]
             src = info[need]["start"] if need in info else info["start"]
-            shifts[seg["dseq"]] = at - src
+            shifts[block] = at - src
         for d in (shifts, runs):
             while len(d) > 32:
                 d.pop(next(iter(d)))
-        return shifts[seg["dseq"]], at
+        return shifts[block], at
+
+
+def block_key(stream, track, seg):
+    """(dseq, first seq) of seg's block: the consecutive segments of one
+    discontinuity run that are all show or all ad. Pluto does not always put a
+    discontinuity between a show and an ad, and show segments (placed by their
+    own timestamps) and ad segments (placed by date) can then disagree by a
+    tenth of a second; anchoring each block anew keeps them from overlapping."""
+    segs = stream.segs[track]
+    first = seg["seq"]
+    while (first - 1 in segs and segs[first - 1]["dseq"] == seg["dseq"]
+           and segs[first - 1]["ad"] == seg["ad"]):
+        first -= 1
+    return seg["dseq"], first
 
 
 def served(stream, track, end):
