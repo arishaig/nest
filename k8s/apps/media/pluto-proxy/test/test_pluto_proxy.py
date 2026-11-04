@@ -709,6 +709,36 @@ PEOPLE UNDER <c.yellow>HIM</c>
 """
 
 
+class SlateEncoderTest(unittest.TestCase):
+    """Generated video must use the show's H.264 settings: the decoder gets
+    show and break as one stream, and an in-place switch from High with
+    B-frames to Baseline without flashed green on Android TV."""
+
+    def test_matches_show(self):
+        args = pp.x264_args({"profile": "High", "refs": 4, "bframes": 1})
+        self.assertEqual(args[:2], ["-profile:v", "high"])
+        self.assertIn("cabac=1:ref=4:bframes=1", args[3])
+        self.assertIn("8x8dct=1", args[3])
+        self.assertEqual(pp.x264_args({"profile": "Main"})[1], "main")
+        self.assertIn("8x8dct=0", pp.x264_args({"profile": "Main"})[3])
+        self.assertEqual(pp.x264_args({"profile": "Constrained Baseline"})[1], "baseline")
+        # unknown show: High with 3 references and a B-frame, like Pluto's
+        self.assertIn("ref=3:bframes=1", pp.x264_args({})[3])
+        self.assertIn("ref=3:bframes=0", pp.x264_args({"refs": "x", "bframes": 0})[3])
+
+    @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "needs ffmpeg")
+    def test_black_slate_has_show_settings(self):
+        video = {"width": 320, "height": 180, "fps": "30/1", "profile": "High", "refs": 3, "bframes": 1}
+        r = subprocess.run(pp.build_args(None, "va", {}, 2.0, True, video, pp.DEFAULT_AUDIO, at=10.0),
+                           capture_output=True, check=True)
+        out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                              "stream=profile,has_b_frames", "-of", "json", "pipe:0"],
+                             input=r.stdout, capture_output=True, check=True).stdout
+        st = json.loads(out)["streams"][0]
+        self.assertEqual(st["profile"], "High")
+        self.assertEqual(st["has_b_frames"], 1)
+
+
 class CaptionTextTest(unittest.TestCase):
     """Pluto's WebVTT (a real live cue sequence, 2026-11-04) -> roll-up words."""
 

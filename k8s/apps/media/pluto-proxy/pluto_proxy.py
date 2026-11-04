@@ -384,7 +384,8 @@ def parse_probe(out):
             if not st.get("width") or not st.get("height"):
                 continue
             info[t] = {"start": start, "length": length, "width": int(st["width"]), "height": int(st["height"]),
-                       "fps": st.get("r_frame_rate") if _fps(st.get("r_frame_rate")) else "30/1"}
+                       "fps": st.get("r_frame_rate") if _fps(st.get("r_frame_rate")) else "30/1",
+                       "profile": st.get("profile"), "refs": st.get("refs"), "bframes": st.get("has_b_frames")}
         else:
             info[t] = {"start": start, "length": length, "sample_rate": int(st.get("sample_rate") or 48000),
                        "channels": int(st.get("channels") or 2)}
@@ -397,7 +398,7 @@ def parse_probe(out):
 def probe(data, key):
     opts, url = source_args(key)
     r = subprocess.run([FFPROBE, "-v", "error"] + opts + [
-        "-show_entries", "stream=codec_type,width,height,r_frame_rate,sample_rate,channels,start_time,duration",
+        "-show_entries", "stream=codec_type,width,height,r_frame_rate,profile,refs,has_b_frames,sample_rate,channels,start_time,duration",
         "-of", "json", url], input=data, capture_output=True, timeout=20)
     return parse_probe(r.stdout.decode("utf-8", "replace"))
 
@@ -444,7 +445,7 @@ def build_args(key, need, info, dur, ad, video, audio, shift=0.0, at=None, sep=N
         if t == "v":
             src = "color=c=black:s=%dx%d:r=%s" % (video["width"], video["height"], video["fps"])
             frames = max(1, round(dur * _fps(video["fps"])))
-            codecs += ["-c:%d" % i, "libx264", "-preset", "ultrafast", "-tune", "stillimage",
+            codecs += ["-c:%d" % i, "libx264", "-preset", "ultrafast", "-tune", "stillimage"] + x264_args(video) + [
                        "-pix_fmt", "yuv420p", "-frames:%d" % i, str(frames)]
         else:
             src = "anullsrc=r=%d:cl=%s" % (audio["sample_rate"], "mono" if audio["channels"] == 1 else "stereo")
@@ -553,6 +554,29 @@ def clip_for(stream, track, seg):
     return path, max(0.0, elapsed) % length, has_audio
 
 
+def x264_args(video):
+    """libx264 settings for generated video (slates, break clips) that match
+    the show's H.264 (profile, reference frames, B-frames) as probed. The
+    client's decoder gets show and break as one stream (Dispatcharr only
+    copy-remuxes), so the parameter sets change in place at every break;
+    Android TV hardware decoders flashed green frames there when the slates
+    were Baseline with no B-frames against a High show with them."""
+    def num(v, lo, hi, default):
+        try:
+            return min(max(int(v), lo), hi)
+        except (TypeError, ValueError):
+            return default
+    profile = str(video.get("profile") or "High").lower()
+    refs = num(video.get("refs"), 1, 16, 3)
+    if "baseline" in profile:
+        return ["-profile:v", "baseline", "-x264-params", "ref=%d:scenecut=0" % refs]
+    params = "cabac=1:ref=%d:bframes=%d:b-adapt=0:b-pyramid=none:weightb=0:scenecut=0" % (
+        refs, num(video.get("bframes"), 0, 2, 1))
+    if profile.startswith("main"):
+        return ["-profile:v", "main", "-x264-params", params + ":8x8dct=0"]
+    return ["-profile:v", "high", "-x264-params", params + ":8x8dct=1"]
+
+
 def clip_args(path, pos, has_audio, dur, at, video, audio):
     """ffmpeg arguments for one ad segment cut from a clip: `dur` seconds from
     `pos` (looping past the end), in the show's size, rate and audio format,
@@ -571,7 +595,7 @@ def clip_args(path, pos, has_audio, dur, at, video, audio):
         # renumbered by count before anything that looks at time.
         "-vf", "setpts=N/FRAME_RATE/TB,fps=%s,scale=%d:%d:force_original_aspect_ratio=decrease,"
                "pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p" % (fps, w, h, w, h),
-        "-frames:v", str(frames), "-c:v", "libx264", "-preset", "ultrafast",
+        "-frames:v", str(frames), "-c:v", "libx264", "-preset", "ultrafast"] + x264_args(video) + [
         "-af", "aresample=%d,asetpts=N/SR/TB,apad,atrim=duration=%.6f" % (rate, max(dur, 0.04)),
         "-ac", str(ch), "-c:a", "aac", "-b:a", "128k",
         "-output_ts_offset", "%.6f" % at,
