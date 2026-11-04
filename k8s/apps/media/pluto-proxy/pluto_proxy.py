@@ -41,6 +41,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.parse
@@ -82,6 +83,12 @@ BUILT_KEPT = 6         # per track: finished segments kept for retried and built
 # as CEA-608 captions in the video, which players show as a CC track.
 CC_CHANNELS = {c.strip() for c in os.environ.get("CC_CHANNELS", "").split(",") if c.strip()}
 GST_LAUNCH = os.environ.get("GST_LAUNCH", "gst-launch-1.0")
+# Channels (same form) that also get a "(CC)" twin in the playlist, with
+# the captions drawn into the picture (burn_captions): for players that
+# can't show CEA-608 or (Jellyfin live TV) are never offered a caption track.
+CC_BURN_CHANNELS = {c.strip() for c in os.environ.get("CC_BURN_CHANNELS", "").split(",") if c.strip()}
+BURN_TIMEOUT = 15      # s: a show segment taking longer goes out without captions drawn
+BURN_DIR = os.environ.get("BURN_DIR", "/dev/shm")  # caption files for ffmpeg (root fs is read-only)
 CC_TIMEOUT = 10        # s: a segment whose captioning takes longer goes out without
 CC_GROUP = 0.5         # s: words this close together are sent as one caption
 CC_TAIL = 0.5          # s: words due this close to a segment's end go in the next one
@@ -176,6 +183,11 @@ def playlist(base, channels):
             % (cid, attr(c["name"]), c["number"], attr(c["logo"]), attr(c["group"]), attr(c["name"]))
         )
         lines.append("%s/ch/%s.m3u8" % (base, cid))
+        if "*" in CC_BURN_CHANNELS or cid in CC_BURN_CHANNELS:
+            lines.append(
+                '#EXTINF:-1 tvg-id="%s" tvg-name="%s (CC)" tvg-chno="%s" tvg-logo="%s" group-title="%s",%s (CC)'
+                % (cid, attr(c["name"]), c["number"], attr(c["logo"]), attr(c["group"]), attr(c["name"])))
+            lines.append("%s/cc/%s.m3u8" % (base, cid))
     return "\n".join(lines) + "\n"
 
 
@@ -608,8 +620,9 @@ class Stream:
     """One client's view of one channel: Pluto's media playlist URLs and the
     segments listed in them so far."""
 
-    def __init__(self, key, video, audio, subs=None):
+    def __init__(self, key, video, audio, subs=None, burn=False):
         self.key = key
+        self.burn = burn       # draw the captions into the picture instead of CEA-608
         self.upstream = {"v": video}
         self.audio = audio     # Pluto's separate audio playlist, merged in, or None
         self.subs = subs       # Pluto's subtitle playlist, turned into captions, or None
@@ -642,13 +655,13 @@ _keys = collections.OrderedDict()
 _keys_lock = threading.Lock()
 
 
-def new_stream(video, audio, subs=None):
+def new_stream(video, audio, subs=None, burn=False):
     key = secrets.token_urlsafe(12)
     now = time.time()
     with _streams_lock:
         for k in [k for k, s in _streams.items() if now - s.used > STREAM_TTL]:
             del _streams[k]
-        _streams[key] = Stream(key, video, audio, subs)
+        _streams[key] = Stream(key, video, audio, subs, burn)
     return key
 
 
@@ -876,6 +889,81 @@ def gst_caption_args(fd):
             "tttocea608", "!", "ccconverter", "!", "closedcaption/x-cea-708,format=cc_data", "!", "c.caption"]
 
 
+def cues_until(stream, t1):
+    """The stream's cues, read again from Pluto first if none reach t1 yet
+    (Pluto's subtitle playlist can lag the video's)."""
+    with stream.lock:
+        cues = list(stream.cues.values())
+    if not cues or max(c[0] for c in cues) < t1 - 1.0:
+        refresh_subs(stream)
+        with stream.lock:
+            cues = list(stream.cues.values())
+    return cues
+
+
+def ass_time(t):
+    cs = int(round(max(t, 0.0) * 100))
+    return "%d:%02d:%02d.%02d" % (cs // 360000, cs // 6000 % 60, cs // 100 % 60, cs % 100)
+
+
+def ass_doc(cues, t0, t1, width, height):
+    """An ASS subtitle file drawing the cues that overlap t0..t1, on the
+    video's own clock (ffmpeg runs with -copyts), in the look of broadcast
+    captions: white monospace on black boxes, bottom left. Each of Pluto's
+    cues is the whole caption display for its time, so it maps to one event."""
+    size = max(12, round(height * 0.05))
+    head = ("[Script Info]\nScriptType: v4.00+\nPlayResX: %d\nPlayResY: %d\nWrapStyle: 2\n"
+            "ScaledBorderAndShadow: yes\n\n[V4+ Styles]\n"
+            "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
+            "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
+            "Alignment, MarginL, MarginR, MarginV, Encoding\n"
+            "Style: CC,DejaVu Sans Mono,%d,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,"
+            "0,0,0,0,100,100,0,0,3,%d,0,1,%d,%d,%d,1\n\n[Events]\n"
+            "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+            % (width, height, size, max(2, size // 6), round(width * 0.1), round(width * 0.1), round(height * 0.07)))
+    events = []
+    for start, end, lines in sorted(cues):
+        if not lines or end <= t0 or start >= t1:
+            continue
+        # \N is a line break; braces would start ASS override tags
+        text = "\\N".join(l.replace("\\", "/").replace("{", "(").replace("}", ")") for l in lines)
+        events.append("Dialogue: 0,%s,%s,CC,,0,0,0,,%s" % (ass_time(start), ass_time(end), text))
+    return head + "\n".join(events) + "\n"
+
+
+def burn_args(key, path, video):
+    """ffmpeg arguments: the segment on stdin re-encoded with the captions in
+    `path` drawn in, timestamps and audio unchanged."""
+    opts, url = source_args(key)
+    return [FFMPEG, "-hide_banner", "-loglevel", "error", "-nostdin", "-copyts"] + opts + [
+        "-i", url, "-map", "0:v:0", "-map", "0:a?", "-vf", "subtitles=filename=%s" % path,
+        # passthrough + the demuxer's time base: every frame keeps its exact
+        # source timestamp (the encoder's default 1/fps grid moved them ~12 ms)
+        "-fps_mode", "passthrough", "-enc_time_base:v", "demux",
+        "-c:v", "libx264", "-preset", "veryfast"] + x264_args(video) + [
+        "-crf", "21", "-maxrate", "5M", "-bufsize", "10M", "-c:a", "copy",
+        "-mpegts_copyts", "1", "-f", "mpegts", "pipe:1"]
+
+
+def burn_captions(stream, seg, data, key, info, video):
+    """The segment re-encoded with its captions drawn into the picture, as
+    unencrypted MPEG-TS with the same streams and timestamps, or None
+    without video. Every show segment is re-encoded, captioned or not, so the
+    video's parameters stay the same throughout."""
+    if "v" not in info:
+        return None
+    t0 = info["v"]["start"]
+    t1 = t0 + seg["dur"]
+    doc = ass_doc(cues_until(stream, t1), t0, t1, video["width"], video["height"])
+    with tempfile.NamedTemporaryFile("w", suffix=".ass", dir=BURN_DIR, encoding="utf-8") as f:
+        f.write(doc)
+        f.flush()
+        r = subprocess.run(burn_args(key, f.name, video), input=data, capture_output=True, timeout=BURN_TIMEOUT)
+    if r.returncode or not r.stdout:
+        raise RuntimeError("burn: " + r.stderr.decode("utf-8", "replace").strip()[-200:])
+    return r.stdout
+
+
 def add_captions(stream, seg, data, key, info):
     """The segment (data, encrypted with key) with captions in its video, as
     unencrypted MPEG-TS with the same streams and timestamps, or None to send
@@ -884,12 +972,7 @@ def add_captions(stream, seg, data, key, info):
         return None
     t0 = info["v"]["start"]
     t1 = t0 + seg["dur"]
-    with stream.lock:
-        cues = list(stream.cues.values())
-    if not cues or max(c[0] for c in cues) < t1 - 1.0:
-        refresh_subs(stream)  # Pluto's subtitle playlist can lag the video's
-        with stream.lock:
-            cues = list(stream.cues.values())
+    cues = cues_until(stream, t1)
     # Each segment's captions are sent within it, at ~2 characters per frame:
     # words due in its last moments would be cut off, so they go at the start
     # of the next segment instead (up to CC_TAIL late).
@@ -1005,7 +1088,10 @@ def _build(stream, track, seq):
         raise RuntimeError("segment has no readable streams")
     if stream.subs and not seg["ad"]:
         try:
-            cc = add_captions(stream, seg, data, key, info)
+            if stream.burn:
+                cc = burn_captions(stream, seg, data, key, info, video)
+            else:
+                cc = add_captions(stream, seg, data, key, info)
             if cc:
                 data, key = cc, None
         except Exception as e:  # noqa: BLE001 - sent without captions instead
@@ -1185,7 +1271,7 @@ def stream_session(shared):
     return shared
 
 
-def open_channel(session, channel, channel_id=None):
+def open_channel(session, channel, channel_id=None, burn=False):
     """('body', our master playlist) for a channel, or ('redirect', Pluto's own
     master URL) if Pluto's master can't be read: the client then still gets a
     stream, though one that stalls at ad breaks."""
@@ -1199,12 +1285,14 @@ def open_channel(session, channel, channel_id=None):
                 print("ffmpeg/ffprobe not found: passing Pluto's stream through as is", flush=True)
                 return passthrough(bw, video, audio)
             subs = None
-            if channel_id and ("*" in CC_CHANNELS or channel_id in CC_CHANNELS):
+            if burn:
+                subs = pick_subtitles(text, final)
+            elif channel_id and ("*" in CC_CHANNELS or channel_id in CC_CHANNELS):
                 subs = pick_subtitles(text, final)
                 if subs and not have_gst():
                     print("gst-launch-1.0 not found: no captions", flush=True)
                     subs = None
-            return "body", master_playlist(new_stream(video, audio, subs), bw)
+            return "body", master_playlist(new_stream(video, audio, subs, burn), bw)
     except Exception as e:  # noqa: BLE001
         print("master failed: %s" % type(e).__name__, flush=True)
     return "redirect", master_url
@@ -1237,9 +1325,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/playlist.m3u":
             base = os.environ.get("PUBLIC_BASE") or "http://" + (self.headers.get("Host") or "localhost")
             return self.reply(200, playlist(base, channels).encode(), "audio/x-mpegurl")
-        m = re.match(r"^/ch/([0-9a-f]{24})\.m3u8$", path)
-        if m and m.group(1) in channels:
-            kind, value = open_channel(session, channels[m.group(1)], m.group(1))
+        m = re.match(r"^/(ch|cc)/([0-9a-f]{24})\.m3u8$", path)
+        if m and m.group(2) in channels:
+            kind, value = open_channel(session, channels[m.group(2)], m.group(2), burn=m.group(1) == "cc")
             if kind == "body":
                 return self.reply(200, value.encode(), "application/vnd.apple.mpegurl")
             return self.reply(302, headers={"Location": value})

@@ -787,6 +787,84 @@ class CaptionTextTest(unittest.TestCase):
         self.assertIsNone(pp.pick_subtitles("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nv.m3u8\n", "https://h/p/m.m3u8"))
 
 
+class BurnTextTest(unittest.TestCase):
+    def test_ass_doc_draws_overlapping_cues(self):
+        doc = pp.ass_doc([(10.0, 12.5, ["HELLO {X}", "A\\B"]), (20.0, 21.0, ["LATER"]), (8.0, 9.5, ["EARLIER"])],
+                         9.0, 14.0, 1280, 720)
+        self.assertIn("PlayResX: 1280\nPlayResY: 720", doc)
+        self.assertIn("Dialogue: 0,0:00:10.00,0:00:12.50,CC,,0,0,0,,HELLO (X)\\NA/B", doc)
+        self.assertIn("0:00:08.00,0:00:09.50", doc)      # still on screen at 9 s
+        self.assertNotIn("LATER", doc)
+        self.assertEqual(pp.ass_time(46649.755), "12:57:29.76")
+
+    def test_playlist_has_cc_twin(self):
+        old = pp.CC_BURN_CHANNELS
+        pp.CC_BURN_CHANNELS = {"a" * 24}
+        try:
+            body = pp.playlist("http://p", {"a" * 24: {"name": "News", "number": 5, "logo": "", "group": "G"},
+                                            "b" * 24: {"name": "Other", "number": 6, "logo": "", "group": "G"}})
+        finally:
+            pp.CC_BURN_CHANNELS = old
+        self.assertIn(",News (CC)\nhttp://p/cc/%s.m3u8" % ("a" * 24), body)
+        self.assertNotIn("Other (CC)", body)
+
+
+def can_burn():
+    if not (shutil.which("ffmpeg") and shutil.which("fc-list")):
+        return False
+    filters = subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True, text=True).stdout
+    return " subtitles " in filters and bool(subprocess.run(["fc-list"], capture_output=True, text=True).stdout.strip())
+
+
+@unittest.skipUnless(can_burn(), "needs ffmpeg with libass and a font")
+class BurnPipelineTest(unittest.TestCase):
+    """A (CC) stream: show segments re-encoded with the cue drawn in while it
+    is on, timeline and layout unchanged."""
+
+    def test_burned_in(self):
+        up = Upstream()
+        pp.fetch_bytes = up
+        for i in range(2):
+            up.files["https://s/%d.ts" % i] = ts([
+                "-f", "lavfi", "-t", "5", "-i", "color=c=gray:s=320x180:r=30", "-f", "lavfi", "-t", "5",
+                "-i", "sine=f=440:r=48000", "-c:v", "libx264", "-preset", "veryfast", "-bf", "1",
+                "-c:a", "aac", "-output_ts_offset", str(94000 + 5 * i), "-mpegts_copyts", "1", "-copyts",
+                "-streamid", "0:80", "-streamid", "1:81"])
+        up.files["https://s/0.vtt"] = b"WEBVTT\n\n26:06:41.000 --> 26:06:43.000\nHELLO THERE\n"
+        up.files["https://up/v.m3u8"] = (
+            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:1\n"
+            "#EXT-X-PROGRAM-DATE-TIME:2026-11-04T05:00:00.000Z\n"
+            "#EXTINF:5,\nhttps://s/0.ts\n#EXTINF:5,\nhttps://s/1.ts\n").encode()
+        up.files["https://up/s.m3u8"] = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:5,\nhttps://s/0.vtt\n".encode()
+        old = pp.BURN_DIR
+        pp.BURN_DIR = tempfile.gettempdir()
+        try:
+            s = pp.get_stream(pp.new_stream("https://up/v.m3u8", None, "https://up/s.m3u8", burn=True))
+            pp.media(s, "v")
+            out = b"".join(pp.segment(s, "v", n) for n in (1, 2))
+        finally:
+            pp.BURN_DIR = old
+        p = packets(out)
+        self.assertEqual(sorted((st["id"], st["codec_type"]) for st in p["streams"]),
+                         [("0x100", "video"), ("0x101", "audio")])
+        for want in ("video", "audio"):
+            idx = next(st["index"] for st in p["streams"] if st["codec_type"] == want)
+            t = sorted(float(x["pts_time"]) for x in p["packets"] if x["stream_index"] == idx)
+            self.assertLess(abs(t[0] - pp.TIMELINE_START), 0.1, want)
+            self.assertLess(max(b - a for a, b in zip(t, t[1:])), 0.2, want)
+
+        def caption_box(frame_no):
+            # bottom-left strip, where the captions go: black box + white text
+            px = subprocess.run(["ffmpeg", "-v", "error", "-i", "pipe:0", "-vf",
+                                 "select=eq(n\\,%d),crop=160:30:30:135,format=gray" % frame_no,
+                                 "-frames:v", "1", "-fps_mode", "vfr", "-f", "rawvideo", "pipe:1"],
+                                input=out, capture_output=True).stdout
+            return min(px), max(px)
+        self.assertLess(caption_box(60)[0], 40)      # 2 s in: cue on (94001-94003)
+        self.assertGreater(caption_box(60)[1], 200)
+        self.assertGreater(caption_box(240)[0], 90)   # 8 s in: plain gray
+
+
 def have_caption_elements():
     if not (pp.have_gst() and shutil.which("ffmpeg")):
         return False

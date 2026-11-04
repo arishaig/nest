@@ -1,6 +1,7 @@
 # Runtime for pluto-proxy: Python plus Alpine's own ffmpeg package (decrypt,
-# copy-remux and black/silent ad slates) and GStreamer's closed-caption
-# elements (Pluto's subtitles as CEA-608 in the video, CC_CHANNELS). The
+# copy-remux and black/silent ad slates), GStreamer's closed-caption
+# elements (Pluto's subtitles as CEA-608 in the video, CC_CHANNELS) and a
+# font for captions drawn into the picture (CC_BURN_CHANNELS). The
 # script itself is not in the image: it is
 # k8s/apps/media/pluto-proxy/pluto_proxy.py, mounted from the
 # pluto-proxy-script ConfigMap and re-exec'd when that changes, so a script
@@ -15,6 +16,8 @@ ENV GST_REGISTRY=/usr/lib/gstreamer-1.0/registry.bin \
     GST_REGISTRY_UPDATE=no
 
 RUN apk add --no-cache ffmpeg gstreamer-tools gst-plugins-base gst-plugins-bad gst-plugins-rs-rsclosedcaption \
+        fontconfig font-dejavu \
+    && fc-cache -f \
     && gst-inspect-1.0 tttocea608 > /dev/null \
     && chmod 644 "$GST_REGISTRY"
 
