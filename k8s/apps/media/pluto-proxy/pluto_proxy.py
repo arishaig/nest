@@ -991,29 +991,38 @@ def srt_time(t):
     return "%02d:%02d:%02d,%03d" % (ms // 3600000, ms // 60000 % 60, ms // 1000 % 60, ms % 1000)
 
 
-def dvb_srt(cues, t0, t1):
-    """SubRip of the cues on screen between t0 and t1, timed from t0, or None
-    if none are. Each of Pluto's cues is the whole caption display for its
-    time. A cue still on at t1 runs past the end: nothing then takes it off
-    screen before the next segment shows it again (no blink at segment
-    boundaries). An invisible entry just before t1 makes dvbsubenc clear a
-    caption that ended earlier in the segment (it only ends one when the
-    next arrives)."""
+def dvb_entries(cues, t0, t1):
+    """The cues on screen between t0 and t1 as (start, end, lines), timed
+    from t0, or None if none are. Each of Pluto's cues is the whole caption
+    display for its time. A cue still on at t1 runs past the end: nothing
+    then takes it off screen before the next segment shows it again (no
+    blink at segment boundaries). A last empty entry just before t1 makes
+    dvbsubenc clear a caption that ended earlier in the segment (it only
+    ends one when the next arrives)."""
     entries = []
     for start, end, lines in sorted(cues):
         if not lines or end <= t0 or start >= t1:
             continue
-        # subparse escapes &, < and > itself (escaping them here showed
-        # "&gt;&gt;" on screen) but reads <...> as a tag
-        text = "\n".join(l.replace("<", "\u2039") for l in lines)
         # one that ends in this segment must end before the clearing entry
         stop = min(end, t1 - 0.03) if end <= t1 else end
-        entries.append((max(start, t0) - t0, max(stop, start + 0.01) - t0, text))
+        entries.append((max(start, t0) - t0, max(stop, start + 0.01) - t0, list(lines)))
     if not entries:
         return None
-    entries.append((t1 - t0 - 0.02, t1 - t0 - 0.01, "\u200b"))
-    return "\n".join("%d\n%s --> %s\n%s\n" % (i + 1, srt_time(a), srt_time(b), x)
-                     for i, (a, b, x) in enumerate(entries))
+    entries.append((t1 - t0 - 0.02, t1 - t0 - 0.01, []))
+    return entries
+
+
+def dvb_srt(cues, t0, t1):
+    """dvb_entries as SubRip, for the textrender fallback (dvb_args)."""
+    entries = dvb_entries(cues, t0, t1)
+    if not entries:
+        return None
+    # subparse escapes &, < and > itself (escaping them here showed
+    # "&gt;&gt;" on screen) but reads <...> as a tag; an invisible
+    # character draws the clearing entry's empty picture
+    return "\n".join("%d\n%s --> %s\n%s\n" % (i + 1, srt_time(a), srt_time(b),
+                                               "\n".join(l.replace("<", "\u2039") for l in lines) or "\u200b")
+                     for i, (a, b, lines) in enumerate(entries))
 
 
 def dvb_args(width, height):
@@ -1027,6 +1036,109 @@ def dvb_args(width, height):
             "halignment=center", "valignment=bottom", "line-alignment=left", "ypad=%d" % round(height * 0.06), "!",
             "video/x-raw,format=AYUV,width=%d,height=%d" % (width, height), "!",
             "dvbsubenc", "!", "mpegtsmux", "!", "fdsink", "fd=1"]
+
+
+# Captions drawn by the proxy itself (dvb_render): white sans-serif on a
+# semi-transparent black box per line, the readable broadcast style.
+# GStreamer's textrender, the fallback, only draws white with a 1-pixel
+# outline, which vanishes on bright pictures. Pango and Cairo through
+# PyGObject, which Alpine packages for its own Python, not the image's.
+DVB_PYTHON = os.environ.get("DVB_PYTHON", "/usr/bin/python3")
+DVB_FONT = "DejaVu Sans Bold"
+DVB_SIZE = 0.045       # of the picture height: the font's em (text about 5% tall with its box)
+DVB_LINE = 1.3         # line (and box) height, in ems
+DVB_PAD = 0.35         # box padding left and right of the text, in ems
+DVB_BOX = 0.75         # box opacity
+DVB_BOTTOM = 0.07      # of the picture height, below the last line
+_dvb_renderer = None
+
+
+def have_dvb_renderer():
+    """Whether DVB_PYTHON has the bindings dvb_render needs (checked once)."""
+    global _dvb_renderer
+    if _dvb_renderer is None:
+        try:
+            _dvb_renderer = subprocess.run(
+                [DVB_PYTHON, "-c", "import gi, cairo; gi.require_version('Gst', '1.0'); "
+                 "gi.require_version('PangoCairo', '1.0'); from gi.repository import Gst, PangoCairo"],
+                capture_output=True, timeout=20).returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            _dvb_renderer = False
+    return _dvb_renderer
+
+
+def dvb_render_args():
+    return [DVB_PYTHON, os.path.abspath(__file__), "--dvb-render"]
+
+
+def dvb_render():
+    """--dvb-render: {"width", "height", "entries"} (dvb_entries) as JSON on
+    stdin, MPEG-TS with a DVB subtitle track on stdout (timestamps from
+    GST_TS_BASE). One picture per entry, timed as the entry, so dvbsubenc
+    makes one page per caption. Lines are left-aligned in a block centred
+    on the picture: dvbsubenc only finds a picture's edges if it crosses the
+    middle (find_largest_subregion scans each row from both ends to the
+    middle), so short left-aligned captions came out empty."""
+    import cairo
+    import gi
+    gi.require_version("Gst", "1.0")
+    gi.require_version("Pango", "1.0")
+    gi.require_version("PangoCairo", "1.0")
+    from gi.repository import Gst, Pango, PangoCairo
+
+    job = json.load(sys.stdin)
+    width, height = job["width"], job["height"]
+    Gst.init(None)
+    pipe = Gst.parse_launch(
+        "appsrc name=src format=time caps=video/x-raw,format=BGRA,width=%d,height=%d,framerate=0/1 ! "
+        "videoconvert ! video/x-raw,format=AYUV ! dvbsubenc ! mpegtsmux ! fdsink fd=1" % (width, height))
+    src = pipe.get_by_name("src")
+    pipe.set_state(Gst.State.PLAYING)
+
+    def picture(lines):
+        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)  # transparent
+        if lines:
+            ctx = cairo.Context(surface)
+            layout = PangoCairo.create_layout(ctx)
+            size = height * DVB_SIZE
+            for _ in range(2):  # shrink once if a line would not fit
+                font = Pango.FontDescription.from_string(DVB_FONT)
+                font.set_absolute_size(size * Pango.SCALE)
+                layout.set_font_description(font)
+                widths = []
+                for line in lines:
+                    layout.set_text(line, -1)
+                    widths.append(layout.get_pixel_extents()[1].width)
+                pad = round(size * DVB_PAD)
+                block = max(widths) + 2 * pad
+                if block <= width * 0.9:
+                    break
+                size *= width * 0.9 / block
+            line_h = round(size * DVB_LINE)
+            x0 = (width - block) // 2
+            y0 = height - round(height * DVB_BOTTOM) - line_h * len(lines)
+            for i, (line, w) in enumerate(zip(lines, widths)):
+                y = y0 + i * line_h
+                ctx.set_source_rgba(0, 0, 0, DVB_BOX)
+                ctx.rectangle(x0, y, w + 2 * pad, line_h)
+                ctx.fill()
+                layout.set_text(line, -1)
+                ctx.set_source_rgba(1, 1, 1, 1)
+                ctx.move_to(x0 + pad, y + (line_h - layout.get_pixel_extents()[1].height) / 2)
+                PangoCairo.show_layout(ctx, layout)
+        surface.flush()
+        return bytes(surface.get_data())  # BGRA in memory (little-endian ARGB32), stride width * 4
+
+    for start, end, lines in job["entries"]:
+        buf = Gst.Buffer.new_wrapped(picture(lines))
+        buf.pts = int(start * Gst.SECOND)
+        buf.duration = int((end - start) * Gst.SECOND)
+        src.emit("push-buffer", buf)
+    src.emit("end-of-stream")
+    msg = pipe.get_bus().timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.EOS | Gst.MessageType.ERROR)
+    pipe.set_state(Gst.State.NULL)
+    if msg.type == Gst.MessageType.ERROR:
+        sys.exit("dvb render: %s" % msg.parse_error()[0].message)
 
 
 def plain_ts(data, key):
@@ -1053,11 +1165,17 @@ def add_dvb(stream, seg, plain, info, video):
         return None
     t0 = info["v"]["start"]
     t1 = t0 + seg["dur"]
-    text = dvb_srt(cues_until(stream, t1), t0, t1)
-    if not text:
+    entries = dvb_entries(cues_until(stream, t1), t0, t1)
+    if not entries:
         return None
-    r = subprocess.run(dvb_args(video["width"], video["height"]), input=text.encode("utf-8"),
-                       capture_output=True, timeout=CC_TIMEOUT)
+    if have_dvb_renderer():
+        job = {"width": video["width"], "height": video["height"], "entries": entries}
+        r = subprocess.run(dvb_render_args(), input=json.dumps(job).encode("utf-8"),
+                           capture_output=True, timeout=CC_TIMEOUT)
+    else:
+        r = subprocess.run(dvb_args(video["width"], video["height"]),
+                           input=dvb_srt(cues_until(stream, t1), t0, t1).encode("utf-8"),
+                           capture_output=True, timeout=CC_TIMEOUT)
     if r.returncode or not r.stdout:
         raise RuntimeError("dvbsubenc: " + r.stderr.decode("utf-8", "replace").strip()[-200:])
     out, err, code = run_ffmpeg(
@@ -1120,7 +1238,9 @@ def ass_time(t):
 def ass_doc(cues, t0, t1, width, height):
     """An ASS subtitle file drawing the cues that overlap t0..t1, on the
     video's own clock (ffmpeg runs with -copyts), in the look of broadcast
-    captions: white monospace on black boxes, bottom left. Each of Pluto's
+    captions: white sans-serif on black boxes, bottom left (opaque: libass
+    overlaps the boxes of adjacent lines, which shows as darker seams when
+    they are translucent). Each of Pluto's
     cues is the whole caption display for its time, so it maps to one event."""
     size = max(12, round(height * 0.05))
     head = ("[Script Info]\nScriptType: v4.00+\nPlayResX: %d\nPlayResY: %d\nWrapStyle: 2\n"
@@ -1128,8 +1248,8 @@ def ass_doc(cues, t0, t1, width, height):
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
             "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
             "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-            "Style: CC,DejaVu Sans Mono,%d,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,"
-            "0,0,0,0,100,100,0,0,3,%d,0,1,%d,%d,%d,1\n\n[Events]\n"
+            "Style: CC,DejaVu Sans,%d,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,"
+            "-1,0,0,0,100,100,0,0,3,%d,0,1,%d,%d,%d,1\n\n[Events]\n"
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
             % (width, height, size, max(2, size // 6), round(width * 0.1), round(width * 0.1), round(height * 0.07)))
     events = []
@@ -1585,6 +1705,8 @@ def watch_script(path, interval=30, exit_fn=None):
     threading.Thread(target=loop, daemon=True).start()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and sys.argv[1:2] == ["--dvb-render"]:
+    dvb_render()
+elif __name__ == "__main__":
     watch_script(os.path.abspath(__file__))
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
