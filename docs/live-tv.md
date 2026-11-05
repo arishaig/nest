@@ -151,6 +151,10 @@ package). It keeps no state:
     by timing the audio with subgen's Whisper). Players stay a few segments
     behind live, so the next seconds' cues already exist when a segment is
     built.
+    To make sure, a caption stream's playlist holds back its newest
+    segment (`CC_HOLD_BACK_SEGMENTS`, default 1, ~5 s more delay): a client
+    at the live edge (Jellyfin's transcode for Moonfin) otherwise got most
+    segments before their captions existed.
   - Dispatcharr's ffmpeg profiles keep only video and audio, so a caption
     channel uses the **Streamlink** stream profile (segments passed through
     unchanged). Jellyfin drops subtitle tracks of live TV; the

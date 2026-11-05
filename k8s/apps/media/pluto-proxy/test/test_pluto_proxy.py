@@ -853,6 +853,20 @@ class CaptionAdvanceTest(unittest.TestCase):
         self.assertEqual(list(s.cues.values()), [(6.0, 8.0, ["HELLO"])])
 
 
+class CaptionHoldBackTest(unittest.TestCase):
+    def test_newest_segment_held_back_on_caption_streams(self):
+        up = Upstream()
+        pp.fetch_bytes = up
+        up.files["https://up/v.m3u8"] = ("#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:1\n"
+                                         + "".join("#EXTINF:5,\nhttps://s/%d.ts\n" % i for i in range(5))).encode()
+        up.files["https://up/s.m3u8"] = b"#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n"
+        plain = pp.media(pp.get_stream(pp.new_stream("https://up/v.m3u8", None)), "v")
+        held = pp.media(pp.get_stream(pp.new_stream("https://up/v.m3u8", None, "https://up/s.m3u8")), "v")
+        self.assertEqual(plain.count("#EXTINF"), 5)
+        self.assertEqual(held.count("#EXTINF"), 5 - pp.CC_HOLD_BACK)
+        self.assertNotIn("/5.ts", held)
+
+
 class BurnTextTest(unittest.TestCase):
     def test_ass_doc_draws_overlapping_cues(self):
         doc = pp.ass_doc([(10.0, 12.5, ["HELLO {X}", "A\\B"]), (20.0, 21.0, ["LATER"]), (8.0, 9.5, ["EARLIER"])],
