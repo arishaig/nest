@@ -411,3 +411,42 @@ async def test_ws_session_errors(monkeypatch):
     with pytest.raises(ValueError, match="rejected x/create: nope"):
         async with homeassistant._ws_session() as call:
             await call({"type": "x/create"})
+
+
+async def test_history_runs_durations_summary_and_filters(monkeypatch):
+    seen = {}
+
+    def route(request):
+        seen["path"] = request.url.path
+        seen["params"] = dict(request.url.params)
+        return [[
+            {"entity_id": "binary_sensor.bed_left", "state": "on", "last_changed": "2026-11-04T04:00:00+00:00"},
+            {"state": "off", "last_changed": "2026-11-04T05:00:00+00:00"},
+            {"state": "on", "last_changed": "2026-11-04T05:00:12+00:00"},
+            {"state": "off", "last_changed": "2026-11-04T06:00:00+00:00"},
+            {"state": "on", "last_changed": "2026-11-04T06:00:40+00:00"},
+        ]]
+    patch_http(monkeypatch, homeassistant, {"/api/history/period/*": route})
+    out = await load_tools(homeassistant)["ha_history"](
+        entity_ids=["binary_sensor.bed_left", "binary_sensor.gone"],
+        start="2026-11-04T04:00:00Z", end="2026-11-04T07:00:00Z", state="off", max_seconds=30)
+    assert seen["path"] == "/api/history/period/2026-11-04T04:00:00+00:00"
+    assert seen["params"]["filter_entity_id"] == "binary_sensor.bed_left,binary_sensor.gone"
+    assert "minimal_response" in seen["params"] and "no_attributes" in seen["params"]
+    e = out["entities"]["binary_sensor.bed_left"]
+    # Only the 12 s dropout is off and <= 30 s; the 40 s one is filtered out.
+    assert e["runs"] == [{"state": "off", "at": "2026-11-04T05:00:00+00:00", "seconds": 12.0}]
+    # Summary ignores the clipped first/last runs.
+    assert e["summary"]["off"] == {"count": 2, "min_s": 12.0, "max_s": 40.0, "median_s": 40.0}
+    assert e["summary"]["on"]["count"] == 1 and e["summary"]["on"]["max_s"] == 3588.0
+    assert out["no_history"] == ["binary_sensor.gone"]
+
+
+async def test_history_rejects_bad_windows():
+    tools = load_tools(homeassistant)
+    with pytest.raises(ValueError):
+        await tools["ha_history"](entity_ids=[])
+    with pytest.raises(ValueError):
+        await tools["ha_history"](entity_ids=["a.b"], start="2026-11-04T05:00:00Z", end="2026-11-04T04:00:00Z")
+    with pytest.raises(ValueError):
+        await tools["ha_history"](entity_ids=["a.b"], hours=24 * 30)

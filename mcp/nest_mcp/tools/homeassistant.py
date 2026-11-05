@@ -3,6 +3,7 @@ import contextlib
 import json
 import re
 import time
+from datetime import datetime, timedelta, timezone
 
 from mcp.server.mcpserver import MCPServer
 from websockets.asyncio.client import connect
@@ -217,6 +218,47 @@ def _audit(
     return sorted(findings, key=lambda f: (_SEVERITY_ORDER[f["severity"]], f["alias"], f["rule"]))
 
 
+# --- State history ------------------------------------------------------------
+
+_HISTORY_MAX_HOURS = 24 * 10  # HA's recorder keeps 10 days by default.
+
+
+def _parse_ts(value: str) -> datetime:
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _history_runs(rows: list[dict], end: datetime) -> list[dict]:
+    """Turn HA's minimal history rows into runs: state, start, and how long it held."""
+    runs = []
+    for i, row in enumerate(rows):
+        start = _parse_ts(row["last_changed"])
+        until = _parse_ts(rows[i + 1]["last_changed"]) if i + 1 < len(rows) else end
+        runs.append({
+            "state": row["state"],
+            "at": start.isoformat(timespec="seconds"),
+            "seconds": round((until - start).total_seconds(), 1),
+        })
+    # HA reports the state at the window start as the first row, so the first run's
+    # real start and the last run's real end lie outside the window: both are clipped.
+    if runs:
+        runs[0]["clipped"] = True
+        runs[-1]["clipped"] = True
+    return runs
+
+
+def _summarise_runs(runs: list[dict]) -> dict:
+    by_state: dict[str, list[float]] = {}
+    for r in runs:
+        if not r.get("clipped"):
+            by_state.setdefault(r["state"], []).append(r["seconds"])
+    return {
+        state: {"count": len(secs), "min_s": min(secs), "max_s": max(secs),
+                "median_s": sorted(secs)[len(secs) // 2]}
+        for state, secs in by_state.items()
+    }
+
+
 def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
@@ -252,6 +294,73 @@ def register(mcp: MCPServer) -> None:
                 "last_changed": s.get("last_changed", ""),
                 "last_updated": s.get("last_updated", ""),
             }
+
+    @mcp.tool()
+    async def ha_history(
+        entity_ids: list[str],
+        hours: float = 24,
+        start: str = "",
+        end: str = "",
+        state: str = "",
+        min_seconds: float = 0,
+        max_seconds: float = 0,
+        limit: int = 300,
+    ) -> dict:
+        """State history of Home Assistant entities from the recorder (default retention 10 days).
+
+        Each entity gets a list of runs: the state, when it started (UTC) and how many seconds it held
+        until the next change. The first and last runs are cut off by the window edges and marked
+        clipped. A per-state summary (count, min, median, max seconds) covers the unclipped runs in
+        the window, before filtering.
+        Window: the last `hours`, or explicit ISO-8601 `start`/`end` (UTC unless an offset is given).
+        Filter runs with `state` (e.g. "off") and `min_seconds`/`max_seconds` (0 = no bound), e.g.
+        to find short sensor dropouts. `limit` caps runs returned per entity (newest kept).
+        """
+        if not entity_ids:
+            raise ValueError("entity_ids must name at least one entity")
+        now = datetime.now(timezone.utc)
+        t_end = _parse_ts(end) if end else now
+        t_start = _parse_ts(start) if start else t_end - timedelta(hours=hours)
+        if t_start >= t_end:
+            raise ValueError("start must be before end")
+        if t_end - t_start > timedelta(hours=_HISTORY_MAX_HOURS):
+            raise ValueError(f"window is longer than {_HISTORY_MAX_HOURS} h; HA keeps 10 days by default")
+        params = {
+            "filter_entity_id": ",".join(entity_ids),
+            "end_time": t_end.isoformat(),
+            "minimal_response": "",
+            "no_attributes": "",
+        }
+        async with make_client(config.homeassistant.url, headers=_headers(), timeout=30.0) as client:
+            resp = await client.get(f"/api/history/period/{t_start.isoformat()}", params=params)
+            resp.raise_for_status()
+            series = resp.json()
+        # HA returns one list per entity; with minimal_response only the first row carries entity_id.
+        out = {}
+        for rows in series:
+            if not rows:
+                continue
+            entity_id = rows[0]["entity_id"]
+            runs = _history_runs(rows, min(t_end, now))
+            summary = _summarise_runs(runs)
+            picked = [
+                r for r in runs
+                if (not state or r["state"] == state)
+                and r["seconds"] >= min_seconds
+                and (not max_seconds or r["seconds"] <= max_seconds)
+            ]
+            out[entity_id] = {
+                "summary": summary,
+                "matched": len(picked),
+                "runs": picked[-limit:] if limit > 0 else picked,
+            }
+        missing = [e for e in entity_ids if e not in out]
+        return {
+            "start": t_start.isoformat(timespec="seconds"),
+            "end": t_end.isoformat(timespec="seconds"),
+            "entities": out,
+            **({"no_history": missing} if missing else {}),
+        }
 
     @mcp.tool()
     async def ha_list_areas() -> list[dict]:

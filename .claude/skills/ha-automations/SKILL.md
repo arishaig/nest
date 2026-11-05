@@ -17,6 +17,7 @@ Tools (nest-mcp):
 | `ha_export_automations(automation_id="")` | Read-only. Full configs, in the shape `ha_save_automation` accepts |
 | `ha_get_automation` / `ha_save_automation` / `ha_delete_automation` | Read one, replace one (destructive), delete one (destructive) |
 | `ha_list_scripts` / `ha_get_script` / `ha_save_script` | Scripts the automations call: list, read one, create or replace one (destructive) |
+| `ha_history(entity_ids, hours=24, start="", end="", state="", min_seconds=0, max_seconds=0)` | Read-only. Recorder state history (10 days) as runs with durations, plus per-state min/median/max. Use it to size `for:` debounces, e.g. how long a sensor drops out (`state="off", max_seconds=120`) |
 | `ha_create_input_boolean(name, icon="", initial=False)` | Create a toggle helper, e.g. a manual-override flag (destructive). Returns its entity_id; refuses duplicates. Helpers can only be created over HA's WebSocket API, so this is the one tool that doesn't use REST |
 
 Scripts (`script.*`) are keyed by their scripts.yaml key, which
@@ -29,8 +30,8 @@ cover scripts yet.
 
 1. **Audit.** Run `ha_audit_automations`. For "X didn't fire", audit that
    automation by id (from `ha_list_automations`), then check its trigger
-   entity's state with `ha_get_state`. `unavailable` since a timestamp is
-   usually the answer.
+   entity's state with `ha_get_state` and its recent history with
+   `ha_history`. `unavailable` since a timestamp is usually the answer.
 2. **Triage** by severity. `error` = it can't work as written. `warning` = it
    works today but fails silently under a known condition. `info` (disabled,
    never fired) is context, not a to-do. "Never fired" on a rare alert is fine.
