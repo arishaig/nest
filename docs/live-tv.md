@@ -131,9 +131,15 @@ package). It keeps no state:
   - Words due in a segment's last 0.5 s go in the next one, so they aren't cut
     off mid-send (608 carries about 2 characters a frame).
   - The same channels also get a **DVB subtitle track** (PID 0x102,
-    `add_dvb`): each show segment's on-screen cues rendered by GStreamer
-    (`subparse` → `textrender` → `dvbsubenc`, centred white monospace with a
-    shadow) and merged in beside video and audio. A real track: Media3 clients
+    `add_dvb`): each show segment's on-screen cues drawn as pictures and
+    merged in beside video and audio. `pluto_proxy.py --dvb-render` (run by
+    Alpine's own Python, `DVB_PYTHON`, which has the Pango/Cairo/GStreamer
+    bindings) draws white DejaVu Sans Bold on a 75% black box per line, about
+    5% of the picture tall, one picture per caption into `dvbsubenc`. The
+    look is fixed here: the track is pictures, so players' caption-style
+    settings don't apply. Without the bindings it falls back to GStreamer's
+    `textrender` (white with a 1-pixel outline, unreadable on bright
+    pictures). A real track: Media3 clients
     (Wholphin, Jellyfin for Android TV) render it, and a client that can't has
     Jellyfin burn it in. Media3 ignores the CEA-608 in the video unless the
     PMT declares it, and a declared-but-fake track breaks every burn-in.
@@ -176,7 +182,7 @@ package). It keeps no state:
   CEA-608), so Wholphin can't switch the CEA-608 captions on. Each listed
   channel gets a twin, `<name> (CC)` at `/cc/<id>.m3u8`, whose show segments
   are re-encoded with Pluto's cues drawn in via libass (`ass_doc`: each cue
-  is the whole caption display for its time; white DejaVu Sans Mono on black
+  is the whole caption display for its time; white DejaVu Sans Bold on black
   boxes, bottom left). Every show segment is re-encoded, captioned or not,
   with the show's H.264 settings and exact source timestamps
   (`-enc_time_base demux`). About 0.5 s of CPU per 5 s segment on amd64. In
