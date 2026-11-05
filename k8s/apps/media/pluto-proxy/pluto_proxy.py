@@ -99,6 +99,13 @@ CUES_KEPT = 3000       # per stream: Pluto sends a cue per word, ~3/s
 # (0.4-11 s). Players stay a few segments behind live, so the cues for the
 # next seconds are already there when a segment is built.
 CC_ADVANCE = float(os.environ.get("CC_ADVANCE_SECONDS", "4"))
+# Segments of a caption stream's playlist held back from the client. A
+# caption shown CC_ADVANCE early must exist that long before its video: a
+# client at the live edge (Jellyfin's transcode for Moonfin, Streamlink)
+# asked for each segment as soon as it was listed, before Pluto had the
+# next seconds' captions, so most segments went out without any. One
+# segment (~5 s) covers the advance.
+CC_HOLD_BACK = int(os.environ.get("CC_HOLD_BACK_SEGMENTS", "1"))
 BREAKS_DIR = os.environ.get("BREAKS_DIR", "")
 BREAKS_RESCAN = int(os.environ.get("BREAKS_RESCAN_SECONDS", "300"))
 BREAK_EXTS = (".mp4", ".m4v", ".mkv", ".webm", ".mov", ".ts")
@@ -719,7 +726,10 @@ def media(stream, track):
             known[s["seq"]] = s
         while len(known) > SEGMENTS_KEPT:
             known.popitem(last=False)
-        body = render_media(headers, segs, "/s/%s/%s" % (stream.key, track), False)
+        listed = segs
+        if stream.subs and CC_HOLD_BACK > 0 and len(segs) > CC_HOLD_BACK + 2:
+            listed = segs[:-CC_HOLD_BACK]
+        body = render_media(headers, listed, "/s/%s/%s" % (stream.key, track), False)
         stream.last_playlist[track] = body
     if stream.audio:
         refresh_audio(stream)
