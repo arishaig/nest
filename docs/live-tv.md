@@ -159,11 +159,14 @@ package). It keeps no state:
     segments before the advanced captions existed.
   - The DVB track is labelled with the rendition's language (19 channels'
     subtitles are Spanish).
-  - Dispatcharr's ffmpeg profiles keep only video and audio, so a caption
-    channel uses the **Streamlink** stream profile (segments passed through
-    unchanged). Jellyfin drops subtitle tracks of live TV; the
+  - Dispatcharr's ffmpeg profiles keep only video and audio (its global
+    default is profile 6, "video+audio only"), so every Pluto channel has
+    the **Streamlink** stream profile set on the channel itself (segments
+    passed through unchanged; set 2026-11-05 on all 429; undo by setting the
+    channel's stream profile back to empty, which falls back to the
+    default). Jellyfin drops subtitle tracks of live TV; the
     [Live TV Subtitles](https://github.com/arishaig/jellyfin-live-tv-subtitles)
-    plugin offers them again for the channels it lists.
+    plugin offers them again (`ChannelNames` `*`: every channel).
   - To check a stream by hand, `ffmpeg -real_time 1 -f lavfi -i
     "movie=X.ts[out0+subcc]" -map 0:s -f srt -`: without `-real_time` ffmpeg
     only prints a roll-up line once it scrolls, so short tests look empty.
