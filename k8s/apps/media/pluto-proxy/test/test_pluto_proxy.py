@@ -848,9 +848,23 @@ class CaptionAdvanceTest(unittest.TestCase):
         try:
             s = pp.get_stream(pp.new_stream("https://up/v.m3u8", None, "https://up/s.m3u8"))
             pp.refresh_subs(s)
+            self.assertEqual(pp.cues_until(s, 0), [(10.0, 12.0, ["HELLO"])])   # prepared: as timed
+            s.rollup = True
+            self.assertEqual(pp.cues_until(s, 0), [(6.0, 8.0, ["HELLO"])])     # live-typed: earlier
         finally:
             pp.CC_ADVANCE = old
-        self.assertEqual(list(s.cues.values()), [(6.0, 8.0, ["HELLO"])])
+
+    def test_rollup_detected(self):
+        live = [(i, i + 0.2, ["SPEAKER WAS", "THE PEOPLE UNDER HIM"[:5 + 3 * i]]) for i in range(6)]
+        prepared = [(i * 3, i * 3 + 2.5, ["SENTENCE NUMBER %d" % i]) for i in range(6)]
+        self.assertTrue(pp.is_rollup(live))
+        self.assertFalse(pp.is_rollup(prepared))
+
+    def test_language(self):
+        master = '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="s",NAME="Espanol",LANGUAGE="es",URI="s.m3u8"\n'
+        self.assertEqual(pp.subtitle_language(master), "spa")
+        self.assertEqual(pp.subtitle_language(master.replace("es", "en")), "eng")
+        self.assertTrue(pp.subtitling_descriptor("spa").startswith(bytes([0x59, 8]) + b"spa"))
 
 
 class CaptionHoldBackTest(unittest.TestCase):
@@ -861,7 +875,12 @@ class CaptionHoldBackTest(unittest.TestCase):
                                          + "".join("#EXTINF:5,\nhttps://s/%d.ts\n" % i for i in range(5))).encode()
         up.files["https://up/s.m3u8"] = b"#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n"
         plain = pp.media(pp.get_stream(pp.new_stream("https://up/v.m3u8", None)), "v")
-        held = pp.media(pp.get_stream(pp.new_stream("https://up/v.m3u8", None, "https://up/s.m3u8")), "v")
+        prepared = pp.get_stream(pp.new_stream("https://up/v.m3u8", None, "https://up/s.m3u8"))
+        prepared.rollup = False
+        self.assertEqual(pp.media(prepared, "v").count("#EXTINF"), 5)     # not held back
+        live = pp.get_stream(pp.new_stream("https://up/v.m3u8", None, "https://up/s.m3u8"))
+        live.rollup = True
+        held = pp.media(live, "v")
         self.assertEqual(plain.count("#EXTINF"), 5)
         self.assertEqual(held.count("#EXTINF"), 5 - pp.CC_HOLD_BACK)
         self.assertNotIn("/5.ts", held)

@@ -51,8 +51,9 @@ spec:
               # Channels (Pluto ids, comma-separated, or "*") whose subtitles
               # are put into the video as closed captions (CEA-608), shown by
               # the player's CC setting. docs/live-tv.md "Closed captions".
-              # 5df97894467dfa00091c873c = NBC News NOW (trial).
-              CC_CHANNELS: "5df97894467dfa00091c873c"
+              # "*": every channel (all 452 surveyed 2026-11-05 have subtitles;
+              # 19 Spanish, labelled so).
+              CC_CHANNELS: "*"
               # Same form: these also get a "<name> (CC)" twin in the playlist
               # with the captions drawn into the picture, for players that
               # can't show CEA-608 (Jellyfin never offers a caption track for

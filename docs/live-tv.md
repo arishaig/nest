@@ -145,16 +145,20 @@ package). It keeps no state:
     Every segment's PMT lists the track (`declare_subtitles`), ads and
     caption-less segments too: Media3 reads the track list from the first
     PMT only.
-  - Cues are shown `CC_ADVANCE_SECONDS` (default 4) earlier than Pluto
-    times them: live captions are typed as the words are spoken, and on NBC
-    News NOW they trailed the speech by a median 5.2 s (0.4-11 s; measured
-    by timing the audio with subgen's Whisper). Players stay a few segments
-    behind live, so the next seconds' cues already exist when a segment is
-    built.
-    To make sure, a caption stream's playlist holds back its newest
-    segment (`CC_HOLD_BACK_SEGMENTS`, default 1, ~5 s more delay): a client
-    at the live edge (Jellyfin's transcode for Moonfin) otherwise got most
-    segments before their captions existed.
+  - **Live-typed (roll-up) captions** are shown `CC_ADVANCE_SECONDS`
+    (default 4) earlier than Pluto times them. Typed as the words are
+    spoken, they trail the speech: NBC News NOW 5.2 s, QVC 4.6 s (medians,
+    timed against subgen's Whisper). A stream counts as live-typed when, in
+    its first 12 cues, most grow word by word out of the previous one
+    (~38 channels: news, shopping, some sports). Prepared (pop-on) captions
+    are in time already (48 Hours, Law & Order, Top Gear, MLB, Hell's
+    Kitchen: -1.0 to +0.3 s) and are left as timed.
+  - A live-typed stream's playlist also holds back its newest segment
+    (`CC_HOLD_BACK_SEGMENTS`, default 1, ~5 s more delay): a client at the
+    live edge (Jellyfin's transcode for Moonfin) otherwise got most
+    segments before the advanced captions existed.
+  - The DVB track is labelled with the rendition's language (19 channels'
+    subtitles are Spanish).
   - Dispatcharr's ffmpeg profiles keep only video and audio, so a caption
     channel uses the **Streamlink** stream profile (segments passed through
     unchanged). Jellyfin drops subtitle tracks of live TV; the

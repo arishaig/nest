@@ -93,11 +93,12 @@ CC_TIMEOUT = 10        # s: a segment whose captioning takes longer goes out wit
 CC_GROUP = 0.5         # s: words this close together are sent as one caption
 CC_TAIL = 0.5          # s: words due this close to a segment's end go in the next one
 CUES_KEPT = 3000       # per stream: Pluto sends a cue per word, ~3/s
-# s: shown this much earlier than Pluto times them. Live captions are typed
-# as the words are spoken, and Pluto's cues keep the broadcast's delay:
-# measured on NBC News NOW against Whisper-timed speech, a median 5.2 s
-# (0.4-11 s). Players stay a few segments behind live, so the cues for the
-# next seconds are already there when a segment is built.
+# s: live-typed captions are shown this much earlier than Pluto times them.
+# Typed as the words are spoken, they keep the broadcast's delay: measured
+# against Whisper-timed speech, NBC News NOW 5.2 s and QVC 4.6 s (medians).
+# Prepared captions are in time already (48 Hours, Law & Order, Top Gear,
+# MLB, Hell's Kitchen: -1.0 to +0.3 s), so only streams whose cues grow word
+# by word (roll-up, see refresh_subs) are moved.
 CC_ADVANCE = float(os.environ.get("CC_ADVANCE_SECONDS", "4"))
 # Segments of a caption stream's playlist held back from the client. A
 # caption shown CC_ADVANCE early must exist that long before its video: a
@@ -106,6 +107,10 @@ CC_ADVANCE = float(os.environ.get("CC_ADVANCE_SECONDS", "4"))
 # next seconds' captions, so most segments went out without any. One
 # segment (~5 s) covers the advance.
 CC_HOLD_BACK = int(os.environ.get("CC_HOLD_BACK_SEGMENTS", "1"))
+ROLLUP_SHARE = 0.5     # of consecutive cues where one grows into the next: live-typed captions
+ROLLUP_MIN_CUES = 12   # cues needed to tell
+# ISO 639-1 (HLS LANGUAGE) -> 639-2 (DVB subtitling_descriptor)
+LANGUAGES = {"en": "eng", "es": "spa", "fr": "fra", "de": "deu", "it": "ita", "pt": "por"}
 BREAKS_DIR = os.environ.get("BREAKS_DIR", "")
 BREAKS_RESCAN = int(os.environ.get("BREAKS_RESCAN_SECONDS", "300"))
 BREAK_EXTS = (".mp4", ".m4v", ".mkv", ".webm", ".mov", ".ts")
@@ -260,6 +265,16 @@ def pick_subtitles(master, base_url):
         return None
     line = next((l for l in media if 'LANGUAGE="en' in l or 'NAME="English' in l), media[0])
     return urllib.parse.urljoin(base_url, re.search(r'URI="([^"]*)"', line).group(1))
+
+
+def subtitle_language(master):
+    """ISO 639-2 code of the subtitle rendition pick_subtitles takes."""
+    media = [l for l in master.splitlines()
+             if l.startswith("#EXT-X-MEDIA:") and "TYPE=SUBTITLES" in l and 'URI="' in l]
+    line = next((l for l in media if 'LANGUAGE="en' in l or 'NAME="English' in l), media[0] if media else "")
+    m = re.search(r'LANGUAGE="([A-Za-z]{2,3})', line)
+    code = m.group(1).lower() if m else "en"
+    return code if len(code) == 3 else LANGUAGES.get(code, "und")
 
 
 def master_playlist(key, bandwidth):
@@ -649,6 +664,8 @@ class Stream:
         self.sub_seen = collections.OrderedDict()  # subtitle segment URLs read
         self.cues = {}         # (start, text) -> (start, end, lines), on the video's clock
         self.cc_origin = None  # caption time the first captioned segment started from
+        self.sub_lang = "eng"  # the subtitle track's language (ISO 639-2)
+        self.rollup = None     # True: live-typed captions (moved CC_ADVANCE earlier); None: not known yet
         self.audio_segs = collections.OrderedDict()
         self.need = {"v": "va"}
         self.segs = {t: collections.OrderedDict() for t in self.upstream}
@@ -727,7 +744,7 @@ def media(stream, track):
         while len(known) > SEGMENTS_KEPT:
             known.popitem(last=False)
         listed = segs
-        if stream.subs and CC_HOLD_BACK > 0 and len(segs) > CC_HOLD_BACK + 2:
+        if stream.subs and stream.rollup and CC_HOLD_BACK > 0 and len(segs) > CC_HOLD_BACK + 2:
             listed = segs[:-CC_HOLD_BACK]
         body = render_media(headers, listed, "/s/%s/%s" % (stream.key, track), False)
         stream.last_playlist[track] = body
@@ -885,8 +902,7 @@ def refresh_subs(stream):
             body, _ = fetch_bytes(s["uri"], timeout=10)
         except Exception:  # noqa: BLE001 - tried again on the next refresh
             continue
-        cues = [(a - CC_ADVANCE, b - CC_ADVANCE, lines)
-                for a, b, lines in parse_vtt(body.decode("utf-8", "replace"))]
+        cues = parse_vtt(body.decode("utf-8", "replace"))
         with stream.lock:
             stream.sub_seen[s["uri"]] = True
             while len(stream.sub_seen) > SEGMENTS_KEPT:
@@ -896,6 +912,10 @@ def refresh_subs(stream):
             if len(stream.cues) > CUES_KEPT:
                 for k in sorted(stream.cues)[:len(stream.cues) - CUES_KEPT]:
                     del stream.cues[k]
+            if stream.rollup is None and len(stream.cues) >= ROLLUP_MIN_CUES:
+                stream.rollup = is_rollup(stream.cues.values())
+                print("captions on %s: %s" % (stream.key[:6], "live-typed, shown %.0f s earlier" % CC_ADVANCE
+                                              if stream.rollup else "prepared"), flush=True)
 
 
 # The DVB subtitle track (add_dvb): its PID, page and PMT entry.
@@ -903,7 +923,11 @@ SUB_PID = 0x102
 DVB_PAGE = 1
 # subtitling_descriptor: English, DVB subtitles (normal), composition and
 # ancillary page DVB_PAGE (the page dvbsubenc writes)
-SUBTITLING_DESCRIPTOR = bytes([0x59, 8]) + b"eng" + bytes([0x10, 0, DVB_PAGE, 0, DVB_PAGE])
+def subtitling_descriptor(lang="eng"):
+    return bytes([0x59, 8]) + lang.encode("ascii", "replace")[:3].ljust(3, b"u") + bytes([0x10, 0, DVB_PAGE, 0, DVB_PAGE])
+
+
+SUBTITLING_DESCRIPTOR = subtitling_descriptor()
 PMT_PID = 4096         # -mpegts_pmt_start_pid in every ffmpeg run here
 GST_TS_BASE = 3600.0   # s: mpegtsmux's first timestamp
 
@@ -917,14 +941,15 @@ def _crc32_mpeg2(data):
     return crc
 
 
-def declare_subtitles(ts):
+def declare_subtitles(ts, lang="eng"):
     """ts with the DVB subtitle track in every PMT, always the same entry
     (PID SUB_PID, private data, SUBTITLING_DESCRIPTOR), whether or not this
     segment carries any subtitle packets. A player reads the track list from
     the first PMT it sees and ignores later ones (Media3), so a segment
     without captions, an ad or a slate must still list it."""
     out = bytearray(ts)
-    entry = bytes([0x06, 0xE0 | SUB_PID >> 8, SUB_PID & 0xFF, 0xF0, len(SUBTITLING_DESCRIPTOR)]) + SUBTITLING_DESCRIPTOR
+    descriptor = subtitling_descriptor(lang)
+    entry = bytes([0x06, 0xE0 | SUB_PID >> 8, SUB_PID & 0xFF, 0xF0, len(descriptor)]) + descriptor
     for off in range(0, len(out) - 187, 188):
         if out[off] != 0x47 or not out[off + 1] & 0x40:
             continue
@@ -1061,15 +1086,29 @@ def gst_caption_args(fd):
             "tttocea608", "!", "ccconverter", "!", "closedcaption/x-cea-708,format=cc_data", "!", "c.caption"]
 
 
+def is_rollup(cues):
+    """Whether cues are live-typed roll-up captions: each one the display
+    after another word, so its last line grows out of the previous cue's."""
+    cues = sorted(c for c in cues if c[2])
+    if len(cues) < 2:
+        return False
+    grows = sum(1 for (_, _, a), (_, _, b) in zip(cues, cues[1:])
+                if b[-1].startswith(a[-1]) or (len(b) > 1 and b[-2] == a[-1]))
+    return grows / (len(cues) - 1) >= ROLLUP_SHARE
+
+
 def cues_until(stream, t1):
-    """The stream's cues, read again from Pluto first if none reach t1 yet
-    (Pluto's subtitle playlist can lag the video's)."""
-    with stream.lock:
-        cues = list(stream.cues.values())
+    """The stream's cues, live-typed ones moved CC_ADVANCE earlier, read
+    again from Pluto first if none reach t1 yet (Pluto's subtitle playlist
+    can lag the video's)."""
+    def shifted():
+        with stream.lock:
+            advance = CC_ADVANCE if stream.rollup else 0.0
+            return [(a - advance, b - advance, lines) for a, b, lines in stream.cues.values()]
+    cues = shifted()
     if not cues or max(c[0] for c in cues) < t1 - 1.0:
         refresh_subs(stream)
-        with stream.lock:
-            cues = list(stream.cues.values())
+        cues = shifted()
     return cues
 
 
@@ -1308,7 +1347,7 @@ def _build(stream, track, seq):
         end = max([end] + [v["start"] + shift + v["length"] for v in sources])
     served(stream, track, end)
     if stream.subs and not stream.burn:
-        out = declare_subtitles(out)  # every segment, ads too: the PMT must not change
+        out = declare_subtitles(out, stream.sub_lang)  # every segment, ads too: the PMT must not change
     if DEBUG:
         print("seg %s %s/%d dseq=%d %s clock=%.3f src=%s shift=%.3f out=%.3f+%s%s" % (
             stream.key[:6], track, seq, seg["dseq"], "AD" if seg["ad"] else "show", seg["clock"] or 0,
@@ -1462,7 +1501,10 @@ def open_channel(session, channel, channel_id=None, burn=False):
                 if subs and not have_gst():
                     print("gst-launch-1.0 not found: no captions", flush=True)
                     subs = None
-            return "body", master_playlist(new_stream(video, audio, subs, burn), bw)
+            key = new_stream(video, audio, subs, burn)
+            if subs:
+                get_stream(key).sub_lang = subtitle_language(text)
+            return "body", master_playlist(key, bw)
     except Exception as e:  # noqa: BLE001
         print("master failed: %s" % type(e).__name__, flush=True)
     return "redirect", master_url
