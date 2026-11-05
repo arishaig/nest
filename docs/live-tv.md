@@ -145,6 +145,12 @@ package). It keeps no state:
     Every segment's PMT lists the track (`declare_subtitles`), ads and
     caption-less segments too: Media3 reads the track list from the first
     PMT only.
+  - Cues are shown `CC_ADVANCE_SECONDS` (default 4) earlier than Pluto
+    times them: live captions are typed as the words are spoken, and on NBC
+    News NOW they trailed the speech by a median 5.2 s (0.4-11 s; measured
+    by timing the audio with subgen's Whisper). Players stay a few segments
+    behind live, so the next seconds' cues already exist when a segment is
+    built.
   - Dispatcharr's ffmpeg profiles keep only video and audio, so a caption
     channel uses the **Streamlink** stream profile (segments passed through
     unchanged). Jellyfin drops subtitle tracks of live TV; the

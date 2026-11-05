@@ -17,6 +17,9 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import pluto_proxy as pp  # noqa: E402
 
+# the timing tests below check cues at Pluto's own times; CaptionAdvanceTest covers the advance
+pp.CC_ADVANCE = 0.0
+
 CID = "5" * 24
 SESSION = {"token": "TOK", "params": "a=1&b=2", "stitcher": "https://stitch.example", "channels_api": "https://api.example"}
 BASE = "https://stitch.example/v2/stitch/hls/channel/x/master.m3u8?q=1"
@@ -832,6 +835,22 @@ class SubtitleDeclarationTest(unittest.TestCase):
         self.assertIn("00:00:04,980 --> 00:00:04,990\n\u200b", text)          # clears a caption that ended
         self.assertNotIn("LATER", text)
         self.assertIsNone(pp.dvb_srt(cues, 30.0, 35.0))
+
+
+class CaptionAdvanceTest(unittest.TestCase):
+    def test_cues_are_read_earlier(self):
+        up = Upstream()
+        pp.fetch_bytes = up
+        up.files["https://up/s.m3u8"] = b"#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:5,\nhttps://s/0.vtt\n"
+        up.files["https://s/0.vtt"] = b"WEBVTT\n\n00:00:10.000 --> 00:00:12.000\nHELLO\n"
+        old = pp.CC_ADVANCE
+        pp.CC_ADVANCE = 4.0
+        try:
+            s = pp.get_stream(pp.new_stream("https://up/v.m3u8", None, "https://up/s.m3u8"))
+            pp.refresh_subs(s)
+        finally:
+            pp.CC_ADVANCE = old
+        self.assertEqual(list(s.cues.values()), [(6.0, 8.0, ["HELLO"])])
 
 
 class BurnTextTest(unittest.TestCase):
