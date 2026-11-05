@@ -93,6 +93,12 @@ CC_TIMEOUT = 10        # s: a segment whose captioning takes longer goes out wit
 CC_GROUP = 0.5         # s: words this close together are sent as one caption
 CC_TAIL = 0.5          # s: words due this close to a segment's end go in the next one
 CUES_KEPT = 3000       # per stream: Pluto sends a cue per word, ~3/s
+# s: shown this much earlier than Pluto times them. Live captions are typed
+# as the words are spoken, and Pluto's cues keep the broadcast's delay:
+# measured on NBC News NOW against Whisper-timed speech, a median 5.2 s
+# (0.4-11 s). Players stay a few segments behind live, so the cues for the
+# next seconds are already there when a segment is built.
+CC_ADVANCE = float(os.environ.get("CC_ADVANCE_SECONDS", "4"))
 BREAKS_DIR = os.environ.get("BREAKS_DIR", "")
 BREAKS_RESCAN = int(os.environ.get("BREAKS_RESCAN_SECONDS", "300"))
 BREAK_EXTS = (".mp4", ".m4v", ".mkv", ".webm", ".mov", ".ts")
@@ -869,7 +875,8 @@ def refresh_subs(stream):
             body, _ = fetch_bytes(s["uri"], timeout=10)
         except Exception:  # noqa: BLE001 - tried again on the next refresh
             continue
-        cues = parse_vtt(body.decode("utf-8", "replace"))
+        cues = [(a - CC_ADVANCE, b - CC_ADVANCE, lines)
+                for a, b, lines in parse_vtt(body.decode("utf-8", "replace"))]
         with stream.lock:
             stream.sub_seen[s["uri"]] = True
             while len(stream.sub_seen) > SEGMENTS_KEPT:
