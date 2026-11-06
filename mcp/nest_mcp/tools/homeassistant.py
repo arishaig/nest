@@ -47,6 +47,14 @@ async def _post_config(client, path: str, config: dict) -> None:
 # Helpers (input_boolean etc.) can only be created over HA's WebSocket API;
 # there is no REST endpoint for them. It needs an admin token.
 
+class HAWebSocketError(ValueError):
+    """A failed WebSocket command; ``code`` is HA's error code (e.g. ``config_not_found``)."""
+
+    def __init__(self, message: str, code: str = ""):
+        super().__init__(message)
+        self.code = code
+
+
 @contextlib.asynccontextmanager
 async def _ws_session():
     """Open an authenticated HA WebSocket; yield ``call(payload) -> result``."""
@@ -70,7 +78,11 @@ async def _ws_session():
                 if msg.get("id") != next_id:
                     continue
                 if not msg.get("success"):
-                    raise ValueError(f"Home Assistant rejected {payload['type']}: {msg.get('error', {}).get('message', msg)}")
+                    err = msg.get("error", {})
+                    raise HAWebSocketError(
+                        f"Home Assistant rejected {payload['type']}: {err.get('message', msg)}",
+                        code=err.get("code", ""),
+                    )
                 return msg.get("result")
 
         yield call
@@ -554,6 +566,94 @@ def register(mcp: MCPServer) -> None:
                 payload["icon"] = icon
             created = await call(payload)
         return {"entity_id": f"input_boolean.{created['id']}", "name": created["name"], "created": True}
+
+    # --- Dashboards (Lovelace) ---------------------------------------------
+    # Dashboard configs live only in HA's .storage and are only reachable over
+    # the WebSocket API. Storage-mode dashboards can be read and saved; YAML-mode
+    # ones are read-only, and strategy (auto-generated) dashboards have no
+    # stored config until someone takes control of them.
+
+    async def _get_dashboard_config(call, url_path: str):
+        """Stored config for a dashboard, or None when it has none (strategy/auto-generated)."""
+        payload = {"type": "lovelace/config", "force": False}
+        if url_path:
+            payload["url_path"] = url_path
+        try:
+            return await call(payload)
+        except HAWebSocketError as err:
+            if err.code == "config_not_found" and "Unknown config" not in str(err):
+                return None
+            raise
+
+    @mcp.tool()
+    async def ha_list_dashboards() -> dict:
+        """List Home Assistant dashboards and loaded frontend resources. Read-only. `dashboards` includes the default dashboard (url_path ""), each with its mode: "storage" (editable via ha_save_dashboard) or "yaml" (read-only). `resources` lists the custom-card JS/CSS the frontend loads, which shows which custom cards are still installed."""
+        async with _ws_session() as call:
+            dashboards = await call({"type": "lovelace/dashboards/list"})
+            resources = await call({"type": "lovelace/resources"})
+        default = {"url_path": "", "title": "Overview (default)", "mode": "storage", "default": True}
+        listed = [
+            {
+                "url_path": d.get("url_path", ""),
+                "title": d.get("title", ""),
+                "mode": d.get("mode", "storage"),
+                "icon": d.get("icon"),
+                "show_in_sidebar": d.get("show_in_sidebar", True),
+                "require_admin": d.get("require_admin", False),
+            }
+            for d in dashboards
+        ]
+        return {
+            "dashboards": [default, *sorted(listed, key=lambda d: d["url_path"])],
+            "resources": [{"url": r.get("url"), "type": r.get("type")} for r in resources],
+        }
+
+    @mcp.tool()
+    async def ha_get_dashboard(url_path: str = "") -> dict:
+        """Get a Home Assistant dashboard's config (views, sections, cards) exactly as stored, in the shape ha_save_dashboard accepts. Read-only. `url_path` "" is the default dashboard. A dashboard with no stored config (auto-generated/strategy) returns `config: null` with `generated: true`."""
+        async with _ws_session() as call:
+            cfg = await _get_dashboard_config(call, url_path)
+        return {"url_path": url_path, "generated": cfg is None, "config": cfg}
+
+    @mcp.tool()
+    async def ha_save_dashboard(
+        url_path: str,
+        config: dict,
+        create: bool = False,
+        title: str = "",
+        icon: str = "",
+        show_in_sidebar: bool = True,
+    ) -> dict:
+        """[DESTRUCTIVE] Replace a storage-mode Home Assistant dashboard's whole config (`{"views": [...]}`), or create a new dashboard with `create=True` (needs `title`; `url_path` must contain a hyphen and must not exist yet). Before overwriting, the current config is read and returned as `previous`: save it somewhere durable so the change can be reverted by saving it back. YAML-mode dashboards can't be saved. Confirm with the user before overwriting an existing dashboard."""
+        if not isinstance(config, dict) or not isinstance(config.get("views"), list):
+            raise ValueError('config must be a dashboard config with a "views" list')
+        async with _ws_session() as call:
+            if create:
+                if not title.strip():
+                    raise ValueError("creating a dashboard needs a title")
+                if "-" not in url_path:
+                    raise ValueError("a new dashboard's url_path must contain a hyphen, e.g. 'home-v2'")
+                existing = await call({"type": "lovelace/dashboards/list"})
+                if any(d.get("url_path") == url_path for d in existing):
+                    raise ValueError(f"a dashboard at {url_path!r} already exists; save without create=True")
+                payload = {"type": "lovelace/dashboards/create", "url_path": url_path,
+                           "title": title.strip(), "show_in_sidebar": show_in_sidebar}
+                if icon:
+                    payload["icon"] = icon
+                await call(payload)
+                previous = None
+            else:
+                previous = await _get_dashboard_config(call, url_path)
+            save = {"type": "lovelace/config/save", "config": config}
+            if url_path:
+                save["url_path"] = url_path
+            try:
+                await call(save)
+            except HAWebSocketError as err:
+                if "Not supported" in str(err):
+                    raise ValueError(f"{url_path or 'the default dashboard'} is a YAML-mode dashboard; it can't be saved from here") from err
+                raise
+        return {"url_path": url_path, "created": create, "saved": True, "previous": previous}
 
     async def _fetch_automations(client, automation_id: str = "") -> tuple[list[dict], dict, dict]:
         """(automation list, {id: config or None}, {entity_id: state}) in one pass."""
