@@ -362,6 +362,105 @@ async def test_create_input_boolean_refuses_duplicate_and_blank(monkeypatch):
     assert [c["type"] for c in calls] == ["input_boolean/list"]
 
 
+def _fake_dashboard_ws(monkeypatch, calls, dashboards=(), configs=None, yaml_paths=()):
+    """Stub _ws_session for the dashboard tools. `configs` maps url_path -> stored config;
+    a known path missing from it has no stored config (strategy dashboard)."""
+    configs = configs or {}
+    known = {"", *(d["url_path"] for d in dashboards)}
+
+    @contextlib.asynccontextmanager
+    async def session():
+        async def call(payload):
+            calls.append(payload)
+            kind, path = payload["type"], payload.get("url_path", "")
+            if kind == "lovelace/dashboards/list":
+                return list(dashboards)
+            if kind == "lovelace/resources":
+                return [{"id": "1", "url": "/local/card.js", "type": "module"}]
+            if kind == "lovelace/config":
+                if path not in known:
+                    raise homeassistant.HAWebSocketError(
+                        f"Home Assistant rejected lovelace/config: Unknown config specified: {path}",
+                        code="config_not_found")
+                if path not in configs:
+                    raise homeassistant.HAWebSocketError(
+                        "Home Assistant rejected lovelace/config: No config found.", code="config_not_found")
+                return configs[path]
+            if kind == "lovelace/config/save" and path in yaml_paths:
+                raise homeassistant.HAWebSocketError(
+                    "Home Assistant rejected lovelace/config/save: Not supported", code="error")
+            return None
+        yield call
+    monkeypatch.setattr(homeassistant, "_ws_session", session)
+
+
+async def test_list_dashboards_includes_default_and_resources(monkeypatch):
+    calls = []
+    _fake_dashboard_ws(monkeypatch, calls, dashboards=[
+        {"id": "b", "url_path": "zz-dash", "title": "Z", "mode": "yaml"},
+        {"id": "a", "url_path": "aa-dash", "title": "A", "mode": "storage", "show_in_sidebar": False},
+    ])
+    out = await load_tools(homeassistant)["ha_list_dashboards"]()
+    assert [d["url_path"] for d in out["dashboards"]] == ["", "aa-dash", "zz-dash"]
+    assert out["dashboards"][0]["default"] is True
+    assert out["dashboards"][1]["show_in_sidebar"] is False
+    assert out["dashboards"][2]["mode"] == "yaml"
+    assert out["resources"] == [{"url": "/local/card.js", "type": "module"}]
+
+
+async def test_get_dashboard_stored_generated_and_unknown(monkeypatch):
+    calls = []
+    cfg = {"views": [{"title": "Home", "cards": []}]}
+    _fake_dashboard_ws(monkeypatch, calls, dashboards=[{"url_path": "my-dash"}], configs={"my-dash": cfg})
+    tool = load_tools(homeassistant)["ha_get_dashboard"]
+    assert await tool(url_path="my-dash") == {"url_path": "my-dash", "generated": False, "config": cfg}
+    assert calls[-1] == {"type": "lovelace/config", "force": False, "url_path": "my-dash"}
+    # The default dashboard has no stored config here: it's auto-generated.
+    assert await tool() == {"url_path": "", "generated": True, "config": None}
+    assert "url_path" not in calls[-1]
+    with pytest.raises(ValueError, match="Unknown config"):
+        await tool(url_path="nope-dash")
+
+
+async def test_save_dashboard_returns_previous(monkeypatch):
+    calls = []
+    old = {"views": [{"title": "Old"}]}
+    new = {"views": [{"title": "New"}]}
+    _fake_dashboard_ws(monkeypatch, calls, dashboards=[{"url_path": "my-dash"}], configs={"my-dash": old})
+    out = await load_tools(homeassistant)["ha_save_dashboard"](url_path="my-dash", config=new)
+    assert out == {"url_path": "my-dash", "created": False, "saved": True, "previous": old}
+    assert calls[-1] == {"type": "lovelace/config/save", "config": new, "url_path": "my-dash"}
+
+
+async def test_save_dashboard_create(monkeypatch):
+    calls = []
+    _fake_dashboard_ws(monkeypatch, calls, dashboards=[{"url_path": "my-dash"}])
+    out = await load_tools(homeassistant)["ha_save_dashboard"](
+        url_path="new-dash", config={"views": []}, create=True, title=" New ", icon="mdi:home")
+    assert out["created"] is True and out["previous"] is None
+    assert calls[1] == {"type": "lovelace/dashboards/create", "url_path": "new-dash", "title": "New",
+                        "show_in_sidebar": True, "icon": "mdi:home"}
+    assert calls[2]["type"] == "lovelace/config/save"
+
+
+async def test_save_dashboard_refusals(monkeypatch):
+    calls = []
+    _fake_dashboard_ws(monkeypatch, calls, dashboards=[{"url_path": "my-dash"}, {"url_path": "yaml-dash"}],
+                       configs={"yaml-dash": {"views": []}}, yaml_paths={"yaml-dash"})
+    tool = load_tools(homeassistant)["ha_save_dashboard"]
+    with pytest.raises(ValueError, match="views"):
+        await tool(url_path="my-dash", config={"title": "x"})
+    with pytest.raises(ValueError, match="needs a title"):
+        await tool(url_path="new-dash", config={"views": []}, create=True)
+    with pytest.raises(ValueError, match="hyphen"):
+        await tool(url_path="newdash", config={"views": []}, create=True, title="T")
+    with pytest.raises(ValueError, match="already exists"):
+        await tool(url_path="my-dash", config={"views": []}, create=True, title="T")
+    with pytest.raises(ValueError, match="YAML-mode"):
+        await tool(url_path="yaml-dash", config={"views": []})
+    assert not any(c["type"] == "lovelace/dashboards/create" for c in calls)
+
+
 class _FakeSocket:
     def __init__(self, replies):
         self.replies, self.sent = list(replies), []
