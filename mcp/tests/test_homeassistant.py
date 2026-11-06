@@ -450,3 +450,37 @@ async def test_history_rejects_bad_windows():
         await tools["ha_history"](entity_ids=["a.b"], start="2026-11-04T05:00:00Z", end="2026-11-04T04:00:00Z")
     with pytest.raises(ValueError):
         await tools["ha_history"](entity_ids=["a.b"], hours=24 * 30)
+
+
+async def test_history_numeric_sensor_gets_value_summary_and_bounds(monkeypatch):
+    patch_http(monkeypatch, homeassistant, {"/api/history/period/*": [[
+        {"entity_id": "sensor.lux", "state": "5.0", "last_changed": "2026-11-04T04:00:00+00:00"},
+        {"state": "1.0", "last_changed": "2026-11-04T04:00:10+00:00"},
+        {"state": "3.0", "last_changed": "2026-11-04T04:00:40+00:00"},
+        {"state": "unavailable", "last_changed": "2026-11-04T04:00:50+00:00"},
+        {"state": "9.0", "last_changed": "2026-11-04T04:00:52+00:00"},
+        {"state": "2.0", "last_changed": "2026-11-04T04:01:00+00:00"},
+    ]]})
+    out = await load_tools(homeassistant)["ha_history"](
+        entity_ids=["sensor.lux"], start="2026-11-04T04:00:00Z", end="2026-11-04T04:02:00Z", below=4)
+    e = out["entities"]["sensor.lux"]
+    # Unclipped readings: 1.0 for 30 s, 3.0 for 10 s, 9.0 for 8 s. Not one bucket per value.
+    assert e["summary"]["numeric"] == {
+        "readings": 3, "min": 1.0, "max": 9.0, "median": 3.0,
+        "time_weighted_mean": round((1 * 30 + 3 * 10 + 9 * 8) / 48, 3)}
+    assert e["summary"]["unavailable"]["count"] == 1
+    assert "1.0" not in e["summary"]
+    assert [r["state"] for r in e["runs"]] == ["1.0", "3.0", "2.0"]
+
+
+async def test_history_mostly_text_states_keep_per_state_buckets(monkeypatch):
+    patch_http(monkeypatch, homeassistant, {"/api/history/period/*": [[
+        {"entity_id": "binary_sensor.x", "state": "on", "last_changed": "2026-11-04T04:00:00+00:00"},
+        {"state": "off", "last_changed": "2026-11-04T04:00:10+00:00"},
+        {"state": "on", "last_changed": "2026-11-04T04:00:20+00:00"},
+        {"state": "off", "last_changed": "2026-11-04T04:00:30+00:00"},
+    ]]})
+    out = await load_tools(homeassistant)["ha_history"](
+        entity_ids=["binary_sensor.x"], start="2026-11-04T04:00:00Z", end="2026-11-04T04:01:00Z")
+    s = out["entities"]["binary_sensor.x"]["summary"]
+    assert "numeric" not in s and s["off"]["count"] == 1 and s["on"]["count"] == 1
