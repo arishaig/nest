@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from websockets.asyncio.client import connect
 from nest_mcp import config
 from nest_mcp.http_client import make_client
@@ -47,7 +48,11 @@ async def _post_config(client, path: str, config: dict) -> None:
 # Helpers (input_boolean etc.) can only be created over HA's WebSocket API;
 # there is no REST endpoint for them. It needs an admin token.
 
-class HAWebSocketError(ValueError):
+class HARefusal(ToolError, ValueError):
+    """A refusal or bad input the caller should see verbatim (the SDK hides other exception text)."""
+
+
+class HAWebSocketError(ToolError, ValueError):
     """A failed WebSocket command; ``code`` is HA's error code (e.g. ``config_not_found``)."""
 
     def __init__(self, message: str, code: str = ""):
@@ -597,7 +602,7 @@ def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def ha_list_devices(dead_only: bool = True, area_id: str = "") -> dict:
-        """List Home Assistant devices with their integration, area and entity states, to find dead devices to clean up. Read-only. With `dead_only` (default), only devices whose enabled entities are ALL unavailable/unknown/restored (or that have no entities) are returned, plus `orphan_entities`: registry entities with no device that are not being provided by any integration (restored/missing state). `removable` says whether HA's device-removal path is supported by the integration; when it isn't, `sole_device_of_entry` says whether deleting the integration entry would remove only this device."""
+        """List Home Assistant devices with their integration, area and entity states, to find dead devices to clean up. Read-only. With `dead_only` (default), only devices that have enabled entities and whose enabled entities are ALL unavailable/unknown/restored are returned (devices with no entities, like Bluetooth adapters or UniFi clients, are skipped: use dead_only=False to see them), plus `orphan_entities`: registry entities with no device that are not being provided by any integration (restored/missing state). `removable` says whether HA's device-removal path is supported by the integration; when it isn't, `sole_device_of_entry` says whether deleting the integration entry would remove only this device."""
         async with _ws_session() as call:
             devices, entities, entries, states = await _registry_snapshot(call)
         by_device: dict[str, list] = {}
@@ -614,7 +619,7 @@ def register(mcp: MCPServer) -> None:
                 continue
             ents = [e for e in by_device.get(dev["id"], []) if not e.get("disabled_by")]
             ent_states = [{"entity_id": e["entity_id"], "state": _state_of(states, e["entity_id"])} for e in ents]
-            dead = all(es["state"] in _DEAD_STATES | {"restored"} for es in ent_states)
+            dead = bool(ent_states) and all(es["state"] in _DEAD_STATES | {"restored"} for es in ent_states)
             if dead_only and not dead:
                 continue
             entry_ids = dev.get("config_entries") or []
@@ -652,12 +657,12 @@ def register(mcp: MCPServer) -> None:
             devices, entities, entries, states = await _registry_snapshot(call)
             dev = next((d for d in devices if d["id"] == device_id), None)
             if dev is None:
-                raise ValueError(f"no device with id {device_id}")
+                raise HARefusal(f"no device with id {device_id}")
             live = [e["entity_id"] for e in entities
                     if e.get("device_id") == device_id and not e.get("disabled_by")
                     and _state_of(states, e["entity_id"]) not in _DEAD_STATES | {"restored"}]
             if live:
-                raise ValueError(f"refusing: device still has live entities {live}")
+                raise HARefusal(f"refusing: device still has live entities {live}")
             name = dev.get("name_by_user") or dev.get("name")
             entry_ids = dev.get("config_entries") or []
             entry = entries.get(dev.get("primary_config_entry") or (entry_ids[0] if entry_ids else ""), {})
@@ -665,11 +670,11 @@ def register(mcp: MCPServer) -> None:
                 await call({"type": "config/device_registry/remove", "device_id": device_id})
                 return {"device_id": device_id, "name": name, "removed": True, "via": "device_registry"}
         if not delete_config_entry:
-            raise ValueError(
+            raise HARefusal(
                 f"{entry.get('domain') or 'this'} integration doesn't support removing devices; "
                 "pass delete_config_entry=True to delete its integration entry instead")
         if not entry or sum(entry["entry_id"] in (d.get("config_entries") or []) for d in devices) != 1:
-            raise ValueError("refusing: the integration entry holds other devices too; remove it in the UI")
+            raise HARefusal("refusing: the integration entry holds other devices too; remove it in the UI")
         async with make_client(config.homeassistant.url, headers=_headers()) as client:
             resp = await client.delete(f"/api/config/config_entries/entry/{entry['entry_id']}")
             resp.raise_for_status()
@@ -683,7 +688,7 @@ def register(mcp: MCPServer) -> None:
             states = {s["entity_id"]: s for s in await call({"type": "get_states"})}
             st = _state_of(states, entity_id)
             if st not in (None, "restored"):
-                raise ValueError(f"refusing: {entity_id} is provided by a loaded integration (state {st!r})")
+                raise HARefusal(f"refusing: {entity_id} is provided by a loaded integration (state {st!r})")
             await call({"type": "config/entity_registry/remove", "entity_id": entity_id})
         return {"entity_id": entity_id, "removed": True}
 
@@ -746,16 +751,16 @@ def register(mcp: MCPServer) -> None:
     ) -> dict:
         """[DESTRUCTIVE] Replace a storage-mode Home Assistant dashboard's whole config (`{"views": [...]}`), or create a new dashboard with `create=True` (needs `title`; `url_path` must contain a hyphen and must not exist yet). Before overwriting, the current config is read and returned as `previous`: save it somewhere durable so the change can be reverted by saving it back. YAML-mode dashboards can't be saved. Confirm with the user before overwriting an existing dashboard."""
         if not isinstance(config, dict) or not isinstance(config.get("views"), list):
-            raise ValueError('config must be a dashboard config with a "views" list')
+            raise HARefusal('config must be a dashboard config with a "views" list')
         async with _ws_session() as call:
             if create:
                 if not title.strip():
-                    raise ValueError("creating a dashboard needs a title")
+                    raise HARefusal("creating a dashboard needs a title")
                 if "-" not in url_path:
-                    raise ValueError("a new dashboard's url_path must contain a hyphen, e.g. 'home-v2'")
+                    raise HARefusal("a new dashboard's url_path must contain a hyphen, e.g. 'home-v2'")
                 existing = await call({"type": "lovelace/dashboards/list"})
                 if any(d.get("url_path") == url_path for d in existing):
-                    raise ValueError(f"a dashboard at {url_path!r} already exists; save without create=True")
+                    raise HARefusal(f"a dashboard at {url_path!r} already exists; save without create=True")
                 payload = {"type": "lovelace/dashboards/create", "url_path": url_path,
                            "title": title.strip(), "show_in_sidebar": show_in_sidebar}
                 if icon:
@@ -771,7 +776,7 @@ def register(mcp: MCPServer) -> None:
                 await call(save)
             except HAWebSocketError as err:
                 if "Not supported" in str(err):
-                    raise ValueError(f"{url_path or 'the default dashboard'} is a YAML-mode dashboard; it can't be saved from here") from err
+                    raise HARefusal(f"{url_path or 'the default dashboard'} is a YAML-mode dashboard; it can't be saved from here") from err
                 raise
         return {"url_path": url_path, "created": create, "saved": True, "previous": previous}
 

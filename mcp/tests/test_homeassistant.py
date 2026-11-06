@@ -371,6 +371,8 @@ _DEVICES = [
      "config_entries": ["e-esp1"], "primary_config_entry": "e-esp1"},
     {"id": "d-dead-shared", "name": "Hub Child", "config_entries": ["e-hub"], "primary_config_entry": "e-hub"},
     {"id": "d-live-shared", "name": "Hub Other", "config_entries": ["e-hub"], "primary_config_entry": "e-hub"},
+    {"id": "d-no-entities", "name": "BT Adapter", "area_id": "kitchen", "config_entries": ["e-mqtt"],
+     "primary_config_entry": "e-mqtt"},
 ]
 _ENTITIES = [
     {"entity_id": "light.old", "device_id": "d-dead-zb"},
@@ -433,7 +435,8 @@ async def test_list_devices_all_and_area(monkeypatch):
     _fake_registry_ws(monkeypatch, [])
     tool = load_tools(homeassistant)["ha_list_devices"]
     out = await tool(dead_only=False, area_id="kitchen")
-    assert sorted(d["device_id"] for d in out["devices"]) == ["d-dead-zb", "d-live-zb"]
+    # Devices with no entities aren't "dead", but show up when listing everything.
+    assert sorted(d["device_id"] for d in out["devices"]) == ["d-dead-zb", "d-live-zb", "d-no-entities"]
     assert out["orphan_entities"] == []
 
 
@@ -706,3 +709,13 @@ async def test_history_mostly_text_states_keep_per_state_buckets(monkeypatch):
         entity_ids=["binary_sensor.x"], start="2026-11-04T04:00:00Z", end="2026-11-04T04:01:00Z")
     s = out["entities"]["binary_sensor.x"]["summary"]
     assert "numeric" not in s and s["off"]["count"] == 1 and s["on"]["count"] == 1
+
+
+async def test_refusals_reach_the_caller(monkeypatch):
+    """The MCP SDK hides the text of unexpected exceptions; refusals and HA's
+    own rejections must be ToolErrors so the caller sees why."""
+    from mcp.server.mcpserver.exceptions import ToolError
+    _fake_registry_ws(monkeypatch, [])
+    with pytest.raises(ToolError, match="live entities"):
+        await load_tools(homeassistant)["ha_remove_device"](device_id="d-live-zb")
+    assert issubclass(homeassistant.HAWebSocketError, ToolError)
