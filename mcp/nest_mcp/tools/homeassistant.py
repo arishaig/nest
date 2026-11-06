@@ -55,11 +55,16 @@ class HAWebSocketError(ValueError):
         self.code = code
 
 
+_WS_MAX_SIZE = 64 * 1024 * 1024
+
+
 @contextlib.asynccontextmanager
 async def _ws_session():
     """Open an authenticated HA WebSocket; yield ``call(payload) -> result``."""
     url = config.homeassistant.url.rstrip("/").replace("http", "ws", 1) + "/api/websocket"
-    async with connect(url, open_timeout=10) as ws:
+    # Registry and state dumps (get_states, entity_registry/list) exceed the
+    # websockets library's 1 MiB default frame limit on a real install.
+    async with connect(url, open_timeout=10, max_size=_WS_MAX_SIZE) as ws:
         hello = json.loads(await ws.recv())
         if hello.get("type") != "auth_required":
             raise ValueError(f"unexpected greeting from Home Assistant: {hello}")
