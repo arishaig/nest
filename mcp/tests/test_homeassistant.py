@@ -597,7 +597,7 @@ class _FakeSocket:
 def _patch_connect(monkeypatch, socket):
     @contextlib.asynccontextmanager
     async def connect(url, **kwargs):
-        socket.url = url
+        socket.url, socket.kwargs = url, kwargs
         yield socket
     monkeypatch.setattr(homeassistant, "connect", connect)
     monkeypatch.setattr(homeassistant.config.homeassistant, "url", "https://ha.example/")
@@ -614,6 +614,7 @@ async def test_ws_session_authenticates_and_matches_reply_ids(monkeypatch):
     async with homeassistant._ws_session() as call:
         assert await call({"type": "x/list"}) == [1]
     assert sock.url == "wss://ha.example/api/websocket"
+    assert sock.kwargs["max_size"] >= 16 * 1024 * 1024  # big registry dumps
     assert sock.sent == [{"type": "auth", "access_token": "tok"}, {"id": 1, "type": "x/list"}]
 
 
