@@ -17,7 +17,19 @@ Tools (nest-mcp, all over HA's WebSocket API):
 | `ha_get_dashboard(url_path="")` | Read-only. Returns the stored config, in the shape `ha_save_dashboard` accepts. `generated: true` / `config: null` means an auto-generated (strategy) dashboard with nothing stored |
 | `ha_save_dashboard(url_path, config, create=False, title="", icon="", show_in_sidebar=True)` | Destructive. Replaces a storage dashboard's whole config, or creates a new one with `create=True`. A new dashboard needs a `title`, and its `url_path` must contain a hyphen. Returns the config it replaced as `previous` |
 
-There are no delete or resource-removal tools. Deleting dashboards and
+Cleaning up dead devices first keeps automatic sections clean, because they list
+every matching entity, including unavailable ones:
+
+| Tool | Use |
+|---|---|
+| `ha_list_devices(dead_only=True, area_id="")` | Read-only. Devices whose enabled entities are all unavailable/unknown/restored, with integration, area, `removable`, and `sole_device_of_entry`. Also lists `orphan_entities` (no device, nothing providing them) |
+| `ha_remove_device(device_id, delete_config_entry=False)` | Destructive. Refuses if any entity is live. Uses HA's device removal; for integrations without it (ESPHome) `delete_config_entry=True` deletes the integration entry, but only if it holds just that device. Zigbee2MQTT devices still paired get rediscovered, so remove them in Z2M first |
+| `ha_remove_entity(entity_id)` | Destructive. Removes an orphan registry entry; refuses entities an integration still provides |
+
+Confirm the exact list with the user before removing anything. A device that is
+only temporarily offline (e.g. a battery sensor being troubleshot) stays.
+
+There are no dashboard-delete or resource-removal tools. Deleting dashboards and
 uninstalling custom cards (Settings > Marketplace) happen in the UI, after the
 user confirms.
 

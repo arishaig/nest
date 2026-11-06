@@ -567,6 +567,121 @@ def register(mcp: MCPServer) -> None:
             created = await call(payload)
         return {"entity_id": f"input_boolean.{created['id']}", "name": created["name"], "created": True}
 
+    # --- Device cleanup -----------------------------------------------------
+    # Devices, entity registry entries and config entries are only listed over
+    # the WebSocket API. Removal goes through HA's own device-removal path, which
+    # the owning integration can refuse (e.g. ESPHome, where each device is its
+    # own config entry and the entry itself has to be deleted).
+
+    _DEAD_STATES = {"unavailable", "unknown", None}
+
+    async def _registry_snapshot(call) -> tuple[list, list, dict, dict]:
+        devices = await call({"type": "config/device_registry/list"})
+        entities = await call({"type": "config/entity_registry/list"})
+        entries = {e["entry_id"]: e for e in await call({"type": "config_entries/get"})}
+        states = {s["entity_id"]: s for s in await call({"type": "get_states"})}
+        return devices, entities, entries, states
+
+    def _state_of(states: dict, entity_id: str):
+        st = states.get(entity_id)
+        if st is None:
+            return None
+        if st.get("attributes", {}).get("restored"):
+            return "restored"
+        return st.get("state")
+
+    @mcp.tool()
+    async def ha_list_devices(dead_only: bool = True, area_id: str = "") -> dict:
+        """List Home Assistant devices with their integration, area and entity states, to find dead devices to clean up. Read-only. With `dead_only` (default), only devices whose enabled entities are ALL unavailable/unknown/restored (or that have no entities) are returned, plus `orphan_entities`: registry entities with no device that are not being provided by any integration (restored/missing state). `removable` says whether HA's device-removal path is supported by the integration; when it isn't, `sole_device_of_entry` says whether deleting the integration entry would remove only this device."""
+        async with _ws_session() as call:
+            devices, entities, entries, states = await _registry_snapshot(call)
+        by_device: dict[str, list] = {}
+        for ent in entities:
+            if ent.get("device_id"):
+                by_device.setdefault(ent["device_id"], []).append(ent)
+        devices_per_entry: dict[str, int] = {}
+        for dev in devices:
+            for eid in dev.get("config_entries") or []:
+                devices_per_entry[eid] = devices_per_entry.get(eid, 0) + 1
+        out = []
+        for dev in devices:
+            if area_id and dev.get("area_id") != area_id:
+                continue
+            ents = [e for e in by_device.get(dev["id"], []) if not e.get("disabled_by")]
+            ent_states = [{"entity_id": e["entity_id"], "state": _state_of(states, e["entity_id"])} for e in ents]
+            dead = all(es["state"] in _DEAD_STATES | {"restored"} for es in ent_states)
+            if dead_only and not dead:
+                continue
+            entry_ids = dev.get("config_entries") or []
+            entry = entries.get(dev.get("primary_config_entry") or (entry_ids[0] if entry_ids else ""), {})
+            out.append({
+                "device_id": dev["id"],
+                "name": dev.get("name_by_user") or dev.get("name"),
+                "area_id": dev.get("area_id"),
+                "manufacturer": dev.get("manufacturer"),
+                "model": dev.get("model"),
+                "integration": entry.get("domain"),
+                "config_entry": {"entry_id": entry.get("entry_id"), "title": entry.get("title"),
+                                 "state": entry.get("state")} if entry else None,
+                "removable": bool(entry.get("supports_remove_device")),
+                "sole_device_of_entry": bool(entry) and devices_per_entry.get(entry.get("entry_id"), 0) == 1,
+                "disabled": bool(dev.get("disabled_by")),
+                "all_entities_dead": dead,
+                "entities": ent_states,
+            })
+        out.sort(key=lambda d: (d["integration"] or "", d["name"] or ""))
+        orphans = []
+        if dead_only:
+            for ent in entities:
+                if ent.get("device_id") or ent.get("disabled_by"):
+                    continue
+                st = _state_of(states, ent["entity_id"])
+                if st in (None, "restored"):
+                    orphans.append({"entity_id": ent["entity_id"], "platform": ent.get("platform"), "state": st})
+        return {"count": len(out), "devices": out, "orphan_entities": orphans}
+
+    @mcp.tool()
+    async def ha_remove_device(device_id: str, delete_config_entry: bool = False) -> dict:
+        """[DESTRUCTIVE] Remove a dead Home Assistant device and its entities. Refuses unless every enabled entity of the device is unavailable/unknown/restored. Uses HA's device-removal path (the integration must support it). If it doesn't (e.g. ESPHome, one config entry per device) and `delete_config_entry=True`, deletes the device's integration entry instead, but only when that entry contains no other device. Zigbee2MQTT/MQTT devices still paired in Zigbee2MQTT will be rediscovered; remove them there first. Confirm each device with the user before calling."""
+        async with _ws_session() as call:
+            devices, entities, entries, states = await _registry_snapshot(call)
+            dev = next((d for d in devices if d["id"] == device_id), None)
+            if dev is None:
+                raise ValueError(f"no device with id {device_id}")
+            live = [e["entity_id"] for e in entities
+                    if e.get("device_id") == device_id and not e.get("disabled_by")
+                    and _state_of(states, e["entity_id"]) not in _DEAD_STATES | {"restored"}]
+            if live:
+                raise ValueError(f"refusing: device still has live entities {live}")
+            name = dev.get("name_by_user") or dev.get("name")
+            entry_ids = dev.get("config_entries") or []
+            entry = entries.get(dev.get("primary_config_entry") or (entry_ids[0] if entry_ids else ""), {})
+            if entry.get("supports_remove_device"):
+                await call({"type": "config/device_registry/remove", "device_id": device_id})
+                return {"device_id": device_id, "name": name, "removed": True, "via": "device_registry"}
+        if not delete_config_entry:
+            raise ValueError(
+                f"{entry.get('domain') or 'this'} integration doesn't support removing devices; "
+                "pass delete_config_entry=True to delete its integration entry instead")
+        if not entry or sum(entry["entry_id"] in (d.get("config_entries") or []) for d in devices) != 1:
+            raise ValueError("refusing: the integration entry holds other devices too; remove it in the UI")
+        async with make_client(config.homeassistant.url, headers=_headers()) as client:
+            resp = await client.delete(f"/api/config/config_entries/entry/{entry['entry_id']}")
+            resp.raise_for_status()
+        return {"device_id": device_id, "name": name, "removed": True, "via": "config_entry",
+                "config_entry": {"entry_id": entry["entry_id"], "domain": entry.get("domain"), "title": entry.get("title")}}
+
+    @mcp.tool()
+    async def ha_remove_entity(entity_id: str) -> dict:
+        """[DESTRUCTIVE] Remove a leftover entity from Home Assistant's entity registry (e.g. an orphan from ha_list_devices). Refuses if the entity is currently provided by an integration (has a live, non-restored state), since it would just come back. Confirm with the user before calling."""
+        async with _ws_session() as call:
+            states = {s["entity_id"]: s for s in await call({"type": "get_states"})}
+            st = _state_of(states, entity_id)
+            if st not in (None, "restored"):
+                raise ValueError(f"refusing: {entity_id} is provided by a loaded integration (state {st!r})")
+            await call({"type": "config/entity_registry/remove", "entity_id": entity_id})
+        return {"entity_id": entity_id, "removed": True}
+
     # --- Dashboards (Lovelace) ---------------------------------------------
     # Dashboard configs live only in HA's .storage and are only reachable over
     # the WebSocket API. Storage-mode dashboards can be read and saved; YAML-mode

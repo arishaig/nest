@@ -362,6 +362,128 @@ async def test_create_input_boolean_refuses_duplicate_and_blank(monkeypatch):
     assert [c["type"] for c in calls] == ["input_boolean/list"]
 
 
+_DEVICES = [
+    {"id": "d-dead-zb", "name": "Old Bulb", "area_id": "kitchen", "config_entries": ["e-mqtt"],
+     "primary_config_entry": "e-mqtt"},
+    {"id": "d-live-zb", "name": "Live Bulb", "area_id": "kitchen", "config_entries": ["e-mqtt"],
+     "primary_config_entry": "e-mqtt"},
+    {"id": "d-dead-esp", "name": "Esp Bulb", "name_by_user": "Lamp", "area_id": None,
+     "config_entries": ["e-esp1"], "primary_config_entry": "e-esp1"},
+    {"id": "d-dead-shared", "name": "Hub Child", "config_entries": ["e-hub"], "primary_config_entry": "e-hub"},
+    {"id": "d-live-shared", "name": "Hub Other", "config_entries": ["e-hub"], "primary_config_entry": "e-hub"},
+]
+_ENTITIES = [
+    {"entity_id": "light.old", "device_id": "d-dead-zb"},
+    {"entity_id": "sensor.old_disabled", "device_id": "d-dead-zb", "disabled_by": "user"},
+    {"entity_id": "light.live", "device_id": "d-live-zb"},
+    {"entity_id": "light.esp", "device_id": "d-dead-esp"},
+    {"entity_id": "light.hub_child", "device_id": "d-dead-shared"},
+    {"entity_id": "light.hub_other", "device_id": "d-live-shared"},
+    {"entity_id": "climate.gone", "device_id": None, "platform": "smartir"},
+    {"entity_id": "sensor.offline_template", "device_id": None, "platform": "template"},
+]
+_ENTRIES = [
+    {"entry_id": "e-mqtt", "domain": "mqtt", "title": "MQTT", "state": "loaded", "supports_remove_device": True},
+    {"entry_id": "e-esp1", "domain": "esphome", "title": "esp", "state": "loaded", "supports_remove_device": False},
+    {"entry_id": "e-hub", "domain": "hub", "title": "Hub", "state": "loaded", "supports_remove_device": False},
+]
+_STATES = [
+    {"entity_id": "light.old", "state": "unavailable", "attributes": {}},
+    {"entity_id": "light.live", "state": "on", "attributes": {}},
+    {"entity_id": "light.esp", "state": "unavailable", "attributes": {"restored": True}},
+    {"entity_id": "light.hub_child", "state": "unavailable", "attributes": {}},
+    {"entity_id": "light.hub_other", "state": "on", "attributes": {}},
+    {"entity_id": "sensor.offline_template", "state": "unavailable", "attributes": {}},
+]
+
+
+def _fake_registry_ws(monkeypatch, calls):
+    @contextlib.asynccontextmanager
+    async def session():
+        async def call(payload):
+            calls.append(payload)
+            return {
+                "config/device_registry/list": _DEVICES,
+                "config/entity_registry/list": _ENTITIES,
+                "config_entries/get": _ENTRIES,
+                "get_states": _STATES,
+            }.get(payload["type"])
+        yield call
+    monkeypatch.setattr(homeassistant, "_ws_session", session)
+
+
+async def test_list_devices_dead_only(monkeypatch):
+    _fake_registry_ws(monkeypatch, [])
+    out = await load_tools(homeassistant)["ha_list_devices"]()
+    by_id = {d["device_id"]: d for d in out["devices"]}
+    assert set(by_id) == {"d-dead-zb", "d-dead-esp", "d-dead-shared"}
+    assert by_id["d-dead-zb"]["removable"] is True and by_id["d-dead-zb"]["integration"] == "mqtt"
+    # Disabled entities don't count towards liveness and aren't listed.
+    assert by_id["d-dead-zb"]["entities"] == [{"entity_id": "light.old", "state": "unavailable"}]
+    assert by_id["d-dead-esp"]["name"] == "Lamp"
+    assert by_id["d-dead-esp"]["entities"][0]["state"] == "restored"
+    assert by_id["d-dead-esp"]["sole_device_of_entry"] is True
+    assert by_id["d-dead-shared"]["sole_device_of_entry"] is False
+    # Orphans: no device and nothing providing the entity. An unavailable but
+    # provided entity (template) is not an orphan.
+    assert out["orphan_entities"] == [{"entity_id": "climate.gone", "platform": "smartir", "state": None}]
+
+
+async def test_list_devices_all_and_area(monkeypatch):
+    _fake_registry_ws(monkeypatch, [])
+    tool = load_tools(homeassistant)["ha_list_devices"]
+    out = await tool(dead_only=False, area_id="kitchen")
+    assert sorted(d["device_id"] for d in out["devices"]) == ["d-dead-zb", "d-live-zb"]
+    assert out["orphan_entities"] == []
+
+
+async def test_remove_device_via_registry(monkeypatch):
+    calls = []
+    _fake_registry_ws(monkeypatch, calls)
+    out = await load_tools(homeassistant)["ha_remove_device"](device_id="d-dead-zb")
+    assert out == {"device_id": "d-dead-zb", "name": "Old Bulb", "removed": True, "via": "device_registry"}
+    assert calls[-1] == {"type": "config/device_registry/remove", "device_id": "d-dead-zb"}
+
+
+async def test_remove_device_refusals(monkeypatch):
+    calls = []
+    _fake_registry_ws(monkeypatch, calls)
+    tool = load_tools(homeassistant)["ha_remove_device"]
+    with pytest.raises(ValueError, match="live entities"):
+        await tool(device_id="d-live-zb")
+    with pytest.raises(ValueError, match="no device"):
+        await tool(device_id="nope")
+    with pytest.raises(ValueError, match="delete_config_entry=True"):
+        await tool(device_id="d-dead-esp")
+    with pytest.raises(ValueError, match="other devices"):
+        await tool(device_id="d-dead-shared", delete_config_entry=True)
+    assert not any(c["type"] == "config/device_registry/remove" for c in calls)
+
+
+async def test_remove_device_via_config_entry(monkeypatch):
+    _fake_registry_ws(monkeypatch, [])
+    seen = {}
+
+    def route(request):
+        seen["method"], seen["path"] = request.method, request.url.path
+        return {"require_restart": False}
+    patch_http(monkeypatch, homeassistant, {"/api/config/config_entries/entry/e-esp1": route})
+    out = await load_tools(homeassistant)["ha_remove_device"](device_id="d-dead-esp", delete_config_entry=True)
+    assert seen == {"method": "DELETE", "path": "/api/config/config_entries/entry/e-esp1"}
+    assert out["via"] == "config_entry" and out["config_entry"]["domain"] == "esphome"
+
+
+async def test_remove_entity(monkeypatch):
+    calls = []
+    _fake_registry_ws(monkeypatch, calls)
+    tool = load_tools(homeassistant)["ha_remove_entity"]
+    assert await tool(entity_id="climate.gone") == {"entity_id": "climate.gone", "removed": True}
+    assert calls[-1] == {"type": "config/entity_registry/remove", "entity_id": "climate.gone"}
+    assert (await tool(entity_id="light.esp"))["removed"] is True  # restored = not provided
+    with pytest.raises(ValueError, match="provided by a loaded integration"):
+        await tool(entity_id="sensor.offline_template")
+
+
 def _fake_dashboard_ws(monkeypatch, calls, dashboards=(), configs=None, yaml_paths=()):
     """Stub _ws_session for the dashboard tools. `configs` maps url_path -> stored config;
     a known path missing from it has no stored config (strategy dashboard)."""
