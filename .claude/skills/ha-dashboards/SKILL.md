@@ -22,9 +22,11 @@ every matching entity, including unavailable ones:
 
 | Tool | Use |
 |---|---|
-| `ha_list_devices(dead_only=True, area_id="")` | Read-only. Devices whose enabled entities are all unavailable/unknown/restored, with integration, area, `removable`, and `sole_device_of_entry`. Also lists `orphan_entities` (no device, nothing providing them) |
+| `ha_list_devices(dead_only=True, area_id="")` | Read-only. Devices whose enabled entities are all unavailable/unknown/restored (devices with no entities are skipped; `dead_only=False` shows them), with integration, area, `removable`, and `sole_device_of_entry`. Also lists `orphan_entities` (no device, nothing providing them) |
 | `ha_remove_device(device_id, delete_config_entry=False)` | Destructive. Refuses if any entity is live. Uses HA's device removal; for integrations without it (ESPHome) `delete_config_entry=True` deletes the integration entry, but only if it holds just that device. Zigbee2MQTT devices still paired get rediscovered, so remove them in Z2M first |
 | `ha_remove_entity(entity_id)` | Destructive. Removes an orphan registry entry; refuses entities an integration still provides |
+
+Some integrations refuse device removal while they still know the device (e.g. Music Assistant players): remove those in the integration's own UI.
 
 Confirm the exact list with the user before removing anything. A device that is
 only temporarily offline (e.g. a battery sensor being troubleshot) stays.
