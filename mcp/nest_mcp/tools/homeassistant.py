@@ -247,16 +247,44 @@ def _history_runs(rows: list[dict], end: datetime) -> list[dict]:
     return runs
 
 
+def _as_number(state: str) -> float | None:
+    try:
+        return float(state)
+    except (TypeError, ValueError):
+        return None
+
+
 def _summarise_runs(runs: list[dict]) -> dict:
+    """Per-state duration stats; numeric sensors get one value summary instead.
+
+    A numeric sensor (temperature, pressure, lux) has a new state on almost every
+    reading, so a bucket per state would be as long as the history itself.
+    """
+    complete = [r for r in runs if not r.get("clipped")]
+    numeric = [(v, r["seconds"]) for r in complete if (v := _as_number(r["state"])) is not None]
+    other = [r for r in complete if _as_number(r["state"]) is None]
+    if numeric and len(numeric) >= len(other):
+        values = sorted(v for v, _ in numeric)
+        total = sum(secs for _, secs in numeric)
+        summary: dict = {"numeric": {
+            "readings": len(values),
+            "min": round(values[0], 3),
+            "max": round(values[-1], 3),
+            "median": round(values[len(values) // 2], 3),
+            # Weighted by how long each reading held, so a burst of quick updates doesn't skew it.
+            "time_weighted_mean": round(sum(v * secs for v, secs in numeric) / total, 3) if total else None,
+        }}
+    else:
+        summary, other = {}, complete
     by_state: dict[str, list[float]] = {}
-    for r in runs:
-        if not r.get("clipped"):
-            by_state.setdefault(r["state"], []).append(r["seconds"])
-    return {
+    for r in other:
+        by_state.setdefault(r["state"], []).append(r["seconds"])
+    summary.update({
         state: {"count": len(secs), "min_s": min(secs), "max_s": max(secs),
                 "median_s": sorted(secs)[len(secs) // 2]}
         for state, secs in by_state.items()
-    }
+    })
+    return summary
 
 
 def register(mcp: MCPServer) -> None:
@@ -304,6 +332,8 @@ def register(mcp: MCPServer) -> None:
         state: str = "",
         min_seconds: float = 0,
         max_seconds: float = 0,
+        below: float | None = None,
+        above: float | None = None,
         limit: int = 300,
     ) -> dict:
         """State history of Home Assistant entities from the recorder (default retention 10 days).
@@ -311,10 +341,13 @@ def register(mcp: MCPServer) -> None:
         Each entity gets a list of runs: the state, when it started (UTC) and how many seconds it held
         until the next change. The first and last runs are cut off by the window edges and marked
         clipped. A per-state summary (count, min, median, max seconds) covers the unclipped runs in
-        the window, before filtering.
+        the window, before filtering; numeric sensors (temperature, pressure, lux) instead get one
+        `numeric` summary (readings, min, max, median, time-weighted mean) plus any non-numeric
+        states such as unavailable.
         Window: the last `hours`, or explicit ISO-8601 `start`/`end` (UTC unless an offset is given).
         Filter runs with `state` (e.g. "off") and `min_seconds`/`max_seconds` (0 = no bound), e.g.
-        to find short sensor dropouts. `limit` caps runs returned per entity (newest kept).
+        to find short sensor dropouts. For numeric sensors, `below`/`above` keep only runs whose value
+        is under/over a bound (e.g. below=35). `limit` caps runs returned per entity (newest kept).
         """
         if not entity_ids:
             raise ValueError("entity_ids must name at least one entity")
@@ -348,6 +381,8 @@ def register(mcp: MCPServer) -> None:
                 if (not state or r["state"] == state)
                 and r["seconds"] >= min_seconds
                 and (not max_seconds or r["seconds"] <= max_seconds)
+                and (below is None or ((v := _as_number(r["state"])) is not None and v < below))
+                and (above is None or ((v := _as_number(r["state"])) is not None and v > above))
             ]
             out[entity_id] = {
                 "summary": summary,
