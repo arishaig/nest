@@ -316,7 +316,9 @@ def fixture_key(model: dict, fixture_id: str) -> str:
         "walls": settings(model, "walls"), "light": {k: settings(model, "light")[k]
                                                     for k in ("radius", "samples", "blur", "mask_scale")},
         "transmission": settings(model, "transmission"),
-        "openings": model.get("openings") or {},
+        # facing and sun overrides only matter to sunlight, never to a lamp's mask.
+        "openings": {k: {a: b for a, b in v.items() if a not in ("facing", "sun")}
+                     for k, v in (model.get("openings") or {}).items()},
         "blockers": {k: v for k, v in (model.get("blockers") or {}).items()
                      if not v.get("fixtures") or fixture_id in v["fixtures"]},
         "pos": [fx["x"], fx["y"]],

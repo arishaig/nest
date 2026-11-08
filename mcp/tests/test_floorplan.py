@@ -787,16 +787,31 @@ def test_preview_marks_facing_and_outdoors(gray):
     assert Image.open(io.BytesIO(png)).size == (W, H)
 
 
+def test_lamp_keys_ignore_sun_only_changes():
+    m = sun_model()
+    m["fixtures"] = {"lamp": {"entity": "light.lamp", "kind": "light", "x": LEFT[0], "y": LEFT[1]}}
+    key = M.fixture_key(m, "lamp")
+    m["openings"]["win"]["facing"] = "e"
+    m["openings"]["win"]["sun"] = {"spread": 1.5}
+    assert M.fixture_key(m, "lamp") == key                         # sun-only edits never rebuild lamp masks
+    m["openings"]["win"]["state"] = "open"
+    assert M.fixture_key(m, "lamp") != key                         # a real geometry change does
+
+
 async def test_sun_tools_roundtrip(tools, ha):
     await _start(tools, ha)
+    await tools["floorplan_set_fixture"](url_path="plan-dash", fixture_id="lamp", entity="light.lamp",
+                                         x=RIGHT[0], y=RIGHT[1])
     out = await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", from_gap="gap-1",
                                                facing="w")
     assert out["opening"]["win"]["facing"] == "w" and out["sun_masks_regenerated"] == ["window:win"]
+    assert out["masks_regenerated"] == ["lamp"]                    # the opening itself changed the lamp's walls
     els = [e for e in _card(ha)["elements"] if e["style"].get("--fp-key", "").startswith("sun:")]
     assert len(els) == 1 and "--fp-mask" in els[0]["style"]
     # sun overrides merge; an empty dict clears them
     out = await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", sun={"spread": 1.5})
     assert out["opening"]["win"]["sun"] == {"spread": 1.5} and "sun_masks_regenerated" not in out
+    assert out["masks_regenerated"] == []                          # lamp masks reused
     out = await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", sun={"blur": 4})
     assert out["opening"]["win"]["sun"] == {"spread": 1.5, "blur": 4}
     out = await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", sun={})
