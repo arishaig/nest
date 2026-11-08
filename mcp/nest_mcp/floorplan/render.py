@@ -82,8 +82,8 @@ _BEAM = (
     "{% set k = @PPM@ / tan(([el, 4] | max) * r) %}{% set d1 = ([@HEIGHT@ * k, @MAXPX@] | min) %}"
     "{% set mx = @MX@ %}{% set my = @MY@ %}{% set tx = @TX@ %}{% set ty = @TY@ %}"
     "{% set h = @HALF@ %}{% set s = @SPREAD@ %}"
-    "@FADE@@THROUGH@"
-    "{% set a = (@STRENGTH@ * clear * up * fade * thr * (0.5 + 0.5 * ([inc, 0] | max))) | round(2) %}"
+    "@FADE@@THROUGH@@DOOR@"
+    "{% set a = (@STRENGTH@ * clear * up * fade * thr * door * (0.5 + 0.5 * ([inc, 0] | max))) | round(2) %}"
     "{% set ex = mx + d1 * ux %}{% set ey = my + d1 * uy %}"
     "{% set pts = ((mx - h * tx) | round(1)) ~ ',' ~ ((my - h * ty) | round(1)) ~ ' ' "
     "~ ((mx + h * tx) | round(1)) ~ ',' ~ ((my + h * ty) | round(1)) ~ ' ' "
@@ -153,7 +153,25 @@ def _through(model: dict, target: str | None, frame: dict) -> str:
     )
 
 
-def beam_template(model: dict, frame: dict) -> str:
+def _door(model: dict, op: dict | None) -> str:
+    """Template line for how much sun a glass door lets through: its closed transmission, or all of it open.
+
+    Same attenuation as the light spilling the other way (the glass_door transmission, or the opening's
+    own); an open door, or a sensor that reads 'on', passes everything. Other kinds are not attenuated.
+    """
+    if not op or op.get("kind") != "glass_door":
+        return "{% set door = 1 %}"
+    t = op.get("transmission")
+    t = M.settings(model, "transmission")["glass_door"] if t is None else t
+    state = op.get("state", "closed")
+    if state == "open":
+        return "{% set door = 1 %}"
+    if state == "sensor" and op.get("sensor"):
+        return f"{{% set door = 1 if is_state('{op['sensor']}', 'on') else {t} %}}"
+    return f"{{% set door = {t} %}}"
+
+
+def beam_template(model: dict, frame: dict, op: dict | None = None) -> str:
     nx, ny = frame["normal_out"]
     base = _sun_values(model)
     ov = frame.get("sun") or {}
@@ -162,6 +180,7 @@ def beam_template(model: dict, frame: dict) -> str:
             base[name] = ov[key]
     base["FULL"] = ov.get("full_until", 0)
     base["THROUGH"] = _through(model, ov.get("through"), frame)
+    base["DOOR"] = _door(model, op)
     if "fade_from_deg" in ov:
         lo, hi = ov["fade_from_deg"], ov["fade_to_deg"]
         base["FADE"] = f"{{% set fade = [[({hi} - el) / ({hi} - {lo}), 1] | min, 0] | max %}}"
@@ -222,7 +241,8 @@ def sun_elements(model: dict, geo: "M.Geometry | None", reuse: dict[str, str]) -
         if name.startswith("outdoor:"):
             washes.append(glow_element(sun_entity, key, uri, wash_template(model)))
         else:
-            beams.append(glow_element(sun_entity, key, uri, beam_template(model, _sun_item(model, name))))
+            op = model["openings"][name.partition(":")[2]]
+            beams.append(glow_element(sun_entity, key, uri, beam_template(model, _sun_item(model, name), op)))
     return washes + beams, stats
 
 

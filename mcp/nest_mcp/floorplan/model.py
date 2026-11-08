@@ -67,7 +67,9 @@ SUN_OVERRIDES = {"height_m": float, "spread": float, "blur": float, "strength": 
                  # `through` is that open_air opening's id; the window is lit only while the ray from it to
                  # the sun crosses that opening.
                  "through": str}
-FACINGS = {"n": (0, -1), "e": (1, 0), "s": (0, 1), "w": (-1, 0)}   # outward normals, plan coords
+_D = 0.7071067811865476                                   # 1 / sqrt(2)
+FACINGS = {"n": (0, -1), "e": (1, 0), "s": (0, 1), "w": (-1, 0),   # outward normals, plan coords
+           "ne": (_D, -_D), "nw": (-_D, -_D), "se": (_D, _D), "sw": (-_D, _D)}   # for diagonal doors
 OPENING_STATES = {"open", "closed", "sensor"}
 ANCHORS = {"center", "n", "s", "e", "w", "ne", "nw", "se", "sw"}
 MAX_SENSORS_PER_FIXTURE = 2
