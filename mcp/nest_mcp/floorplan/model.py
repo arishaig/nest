@@ -62,7 +62,11 @@ SUN_KINDS = {"window", "glass_door", "open_air"}   # openings that let sunlight 
 SUN_OVERRIDES = {"height_m": float, "spread": float, "blur": float, "strength": float, "full_until": float,
                  # A window behind a covered balcony only sees low sun: the beam fades out between
                  # these two elevations (degrees), e.g. 15 -> 40.
-                 "fade_from_deg": float, "fade_to_deg": float}
+                 "fade_from_deg": float, "fade_to_deg": float,
+                 # A window behind a covered balcony sees the sun only through the balcony's open edge:
+                 # `through` is that open_air opening's id; the window is lit only while the ray from it to
+                 # the sun crosses that opening.
+                 "through": str}
 FACINGS = {"n": (0, -1), "e": (1, 0), "s": (0, 1), "w": (-1, 0)}   # outward normals, plan coords
 OPENING_STATES = {"open", "closed", "sensor"}
 ANCHORS = {"center", "n", "s", "e", "w", "ne", "nw", "se", "sw"}
@@ -177,6 +181,8 @@ def validate(model: dict) -> dict:
             check_fade(op.get("sun") or {}, f"opening {oid}")
             window_frame({**op, **shape})
         out["openings"][oid] = {**{k: v for k, v in op.items() if k not in ("rect", "line")}, **shape}
+    for oid, op in out["openings"].items():
+        check_through(out["openings"], oid, op.get("sun") or {})
     for bid, bl in (model.get("blockers") or {}).items():
         check_id(bid, "blocker")
         shape = check_shape(out, bl.get("rect"), bl.get("line"))
@@ -189,6 +195,35 @@ def validate(model: dict) -> dict:
         check_point(out, area.get("x", -1), area.get("y", -1), f"outdoor area {aid}")
         out["outdoors"][aid] = {"x": area["x"], "y": area["y"]}
     return out
+
+
+def check_through(openings: dict, oid: str, sun: dict) -> None:
+    """`through` must name another opening that has a facing (a sun source)."""
+    target = (sun or {}).get("through")
+    if target is None:
+        return
+    other = openings.get(target)
+    if target == oid or other is None or not other.get("facing"):
+        raise ModelError(f"opening {oid}: sun.through must name another opening that has a facing; got {target!r}")
+
+
+def through_gate(frame: dict, target: dict, az_deg: float) -> float:
+    """0..1: how much of the sun reaches a window through `target` (both window_frame dicts).
+
+    Python mirror of the card_mod template: the ray from the window centre toward the sun
+    (D = (sin az, -cos az)) must cross the target's segment; the result ramps down over the
+    outer 10 % of the segment at each end.
+    """
+    r = np.pi / 180
+    dx, dy = float(np.sin(az_deg * r)), -float(np.cos(az_deg * r))
+    ax, ay = target["mx"] - target["tx"] * target["half"], target["my"] - target["ty"] * target["half"]
+    ex, ey = 2 * target["tx"] * target["half"], 2 * target["ty"] * target["half"]
+    wx, wy = ax - frame["mx"], ay - frame["my"]
+    den = dx * ey - dy * ex
+    if den == 0:
+        return 0.0
+    s, t = (wx * ey - wy * ex) / den, (wx * dy - wy * dx) / den
+    return 0.0 if s <= 0 else max(min(min(t, 1 - t) / 0.1, 1.0), 0.0)
 
 
 def check_fade(sun: dict, what: str) -> None:

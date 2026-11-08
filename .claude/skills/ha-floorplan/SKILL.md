@@ -75,6 +75,10 @@ into its room, drawn live by card-mod from `sun.sun` (azimuth, elevation) and
    balcony ceiling: give it `sun={"fade_from_deg": 15, "fade_to_deg": 40}` and its beam
    fades out as the sun climbs (about 34 deg blocks the sill ray at a 2.4 m ceiling and
    2.2 m of balcony depth; widen the range for a deeper balcony).
+   For a window that gets its sun *through the balcony's open edge*, also add
+   `"through": "<the open_air opening's id>"`: the window is then lit only while the ray
+   from it to the sun actually crosses that edge, so it goes dark when the balcony's own
+   walls would shadow it.
 6. **Thin walls.** The wall detector misses very thin double-line walls, so light leaks
    through them. Look at `floorplan_preview` (dark = walls found) and add a
    `floorplan_set_blocker` along any wall that is missing.

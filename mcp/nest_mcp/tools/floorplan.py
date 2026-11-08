@@ -380,7 +380,7 @@ def register(mcp: MCPServer) -> None:
         Wall gaps (doorways, windows) block light until made an opening. Place it with `from_gap` (an id from floorplan_get(include_gaps=True)), a `rect` [x0, y0, x1, y1] covering the gap, or a `line` [x0, y0, x1, y1] drawn across it (for diagonal doors or gaps wider than the detector seals; a line is a wall when closed).
         `kind`: door, window, glass_door, opening (archway), open_air (an open side of a covered balcony). `state`: open, closed, or sensor (glow follows `sensor`, a binary_sensor that is 'on' when open: two glow layers per affected light).
         When closed, light passes at `transmission` (defaults per kind from the transmission settings: door 0, window 0.7, glass_door 0.35).
-        Sunlight: give a window, glass_door or open_air opening a `facing` (n, e, s or w: the way it looks out, plan up = n; "none" clears it) and it throws a sun beam into the room whenever the real sun (sun.sun) is on that side, dimmed by cloud cover. `sun` overrides per opening: height_m (ceiling/head height, sets how far the beam reaches), spread (far-end width relative to the window), blur, strength, full_until (0-1: how far along the beam stays at full strength), fade_from_deg + fade_to_deg (together: the beam fades out between these sun elevations, for a window behind a covered balcony that only sees low sun, e.g. 15 and 40)."""
+        Sunlight: give a window, glass_door or open_air opening a `facing` (n, e, s or w: the way it looks out, plan up = n; "none" clears it) and it throws a sun beam into the room whenever the real sun (sun.sun) is on that side, dimmed by cloud cover. `sun` overrides per opening: height_m (ceiling/head height, sets how far the beam reaches), spread (far-end width relative to the window), blur, strength, full_until (0-1: how far along the beam stays at full strength), fade_from_deg + fade_to_deg (together: the beam fades out between these sun elevations, for a window behind a covered balcony that only sees low sun, e.g. 15 and 40), through (the id of another opening, e.g. the balcony's open_air edge: this window is lit only while the sun can reach it through that opening)."""
         M.check_id(opening_id, "opening")
         cfg, model = await _load(url_path)
         before = M.snapshot(model)
@@ -388,6 +388,9 @@ def register(mcp: MCPServer) -> None:
         if remove:
             if opening_id not in openings:
                 raise FloorplanError(f"no opening {opening_id!r}")
+            users = sorted(k for k, v in openings.items() if (v.get("sun") or {}).get("through") == opening_id)
+            if users:
+                raise FloorplanError(f"{users} get their sun through {opening_id!r}; clear their sun.through first")
             del openings[opening_id]
             return await _commit(url_path, cfg, model, before, f"removed opening {opening_id}")
         op = copy.deepcopy(openings.get(opening_id) or {})
@@ -441,6 +444,11 @@ def register(mcp: MCPServer) -> None:
                     raise FloorplanError(str(err)) from err
             else:
                 op.pop("sun", None)             # an empty dict clears the overrides
+        if (op.get("sun") or {}).get("through"):
+            try:
+                M.check_through(openings, opening_id, op["sun"])
+            except M.ModelError as err:
+                raise FloorplanError(str(err)) from err
         if op.get("facing"):
             try:
                 M.window_frame({**op})

@@ -889,3 +889,49 @@ async def test_fade_tool_refusal_and_merge(tools, ha):
     await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", sun={})
     with pytest.raises(floorplan.FloorplanError, match="together"):
         await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", sun={"fade_to_deg": 30})
+
+
+def test_through_gate_follows_the_sun_angle():
+    # a balcony 415 px long open on its left edge, and a window 200 px behind it
+    edge = M.window_frame({"rect": [0, 180, 12, 595], "facing": "w"})
+    win = M.window_frame({"rect": [205, 412, 216, 461], "facing": "w"})
+    assert M.through_gate(win, edge, 220) == 0         # the ray passes the edge below the balcony's south wall
+    assert M.through_gate(win, edge, 250) == 1         # a lower, more westerly sun comes straight in
+    assert M.through_gate(win, edge, 90) == 0          # sun behind the window (the ray points away)
+    assert 0 < M.through_gate(win, edge, 236) < 1      # ramps at the edge of the span
+    assert M.through_gate(win, {**edge, "tx": 1, "ty": 0}, 270) == 0     # parallel ray: no crossing
+
+
+def test_through_template_and_validation():
+    m = sun_model()
+    m["openings"]["edge"] = {"kind": "open_air", "rect": [0, 20, 8, 60], "state": "closed", "facing": "w"}
+    m["openings"]["win"]["sun"] = {"through": "edge"}
+    t = R.beam_template(m, M.sun_windows(m)["win"])
+    assert "{% set thr = ([[([tk, 1 - tk] | min) / 0.1, 1] | min, 0] | max) if sk > 0 else 0 %}" in t
+    assert "up * fade * thr *" in t
+    assert "{% set thr = 1 %}" in R.beam_template(sun_model(), M.sun_windows(sun_model())["win"])
+    m["openings"]["win"]["sun"] = {"through": "ghost"}
+    with pytest.raises(M.ModelError, match="sun.through"):
+        M.validate(m)
+    m["openings"]["win"]["sun"] = {"through": "win"}
+    with pytest.raises(M.ModelError, match="sun.through"):
+        M.validate(m)
+    # a through target that was removed after the fact just stops gating
+    m["openings"]["win"]["sun"] = {"through": "edge"}
+    del m["openings"]["edge"]
+    assert "{% set thr = 1 %}" in R.beam_template(m, M.sun_windows(m)["win"])
+
+
+async def test_through_tool_and_removal_guard(tools, ha):
+    await _start(tools, ha)
+    await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", from_gap="gap-1", facing="w")
+    await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="edge", rect=[0, 20, 8, 60],
+                                         kind="open_air", facing="w")
+    out = await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", sun={"through": "edge"})
+    assert out["opening"]["win"]["sun"] == {"through": "edge"} and "sun_masks_regenerated" not in out
+    with pytest.raises(floorplan.FloorplanError, match="clear their sun.through"):
+        await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="edge", remove=True)
+    with pytest.raises(floorplan.FloorplanError, match="sun.through"):
+        await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", sun={"through": "nope"})
+    await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", sun={})
+    await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="edge", remove=True)
