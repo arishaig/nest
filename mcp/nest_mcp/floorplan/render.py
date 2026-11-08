@@ -270,16 +270,21 @@ _ANCHOR = {  # (x part, y part) of the translate; P = padding
 }
 
 
-def icon_transform(anchor: str, pad: float, offset: tuple[float, float], scale: float) -> str:
-    """Where the icon sits relative to its point: e.g. "se" = below-right, `pad` px clear."""
+def icon_offsets(anchor: str, pad: float, offset: tuple[float, float]) -> tuple[str, str]:
+    """(x, y) shift of the icon relative to its point: e.g. "se" = below-right, `pad` px clear."""
     parts = []
     for part, off in zip(_ANCHOR[anchor], offset):
         part = part.replace("P", f"{pad:g}px")
         if off:
             part = f"calc({part.removeprefix('calc(').removesuffix(')')} + {off:g}px)"
         parts.append(part)
-    t = f"translate({parts[0]}, {parts[1]})"
-    return t + (f" scale({scale:g})" if scale != 1 else "")
+    return parts[0], parts[1]
+
+
+def icon_transform(anchor: str, pad: float, offset: tuple[float, float], scale: float) -> str:
+    """The shift as a CSS `transform`, with the scale."""
+    x, y = icon_offsets(anchor, pad, offset)
+    return f"translate({x}, {y})" + (f" scale({scale:g})" if scale != 1 else "")
 
 
 def _halo(rgb: list[int]) -> str:
@@ -294,7 +299,9 @@ def _halo(rgb: list[int]) -> str:
     )
 
 
-# `rotate` composes with the positioning `transform`, so the icon spins in place.
+# The CSS `rotate` property is applied BEFORE `transform`, so a positioning `transform` would be rotated
+# along with the icon and swing it around its point. A fan is therefore placed with the `translate` and
+# `scale` properties, which are applied before `rotate`: the icon then spins about its own centre.
 _SPIN = (
     "{% set on = is_state(config.entity, 'on') %}\n"
     ":host {\n  animation: {{ 'fp-spin 1.2s linear infinite' if on else 'none' }};\n}\n"
@@ -308,16 +315,22 @@ def icon_element(model: dict, fx: dict) -> dict:
     w, h = model["size"]
     x = fx.get("icon_x", fx["x"])
     y = fx.get("icon_y", fx["y"])
+    anchor, pad = fx.get("icon_anchor", "center"), fx.get("icon_pad", 6)
+    offset, scale = tuple(fx.get("icon_offset", [0, 0])), fx.get("icon_scale", 1.25)
     el = {
         "type": "state-icon", "entity": fx["entity"],
         "tap_action": {"action": "toggle"}, "hold_action": {"action": "more-info"},
         "style": {
             "left": _pct(x, w), "top": _pct(y, h), "border-radius": "50%",
             "background-color": "var(--card-background-color)",
-            "transform": icon_transform(fx.get("icon_anchor", "center"), fx.get("icon_pad", 6),
-                                        tuple(fx.get("icon_offset", [0, 0])), fx.get("icon_scale", 1.25)),
         },
     }
+    if fx["kind"] == "fan":
+        tx, ty = icon_offsets(anchor, pad, offset)
+        # HA gives every element `transform: translate(-50%, -50%)`; clear it and use the properties.
+        el["style"].update({"transform": "none", "translate": f"{tx} {ty}", "scale": f"{scale:g}"})
+    else:
+        el["style"]["transform"] = icon_transform(anchor, pad, offset, scale)
     icon = fx.get("icon") or _DEFAULT_ICONS[fx["kind"]]
     if icon:
         el["icon"] = icon

@@ -958,3 +958,16 @@ def test_glass_door_sun_attenuation_follows_its_state():
     assert "{% set door = 1 %}" in R.beam_template(m, M.window_frame(door3), door3)
     win = m["openings"]["win"]
     assert "{% set door = 1 %}" in R.beam_template(m, M.window_frame(win), win)            # windows are not attenuated
+
+
+def test_fan_is_placed_with_translate_so_it_spins_in_place():
+    m = M.new_model("/local/plan.png", (W, H))
+    fan = {"entity": "fan.f", "kind": "fan", "x": 100, "y": 60, "icon_anchor": "se", "icon_pad": 6,
+           "icon_offset": [0, 46], "icon_scale": 1}
+    st = R.icon_element(m, fan)["style"]
+    # CSS applies `rotate` before `transform`, so a positioning transform would orbit the icon.
+    assert st["transform"] == "none" and st["translate"] == "6px calc(6px + 46px)" and st["scale"] == "1"
+    lamp = R.icon_element(m, {"entity": "light.l", "kind": "light", "x": 10, "y": 10, "icon_anchor": "se"})["style"]
+    assert "translate" not in lamp and lamp["transform"].startswith("translate(")     # other icons are unchanged
+    spin = R.icon_element(m, fan)["card_mod"]["style"]
+    assert "rotate: 360deg" in spin and "transform" not in spin.split("@keyframes")[0]
