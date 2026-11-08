@@ -1,8 +1,9 @@
 FROM python:3.14-slim
 
 # ffmpeg: dispatcharr_probe_channels decodes a few frames per live channel.
+# libcairo2: cairosvg rasterises SVG floor plans for the floorplan_* tools.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends openssh-client ffmpeg \
+    && apt-get install -y --no-install-recommends openssh-client ffmpeg libcairo2 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -u 1000 app
