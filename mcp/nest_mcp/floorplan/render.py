@@ -82,8 +82,8 @@ _BEAM = (
     "{% set k = @PPM@ / tan(([el, 4] | max) * r) %}{% set d1 = ([@HEIGHT@ * k, @MAXPX@] | min) %}"
     "{% set mx = @MX@ %}{% set my = @MY@ %}{% set tx = @TX@ %}{% set ty = @TY@ %}"
     "{% set h = @HALF@ %}{% set s = @SPREAD@ %}"
-    "@FADE@"
-    "{% set a = (@STRENGTH@ * clear * up * fade * (0.5 + 0.5 * ([inc, 0] | max))) | round(2) %}"
+    "@FADE@@THROUGH@@DOOR@"
+    "{% set a = (@STRENGTH@ * clear * up * fade * thr * door * (0.5 + 0.5 * ([inc, 0] | max))) | round(2) %}"
     "{% set ex = mx + d1 * ux %}{% set ey = my + d1 * uy %}"
     "{% set pts = ((mx - h * tx) | round(1)) ~ ',' ~ ((my - h * ty) | round(1)) ~ ' ' "
     "~ ((mx + h * tx) | round(1)) ~ ',' ~ ((my + h * ty) | round(1)) ~ ' ' "
@@ -131,7 +131,47 @@ def _sun_values(model: dict) -> dict:
             "RGB": ", ".join(str(int(v)) for v in sun["color"])}
 
 
-def beam_template(model: dict, frame: dict) -> str:
+def _through(model: dict, target: str | None, frame: dict) -> str:
+    """Template lines that scale a beam to 0 unless the ray from this window to the sun crosses `target`.
+
+    The ray runs from the window's centre toward the sun, D = (sin az, -cos az); it crosses the target's
+    segment A..B at parameter t in 0..1 when sD - tE = A - M (E = B - A). Near the segment's ends the
+    result ramps down over 10 % of its length so the beam doesn't blink on and off.
+    """
+    if not target or target not in (model.get("openings") or {}):
+        return "{% set thr = 1 %}"
+    fr = M.window_frame(model["openings"][target])
+    ax, ay = fr["mx"] - fr["tx"] * fr["half"], fr["my"] - fr["ty"] * fr["half"]
+    ex, ey = 2 * fr["tx"] * fr["half"], 2 * fr["ty"] * fr["half"]
+    wx, wy = round(ax - frame["mx"], 1), round(ay - frame["my"], 1)
+    return (
+        "{% set dx = sin(az * r) %}{% set dy = 0 - cos(az * r) %}"
+        f"{{% set den = dx * {round(ey, 1)} - dy * {round(ex, 1)} %}}"
+        f"{{% set sk = (({wx}) * {round(ey, 1)} - ({wy}) * {round(ex, 1)}) / den if den != 0 else -1 %}}"
+        f"{{% set tk = (({wx}) * dy - ({wy}) * dx) / den if den != 0 else -1 %}}"
+        "{% set thr = ([[([tk, 1 - tk] | min) / 0.1, 1] | min, 0] | max) if sk > 0 else 0 %}"
+    )
+
+
+def _door(model: dict, op: dict | None) -> str:
+    """Template line for how much sun a glass door lets through: its closed transmission, or all of it open.
+
+    Same attenuation as the light spilling the other way (the glass_door transmission, or the opening's
+    own); an open door, or a sensor that reads 'on', passes everything. Other kinds are not attenuated.
+    """
+    if not op or op.get("kind") != "glass_door":
+        return "{% set door = 1 %}"
+    t = op.get("transmission")
+    t = M.settings(model, "transmission")["glass_door"] if t is None else t
+    state = op.get("state", "closed")
+    if state == "open":
+        return "{% set door = 1 %}"
+    if state == "sensor" and op.get("sensor"):
+        return f"{{% set door = 1 if is_state('{op['sensor']}', 'on') else {t} %}}"
+    return f"{{% set door = {t} %}}"
+
+
+def beam_template(model: dict, frame: dict, op: dict | None = None) -> str:
     nx, ny = frame["normal_out"]
     base = _sun_values(model)
     ov = frame.get("sun") or {}
@@ -139,6 +179,8 @@ def beam_template(model: dict, frame: dict) -> str:
         if key in ov:
             base[name] = ov[key]
     base["FULL"] = ov.get("full_until", 0)
+    base["THROUGH"] = _through(model, ov.get("through"), frame)
+    base["DOOR"] = _door(model, op)
     if "fade_from_deg" in ov:
         lo, hi = ov["fade_from_deg"], ov["fade_to_deg"]
         base["FADE"] = f"{{% set fade = [[({hi} - el) / ({hi} - {lo}), 1] | min, 0] | max %}}"
@@ -199,7 +241,8 @@ def sun_elements(model: dict, geo: "M.Geometry | None", reuse: dict[str, str]) -
         if name.startswith("outdoor:"):
             washes.append(glow_element(sun_entity, key, uri, wash_template(model)))
         else:
-            beams.append(glow_element(sun_entity, key, uri, beam_template(model, _sun_item(model, name))))
+            op = model["openings"][name.partition(":")[2]]
+            beams.append(glow_element(sun_entity, key, uri, beam_template(model, _sun_item(model, name), op)))
     return washes + beams, stats
 
 

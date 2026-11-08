@@ -58,7 +58,7 @@ into its room, drawn live by card-mod from `sun.sun` (azimuth, elevation) and
 
 1. `facing` is the way the window *looks out* in plan terms (`n` = plan up). Plan up is
    compass north by default; if not, set `floorplan_settings(sun={"north_deg": ...})`.
-   A window on a vertical wall can only face `e`/`w`, on a horizontal wall `n`/`s`.
+   A window on a vertical wall can only face `e`/`w`, on a horizontal wall `n`/`s`, a diagonal door `ne`/`nw`/`se`/`sw`.
    A window between a room and a balcony faces the balcony.
 2. The beam starts at the window, fans out (`spread`), fades along its length and is
    clipped to what the window can see, so walls and closed doors stop it. Its length
@@ -75,6 +75,17 @@ into its room, drawn live by card-mod from `sun.sun` (azimuth, elevation) and
    balcony ceiling: give it `sun={"fade_from_deg": 15, "fade_to_deg": 40}` and its beam
    fades out as the sun climbs (about 34 deg blocks the sill ray at a 2.4 m ceiling and
    2.2 m of balcony depth; widen the range for a deeper balcony).
+   For a window that gets its sun *through the balcony's open edge*, also add
+   `"through": "<the open_air opening's id>"`: the window is then lit only while the ray
+   from it to the sun actually crosses that edge, so it goes dark when the balcony's own
+   walls would shadow it.
+   A glass door (`kind="glass_door"`) lets sun in too: its beam is attenuated by the same
+   closed-door transmission the light spilling the other way uses (the opening's own
+   `transmission`, else the glass_door setting, 0.35), and is full strength when the door
+   is open (`state="open"`, or its `sensor` reads on). A diagonal door takes a diagonal
+   `facing` (`ne`/`nw`/`se`/`sw`): pick the one that points out of the door at right
+   angles to its line. A glass door behind a balcony wants the same `through` and a
+   `fade` (it reaches the floor, so about 25 to 50 degrees).
 6. **Thin walls.** The wall detector misses very thin double-line walls, so light leaks
    through them. Look at `floorplan_preview` (dark = walls found) and add a
    `floorplan_set_blocker` along any wall that is missing.
