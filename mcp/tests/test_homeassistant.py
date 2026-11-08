@@ -719,3 +719,19 @@ async def test_refusals_reach_the_caller(monkeypatch):
     with pytest.raises(ToolError, match="live entities"):
         await load_tools(homeassistant)["ha_remove_device"](device_id="d-live-zb")
     assert issubclass(homeassistant.HAWebSocketError, ToolError)
+
+
+async def test_delete_dashboard(monkeypatch):
+    calls = []
+    cfg = {"views": [{"title": "T"}]}
+    _fake_dashboard_ws(monkeypatch, calls, dashboards=[
+        {"id": "d1", "url_path": "old-dash", "title": "Old", "mode": "storage"},
+        {"id": "d2", "url_path": "yaml-dash", "mode": "yaml"},
+    ], configs={"old-dash": cfg})
+    tool = load_tools(homeassistant)["ha_delete_dashboard"]
+    out = await tool(url_path="old-dash")
+    assert out == {"url_path": "old-dash", "title": "Old", "deleted": True, "previous": cfg}
+    assert calls[-1] == {"type": "lovelace/dashboards/delete", "dashboard_id": "d1"}
+    for path, match in (("", "default"), ("nope-dash", "no dashboard"), ("yaml-dash", "YAML")):
+        with pytest.raises(homeassistant.HARefusal, match=match):
+            await tool(url_path=path)

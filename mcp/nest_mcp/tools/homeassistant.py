@@ -780,6 +780,22 @@ def register(mcp: MCPServer) -> None:
                 raise
         return {"url_path": url_path, "created": create, "saved": True, "previous": previous}
 
+    @mcp.tool()
+    async def ha_delete_dashboard(url_path: str) -> dict:
+        """[DESTRUCTIVE] Permanently delete a Home Assistant dashboard (its config is gone; there is no undo). Refuses the default dashboard and YAML-mode dashboards. Returns the deleted config as `previous` so it can be recreated with ha_save_dashboard(create=True). Confirm the dashboard with the user before calling."""
+        if not url_path:
+            raise HARefusal("the default dashboard can't be deleted")
+        async with _ws_session() as call:
+            dashboards = await call({"type": "lovelace/dashboards/list"})
+            dash = next((d for d in dashboards if d.get("url_path") == url_path), None)
+            if dash is None:
+                raise HARefusal(f"no dashboard at {url_path!r}")
+            if dash.get("mode", "storage") != "storage":
+                raise HARefusal(f"{url_path} is a YAML-mode dashboard; remove it from configuration.yaml")
+            previous = await _get_dashboard_config(call, url_path)
+            await call({"type": "lovelace/dashboards/delete", "dashboard_id": dash["id"]})
+        return {"url_path": url_path, "title": dash.get("title"), "deleted": True, "previous": previous}
+
     async def _fetch_automations(client, automation_id: str = "") -> tuple[list[dict], dict, dict]:
         """(automation list, {id: config or None}, {entity_id: state}) in one pass."""
         resp = await client.get("/api/states")

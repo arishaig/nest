@@ -17,6 +17,11 @@ Tools (nest-mcp, all over HA's WebSocket API):
 | `ha_get_dashboard(url_path="")` | Read-only. Returns the stored config, in the shape `ha_save_dashboard` accepts. `generated: true` / `config: null` means an auto-generated (strategy) dashboard with nothing stored |
 | `ha_save_dashboard(url_path, config, create=False, title="", icon="", show_in_sidebar=True)` | Destructive. Replaces a storage dashboard's whole config, or creates a new one with `create=True`. A new dashboard needs a `title`, and its `url_path` must contain a hyphen. Returns the config it replaced as `previous` |
 
+Floor-plan dashboards (picture-elements with per-light glow) have their own
+`floorplan_*` tools and the `ha-floorplan` skill. Don't hand-edit their card
+with `ha_save_dashboard`, because the next `floorplan_*` change regenerates it
+from the model.
+
 Cleaning up dead devices first keeps automatic sections clean, because they list
 every matching entity, including unavailable ones:
 
@@ -31,7 +36,7 @@ Some integrations refuse device removal while they still know the device (e.g. M
 Confirm the exact list with the user before removing anything. A device that is
 only temporarily offline (e.g. a battery sensor being troubleshot) stays.
 
-There are no dashboard-delete or resource-removal tools. Deleting dashboards and
+`ha_delete_dashboard(url_path)` deletes a storage dashboard (returns its config as `previous`). There is no resource-removal tool: uninstalling
 uninstalling custom cards (Settings > Marketplace) happen in the UI, after the
 user confirms.
 

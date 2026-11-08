@@ -59,7 +59,8 @@ mcp = NestMCPServer(
         "Kubernetes (Talos) pods/events/nodes and Traefik ingress health, "
         "ZFS ARC and NFS server stats, "
         "monitoring stack (Prometheus/Loki/Grafana), "
-        "Home Assistant devices, areas and automations, UniFi network and clients, "
+        "Home Assistant devices, areas, automations, dashboards and floor-plan light dashboards, "
+        "UniFi network and clients, "
         "AdGuard DNS (stats, rewrites, plus host-level fail2ban/service status "
         "on the AdGuard Pis), Prometheus alerts, Jellyfin, Tunarr (channels, lineups, "
         "libraries, scans, schedules, settings), Dispatcharr (live-TV channels, streams, "
@@ -73,7 +74,7 @@ mcp = NestMCPServer(
     lifespan=lifespan,
 )
 
-from nest_mcp.tools import proxmox, adguard, adguard_host, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, kubernetes, infra, tunarr, dispatcharr  # noqa: E402
+from nest_mcp.tools import proxmox, adguard, adguard_host, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, kubernetes, infra, tunarr, dispatcharr, floorplan  # noqa: E402
 
 proxmox.register(mcp)
 adguard.register(mcp)
@@ -99,3 +100,4 @@ kubernetes.register(mcp)
 infra.register(mcp)
 tunarr.register(mcp)
 dispatcharr.register(mcp)
+floorplan.register(mcp)

@@ -85,7 +85,8 @@ spec:
                 cpu: 50m
                 memory: 128Mi
               limits:
-                memory: 512Mi
+                # floorplan_* mask builds fan out over up to 3 worker processes.
+                memory: 768Mi
             securityContext:
               allowPrivilegeEscalation: false
               capabilities:

@@ -35,6 +35,11 @@ jobs:
         with:
           python-version: '3.15'
 
+      # libcairo2: cairosvg (floorplan SVG plans). libffi-dev: cffi has no wheel
+      # for every Python release yet, so pip may build it from source.
+      - name: Install system libraries
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libcairo2 libffi-dev
+
       - name: Install and run tests with coverage
         working-directory: mcp
         run: |
