@@ -82,7 +82,8 @@ _BEAM = (
     "{% set k = @PPM@ / tan(([el, 4] | max) * r) %}{% set d1 = ([@HEIGHT@ * k, @MAXPX@] | min) %}"
     "{% set mx = @MX@ %}{% set my = @MY@ %}{% set tx = @TX@ %}{% set ty = @TY@ %}"
     "{% set h = @HALF@ %}{% set s = @SPREAD@ %}"
-    "{% set a = (@STRENGTH@ * clear * up * (0.5 + 0.5 * ([inc, 0] | max))) | round(2) %}"
+    "@FADE@"
+    "{% set a = (@STRENGTH@ * clear * up * fade * (0.5 + 0.5 * ([inc, 0] | max))) | round(2) %}"
     "{% set ex = mx + d1 * ux %}{% set ey = my + d1 * uy %}"
     "{% set pts = ((mx - h * tx) | round(1)) ~ ',' ~ ((my - h * ty) | round(1)) ~ ' ' "
     "~ ((mx + h * tx) | round(1)) ~ ',' ~ ((my + h * ty) | round(1)) ~ ' ' "
@@ -138,6 +139,11 @@ def beam_template(model: dict, frame: dict) -> str:
         if key in ov:
             base[name] = ov[key]
     base["FULL"] = ov.get("full_until", 0)
+    if "fade_from_deg" in ov:
+        lo, hi = ov["fade_from_deg"], ov["fade_to_deg"]
+        base["FADE"] = f"{{% set fade = [[({hi} - el) / ({hi} - {lo}), 1] | min, 0] | max %}}"
+    else:
+        base["FADE"] = "{% set fade = 1 %}"
     # A narrow window still lights a patch you can see: give it a minimum beam width, and
     # blur no more than about 40 % of that, so the blur doesn't wash a thin beam out.
     half = max(frame["half"], _MIN_HALF)

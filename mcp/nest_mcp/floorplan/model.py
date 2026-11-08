@@ -59,7 +59,10 @@ FIXTURE_KINDS = {"light", "fan", "device"}
 OPENING_KINDS = set(TRANSMISSION_DEFAULTS)
 SUN_KINDS = {"window", "glass_door", "open_air"}   # openings that let sunlight in when they have a facing
 # Per-opening overrides of the sun settings: an open-air edge under a ceiling has its own height.
-SUN_OVERRIDES = {"height_m": float, "spread": float, "blur": float, "strength": float, "full_until": float}
+SUN_OVERRIDES = {"height_m": float, "spread": float, "blur": float, "strength": float, "full_until": float,
+                 # A window behind a covered balcony only sees low sun: the beam fades out between
+                 # these two elevations (degrees), e.g. 15 -> 40.
+                 "fade_from_deg": float, "fade_to_deg": float}
 FACINGS = {"n": (0, -1), "e": (1, 0), "s": (0, 1), "w": (-1, 0)}   # outward normals, plan coords
 OPENING_STATES = {"open", "closed", "sensor"}
 ANCHORS = {"center", "n", "s", "e", "w", "ne", "nw", "se", "sw"}
@@ -171,6 +174,7 @@ def validate(model: dict) -> dict:
             unknown = set(op.get("sun") or {}) - set(SUN_OVERRIDES)
             if unknown:
                 raise ModelError(f"opening {oid}: unknown sun overrides {sorted(unknown)}")
+            check_fade(op.get("sun") or {}, f"opening {oid}")
             window_frame({**op, **shape})
         out["openings"][oid] = {**{k: v for k, v in op.items() if k not in ("rect", "line")}, **shape}
     for bid, bl in (model.get("blockers") or {}).items():
@@ -185,6 +189,18 @@ def validate(model: dict) -> dict:
         check_point(out, area.get("x", -1), area.get("y", -1), f"outdoor area {aid}")
         out["outdoors"][aid] = {"x": area["x"], "y": area["y"]}
     return out
+
+
+def check_fade(sun: dict, what: str) -> None:
+    """fade_from_deg / fade_to_deg come as a pair, from < to, both within 0..90."""
+    keys = {"fade_from_deg", "fade_to_deg"} & set(sun)
+    if not keys:
+        return
+    if len(keys) != 2:
+        raise ModelError(f"{what}: give fade_from_deg and fade_to_deg together")
+    lo, hi = sun["fade_from_deg"], sun["fade_to_deg"]
+    if not 0 <= lo < hi <= 90:
+        raise ModelError(f"{what}: fade needs 0 <= fade_from_deg < fade_to_deg <= 90")
 
 
 def window_frame(op: dict) -> dict:

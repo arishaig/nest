@@ -71,10 +71,14 @@ into its room, drawn live by card-mod from `sun.sun` (azimuth, elevation) and
    (`facing` = the open side, `sun={"height_m": <ceiling height>, "spread": 1,
    "full_until": 0.85}`): a high sun lights only a strip, a low sun reaches deeper. Add
    `floorplan_set_outdoor` for the faint even sky-light under the beam.
-5. **Thin walls.** The wall detector misses very thin double-line walls, so light leaks
+5. A window *behind* a covered balcony only sees sun low enough to pass under the
+   balcony ceiling: give it `sun={"fade_from_deg": 15, "fade_to_deg": 40}` and its beam
+   fades out as the sun climbs (about 34 deg blocks the sill ray at a 2.4 m ceiling and
+   2.2 m of balcony depth; widen the range for a deeper balcony).
+6. **Thin walls.** The wall detector misses very thin double-line walls, so light leaks
    through them. Look at `floorplan_preview` (dark = walls found) and add a
    `floorplan_set_blocker` along any wall that is missing.
-6. Sun masks are rebuilt when walls, openings, blockers or facings change; `sun`
+7. Sun masks are rebuilt when walls, openings, blockers or facings change; `sun`
    overrides and sun settings only change the template (instant). Doors that follow a
    sensor are treated as closed for sunlight.
 

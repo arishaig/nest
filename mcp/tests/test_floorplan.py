@@ -856,3 +856,36 @@ async def test_sun_tool_refusals(tools, ha):
         await tools["floorplan_set_outdoor"](url_path="plan-dash", area_id="deck", remove=True)
     with pytest.raises(floorplan.FloorplanError, match="unknown sun settings"):
         await tools["floorplan_settings"](url_path="plan-dash", sun={"nope": 1})
+
+
+def test_fade_by_elevation():
+    m = sun_model()
+    plain = R.beam_template(m, M.sun_windows(m)["win"])
+    assert "{% set fade = 1 %}" in plain
+    m["openings"]["win"]["sun"] = {"fade_from_deg": 15, "fade_to_deg": 40}
+    faded = R.beam_template(m, M.sun_windows(m)["win"])
+    assert "{% set fade = [[(40 - el) / (40 - 15), 1] | min, 0] | max %}" in faded and "up * fade *" in faded
+    assert M.validate(m)["openings"]["win"]["sun"] == {"fade_from_deg": 15, "fade_to_deg": 40}
+    for sun, match in (({"fade_from_deg": 15}, "together"), ({"fade_from_deg": 40, "fade_to_deg": 15}, "fade needs"),
+                       ({"fade_from_deg": -5, "fade_to_deg": 20}, "fade needs"),
+                       ({"fade_from_deg": 10, "fade_to_deg": 95}, "fade needs")):
+        m["openings"]["win"]["sun"] = sun
+        with pytest.raises(M.ModelError, match=match):
+            M.validate(m)
+
+
+async def test_fade_tool_refusal_and_merge(tools, ha):
+    await _start(tools, ha)
+    await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", from_gap="gap-1", facing="w")
+    out = await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win",
+                                               sun={"fade_from_deg": 15, "fade_to_deg": 40})
+    assert out["opening"]["win"]["sun"] == {"fade_from_deg": 15, "fade_to_deg": 40}
+    assert "sun_masks_regenerated" not in out                      # template-only
+    out = await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", sun={"fade_to_deg": 30})
+    assert out["opening"]["win"]["sun"] == {"fade_from_deg": 15, "fade_to_deg": 30}   # merges into the pair
+    with pytest.raises(floorplan.FloorplanError, match="fade needs"):
+        await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win",
+                                             sun={"fade_from_deg": 20, "fade_to_deg": 10})
+    await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", sun={})
+    with pytest.raises(floorplan.FloorplanError, match="together"):
+        await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", sun={"fade_to_deg": 30})
