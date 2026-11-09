@@ -82,6 +82,12 @@
       "allowedVersions": "<8.0.0"
     },
     {
+      "description": "Python for flux-local in the integration job stays below 3.13 — flux-local 7.x (held above) crashes at startup on 3.14+ (argparse BooleanOptionalAction no longer takes `type`); the job pins 3.12 with setup-python so it does not depend on the runner image's interpreter. Lift together with the flux-local <8 hold.",
+      "matchFileNames": [".github/workflows/integration.yml"],
+      "matchPackageNames": ["python"],
+      "allowedVersions": "<3.13"
+    },
+    {
       "description": "shellcheck (CI lint image) stays on 0.10.x — the SC2015 exclude in the shellcheck lint job is tuned to it (0.11.0 dropped that warning)",
       "matchPackageNames": ["koalaman/shellcheck"],
       "allowedVersions": "<0.11.0"
