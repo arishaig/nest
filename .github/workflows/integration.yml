@@ -44,6 +44,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
+      # Pin the interpreter flux-local runs on instead of taking the runner image's:
+      # ubuntu-latest moved from 24.04 (Python 3.12) to 26.04 (Python 3.14) on
+      # 2026-11-08 and flux-local 7.11.0 crashes on 3.14 at startup
+      # (argparse.BooleanOptionalAction no longer accepts `type`).
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
       - name: Install talosctl, kubectl, helm, kustomize and flux-local
         # talosctl is pinned to talos_version in terraform.tfvars so the test
         # boots the image we actually run. kubectl follows current stable;
@@ -64,9 +72,10 @@ jobs:
           # flux CLI — flux-local 7.x shells out to `flux build ks`.
           curl -fsSL "https://github.com/fluxcd/flux2/releases/download/v2.8.8/flux_2.8.8_linux_amd64.tar.gz" \
             | sudo tar -xz -C /usr/local/bin flux
-          # flux-local 7.11.0, not 8.x: 8.x requires Python >=3.13 and the
-          # runner's pipx Python is 3.12. Kept in sync with the runner image.
-          pipx install flux-local==7.11.0
+          # flux-local 7.11.0, not 8.x: kept in sync with the self-hosted runner
+          # (playbooks/provision/runner.yml), which is held on 7.x with Python 3.12.
+          # --python pins the setup-python 3.12 above, not the runner's own pipx Python.
+          pipx install --python "$(command -v python)" flux-local==7.11.0
 
       - name: Load br_netfilter for flannel
         # Talos's docker provisioner uses flannel (vxlan); flannel crashloops
