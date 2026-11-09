@@ -113,6 +113,12 @@ mode: judge visibility in the theme the user actually uses.
 5. `floorplan_set_fixture` for every light, fan and device (fans spin; use `kind="device"` for a
    plain icon with no glow), then `floorplan_calibrate` per light. Take positions and icon anchors
    from the old dashboard if there is one.
+   **When migrating, carry over every per-light blocker, not just walls.** Furniture that shades
+   one lamp (a kitchen island that a nearby lamp must not light over) is a
+   `floorplan_set_blocker(rect=..., fixtures=[that lamp])`; it is easy to forget because the old
+   dashboard hides it inside a mask. Symptom: one lamp's glow spills across a piece of furniture.
+   Measure the outline off the plan (its edges are 1 px lines: scan the raster, or use
+   `floorplan_get(include_thin_walls=True)`), and give the blocker only that lamp.
 6. **Verify the sun without waiting for it**: `floorplan_preview(sun_azimuth, sun_elevation, cloud_pct)`
    at a few angles (low west, noon, high summer). The report says which gate darkened each window.
 7. `floorplan_audit`, fix what it names, and only then ask the user to look.
