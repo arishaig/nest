@@ -88,6 +88,77 @@ def find_gaps(gray: np.ndarray, raw: np.ndarray, sealed: np.ndarray,
     return gaps
 
 
+def find_thin_walls(gray: np.ndarray, raw: np.ndarray, sealed: np.ndarray, min_len: int = 120,
+                    line_threshold: int = 200, pair_gap: int = 16) -> list[dict]:
+    """Long thin lines the wall detector skipped: candidate undrawn-thickness walls.
+
+    detect_walls only keeps thick dark runs, so a wall drawn as one hairline or a pair of
+    hairlines (the way many plans show a partition) lets light straight through. Hairlines
+    at least `min_len` long and no more than `pair_gap` apart are merged into one candidate
+    rect; candidates that mostly lie on a wall already found are dropped. Furniture outlines
+    (a long counter) also show up: they're candidates to look at, not walls to trust.
+    """
+    h, w = gray.shape
+    thin = (gray < line_threshold) & ~raw
+    near_wall = _window(sealed, 15, 15, False)
+    out = []
+    for vertical in (True, False):
+        runs = _open(thin, min_len, 1) if vertical else _open(thin, 1, min_len)
+        merged = _close(runs, 1, pair_gap) if vertical else _close(runs, pair_gap, 1)
+        labels = _label(merged)
+        for lab in range(1, labels.max() + 1):
+            ys, xs = np.nonzero(labels == lab)
+            x0, y0, x1, y1 = int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
+            length = (y1 - y0) if vertical else (x1 - x0)
+            thick = (x1 - x0) if vertical else (y1 - y0)
+            if length < min_len or thick > pair_gap + 4:
+                continue
+            box = sealed[y0:y1, x0:x1]
+            if box.size and box.mean() > 0.4:                  # already a wall
+                continue
+            cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+            ends = [(cx, y0), (cx, y1 - 1)] if vertical else [(x0, cy), (x1 - 1, cy)]
+            n = sum(bool(near_wall[min(max(ey, 0), h - 1), min(max(ex, 0), w - 1)]) for ex, ey in ends)
+            out.append({"rect": [x0, y0, x1, y1], "length": length, "thickness": thick,
+                        "orientation": "vertical" if vertical else "horizontal",
+                        "ends_on_walls": n, "touches_wall": n > 0,
+                        "on_plan_edge": x0 <= 0 or y0 <= 0 or x1 >= w or y1 >= h})
+    # A partition runs wall to wall; a table outline floats or touches one wall. Most wall-like first.
+    out.sort(key=lambda c: (-c["ends_on_walls"], -c["length"]))
+    for i, c in enumerate(out, 1):
+        c["id"] = f"thin-{i}"
+    return out
+
+
+def suggest_facing(rect: list[int], barrier: np.ndarray, margin: int = 3) -> str | None:
+    """n/e/s/w: the side of a wall gap that looks straight out of the plan, when exactly one does.
+
+    A ray goes out from each side of the gap; a side is outdoors when its ray reaches the
+    plan's edge without meeting a wall. Rays, not a flood fill: an open shaft in the plan
+    would make a flood leak into the whole interior. A gap whose sides both end at walls
+    (a window onto a balcony) gets no suggestion; set its facing by hand.
+    """
+    x0, y0, x1, y1 = rect
+    h, w = barrier.shape
+    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+
+    def clear(x: int, y: int, dx: int, dy: int) -> bool:
+        while 0 <= x < w and 0 <= y < h:
+            if barrier[y, x]:
+                return False
+            x, y = x + dx, y + dy
+        return True
+
+    if (x1 - x0) >= (y1 - y0):
+        r = (y1 - y0) // 2 + margin
+        sides = {"n": clear(cx, cy - r, 0, -1), "s": clear(cx, cy + r, 0, 1)}
+    else:
+        r = (x1 - x0) // 2 + margin
+        sides = {"w": clear(cx - r, cy, -1, 0), "e": clear(cx + r, cy, 1, 0)}
+    found = [k for k, v in sides.items() if v]
+    return found[0] if len(found) == 1 else None
+
+
 def _guess_kind(thin: np.ndarray, rect: tuple[int, int, int, int], margin: int = 4) -> str:
     """Door if a swing (leaf + arc) is drawn next to the gap, otherwise window.
 

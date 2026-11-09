@@ -7,7 +7,7 @@ just doesn't render.
 import io
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 from nest_mcp.floorplan import engine
 from nest_mcp.floorplan import model as M
@@ -457,6 +457,82 @@ def place_card(config: dict, card: dict, title: str) -> None:
     })
 
 
+# --- Sun simulation (Python mirror of the card_mod templates) -----------------------------
+
+def sun_state(model: dict, geo: "M.Geometry", az: float, el: float, cloud_pct: float = 0.0,
+              open_sensors: frozenset[str] = frozenset()) -> tuple[np.ndarray, list[dict]]:
+    """What the dashboard would draw for a given sun: (alpha 0..1 per plan pixel, per-layer report).
+
+    Mirrors beam_template / wash_template: the beam's strength is strength x cloud x low-sun fade
+    x elevation fade x through-gate x glass-door factor x incidence; the beam is a window-wide
+    strip that fans out and fades along the sun's direction, blurred, then clipped to the
+    window's reach mask. `open_sensors` are door sensors to treat as open (default: closed).
+    """
+    sun = M.settings(model, "sun")
+    w, h = model["size"]
+    r = np.pi / 180
+    azp = az - sun["north_deg"]
+    up = min(max(el / 6, 0.0), 1.0)
+    clear = 1 - sun["cloud_dim"] * cloud_pct / 100
+    masks = M.sun_masks(geo)
+    yy, xx = np.mgrid[0:h, 0:w]
+    layers, total = [], np.zeros((h, w), np.float32)
+    frames = M.sun_windows(model)
+    for oid, fr in frames.items():
+        op = model["openings"][oid]
+        ov = fr.get("sun") or {}
+        nx, ny = fr["normal_out"]
+        inc = nx * np.sin(azp * r) - ny * np.cos(azp * r)
+        gates = {"incidence": round(float(inc), 2), "low_sun": round(up, 2)}
+        thr = 1.0
+        if ov.get("through") in frames:
+            thr = M.through_gate(fr, frames[ov["through"]], azp)
+            gates["through"] = round(thr, 2)
+        fade = 1.0
+        if "fade_from_deg" in ov:
+            fade = min(max((ov["fade_to_deg"] - el) / (ov["fade_to_deg"] - ov["fade_from_deg"]), 0.0), 1.0)
+            gates["elevation_fade"] = round(fade, 2)
+        door = 1.0
+        if op.get("kind") == "glass_door":
+            t = op.get("transmission")
+            t = M.settings(model, "transmission")["glass_door"] if t is None else t
+            state = op.get("state", "closed")
+            door = 1.0 if state == "open" or (state == "sensor" and op.get("sensor") in open_sensors) else t
+            gates["door"] = round(door, 2)
+        a = (ov.get("strength", sun["strength"]) * clear * up * fade * thr * door
+             * (0.5 + 0.5 * max(float(inc), 0.0)))
+        report = {"opening": oid, "alpha": round(float(a), 3), "gates": gates}
+        layers.append(report)
+        if el <= 0 or inc <= 0 or a <= 0:
+            report["lit"] = False
+            continue
+        ux, uy = -np.sin(azp * r), np.cos(azp * r)
+        k = sun["px_per_m"] / np.tan(max(el, 4) * r)
+        d1 = min(ov.get("height_m", sun["height_m"]) * k, sun["max_px"])
+        half = max(fr["half"], _MIN_HALF)
+        spread = ov.get("spread", sun["spread"])
+        blur = ov["blur"] if "blur" in ov else min(float(sun["blur"]), half * 0.4)
+        mx, my, tx, ty = fr["mx"], fr["my"], fr["tx"], fr["ty"]
+        ex, ey = mx + d1 * ux, my + d1 * uy
+        pts = [(mx - half * tx, my - half * ty), (mx + half * tx, my + half * ty),
+               (ex + spread * half * tx, ey + spread * half * ty), (ex - spread * half * tx, ey - spread * half * ty)]
+        shape = Image.new("L", (w, h), 0)
+        ImageDraw.Draw(shape).polygon(pts, fill=255)
+        poly = np.array(shape.filter(ImageFilter.GaussianBlur(blur)), np.float32) / 255
+        t = ((xx - mx) * ux + (yy - my) * uy) / d1
+        full = ov.get("full_until", 0.0)
+        ramp = np.where(t <= full, 1.0, np.clip((1 - t) / max(1 - full, 1e-6), 0, 1))
+        layer = a * poly * ramp.astype(np.float32) * (masks[f"window:{oid}"] / 255)
+        report["lit"] = bool(layer.max() > 0.02)
+        total = 1 - (1 - total) * (1 - layer)
+    for aid in (model.get("outdoors") or {}):
+        a = sun["outdoor_strength"] * clear * up * (0.4 + 0.6 * max(float(np.sin(el * r)), 0.0))
+        if el > 0:
+            total = 1 - (1 - total) * (1 - a * (masks[f"outdoor:{aid}"] / 255))
+        layers.append({"opening": f"outdoor:{aid}", "alpha": round(float(a if el > 0 else 0), 3), "lit": el > 0})
+    return total, layers
+
+
 # --- Preview -----------------------------------------------------------------
 
 _OPENING_COLOURS = {"open": (46, 160, 67), "closed": (215, 58, 73), "sensor": (31, 111, 235)}
@@ -464,7 +540,8 @@ _KIND_COLOURS = {"window": (0, 170, 200), "glass_door": (150, 80, 200), "open_ai
 
 
 def preview(model: dict, geo: "M.Geometry", fixture_id: str = "", brightness: float = 1.0,
-            show_gaps: bool = False, max_width: int = 1100) -> bytes:
+            show_gaps: bool = False, max_width: int = 1100, sun_alpha: "np.ndarray | None" = None,
+            show_thin_walls: bool = False) -> bytes:
     """PNG of the plan with walls, openings, blockers, fixtures and a coordinate grid.
 
     With `fixture_id`, that fixture's glow is drawn as the dashboard would show it
@@ -484,6 +561,8 @@ def preview(model: dict, geo: "M.Geometry", fixture_id: str = "", brightness: fl
         d = np.hypot(xx - fx["x"], yy - fx["y"]) / max(shape["radius_px"], 1)
         prof = np.interp(d, [0, 0.45, 1], [1, 0.45, 0], right=0) * shape["alpha"] * mask
         base = base * (1 - prof[..., None]) + np.array(shape["rgb"], np.float32) * prof[..., None]
+    if sun_alpha is not None:                  # drawn amber so it shows on a pale plan (the dashboard's is paler)
+        base = base * (1 - sun_alpha[..., None]) + np.array([255, 170, 0], np.float32) * sun_alpha[..., None]
     img = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8))
     d = ImageDraw.Draw(img, "RGBA")
     for x in range(0, w, 100):
@@ -503,11 +582,18 @@ def preview(model: dict, geo: "M.Geometry", fixture_id: str = "", brightness: fl
         x, y = area["x"], area["y"]
         d.polygon([(x, y - 7), (x + 7, y), (x, y + 7), (x - 7, y)], fill=(60, 180, 90, 255), outline=(0, 0, 0, 255))
         d.text((x + 9, y - 6), f"{aid} (outdoors)", fill=(0, 90, 30, 255))
+    if show_thin_walls:
+        for c in geo.thin_walls():
+            x0, y0, x1, y1 = c["rect"]
+            colour = (120, 120, 120, 255) if c["blocked"] else (0, 110, 255, 255) if c["touches_wall"] else (0, 180, 180, 255)
+            d.rectangle([x0 - 2, y0 - 2, x1 + 2, y1 + 2], outline=colour)
+            d.text((x1 + 4, y0), c["id"] + (" blocked" if c["blocked"] else ""), fill=colour)
     if show_gaps:
         for gap in geo.gaps():
             x0, y0, x1, y1 = gap["rect"]
             d.rectangle([x0, y0, x1, y1], outline=(245, 120, 0, 255))
-            d.text((x1 + 3, y0), f"{gap['id']} {gap['guess']}", fill=(180, 80, 0, 255))
+            d.text((x1 + 3, y0), f"{gap['id']} {gap['guess']}" + (f" -> {gap['suggested_facing']}" if gap.get("suggested_facing") else ""),
+                   fill=(180, 80, 0, 255))
     for fid, fx in sorted((model.get("fixtures") or {}).items()):
         x, y = fx["x"], fx["y"]
         colour = (230, 160, 0) if fx["kind"] == "light" else (60, 120, 220)

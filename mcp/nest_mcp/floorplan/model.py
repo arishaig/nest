@@ -329,7 +329,23 @@ class Geometry:
         self.base = self.sealed | line_walls
 
     def gaps(self) -> list[dict]:
-        return engine.find_gaps(self.gray, self.raw, self.sealed)
+        gaps = engine.find_gaps(self.gray, self.raw, self.sealed)
+        barrier = self.sealed | self.global_blockers
+        for g in gaps:
+            if g["guess"] == "window":                  # doors don't need a facing
+                side = engine.suggest_facing(g["rect"], barrier)
+                if side:
+                    g["suggested_facing"] = side
+        return gaps
+
+    def thin_walls(self) -> list[dict]:
+        """Candidate walls the detector missed, each with how much of it a blocker already covers."""
+        out = engine.find_thin_walls(self.gray, self.raw, self.sealed)
+        for c in out:
+            x0, y0, x1, y1 = c["rect"]
+            box = self.global_blockers[y0:y1, x0:x1]
+            c["blocked"] = bool(box.size and box.mean() > 0.4)
+        return out
 
     def barrier_for(self, fixture_id: str, sensors_open: dict[str, bool]) -> tuple[np.ndarray, list]:
         """(barrier, partial-transmission groups) for a fixture and a sensor assignment."""

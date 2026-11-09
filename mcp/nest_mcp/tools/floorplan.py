@@ -20,6 +20,7 @@ from mcp.server.mcpserver import Image, MCPServer
 from PIL import Image as PILImage
 
 from nest_mcp import config
+from nest_mcp.floorplan import engine
 from nest_mcp.floorplan import model as M
 from nest_mcp.floorplan import render as R
 from nest_mcp.http_client import make_client
@@ -230,24 +231,39 @@ def _restore_payload(state: dict) -> tuple[str, dict]:
 def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
-    async def floorplan_get(url_path: str, include_gaps: bool = False, raw: bool = False) -> dict:
-        """Read a floor-plan dashboard's model: plan image and size, fixtures (lights, fans, devices) with positions and glow calibration, openings (doors/windows), blockers, settings and change history. Read-only. Coordinates are plan pixels. `include_gaps` also lists the wall gaps detected in the plan (candidate doors/windows, each with a guessed kind) that floorplan_set_opening can adopt via `from_gap`. `raw` returns the stored model itself (without history), the shape floorplan_import accepts: save it to back a plan up."""
+    async def floorplan_get(url_path: str, include_gaps: bool = False, raw: bool = False,
+                            include_thin_walls: bool = False) -> dict:
+        """Read a floor-plan dashboard's model: plan image and size, fixtures (lights, fans, devices) with positions and glow calibration, openings (doors/windows), blockers, settings and change history. Read-only. Coordinates are plan pixels. `include_gaps` also lists the wall gaps detected in the plan (candidate doors/windows, each with a guessed kind, and for a window on an outside wall a `suggested_facing`) that floorplan_set_opening can adopt via `from_gap`. `include_thin_walls` lists long hairline walls the detector skipped (light leaks through them): `touches_wall` ones that run between rooms are likely real walls; adopt one as a blocker with floorplan_set_blocker(from_thin_wall=...). Furniture outlines show up too. `raw` returns the stored model itself (without history), the shape floorplan_import accepts: save it to back a plan up."""
         _, model = await _load(url_path)
         out = {"model": M.snapshot(model)} if raw else _summary(model)
         if include_gaps:
             out["gaps"] = (await _geometry(model)).gaps()
+        if include_thin_walls:
+            out["thin_walls"] = (await _geometry(model)).thin_walls()
         return out
 
     @mcp.tool()
     async def floorplan_preview(url_path: str, fixture_id: str = "", brightness_pct: float = 100,
-                                show_gaps: bool = False):
-        """Render the floor plan as an image: walls (dark), wall gaps the detector sealed (orange), openings (green open / red closed / blue door-sensor / cyan window / purple glass door), blockers (magenta), fixtures (labelled dots) and a 100 px coordinate grid for picking positions. With `fixture_id`, that light's glow is drawn as the dashboard shows it at `brightness_pct` with door sensors closed: use it to check reach and wall shadows. `show_gaps` outlines detected gaps with their ids. Read-only."""
+                                show_gaps: bool = False, show_thin_walls: bool = False,
+                                sun_azimuth: float | None = None, sun_elevation: float | None = None,
+                                cloud_pct: float = 0, open_sensors: list[str] | None = None):
+        """Render the floor plan as an image: walls (dark), wall gaps the detector sealed (orange), openings (green open / red closed / blue door-sensor / cyan window / purple glass door), blockers (magenta), fixtures (labelled dots) and a 100 px coordinate grid for picking positions. With `fixture_id`, that light's glow is drawn as the dashboard shows it at `brightness_pct` with door sensors closed: use it to check reach and wall shadows. `show_gaps` outlines detected gaps with their ids (and a suggested facing for outside windows); `show_thin_walls` outlines hairline walls the detector skipped (blue touch a wall, grey are already blocked). With `sun_azimuth` and `sun_elevation` (compass degrees; use sun.sun's attributes, or any angle you want to check) the sunlight the dashboard would draw is simulated in amber, with `cloud_pct`, and `open_sensors` (door sensor entity ids to treat as open; default closed). The result lists each sun layer with its strength and the gates that scaled it (incidence, low sun, through, elevation fade, glass door): use it to see why a window is dark at an angle, or to check the plan at noon or midsummer without waiting. Read-only."""
         _, model = await _load(url_path)
         if fixture_id and fixture_id not in (model.get("fixtures") or {}):
             raise FloorplanError(f"no fixture {fixture_id!r}")
         geo = await _geometry(model)
-        png = await asyncio.to_thread(R.preview, model, geo, fixture_id, brightness_pct / 100, show_gaps)
-        return [{"size": model["size"], "fixture": fixture_id or None}, Image(data=png, format="png")]
+        info: dict = {"size": model["size"], "fixture": fixture_id or None}
+        alpha = None
+        if (sun_azimuth is None) != (sun_elevation is None):
+            raise FloorplanError("give both sun_azimuth and sun_elevation")
+        if sun_azimuth is not None:
+            alpha, layers = await asyncio.to_thread(
+                R.sun_state, model, geo, sun_azimuth, sun_elevation, cloud_pct, frozenset(open_sensors or []))
+            info["sun"] = {"azimuth": sun_azimuth, "elevation": sun_elevation, "cloud_pct": cloud_pct,
+                           "layers": layers}
+        png = await asyncio.to_thread(R.preview, model, geo, fixture_id, brightness_pct / 100, show_gaps,
+                                      1100, alpha, show_thin_walls)
+        return [info, Image(data=png, format="png")]
 
     @mcp.tool()
     async def floorplan_create(url_path: str, image: str, dark_image: str = "", title: str = "",
@@ -487,8 +503,8 @@ def register(mcp: MCPServer) -> None:
     @mcp.tool()
     async def floorplan_set_blocker(url_path: str, blocker_id: str, rect: list[int] | None = None,
                                     line: list[int] | None = None, fixtures: list[str] | None = None,
-                                    remove: bool = False) -> dict:
-        """[DESTRUCTIVE] Add, change or remove a light blocker; regenerates affected masks live. A blocker is a `rect` or `line` that stops light: a wall the plan doesn't draw, or tall furniture such as a kitchen island. With `fixtures` (ids) it only shades those lights (e.g. an island that hides one lamp but not the ceiling light above it); empty = all lights."""
+                                    remove: bool = False, from_thin_wall: str = "") -> dict:
+        """[DESTRUCTIVE] Add, change or remove a light blocker; regenerates affected masks live. A blocker is a `rect` or `line` that stops light: a wall the plan doesn't draw, or tall furniture such as a kitchen island. With `fixtures` (ids) it only shades those lights (e.g. an island that hides one lamp but not the ceiling light above it); empty = all lights. `from_thin_wall` adopts a hairline wall found by floorplan_get(include_thin_walls=True) (e.g. "thin-1") as the blocker's rect."""
         M.check_id(blocker_id, "blocker")
         cfg, model = await _load(url_path)
         before = M.snapshot(model)
@@ -499,11 +515,23 @@ def register(mcp: MCPServer) -> None:
             del blockers[blocker_id]
             return await _commit(url_path, cfg, model, before, f"removed blocker {blocker_id}")
         bl = copy.deepcopy(blockers.get(blocker_id) or {})
+        if from_thin_wall:
+            cand = next((c for c in (await _geometry(model)).thin_walls() if c["id"] == from_thin_wall), None)
+            if cand is None:
+                raise FloorplanError(f"no thin wall {from_thin_wall!r}; list them with "
+                                     "floorplan_get(include_thin_walls=True)")
+            x0, y0, x1, y1 = cand["rect"]
+            if x1 - x0 < 8:                      # a hairline is 1-2 px: block at least a wall's thickness
+                x0, x1 = x0 - (8 - (x1 - x0)) // 2, x0 - (8 - (x1 - x0)) // 2 + 8
+            if y1 - y0 < 8:
+                y0, y1 = y0 - (8 - (y1 - y0)) // 2, y0 - (8 - (y1 - y0)) // 2 + 8
+            w, h = model["size"]
+            rect, line = [max(x0, 0), max(y0, 0), min(x1, w), min(y1, h)], None
         if rect is not None or line is not None:
             bl = {k: v for k, v in bl.items() if k not in ("rect", "line")}
             bl.update(M.check_shape(model, rect, line))
         if "rect" not in bl and "line" not in bl:
-            raise FloorplanError("a new blocker needs rect or line")
+            raise FloorplanError("a new blocker needs rect, line or from_thin_wall")
         if fixtures is not None:
             unknown = [f for f in fixtures if f not in (model.get("fixtures") or {})]
             if unknown:
@@ -574,7 +602,7 @@ def register(mcp: MCPServer) -> None:
         walls: threshold (darkness of wall pixels, 60), min_run (30), thickness (7), seal_gap (gaps shorter than this are sealed, 110), line_width (10).
         light: whiten (0.6), color_k (how much light colour dims the glow, 0.5), default_rgb ([255, 225, 185]), radius (soft-shadow source size, 36), samples (24), blur (6), mask_scale (mask downscale, 3).
         transmission: door, window, glass_door, opening, open_air (0-1; light passing a closed opening of that kind).
-        sun: sun_entity (sun.sun), weather_entity (weather.forecast_home, its cloud_coverage dims the sun), north_deg (compass bearing of the plan's "up", 0), px_per_m (plan pixels per metre, 90), height_m (2.1), max_px (longest beam, 700), spread (2.9), strength (0.9), cloud_dim (share of strength lost under full cloud, 0.45), blur (18), outdoor_strength (sky-light wash over outdoor areas, 0.14), color ([255, 248, 232]).
+        sun: sun_entity (sun.sun), weather_entity (weather.forecast_home, its cloud_coverage dims the sun), north_deg (compass bearing of the plan's "up", 0), px_per_m (plan pixels per metre, 90), height_m (2.1), max_px (longest beam, 700), spread (2.9), strength (0.9), cloud_dim (share of strength lost under full cloud, 0.45), blur (18), outdoor_strength (sky-light wash over outdoor areas, 0.3), color ([255, 248, 232]).
         image / dark_image: replace the plan images (same plan, same coordinates)."""
         cfg, model = await _load(url_path)
         before = M.snapshot(model)
@@ -594,6 +622,59 @@ def register(mcp: MCPServer) -> None:
             model["dark_image"] = dark_image
         return {**await _commit(url_path, cfg, model, before, "settings changed"),
                 "settings": {s: M.settings(model, s) for s in ("walls", "light", "transmission", "sun")}}
+
+    @mcp.tool()
+    async def floorplan_audit(url_path: str) -> dict:
+        """Check a floor plan for setup mistakes that otherwise show up as nothing at all. Read-only.
+        Reports warnings for: windows, glass doors and open_air edges with no `facing` (they throw no sun); sun beams that depend on an opening that was removed; entities that don't exist in Home Assistant (fixtures, door sensors, the sun and weather entities, a weather entity with no cloud_coverage); hairline walls the detector missed that run wall to wall and have no blocker (light and sun leak through them: see floorplan_get(include_thin_walls=True)). Also notes how big the dashboard config is. Run it after building or changing a plan, and before declaring it done."""
+        cfg, model = await _load(url_path)
+        warnings, notes = [], []
+        openings = model.get("openings") or {}
+        for oid, op in sorted(openings.items()):
+            if op.get("kind") in M.SUN_KINDS and not op.get("facing"):
+                hint = ""
+                if "rect" in op:
+                    geo = await _geometry(model)
+                    side = engine.suggest_facing(op["rect"], geo.sealed | geo.global_blockers)
+                    hint = f" (looks out {side})" if side else ""
+                warnings.append(f"opening {oid} is a {op['kind']} with no facing, so it throws no sun{hint}")
+            through = (op.get("sun") or {}).get("through")
+            if through and through not in openings:
+                warnings.append(f"opening {oid} gets its sun through {through!r}, which no longer exists (not gated)")
+        if any(o.get("kind") == "open_air" for o in openings.values()) and not model.get("outdoors"):
+            notes.append("an open_air edge but no outdoor area: add floorplan_set_outdoor for the sky-light wash")
+        sun = M.settings(model, "sun")
+        wanted = sorted({fx["entity"] for fx in (model.get("fixtures") or {}).values()}
+                        | {op["sensor"] for op in openings.values() if op.get("sensor")}
+                        | ({sun["sun_entity"], sun["weather_entity"]} if M.sun_windows(model) or model.get("outdoors") else set()))
+        try:
+            async with make_client(config.homeassistant.url, headers=ha._headers(), timeout=30.0) as client:
+                states = await _states(client, wanted)
+        except Exception as err:                      # noqa: BLE001 - report, don't fail the audit
+            states = None
+            notes.append(f"couldn't read Home Assistant states ({err}); entity checks skipped")
+        if states is not None:
+            for ent in wanted:
+                if ent not in states:
+                    warnings.append(f"entity {ent} does not exist in Home Assistant")
+            weather = states.get(sun["weather_entity"])
+            if weather and "cloud_coverage" not in (weather.get("attributes") or {}):
+                warnings.append(f"{sun['weather_entity']} has no cloud_coverage attribute, so clouds won't dim the sun")
+        open_lines = [c for c in (await _geometry(model)).thin_walls() if not c["blocked"]]
+        # A partition drawn as a pair of lines is ~10 px thick; a single hairline is a table or tub edge, and
+        # lines on the plan's edge are window panes.
+        for c in [c for c in open_lines if c["ends_on_walls"] == 2 and c["length"] >= 150
+                  and c["thickness"] >= 8 and not c["on_plan_edge"]]:
+            warnings.append(f"{c['id']} {c['rect']} is a {c['length']} px double hairline running wall to wall that "
+                            "nothing blocks, so light and sun pass through it: check "
+                            "floorplan_preview(show_thin_walls=True); if it is a wall (not a tub or counter edge), "
+                            f"floorplan_set_blocker(from_thin_wall={c['id']!r})")
+        if open_lines:
+            notes.append(f"{len(open_lines)} hairline candidates are unblocked (furniture outlines count); "
+                         "only double-line walls running wall to wall are warned about")
+        notes.append(f"dashboard config is {len(json.dumps(cfg)) // 1024} KiB; "
+                     f"{len(model.get('fixtures') or {})} fixtures, {len(openings)} openings")
+        return {"ok": not warnings, "warnings": warnings, "notes": notes}
 
     @mcp.tool()
     async def floorplan_undo(url_path: str) -> dict:
