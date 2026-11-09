@@ -971,3 +971,152 @@ def test_fan_is_placed_with_translate_so_it_spins_in_place():
     assert "translate" not in lamp and lamp["transform"].startswith("translate(")     # other icons are unchanged
     spin = R.icon_element(m, fan)["card_mod"]["style"]
     assert "rotate: 360deg" in spin and "transform" not in spin.split("@keyframes")[0]
+
+
+# --- sun preview, thin walls, facing suggestions, audit -------------------------------------
+
+def thin_plan() -> np.ndarray:
+    """The test plan plus a partition drawn as two hairlines (x 60 and 70) from the top wall to the bottom one."""
+    img = plan_image()
+    d = ImageDraw.Draw(img)
+    for x in (60, 70):
+        d.line([(x, 8), (x, 190)], fill=90)
+    d.line([(15, 100), (40, 100)], fill=90)                    # a short furniture line: too short to count
+    return np.array(img)
+
+
+def test_thin_walls_found_and_blocked_state():
+    gray = thin_plan()
+    geo = M.Geometry(M.new_model("/local/plan.png", (W, H)), gray)
+    cands = geo.thin_walls()
+    wall = next(c for c in cands if c["orientation"] == "vertical" and c["rect"][0] < 65 < c["rect"][2])
+    assert wall["rect"][0] <= 61 and wall["rect"][2] >= 70 and wall["ends_on_walls"] == 2 and not wall["blocked"]
+    assert wall["id"].startswith("thin-") and cands[0] == wall                  # touching walls sort first
+    assert not any(c["rect"][1] > 90 and c["rect"][3] < 110 for c in cands)     # the 25 px line is ignored
+    m = M.new_model("/local/plan.png", (W, H))
+    m["blockers"] = {"p": {"rect": [60, 8, 71, 190], "fixtures": []}}
+    assert next(c for c in M.Geometry(m, gray).thin_walls() if c["rect"][0] <= 61)["blocked"]
+
+
+def test_gaps_suggest_facing_for_outside_windows_only(gray):
+    img = Image.fromarray(gray).copy()
+    d = ImageDraw.Draw(img)
+    d.rectangle([60, H - 8, 110, H - 1], fill=255)             # a gap in the south wall, 50 wide: a window
+    d.line([(62, H - 5), (108, H - 5)], fill=30)               # drawn pane
+    d.line([(62, H - 3), (108, H - 3)], fill=30)
+    geo = M.Geometry(M.new_model("/local/plan.png", (W, H)), np.array(img))
+    south = next(g for g in geo.gaps() if g["rect"][1] > H - 12)
+    assert south["guess"] == "window" and south["suggested_facing"] == "s"
+    interior = next(g for g in geo.gaps() if g["rect"][0] == 146 and g["rect"][1] < 60)
+    assert "suggested_facing" not in interior                  # a window between two rooms: no guess
+    assert engine.suggest_facing([146, 110, 154, 150], np.ones_like(gray, bool)) is None
+
+
+def test_sun_state_follows_the_sun_and_reports_gates(gray):
+    m = sun_model(outdoors={"left": {"x": LEFT[0], "y": LEFT[1]}})
+    geo = M.Geometry(m, gray)
+    # The window looks out west (into the left room), so the sun must be in the west: light goes east.
+    low_west, layers = R.sun_state(m, geo, 270, 20, 0)
+    win = next(l for l in layers if l["opening"] == "win")
+    assert win["lit"] and win["gates"]["incidence"] == 1.0 and low_west[40, 230] > 0.1      # the beam, in the right room
+    assert low_west[130, 230] == 0                                                           # off the beam's strip: dark
+    assert 0 < low_west[130, 60] < low_west[40, 230]                                         # left room: only the wash
+    east, layers = R.sun_state(m, geo, 90, 20, 0)                                            # sun behind the window
+    assert not next(l for l in layers if l["opening"] == "win")["lit"] and east[40, 230] == 0
+    night, layers = R.sun_state(m, geo, 270, -5, 0)
+    assert night.max() == 0
+    cloudy, _ = R.sun_state(m, geo, 270, 20, 100)
+    assert 0 < cloudy[40, 230] < low_west[40, 230]
+
+
+def test_sun_state_gates_through_fade_and_glass_door(gray):
+    m = sun_model()
+    m["openings"]["edge"] = {"kind": "open_air", "rect": [0, 20, 8, 60], "state": "closed", "facing": "w",
+                             "sun": {"height_m": 2.4, "spread": 1}}
+    m["openings"]["win"]["sun"] = {"through": "edge", "fade_from_deg": 15, "fade_to_deg": 40}
+    m["openings"]["door"] = {"kind": "glass_door", "rect": [146, 110, 154, 150], "state": "sensor",
+                             "sensor": "binary_sensor.d", "facing": "w"}
+    geo = M.Geometry(M.validate(m), gray)
+    _, layers = R.sun_state(m, geo, 270, 20, 0)
+    win = next(l for l in layers if l["opening"] == "win")["gates"]
+    assert win["through"] == 1.0 and 0 < win["elevation_fade"] < 1                           # 20 deg: partly faded
+    assert next(l for l in layers if l["opening"] == "win")["alpha"] > 0
+    _, high = R.sun_state(m, geo, 270, 60, 0)
+    assert next(l for l in high if l["opening"] == "win")["gates"]["elevation_fade"] == 0
+    door_closed = next(l for l in layers if l["opening"] == "door")["gates"]["door"]
+    _, opened = R.sun_state(m, geo, 270, 20, 0, frozenset({"binary_sensor.d"}))
+    assert door_closed == 0.35 and next(l for l in opened if l["opening"] == "door")["gates"]["door"] == 1.0
+
+
+async def test_preview_sun_and_thin_wall_options(tools, ha):
+    await _start(tools, ha)
+    await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", from_gap="gap-1", facing="w")
+    info, img = await tools["floorplan_preview"](url_path="plan-dash", sun_azimuth=270, sun_elevation=20,
+                                                 cloud_pct=50, show_thin_walls=True, show_gaps=True)
+    assert info["sun"]["layers"][0]["opening"] == "win" and info["sun"]["layers"][0]["lit"]
+    assert Image.open(io.BytesIO(img.data)).size[0] == W
+    with pytest.raises(floorplan.FloorplanError, match="both sun_azimuth and sun_elevation"):
+        await tools["floorplan_preview"](url_path="plan-dash", sun_azimuth=270)
+
+
+async def test_thin_wall_tool_flow(tools, ha, monkeypatch):
+    await _start(tools, ha)
+    monkeypatch.setattr(floorplan, "_raster_cache", {("/local/plan.png", (W, H)): thin_plan()})
+    got = await tools["floorplan_get"](url_path="plan-dash", include_thin_walls=True, include_gaps=True)
+    wall = got["thin_walls"][0]
+    assert wall["ends_on_walls"] == 2 and not wall["blocked"]
+    out = await tools["floorplan_set_blocker"](url_path="plan-dash", blocker_id="partition",
+                                               from_thin_wall=wall["id"])
+    x0, y0, x1, y1 = out["blocker"]["partition"]["rect"]
+    assert x1 - x0 >= 8 and x0 <= 61 and y0 <= 10 and y1 >= 188
+    after = await tools["floorplan_get"](url_path="plan-dash", include_thin_walls=True)
+    assert after["thin_walls"][0]["blocked"]
+    with pytest.raises(floorplan.FloorplanError, match="no thin wall"):
+        await tools["floorplan_set_blocker"](url_path="plan-dash", blocker_id="x", from_thin_wall="thin-99")
+
+
+async def test_hairline_blocker_gets_a_wall_thickness(tools, ha, monkeypatch):
+    img = plan_image()
+    ImageDraw.Draw(img).line([(100, 8), (100, 160)], fill=90)          # a single 1 px line
+    await _start(tools, ha)
+    monkeypatch.setattr(floorplan, "_raster_cache", {("/local/plan.png", (W, H)): np.array(img)})
+    wall = (await tools["floorplan_get"](url_path="plan-dash", include_thin_walls=True))["thin_walls"][0]
+    out = await tools["floorplan_set_blocker"](url_path="plan-dash", blocker_id="hair", from_thin_wall=wall["id"])
+    x0, _, x1, _ = out["blocker"]["hair"]["rect"]
+    assert x1 - x0 == 8 and x0 <= 100 < x1
+
+
+async def test_audit_flags_setup_mistakes(tools, ha, monkeypatch):
+    await _start(tools, ha)
+    ha.states = {"sun.sun": {"entity_id": "sun.sun", "state": "above_horizon", "attributes": {}},
+                 "weather.forecast_home": {"entity_id": "weather.forecast_home", "state": "sunny", "attributes": {}}}
+    await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", from_gap="gap-1")
+    await tools["floorplan_set_outdoor"](url_path="plan-dash", area_id="deck", x=30, y=130)
+    await tools["floorplan_set_fixture"](url_path="plan-dash", fixture_id="lamp", entity="light.ghost",
+                                         x=30, y=130)
+    monkeypatch.setattr(floorplan, "_raster_cache", {("/local/plan.png", (W, H)): np.maximum(thin_plan(), 0)})
+    out = await tools["floorplan_audit"](url_path="plan-dash")
+    text = " | ".join(out["warnings"])
+    assert not out["ok"]
+    assert "win is a window with no facing" in text and "light.ghost does not exist" in text
+    assert "no cloud_coverage" in text and "double hairline running wall to wall" in text
+    assert any("KiB" in n for n in out["notes"])
+    # fix everything the audit named and it goes quiet
+    await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="win", facing="w")
+    ha.states["light.ghost"] = {"entity_id": "light.ghost", "state": "on", "attributes": {}}
+    ha.states["weather.forecast_home"]["attributes"] = {"cloud_coverage": 40}
+    await tools["floorplan_set_blocker"](url_path="plan-dash", blocker_id="partition", rect=[58, 8, 72, 190])
+    assert (await tools["floorplan_audit"](url_path="plan-dash"))["ok"]
+
+
+async def test_audit_notes_missing_outdoor_area_and_dead_through(tools, ha):
+    await _start(tools, ha)
+    ha.states = {"sun.sun": {"entity_id": "sun.sun", "state": "x", "attributes": {}},
+                 "weather.forecast_home": {"entity_id": "weather.forecast_home", "state": "x",
+                                           "attributes": {"cloud_coverage": 1}}}
+    await tools["floorplan_set_opening"](url_path="plan-dash", opening_id="edge", rect=[0, 20, 8, 60],
+                                         kind="open_air", facing="w")
+    out = await tools["floorplan_audit"](url_path="plan-dash")
+    assert any("no outdoor area" in n or "outdoor area" in n for n in out["notes"])
+    ha.configs["plan-dash"][M.MODEL_KEY]["openings"]["edge"]["sun"] = {"through": "gone"}
+    assert any("no longer exists" in w for w in (await tools["floorplan_audit"](url_path="plan-dash"))["warnings"])
