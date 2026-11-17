@@ -600,7 +600,13 @@ jobs:
       - name: Upgrade Talos nodes if version changed
         env:
           TALOSCONFIG_DATA: ${{ secrets.TALOSCONFIG }}
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_TALOS }}
         run: |
+          install -d -m 700 "$RUNNER_TEMP/.kube"
+          printf '%s' "$KUBECONFIG_DATA" > "$RUNNER_TEMP/.kube/config"
+          chmod 600 "$RUNNER_TEMP/.kube/config"
+          export KUBECONFIG="$RUNNER_TEMP/.kube/config"
+
           install -d -m 700 "$RUNNER_TEMP/.talos"
           printf '%s' "$TALOSCONFIG_DATA" > "$RUNNER_TEMP/.talos/config"
           chmod 600 "$RUNNER_TEMP/.talos/config"
@@ -683,12 +689,38 @@ jobs:
             fi
 
             echo "Upgrading $NODE: $RUNNING → $TARGET ($IMAGE)"
-            # --drain=false: drain needs kubeconfig, and Talos only serves
-            # GetKubeconfig on control-plane nodes. This was unconditionally
-            # true when .110 was the only node upgraded here and was itself
-            # worker-only (2026-07-27 deploy failure) — that constraint no
-            # longer holds now that alpha-control exists, but revisiting
-            # drain behavior is out of scope for this change.
+            # Drain from here with kubectl, then tell talosctl --drain=false
+            # (talosctl's own drain needs GetKubeconfig, which only
+            # control-plane nodes serve — 2026-07-27 failure). Upgrading
+            # without a drain left ~30 pods with live NFS mounts running when
+            # the reboot began; alpha's shutdown then hung for 10h in
+            # unmountPodMounts and took down Traefik/Authelia/Jellyfin
+            # (2026-11-17, v1.14.6 deploy). Draining first makes a stuck pod
+            # fail HERE, before the node is rebooted, instead of mid-reboot.
+            K8S_NODE=$(kubectl get nodes -o wide --no-headers \
+              | awk -v ip="$NODE" '$6==ip{print $1}')
+            if [ -z "$K8S_NODE" ]; then
+              if [ "$MODE" = "best-effort" ]; then
+                echo "::warning::$NODE has no Kubernetes node, skipping drain"
+              else
+                echo "::error::no Kubernetes node found for $NODE, refusing to upgrade undrained"
+                exit 1
+              fi
+            else
+              echo "Draining $K8S_NODE"
+              kubectl cordon "$K8S_NODE"
+              if ! kubectl drain "$K8S_NODE" --ignore-daemonsets \
+                  --delete-emptydir-data --timeout=300s; then
+                if [ "$MODE" = "best-effort" ]; then
+                  echo "::warning::drain of $K8S_NODE failed, skipping its upgrade"
+                  kubectl uncordon "$K8S_NODE" || true
+                  continue
+                fi
+                echo "::error::drain of $K8S_NODE failed; NOT rebooting it. It is left cordoned — uncordon after investigating."
+                exit 1
+              fi
+            fi
+
             "$TALOSCTL" --talosconfig "$TC" upgrade --endpoints "$NODE" --nodes "$NODE" \
               --image "$IMAGE" --wait=false --drain=false
 
@@ -697,6 +729,7 @@ jobs:
               if [ "$SECONDS" -ge "$deadline" ]; then
                 if [ "$MODE" = "best-effort" ]; then
                   echo "::warning::$NODE did not report $TARGET within ${UPGRADE_TIMEOUT}s (rebooted into Windows?) — check it next time it's on Talos"
+                  [ -n "$K8S_NODE" ] && { kubectl uncordon "$K8S_NODE" || true; }
                   continue 2
                 fi
                 echo "::error::$NODE did not report $TARGET within ${UPGRADE_TIMEOUT}s"
@@ -705,6 +738,10 @@ jobs:
               sleep 15
             done
             echo "$NODE is now on $TARGET"
+            if [ -n "$K8S_NODE" ]; then
+              kubectl wait --for=condition=Ready "node/$K8S_NODE" --timeout=300s
+              kubectl uncordon "$K8S_NODE"
+            fi
 
             # Settle window: give the node time to rejoin and its pods time
             # to reschedule/restart before the next node (especially the
