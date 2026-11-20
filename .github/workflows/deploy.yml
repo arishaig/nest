@@ -739,7 +739,18 @@ jobs:
             done
             echo "$NODE is now on $TARGET"
             if [ -n "$K8S_NODE" ]; then
-              kubectl wait --for=condition=Ready "node/$K8S_NODE" --timeout=300s
+              # The API VIP is unreachable for a bit after the sole control
+              # plane reboots (2026-11-17: kubectl wait ran 2s after the
+              # version flipped and died with "no route to host", leaving
+              # alpha-control cordoned). Retry until it answers.
+              api_deadline=$((SECONDS + 300))
+              until kubectl wait --for=condition=Ready "node/$K8S_NODE" --timeout=60s; do
+                if [ "$SECONDS" -ge "$api_deadline" ]; then
+                  echo "::error::$K8S_NODE not Ready / API unreachable after upgrade; it is left cordoned"
+                  exit 1
+                fi
+                sleep 10
+              done
               kubectl uncordon "$K8S_NODE"
             fi
 
