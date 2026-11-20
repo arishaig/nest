@@ -6,7 +6,13 @@ name: Maintenance
 # and PBS, which never update unattended.
 #
 #   guests    LXCs, DNS Pis and the VPS via update_apt.yml, one host at a
-#             time. Never reboots.
+#             time. "upgrade" never reboots. "reboot" runs reboot_guests.yml:
+#             it reboots only the DNS Pis and the VPS that are on an old
+#             kernel, one at a time, secondary DNS first and the primary
+#             AdGuard Pi last, refusing to take a Pi down unless the other
+#             one answers DNS. LXCs share the PVE kernel and are never
+#             rebooted (ci is also this runner). "upgrade-and-reboot" does
+#             both, upgrade first.
 #   proxmox   PBS then the PVE host via update_proxmox.yml (dist-upgrade).
 #             "upgrade-and-reboot" reboots PBS (waiting for it), then
 #             schedules the PVE reboot 2 minutes out. That takes the whole
@@ -25,11 +31,12 @@ on:
           - proxmox
         default: guests
       mode:
-        description: 'check = list only; reboot applies to proxmox only'
+        description: 'check = list only; reboot = guests only (old-kernel DNS Pis/VPS); upgrade-and-reboot = both targets'
         type: choice
         options:
           - check
           - upgrade
+          - reboot
           - upgrade-and-reboot
         default: check
 
@@ -67,21 +74,27 @@ jobs:
         run: |
           source /opt/ansible-runner/venv/bin/activate
           extra=()
+          playbooks=()
           case "$TARGET/$MODE" in
-            guests/check)   playbook=playbooks/check_updates.yml ;;
-            guests/*)       playbook=playbooks/update_apt.yml ;;
-            proxmox/check)  playbook=playbooks/update_proxmox.yml ;;
+            guests/check)   playbooks=(playbooks/check_updates.yml) ;;
+            guests/upgrade) playbooks=(playbooks/update_apt.yml) ;;
+            guests/reboot)  playbooks=(playbooks/reboot_guests.yml) ;;
+            guests/upgrade-and-reboot)
+              playbooks=(playbooks/update_apt.yml playbooks/reboot_guests.yml) ;;
+            proxmox/check)  playbooks=(playbooks/update_proxmox.yml) ;;
             proxmox/upgrade)
-              playbook=playbooks/update_proxmox.yml
+              playbooks=(playbooks/update_proxmox.yml)
               extra=(-e do_upgrade=true) ;;
             proxmox/upgrade-and-reboot)
-              playbook=playbooks/update_proxmox.yml
+              playbooks=(playbooks/update_proxmox.yml)
               extra=(-e do_upgrade=true -e do_reboot=true) ;;
             *) echo "unknown target/mode: $TARGET/$MODE"; exit 1 ;;
           esac
-          ansible-playbook \
-            -i inventory/hosts.yml \
-            "$playbook" \
-            "${extra[@]}" \
-            --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
-            --ssh-extra-args "-o StrictHostKeyChecking=no"
+          for playbook in "${playbooks[@]}"; do
+            ansible-playbook \
+              -i inventory/hosts.yml \
+              "$playbook" \
+              "${extra[@]}" \
+              --private-key "$RUNNER_TEMP/.ssh/ansible-on-nest" \
+              --ssh-extra-args "-o StrictHostKeyChecking=no"
+          done
