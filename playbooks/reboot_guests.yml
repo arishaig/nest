@@ -1,0 +1,110 @@
+---
+# Reboot the DNS Pis and the VPS, but only the ones that need it. Driven by
+# the "guests" target / "reboot" mode of .github/workflows/maintenance.yml.
+#
+# update_apt.yml installs new kernels but never reboots, so a host keeps
+# running the old one (OSRebootRequired) until something restarts it.
+#
+# Scope is deliberately NOT the LXCs: they share the PVE host's kernel, so
+# a pending kernel there says nothing about the running kernel, and
+# `ci` is the runner executing this play. The PVE host and PBS have their own
+# path (update_proxmox.yml). The PiKVM stays manual (pikvm-update).
+#
+# One host at a time, in the order given below: secondary DNS, the VPS, and
+# the primary AdGuard Pi last. Before touching a DNS Pi the play checks that
+# the other Pi is answering on port 53, so the network is never left without
+# DNS; after the reboot it waits for AdGuardHome (and Traefik on the VPS).
+#
+#   -e force_reboot=true   reboot every host in scope, flag or not
+#
+# The play stops at the first failure (serial: 1, any_errors_fatal), so a host
+# that doesn't come back is never followed by another reboot.
+
+- name: Reboot hosts that need it
+  hosts: dns-secondary:vps-proxy:adguard
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  gather_facts: false
+  vars:
+    # The Pi that must stay up while this one reboots.
+    dns_peer: "{{ 'dns-secondary' if inventory_hostname == 'adguard' else 'adguard' }}"
+  tasks:
+    # Same test as apt-updates-textfile.sh (which feeds OSRebootRequired): the
+    # running kernel vs the newest installed one of the same flavour. Not
+    # /var/run/reboot-required, which Debian and Pi OS often don't create.
+    # Containers have no kernel of their own, so they never need this.
+    - name: Check if a newer kernel is installed than the one running
+      ansible.builtin.shell: |
+        set -eu
+        if [ "$(systemd-detect-virt --container 2>/dev/null || true)" != "none" ]; then
+          echo no; exit 0
+        fi
+        running="$(uname -r)"
+        flavour="${running##*-}"
+        newest="$(find /lib/modules -mindepth 1 -maxdepth 1 -printf '%f\n' | grep -- "-$flavour\$" | sort -V | tail -1)"
+        if [ -n "$newest" ] && [ "$newest" != "$running" ]; then echo yes; else echo no; fi
+      args:
+        executable: /bin/bash
+      register: kernel_check
+      changed_when: false
+
+    - name: Set the reboot decision
+      ansible.builtin.set_fact:
+        do_reboot_host: "{{ kernel_check.stdout | trim == 'yes' or (force_reboot | default(false) | bool) }}"
+
+    - name: Say whether this host will be rebooted
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}: {{ 'rebooting' if do_reboot_host else 'running the newest kernel, skipping' }}"
+
+    - name: Check the other DNS server is answering before this one goes down
+      ansible.builtin.wait_for:
+        host: "{{ hostvars[dns_peer].ansible_host }}"
+        port: 53
+        timeout: 15
+      delegate_to: localhost
+      become: false
+      when:
+        - do_reboot_host
+        - inventory_hostname in groups['dns']
+
+    - name: Reboot and wait for the host to come back
+      ansible.builtin.reboot:
+        reboot_timeout: 900
+        msg: "Reboot by maintenance workflow"
+      when: do_reboot_host
+
+    - name: Wait for AdGuardHome
+      ansible.builtin.systemd:
+        name: AdGuardHome
+        state: started
+      when: do_reboot_host
+
+    # The VPS tertiary serves DoH/DoT only, so port 53 is checked on the Pis.
+    - name: Wait for DNS to answer on this host
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 53
+        timeout: 120
+      when:
+        - do_reboot_host
+        - inventory_hostname in groups['dns']
+
+    - name: Wait for Traefik on the VPS
+      ansible.builtin.systemd:
+        name: traefik
+        state: started
+      when:
+        - do_reboot_host
+        - inventory_hostname in groups['vps']
+
+    - name: Confirm the host is now on the newest kernel
+      ansible.builtin.shell: |
+        running="$(uname -r)"
+        flavour="${running##*-}"
+        newest="$(find /lib/modules -mindepth 1 -maxdepth 1 -printf '%f\n' | grep -- "-$flavour\$" | sort -V | tail -1)"
+        [ "$newest" = "$running" ]
+      args:
+        executable: /bin/bash
+      changed_when: false
+      when: do_reboot_host
