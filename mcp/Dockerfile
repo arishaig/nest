@@ -1,4 +1,4 @@
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 # ffmpeg: dispatcharr_probe_channels decodes a few frames per live channel.
 # libcairo2: cairosvg rasterises SVG floor plans for the floorplan_* tools.
