@@ -5,7 +5,7 @@ requires-python = ">=3.11"
 dependencies = [
     "paho-mqtt==2.2.0",
     "cryptography==50.0.2",
-    "pydantic-settings==2.16.2",
+    "pydantic-settings==2.16.3",
 ]
 
 [project.scripts]

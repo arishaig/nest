@@ -9,7 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
     "mcp[cli]==2.3.0",
     "httpx==0.28.1",
-    "pydantic-settings==2.16.2",
+    "pydantic-settings==2.16.3",
     "uvicorn==0.54.0",
     "websockets==17.4",
     "numpy==2.5.4",
