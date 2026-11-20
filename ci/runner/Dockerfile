@@ -19,7 +19,7 @@ ARG OPENTOFU_VERSION=1.13.9
 # renovate: datasource=github-releases depName=prometheus/prometheus
 ARG PROMETHEUS_VERSION=3.16.0
 # renovate: datasource=github-releases depName=prometheus/alertmanager
-ARG ALERTMANAGER_VERSION=0.34.2
+ARG ALERTMANAGER_VERSION=0.35.0
 # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/v(?<version>.+)$
 ARG KUSTOMIZE_VERSION=5.8.3
 # renovate: datasource=github-releases depName=yannh/kubeconform

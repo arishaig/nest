@@ -24,7 +24,7 @@
     # the checksum-aware copy.
     opentofu_version: "1.13.9"
     prometheus_version: "3.16.0"
-    alertmanager_version: "0.34.2"
+    alertmanager_version: "0.35.0"
     kubectl_version: "1.37.2"
     kustomize_version: "5.8.3"
     kubeconform_version: "0.8.0"
