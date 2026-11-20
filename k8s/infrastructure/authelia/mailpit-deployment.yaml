@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: mailpit
-          image: axllent/mailpit:v1.33.0
+          image: axllent/mailpit:v1.33.1
           ports:
             - containerPort: 1025
             - containerPort: 8025
