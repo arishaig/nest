@@ -642,8 +642,9 @@ def register_write(mcp: MCPServer) -> None:
     @mcp.tool()
     async def prowlarr_search(
         query: str, kind: Literal["search", "tvsearch", "movie"] = "search", limit: int = 15, runtime_min: int = 0,
+        protocol: Literal["any", "usenet", "torrent"] = "any",
     ) -> list[dict]:
-        """Search every Prowlarr indexer for a release (kind: search, tvsearch or movie). Read-only: shows what the indexers have (title, size, seeders, age, `guid` + `indexer_id` for prowlarr_grab) without grabbing anything; use it to tell a wrong indexer or category from a release that simply does not exist, or as the fallback when radarr_releases hangs. Pass `runtime_min` (the movie's runtime) to get `est_mbps` per result. Download URLs are deliberately not shown (they carry an API key)."""
+        """Search every Prowlarr indexer for a release (kind: search, tvsearch or movie). Read-only: shows what the indexers have (title, size, seeders, age, `guid` + `indexer_id` for prowlarr_grab) without grabbing anything; use it to tell a wrong indexer or category from a release that simply does not exist, or as the fallback when radarr_releases hangs. Pass `runtime_min` (the movie's runtime) to get `est_mbps` per result. `protocol="usenet"` drops torrent results (the only ones prowlarr_grab can use; torrent guids are also huge magnet links). Download URLs are deliberately not shown (they carry an API key)."""
         async with _arr_client("prowlarr", timeout=60.0) as client:
             resp = await client.get("/api/v1/search", params={"query": query, "type": kind, "limit": limit * 3})
             resp.raise_for_status()
@@ -657,13 +658,16 @@ def register_write(mcp: MCPServer) -> None:
                     "est_mbps": _est_mbps(r.get("size") or 0, runtime_min),
                 }
                 for r in resp.json()
+                if protocol == "any" or r.get("protocol") == protocol
             ]
             rows.sort(key=lambda r: -(r["seeders"] or 0))
             return rows[:limit]
 
     @mcp.tool()
-    async def prowlarr_grab(guid: str, indexer_id: int) -> dict:
-        """[DESTRUCTIVE] Send one prowlarr_search result (its `guid` + `indexer_id`) to Prowlarr's SABnzbd download client WITHOUT involving Radarr: the fallback when radarr_releases hangs, and the first half of "add a second version" (then media_place_version once it completes). Refuses unless Prowlarr has an enabled SABnzbd client whose category is not one Radarr/Sonarr watch (otherwise the arrs would import it over the current file): set a dedicated category such as `manual` on the Prowlarr client (Settings > Download Clients). Watch with sabnzbd_queue / sabnzbd_history (filter category). Confirm with the user first."""
+    async def prowlarr_grab(guid: str, indexer_id: int, protocol: Literal["usenet", "torrent"] = "usenet") -> dict:
+        """[DESTRUCTIVE] Send one prowlarr_search result (its `guid` + `indexer_id`) to Prowlarr's SABnzbd download client WITHOUT involving Radarr: the fallback when radarr_releases hangs, and the first half of "add a second version" (then media_place_version once it completes). Usenet only: pass the result's `protocol`; torrent releases (and magnet guids) are refused, because this path has no torrent client. Refuses unless Prowlarr has an enabled SABnzbd client whose category is not one Radarr/Sonarr watch (otherwise the arrs would import it over the current file): set a dedicated category such as `manual` on the Prowlarr client (Settings > Download Clients). Watch with sabnzbd_queue / sabnzbd_history (filter category). Confirm with the user first."""
+        if protocol != "usenet" or guid.startswith("magnet:"):
+            return {"error": "prowlarr_grab is usenet-only (SABnzbd); this release is a torrent. Pick a usenet result (prowlarr_search protocol=\"usenet\")."}
         async with _arr_client("prowlarr", timeout=60.0) as pclient:
             dc = await pclient.get("/api/v1/downloadclient")
             dc.raise_for_status()
