@@ -1,9 +1,13 @@
+import re
 import time
 
 from mcp.server.mcpserver import MCPServer
 
 from nest_mcp import config
 from nest_mcp.http_client import make_client
+
+
+_K8S_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 def register(mcp: MCPServer) -> None:
@@ -14,6 +18,9 @@ def register(mcp: MCPServer) -> None:
         host: str | None = None,
         unit: str | None = None,
         query: str | None = None,
+        namespace: str | None = None,
+        pod: str | None = None,
+        app: str | None = None,
         lines: int = 50,
         since_minutes: int = 60,
     ) -> dict:
@@ -24,8 +31,17 @@ def register(mcp: MCPServer) -> None:
         and the VPS. Unlike docker_logs, this works for any host and supports
         historical queries up to 30 days back.
 
+        Kubernetes pod logs carry the labels namespace, pod and container (Alloy
+        derives them from the log file path). With bjw-s app-template charts the
+        main container is literally called "app", so container="radarr" matches
+        nothing: use app="radarr" (or namespace="media" + pod="radarr").
+
         Args:
-            container: Filter by Docker container name (e.g. "jellyfin", "traefik").
+            namespace: k8s namespace (e.g. "media", "nest-mcp").
+            pod:       k8s pod name prefix (e.g. "radarr" matches radarr-5d8f...).
+            app:       Alias for pod: the workload name (e.g. "radarr", "sabnzbd").
+            container: Filter by container name. For Docker hosts the container
+                       (e.g. "jellyfin"); in k8s the container ("app" for most media apps).
             host:      Filter by host (e.g. "docker", "seedbox", "scrutiny",
                        "monitoring", "fileserver", "mcp",
                        "backup", "adguard", "dns-secondary", "vps-proxy").
@@ -41,6 +57,13 @@ def register(mcp: MCPServer) -> None:
             logql = query
         else:
             selectors = []
+            workload = pod or app
+            for label, value in (("namespace", namespace), ("pod", workload)):
+                if value is None:
+                    continue
+                if not _K8S_NAME.match(value):
+                    return {"error": f"Invalid {label} {value!r}: only letters, digits, '.', '_' and '-' are allowed."}
+                selectors.append(f'namespace="{value}"' if label == "namespace" else f'pod=~"{re.escape(value)}(-.*)?"')
             if host:
                 selectors.append(f'host="{host}"')
             if container:
@@ -86,6 +109,8 @@ def register(mcp: MCPServer) -> None:
                 {
                     "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts)),
                     "host": labels.get("host", ""),
+                    "namespace": labels.get("namespace", ""),
+                    "pod": labels.get("pod", ""),
                     "container": labels.get("container", ""),
                     "unit": labels.get("unit", ""),
                     "line": line,

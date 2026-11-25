@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 import httpx
@@ -16,6 +17,11 @@ async def lifespan(server):
     finally:
         await session.aclose()
 
+
+# httpx logs every request URL at INFO, and SABnzbd takes its API key as a
+# query parameter: keep that out of pod logs (and so Loki).
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 _ICON = "https://mcp.arishaig.site/nest_logo.webp"
 
@@ -74,7 +80,7 @@ mcp = NestMCPServer(
     lifespan=lifespan,
 )
 
-from nest_mcp.tools import proxmox, adguard, adguard_host, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, kubernetes, infra, tunarr, dispatcharr, floorplan  # noqa: E402
+from nest_mcp.tools import proxmox, adguard, adguard_host, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, sabnzbd, kubernetes, infra, tunarr, dispatcharr, floorplan  # noqa: E402
 
 proxmox.register(mcp)
 adguard.register(mcp)
@@ -96,6 +102,7 @@ seedbox.register(mcp)
 certs.register(mcp)
 loki.register(mcp)
 media_files.register(mcp)
+sabnzbd.register(mcp)
 kubernetes.register(mcp)
 infra.register(mcp)
 tunarr.register(mcp)

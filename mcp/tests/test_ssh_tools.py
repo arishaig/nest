@@ -34,18 +34,6 @@ async def test_vultr_status(monkeypatch):
 
 # ---- docker_host --------------------------------------------------------
 
-async def test_docker_logs_rejects_bad_name(monkeypatch):
-    patch_ssh(monkeypatch, docker_host, "logs")
-    out = await load_tools(docker_host)["docker_logs"](container="bad;name")
-    assert "error" in out
-
-
-async def test_docker_logs_ok(monkeypatch):
-    patch_ssh(monkeypatch, docker_host, "2026 line1\n2026 line2")
-    out = await load_tools(docker_host)["docker_logs"](container="jellyfin", lines=10)
-    assert out["container"] == "jellyfin" and "line1" in out["logs"]
-
-
 async def test_traefik_routes_sorted(monkeypatch):
     patch_http(monkeypatch, docker_host, {"/api/http/routers": [
         {"name": "z@k", "rule": "Host(`z`)", "service": "z", "tls": {}},

@@ -278,3 +278,20 @@ async def test_zones_from_zone_matrix_shape(monkeypatch):
     _patch(monkeypatch, routes)
     out = await load_tools(unifi)["unifi_client_internet_access"]("lgwebostv")
     assert out["verdict"] == "allowed" and out["zone"] == "IoT"
+
+
+async def test_clients_search_and_include_offline(monkeypatch):
+    base = "/proxy/network/api/s/default/"
+    _patch(monkeypatch, {
+        base + "stat/sta": {"data": [{"hostname": "laptop", "essid": "w", "mac": "aa:aa:aa:00:00:01"}]},
+        base + "rest/user": {"data": [
+            {"mac": "aa:aa:aa:00:00:01", "hostname": "laptop"},
+            {"mac": "f4:7b:09:11:22:33", "name": "Living Room TV", "oui": "Samsung Electronics", "last_seen": 1700000000},
+        ]},
+    })
+    tools = load_tools(unifi)
+    assert [c["hostname"] for c in await tools["unifi_clients"](search="samsung")] == []  # offline hidden by default
+    out = await tools["unifi_clients"](search="samsung", include_offline=True)
+    assert [c["hostname"] for c in out] == ["Living Room TV"] and out[0]["offline"] is True
+    by_oui = await tools["unifi_clients"](search="f4:7b:09", include_offline=True)
+    assert len(by_oui) == 1 and by_oui[0]["last_seen"] == 1700000000

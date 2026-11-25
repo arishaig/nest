@@ -239,13 +239,28 @@ def register(mcp: MCPServer) -> None:
         ]
 
     @mcp.tool()
-    async def unifi_clients(active_only: bool = True) -> list[dict]:
-        """List UniFi network clients with hostname, IP, MAC, access point, and signal strength."""
+    async def unifi_clients(active_only: bool = True, search: str = "", include_offline: bool = False) -> list[dict]:
+        """List UniFi network clients with hostname, IP, MAC, access point, and signal strength.
+
+        `search` is a case-insensitive substring matched against hostname, configured name, IP, MAC (so a vendor OUI like "f4:7b:09" works) and vendor (oui). `include_offline=True` also lists clients that are known but not connected now (last_seen shown), which is how to find a TV that is currently off or asleep."""
         session = get_session()
         resp = await session.get("/proxy/network/api/s/default/stat/sta")
-        data = resp.json().get("data", [])
+        data = list(resp.json().get("data", []))
+        if include_offline:
+            known = await session.get("/proxy/network/api/s/default/rest/user")
+            online = {c.get("mac") for c in data}
+            data += [dict(u, _offline=True) for u in known.json().get("data", []) if u.get("mac") not in online]
+        needle = search.lower()
+
+        def _hit(c: dict) -> bool:
+            hay = (c.get("hostname"), c.get("name"), c.get("ip"), c.get("mac"), c.get("oui"))
+            return any(needle in (h or "").lower() for h in hay)
+
         clients = [
             {
+                "offline": bool(c.get("_offline")),
+                "vendor": c.get("oui", ""),
+                "last_seen": c.get("last_seen", 0),
                 "hostname": c.get("hostname", c.get("name", c.get("mac", ""))),
                 "ip": c.get("ip", ""),
                 "mac": c.get("mac", ""),
@@ -259,7 +274,7 @@ def register(mcp: MCPServer) -> None:
                 "is_wired": c.get("is_wired", False),
             }
             for c in data
-            if not active_only or c.get("essid") or c.get("is_wired")
+            if (c.get("_offline") or not active_only or c.get("essid") or c.get("is_wired")) and (not needle or _hit(c))
         ]
         return sorted(clients, key=lambda x: x["hostname"])
 

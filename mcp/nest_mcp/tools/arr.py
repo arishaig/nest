@@ -34,12 +34,13 @@ _API_VERSION = {
 }
 
 
-def _arr_client(service: str):
+def _arr_client(service: str, timeout: float = 10.0):
     port = _PORTS[service]
     key = _KEY_MAP[service]()
     return make_client(
         f"http://{config.arr.arr_host}:{port}",
         headers={"X-Api-Key": key},
+        timeout=timeout,
     )
 
 
@@ -90,6 +91,7 @@ def register(mcp: MCPServer) -> None:
                 "page": page,
                 "page_size": page_size,
                 "has_more": page * page_size < total,
+                "duplicates": _queue_duplicates(records),
                 "items": [
                     {
                         "id": r.get("id"),
@@ -103,10 +105,22 @@ def register(mcp: MCPServer) -> None:
                         "timeleft": r.get("timeleft", ""),
                         "protocol": r.get("protocol", ""),
                         "indexer": r.get("indexer", ""),
+                        "warning": _queue_warning(r),
                     }
                     for r in records
                 ],
             }
+
+    @mcp.tool()
+    async def arr_health(service: ArrService) -> list[dict]:
+        """Health checks of a *arr service (GET /health): failing indexers or download clients, unreachable metadata/update servers (e.g. radarr.servarr.com 521/525), missing root folders. Check this first when a *arr search hangs or times out. Empty list = healthy."""
+        async with _arr_client(service) as client:
+            resp = await client.get(f"/api/{_API_VERSION[service]}/health")
+            resp.raise_for_status()
+            return [
+                {"type": h.get("type", ""), "source": h.get("source", ""), "message": h.get("message", ""), "wiki": h.get("wikiUrl", "")}
+                for h in resp.json()
+            ]
 
     @mcp.tool()
     async def arr_history(service: Literal["sonarr", "radarr", "lidarr"], limit: int = 20) -> list[dict]:
@@ -149,8 +163,37 @@ def register(mcp: MCPServer) -> None:
 _MAX_SEARCH_EPISODES = 50  # one command per call keeps a typo from hammering every indexer
 
 
-def _release_rows(releases: list[dict], limit: int) -> list[dict]:
-    """Compact view of Sonarr/Radarr release candidates, best first, with why each was rejected."""
+def _est_mbps(size_bytes: int, runtime_min: int) -> float | None:
+    if not runtime_min or not size_bytes:
+        return None
+    return round(size_bytes * 8 / (runtime_min * 60) / 1_000_000, 1)
+
+
+def _queue_warning(r: dict) -> str:
+    """Flag a queue item that looks stuck: nothing left to download but still marked downloading."""
+    if (r.get("size") or 0) > 0 and (r.get("sizeleft") or 0) == 0 and r.get("status") in ("downloading", "queued", "paused"):
+        return "0 MB left but still not imported (status=%s): check sabnzbd_status / sabnzbd_history, or a stuck import" % r.get("status")
+    return ""
+
+
+def _queue_duplicates(records: list[dict]) -> list[dict]:
+    """Queue items that target the same movie/episode/album, which means a re-grab loop or a double grab."""
+    groups: dict[tuple, list] = {}
+    for r in records:
+        for key in ("movieId", "episodeId", "albumId"):
+            if r.get(key):
+                groups.setdefault((key, r[key]), []).append(r)
+    return [
+        {"target": f"{k}={v}", "queue_ids": [r.get("id") for r in rs], "titles": [r.get("title", "") for r in rs]}
+        for (k, v), rs in groups.items() if len(rs) > 1
+    ]
+
+
+def _release_rows(releases: list[dict], limit: int, runtime_min: int = 0) -> list[dict]:
+    """Compact view of Sonarr/Radarr release candidates, best first, with why each was rejected.
+
+    With a runtime (minutes) each row also carries est_mbps, the average bitrate if the
+    file's size is spread over the whole runtime (container + audio included)."""
     rows = [
         {
             "title": r.get("title", ""),
@@ -163,6 +206,11 @@ def _release_rows(releases: list[dict], limit: int) -> list[dict]:
             "approved": not r.get("rejected", False),
             "rejections": r.get("rejections") or [],
             "guid": r.get("guid", ""),
+            "indexer_id": r.get("indexerId"),
+            "custom_format_score": r.get("customFormatScore", 0),
+            "custom_formats": [c.get("name", "") for c in (r.get("customFormats") or [])],
+            "quality_weight": r.get("qualityWeight"),
+            "est_mbps": _est_mbps(r.get("size") or 0, runtime_min),
         }
         for r in releases
     ]
@@ -471,12 +519,23 @@ def register_write(mcp: MCPServer) -> None:
             return {"searching": movie.get("title"), "movie_id": movie_id, "command_id": cmd.json().get("id")}
 
     @mcp.tool()
-    async def radarr_releases(movie_id: int, limit: int = 15) -> list[dict]:
-        """Interactive search: release candidates for one movie from every indexer, approved first, each with its rejection reasons. The explanation for an empty search. Read-only: nothing is grabbed."""
-        async with _arr_client("radarr") as client:
-            resp = await client.get("/api/v3/release", params={"movieId": movie_id})
-            resp.raise_for_status()
-            return _release_rows(resp.json(), limit)
+    async def radarr_releases(movie_id: int, limit: int = 15, timeout_s: int = 120) -> list[dict] | dict:
+        """Interactive search: release candidates for one movie from every indexer, approved first, each with its rejection reasons, `guid` + `indexer_id` (the handles radarr_grab needs), custom-format score/names, quality weight and `est_mbps` (size / the movie's runtime). Interactive searches query every indexer and can legitimately take over a minute: `timeout_s` (default 120, max 600) is how long to wait. On timeout you get an `error` object, not an exception (then check arr_health and Prowlarr). Read-only: nothing is grabbed."""
+        timeout_s = max(10, min(timeout_s, 600))
+        try:
+            async with _arr_client("radarr", timeout=float(timeout_s)) as client:
+                # Runtime is only for est_mbps; never let a failed lookup block the search itself.
+                movie = await client.get(f"/api/v3/movie/{movie_id}")
+                runtime = int((movie.json().get("runtime") or 0)) if movie.is_success else 0
+                resp = await client.get("/api/v3/release", params={"movieId": movie_id})
+                resp.raise_for_status()
+                return _release_rows(resp.json(), limit, runtime)
+        except httpx.TimeoutException:
+            return {"error": (
+                f"Radarr accepted the search but didn't respond within {timeout_s}s. "
+                "Check arr_health(radarr) (metadata/indexer failures), prowlarr_health, and k8s_pod_logs namespace=media; "
+                "prowlarr_search can find releases while Radarr is wedged."
+            )}
 
     # ── Prowlarr (read-only) ──────────────────────────────────────────────────
 
@@ -502,9 +561,11 @@ def register_write(mcp: MCPServer) -> None:
             }
 
     @mcp.tool()
-    async def prowlarr_search(query: str, kind: Literal["search", "tvsearch", "movie"] = "search", limit: int = 15) -> list[dict]:
-        """Search every Prowlarr indexer for a release (kind: search, tvsearch or movie). Read-only: shows what the indexers have (title, size, seeders, age) without grabbing anything; use it to tell a wrong indexer or category from a release that simply does not exist."""
-        async with _arr_client("prowlarr") as client:
+    async def prowlarr_search(
+        query: str, kind: Literal["search", "tvsearch", "movie"] = "search", limit: int = 15, runtime_min: int = 0,
+    ) -> list[dict]:
+        """Search every Prowlarr indexer for a release (kind: search, tvsearch or movie). Read-only: shows what the indexers have (title, size, seeders, age, `guid` + `indexer_id` for prowlarr_grab) without grabbing anything; use it to tell a wrong indexer or category from a release that simply does not exist, or as the fallback when radarr_releases hangs. Pass `runtime_min` (the movie's runtime) to get `est_mbps` per result. Download URLs are deliberately not shown (they carry an API key)."""
+        async with _arr_client("prowlarr", timeout=60.0) as client:
             resp = await client.get("/api/v1/search", params={"query": query, "type": kind, "limit": limit * 3})
             resp.raise_for_status()
             rows = [
@@ -513,6 +574,8 @@ def register_write(mcp: MCPServer) -> None:
                     "size_mb": round((r.get("size") or 0) / 1024 / 1024), "seeders": r.get("seeders"),
                     "age_days": r.get("age"),
                     "categories": [c.get("name") for c in (r.get("categories") or [])][:3],
+                    "guid": r.get("guid", ""), "indexer_id": r.get("indexerId"),
+                    "est_mbps": _est_mbps(r.get("size") or 0, runtime_min),
                 }
                 for r in resp.json()
             ]

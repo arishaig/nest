@@ -175,3 +175,54 @@ async def test_plugins_sorted_non_active_first(monkeypatch):
     ]})
     out = await load_tools(jellyfin)["jellyfin_plugins"]()
     assert [p["name"] for p in out] == ["Broken", "Webhook"] and out[0]["status"] == "Malfunctioned"
+
+
+# ── media info / sessions (hand-built from Jellyfin 10.x/12 API schemas, not recorded) ──
+
+async def test_media_info_flags_dts_and_pgs(monkeypatch):
+    patch_http(monkeypatch, jellyfin, {"/Items": {"Items": [{
+        "Id": "m1", "Name": "The Blues Brothers", "ProductionYear": 1980, "Type": "Movie",
+        "MediaSources": [{
+            "Id": "s1", "Path": "/data/media/movies/TBB/TBB.mkv", "Container": "mkv",
+            "Size": 45 * 1024**3, "Bitrate": 41_000_000, "RunTimeTicks": 133 * 600_000_000,
+            "MediaStreams": [
+                {"Type": "Video", "Codec": "hevc", "Profile": "Main 10", "Width": 3840, "Height": 2160,
+                 "VideoRangeType": "HDR10", "RealFrameRate": 23.976, "BitRate": 38_000_000},
+                {"Type": "Audio", "Codec": "dts", "Profile": "DTS-HD MA", "Channels": 8, "IsDefault": True},
+                {"Type": "Audio", "Codec": "ac3", "Channels": 6},
+                {"Type": "Subtitle", "Codec": "hdmv_pgs_subtitle", "Language": "eng"},
+                {"Type": "Subtitle", "Codec": "subrip", "Language": "eng", "IsTextSubtitleStream": True},
+            ],
+        }],
+    }]}})
+    out = await load_tools(jellyfin)["jellyfin_media_info"](search="blues")
+    src = out[0]["sources"][0]
+    assert src["bitrate_mbps"] == 41.0 and src["runtime_min"] == 133 and src["size_gb"] == 45.0
+    assert src["video"][0]["range"] == "HDR10" and src["video"][0]["resolution"] == "3840x2160"
+    assert "converted" in src["audio"][0]["note"] and src["audio"][1]["note"] == ""
+    assert "burn-in" in src["subtitles"][0]["note"] and src["subtitles"][1]["note"] == ""
+
+
+async def test_media_info_year_filter_and_needs_input(monkeypatch):
+    patch_http(monkeypatch, jellyfin, {"/Items": {"Items": [
+        {"Id": "a", "Name": "Dune", "ProductionYear": 1984, "MediaSources": []},
+        {"Id": "b", "Name": "Dune", "ProductionYear": 2021, "MediaSources": []},
+    ]}})
+    out = await load_tools(jellyfin)["jellyfin_media_info"](search="dune", year=2021)
+    assert [i["id"] for i in out] == ["b"]
+    with pytest.raises(ValueError):
+        await load_tools(jellyfin)["jellyfin_media_info"]()
+
+
+async def test_sessions_report_play_method_and_transcode_reasons(monkeypatch):
+    patch_http(monkeypatch, jellyfin, {"/Sessions": [{
+        "UserName": "u", "Client": "Jellyfin Tizen", "ApplicationVersion": "1.2", "DeviceName": "Samsung TV",
+        "NowPlayingItem": {"Name": "TBB", "Type": "Movie", "RunTimeTicks": 100},
+        "PlayState": {"PositionTicks": 50, "PlayMethod": "Transcode"},
+        "TranscodingInfo": {"VideoCodec": "h264", "AudioCodec": "aac", "IsVideoDirect": False, "IsAudioDirect": False,
+                            "Bitrate": 8_000_000, "TranscodeReasons": ["AudioCodecNotSupported"]},
+    }]})
+    out = (await load_tools(jellyfin)["jellyfin_sessions"]())[0]
+    assert out["play_method"] == "Transcode" and out["client_version"] == "1.2"
+    assert out["transcode"]["reasons"] == ["AudioCodecNotSupported"] and out["transcode"]["bitrate_mbps"] == 8.0
+    assert out["transcode"]["video_direct"] is False

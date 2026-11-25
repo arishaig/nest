@@ -74,6 +74,9 @@ NEST_RADARR_KEY=$(vaultkey "radarr_api_key")
 NEST_LIDARR_KEY=$(vaultkey "lidarr_api_key")
 NEST_PROWLARR_KEY=$(vaultkey "prowlarr_api_key")
 
+# SABnzbd (vault: sabnzbd_api_key — SABnzbd UI -> Config -> General -> API Key)
+NEST_SABNZBD_KEY=$(vaultkey "sabnzbd_api_key")
+
 # Jellyseerr (vault: jellyseerr_api_key)
 NEST_JELLYSEERR_KEY=$(vaultkey "jellyseerr_api_key")
 
