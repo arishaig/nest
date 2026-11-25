@@ -575,3 +575,15 @@ async def test_manual_import_force_only_overrides_upgrade_rejections(monkeypatch
     assert "force=True" in blocked["error"] and "body" not in posted
     forced = await t(movie_id=1, folder="/data/usenet/complete/X", apply=True, force=True)
     assert forced["importing"] == ["/data/usenet/complete/X/down.mkv"]
+
+
+async def test_prowlarr_search_protocol_filter_and_grab_refuses_torrents(monkeypatch):
+    patch_http(monkeypatch, arr, {"/api/v1/search": [
+        {"title": "T", "protocol": "torrent", "guid": "magnet:?xt=1", "indexerId": 7},
+        {"title": "N", "protocol": "usenet", "guid": "https://x/d/1", "indexerId": 2},
+    ]})
+    out = await load_tools(arr)["prowlarr_search"](query="x", protocol="usenet")
+    assert [r["title"] for r in out] == ["N"]
+    grab = load_tools(arr)["prowlarr_grab"]
+    assert "usenet-only" in (await grab(guid="magnet:?xt=1", indexer_id=7))["error"]
+    assert "usenet-only" in (await grab(guid="https://y.pw/t/1", indexer_id=6, protocol="torrent"))["error"]
