@@ -461,3 +461,117 @@ async def test_prowlarr_search_returns_handles(monkeypatch):
     assert out[0]["guid"] == "https://x/details/1" and out[0]["indexer_id"] == 3
     assert out[0]["est_mbps"] == round(10 * 1024**3 * 8 / (133 * 60) / 1e6, 1)
     assert "SECRET" not in str(out)
+
+
+# ── destructive half ─────────────────────────────────────────────────────────
+
+async def test_radarr_grab_ok_and_expired_cache(monkeypatch):
+    patch_http(monkeypatch, arr, {"/api/v3/release": {"title": "T", "indexer": "geek", "size": 1024**3}})
+    out = await load_tools(arr)["radarr_grab"](guid="g", indexer_id=3)
+    assert out["grabbed"] == "T" and out["replaces_current_file"] is True
+    patch_http(monkeypatch, arr, {"/api/v3/release": (404, {"message": "Unable to find matching release"})})
+    out = await load_tools(arr)["radarr_grab"](guid="g", indexer_id=3)
+    assert "search cache" in out["error"]
+
+
+def _prowlarr_routes(sab_category, radarr_category="movies", sab_enabled=True):
+    sab = [{"name": "SABnzbd", "implementation": "Sabnzbd", "enable": sab_enabled,
+            "fields": [{"name": "category", "value": sab_category}]}]
+    return {
+        "/api/v1/downloadclient": sab,
+        "/api/v3/downloadclient": [{"fields": [{"name": "movieCategory", "value": radarr_category}]}],
+        "/api/v1/search": {"ok": True},
+    }
+
+
+async def test_prowlarr_grab_requires_dedicated_category(monkeypatch):
+    sent = {}
+
+    def search(request):
+        sent["body"] = request.content
+        return {}
+
+    routes = _prowlarr_routes("manual") | {"/api/v1/search": search}
+    patch_http(monkeypatch, arr, routes)
+    out = await load_tools(arr)["prowlarr_grab"](guid="g", indexer_id=3)
+    assert out["category"] == "manual" and b'"indexerId"' in sent["body"]
+
+    patch_http(monkeypatch, arr, _prowlarr_routes("movies"))
+    assert "also watch" in (await load_tools(arr)["prowlarr_grab"](guid="g", indexer_id=3))["error"]
+    patch_http(monkeypatch, arr, _prowlarr_routes("manual", sab_enabled=False))
+    assert "no enabled SABnzbd" in (await load_tools(arr)["prowlarr_grab"](guid="g", indexer_id=3))["error"]
+
+
+async def test_rename_preview_and_apply(monkeypatch):
+    posted = {}
+
+    def command(request):
+        posted["body"] = request.content
+        return {"id": 5}
+
+    patch_http(monkeypatch, arr, {
+        "/api/v3/config/naming": {"standardMovieFormat": "{Movie CleanTitle} ({Release Year}) - {Quality Full}",
+                                   "movieFolderFormat": "{Movie CleanTitle} ({Release Year})", "renameMovies": False},
+        "/api/v3/rename": [{"movieFileId": 11, "existingPath": "a.mkv", "newPath": "b.mkv"}],
+        "/api/v3/command": command,
+    })
+    t = load_tools(arr)["radarr_rename_files"]
+    prev = await t(movie_id=7)
+    assert prev["applied"] is False and prev["format_groups_in_jellyfin"] and "body" not in posted
+    assert "OFF" in prev["warning"]
+    done = await t(movie_id=7, apply=True)
+    assert done["applied"] and b'"RenameFiles"' in posted["body"] and b"11" in posted["body"]
+
+
+async def test_manual_import_preview_apply_and_path_guard(monkeypatch):
+    posted = {}
+
+    def command(request):
+        posted["body"] = request.content
+        return {"id": 9}
+
+    patch_http(monkeypatch, arr, {
+        "/api/v3/manualimport": [
+            {"path": "/data/usenet/complete/X/x.mkv", "size": 5 * 1024**3, "quality": {"quality": {"name": "x"}}, "rejections": []},
+            {"path": "/data/usenet/complete/X/bad.mkv", "rejections": [{"reason": "Sample"}]},
+        ],
+        "/api/v3/command": command,
+    })
+    t = load_tools(arr)["radarr_manual_import"]
+    prev = await t(movie_id=7, folder="/data/usenet/complete/X")
+    assert prev["applied"] is False and prev["candidates"][1]["rejections"] == ["Sample"]
+    done = await t(movie_id=7, folder="/data/usenet/complete/X", apply=True)
+    assert done["importing"] == ["/data/usenet/complete/X/x.mkv"] and b'"ManualImport"' in posted["body"]
+    with pytest.raises(ValueError):
+        await t(movie_id=7, folder="/data/media/movies/X")
+
+
+async def test_rename_flags_default_format_that_will_not_group(monkeypatch):
+    patch_http(monkeypatch, arr, {
+        "/api/v3/config/naming": {"standardMovieFormat": "{Movie Title} ({Release Year}) {Quality Full}",
+                                  "movieFolderFormat": "{Movie Title} ({Release Year})", "renameMovies": True},
+        "/api/v3/rename": [],
+    })
+    out = await load_tools(arr)["radarr_rename_files"](movie_id=1)
+    assert out["format_groups_in_jellyfin"] is False and "NOT group" in out["warning2"] and "warning" not in out
+
+
+async def test_manual_import_force_only_overrides_upgrade_rejections(monkeypatch):
+    posted = {}
+
+    def command(request):
+        posted["body"] = request.content
+        return {"id": 1}
+
+    patch_http(monkeypatch, arr, {
+        "/api/v3/manualimport": [
+            {"path": "/data/usenet/complete/X/down.mkv", "rejections": [{"reason": "Not an upgrade for existing movie file"}]},
+            {"path": "/data/usenet/complete/X/sample.mkv", "rejections": [{"reason": "Sample"}]},
+        ],
+        "/api/v3/command": command,
+    })
+    t = load_tools(arr)["radarr_manual_import"]
+    blocked = await t(movie_id=1, folder="/data/usenet/complete/X", apply=True)
+    assert "force=True" in blocked["error"] and "body" not in posted
+    forced = await t(movie_id=1, folder="/data/usenet/complete/X", apply=True, force=True)
+    assert forced["importing"] == ["/data/usenet/complete/X/down.mkv"]

@@ -84,3 +84,24 @@ async def test_sab_api_error_body(monkeypatch):
     patch_http(monkeypatch, sabnzbd, {"/api": {"status": False, "error": "API Key Incorrect"}})
     with pytest.raises(RuntimeError, match="API Key Incorrect"):
         await load_tools(sabnzbd)["sabnzbd_queue"]()
+
+
+async def test_job_action_delete_batches_and_validates(monkeypatch):
+    seen = []
+
+    def handler(request):
+        seen.append(dict(request.url.params))
+        return {"status": True}
+
+    patch_http(monkeypatch, sabnzbd, {"/api": handler})
+    t = load_tools(sabnzbd)["sabnzbd_job_action"]
+    out = await t(nzo_ids=["SABnzbd_nzo_a", "SABnzbd_nzo_b"], action="delete", del_files=True)
+    assert seen[0]["value"] == "SABnzbd_nzo_a,SABnzbd_nzo_b" and seen[0]["del_files"] == "1" and out["deleted_files"]
+    await t(nzo_ids=["SABnzbd_nzo_a"], action="priority", priority="Force")
+    assert seen[1]["name"] == "priority" and seen[1]["value2"] == "2"
+    await t(nzo_ids=["SABnzbd_nzo_a", "SABnzbd_nzo_b"], action="pause")
+    assert [c["name"] for c in seen[2:]] == ["pause", "pause"]
+    with pytest.raises(ValueError):
+        await t(nzo_ids=["not-an-id"], action="delete")
+    with pytest.raises(ValueError):
+        await t(nzo_ids=[], action="resume")
