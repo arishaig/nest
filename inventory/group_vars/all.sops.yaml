@@ -143,6 +143,7 @@ lldap_jwt_secret: ENC[AES256_GCM,data:nbaOXtRGXAS1GRIWjYievtH0kmy+jYg8uFCmsqaJLt
 lldap_key_seed: ENC[AES256_GCM,data:m57/nfJjEOSugQmN1o0tmvTbOb1VPVPrGfZkaPI94c71LNs1uyT1pCaJvXm8pNIt,iv:kBQMxNeKO17ECtFVqX9oMWXPGl/LBlMafPUiSXy14KE=,tag:52pi7xGyjR4HUx00Y/Aqlg==,type:str]
 lldap_admin_password: ENC[AES256_GCM,data:1wg4joyzvBB5R1z1RYSHTGjDERuphFiFHma3oWF8p0cHi/sP+SHa2qA+Kotio7Bm,iv:5WKS5q5vstdw8X3FzNzVMJ6Cw+w6FkT1W4eUiurcbTE=,tag:PsA3/32uTLYiunQBr8pDPQ==,type:str]
 lldap_authelia_bind_password: ENC[AES256_GCM,data:7T4z7DnjU+QjK4g3iRS3lGwSBGQQx3n1sUntoBAhYyPt3FioN64m9U8WxeM/ROCs,iv:GtDaccHviEZwPz6leuYI8Z81U/zYizEVxYcO63kOlZ4=,tag:5rFe+svnYC0ZIC9BtF40sw==,type:str]
+sabnzbd_api_key: ENC[AES256_GCM,data:bSUKlOtEKjHBZ4f56hoTmCj5ucK6+DUX4rxZWqWKqkg=,iv:VwwdVaxjdi7TpjfvfFRmvvPcIMuojpSqRNHV8mK/cIg=,tag:94tGVpDTCz4Gm3mihqmJ3g==,type:str]
 sops:
     age:
         - enc: |
@@ -164,7 +165,7 @@ sops:
             2jPOjg==
             -----END AGE ENCRYPTED FILE-----
           recipient: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpbfa/Dw9jY/uvl6k549/LREsabJ21/rM52NGuofFCN
-    lastmodified: "2026-11-03T03:12:00Z"
-    mac: ENC[AES256_GCM,data:rwbvOZ5pa33te2D8RKy14v8uW8BNrHlFyWvSKSka5ixFzEiahd8/YCfBg32AbzBhXa+tcbqmYMdYnpCU7l3Bq3ALN//MRmEVAVFp3mrZTuhPLqYTeDXNpQG6LY7YVd0ol1RtimW3wrYEDr7zVXYd4Y5pHs2AZ7V1L08QyxyG7hw=,iv:3snPZ9A3IuW8/eGCztO4u7NwaGHR+HmKnlv3J48Tq0k=,tag:m7NU9NhFFBKdiRFTfmHWoQ==,type:str]
+    lastmodified: "2026-11-25T19:14:08Z"
+    mac: ENC[AES256_GCM,data:pqCfTmyIRhKfmv1Xurt/hrn5NZ7+DQfCREkxuOpFnKCc4U/PYMyUPqqKkCQAREioL48Hc/rBA0SjxRPEjPM0/SI4Wj9C23cMCebEjmol389SdXCToqmhyfR/DeqoPTAnbl3I6Juoc8906IDAQc/8f9ABXRSbTt45A5dxaHiftrk=,iv:s05hkoYOANHaeMABLlGSJkhgGKkP/fu+GTnq9QLieLw=,tag:aJvGrqbsvMK5xFWBmXaRkQ==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.3

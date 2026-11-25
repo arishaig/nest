@@ -51,3 +51,17 @@ async def test_loki_raw_query_overrides_and_clamps(monkeypatch):
     out = await load_tools(loki)["loki_logs"](query='{job="x"}', lines=9999, since_minutes=0)
     assert out["query"] == '{job="x"}'
     assert out["lines_returned"] == 0
+
+
+async def test_loki_k8s_selectors_from_app_alias(monkeypatch):
+    patch_http(monkeypatch, loki, {"/loki/api/v1/query_range": {"data": {"result": [
+        {"stream": {"namespace": "media", "pod": "radarr-abc", "container": "app"}, "values": [["3000000000", "hi"]]}]}}})
+    out = await load_tools(loki)["loki_logs"](namespace="media", app="radarr")
+    assert out["query"] == '{namespace="media", pod=~"radarr(-.*)?"}'
+    assert out["logs"][0]["pod"] == "radarr-abc" and out["logs"][0]["namespace"] == "media"
+
+
+async def test_loki_rejects_injection_in_pod(monkeypatch):
+    patch_http(monkeypatch, loki, {"/loki/api/v1/query_range": {"data": {"result": []}}})
+    out = await load_tools(loki)["loki_logs"](pod='x"} or {a="b')
+    assert "error" in out

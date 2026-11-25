@@ -397,3 +397,67 @@ async def test_queue_remove_failure_reports_progress(monkeypatch):
     assert "[5, 6, 7, 8]" in msg                       # the batch that failed
     assert "Removed so far: [1, 2, 3, 4]" in msg
     assert "not attempted: [9, 10]" in msg
+
+
+# ── second-version workflow (read side) ──────────────────────────────────────
+# Fixtures are hand-built from the Radarr v3 / Prowlarr v1 API schemas, not recorded from the live services.
+
+import httpx
+
+
+async def test_radarr_releases_has_grab_handles_and_mbps(monkeypatch):
+    patch_http(monkeypatch, arr, {
+        "/api/v3/movie/7": {"id": 7, "runtime": 133},
+        "/api/v3/release": [
+            {"title": "Blues.Brothers.1980.2160p", "indexer": "geek", "indexerId": 3, "guid": "g1",
+             "size": 20 * 1024**3, "quality": {"quality": {"name": "Bluray-2160p"}}, "qualityWeight": 19,
+             "customFormatScore": 50, "customFormats": [{"name": "HDR"}], "rejected": False},
+            {"title": "Other", "guid": "g2", "indexerId": 4, "size": 0, "rejected": True, "rejections": ["Not an upgrade"]},
+        ],
+    })
+    out = await load_tools(arr)["radarr_releases"](movie_id=7)
+    top = out[0]
+    assert top["guid"] == "g1" and top["indexer_id"] == 3 and top["custom_formats"] == ["HDR"]
+    assert top["custom_format_score"] == 50 and top["quality_weight"] == 19
+    assert top["est_mbps"] == round(20 * 1024**3 * 8 / (133 * 60) / 1e6, 1)
+    assert out[1]["rejections"] == ["Not an upgrade"] and out[1]["est_mbps"] is None
+
+
+async def test_radarr_releases_timeout_is_a_clear_error(monkeypatch):
+    def boom(request):
+        raise httpx.ReadTimeout("slow", request=request)
+
+    patch_http(monkeypatch, arr, {"/api/v3/movie/7": {"runtime": 100}, "/api/v3/release": boom})
+    out = await load_tools(arr)["radarr_releases"](movie_id=7, timeout_s=15)
+    assert "didn't respond within 15s" in out["error"] and "arr_health" in out["error"]
+
+
+async def test_arr_health(monkeypatch):
+    patch_http(monkeypatch, arr, {"/api/v3/health": [
+        {"type": "warning", "source": "MetadataCheck", "message": "radarr.servarr.com 521", "wikiUrl": "u"}]})
+    out = await load_tools(arr)["arr_health"](service="radarr")
+    assert out[0]["source"] == "MetadataCheck" and "521" in out[0]["message"]
+
+
+async def test_queue_flags_duplicates_and_zero_left(monkeypatch):
+    mb = 1024 * 1024
+    patch_http(monkeypatch, arr, {"/api/v3/queue": {"totalRecords": 3, "records": [
+        {"id": 1, "movieId": 9, "title": "A", "status": "downloading", "size": 100 * mb, "sizeleft": 0},
+        {"id": 2, "movieId": 9, "title": "A again", "status": "downloading", "size": 100 * mb, "sizeleft": 50 * mb},
+        {"id": 3, "movieId": 10, "title": "B", "status": "completed", "size": 100 * mb, "sizeleft": 0},
+    ]}})
+    out = await load_tools(arr)["arr_queue"](service="radarr")
+    assert out["duplicates"] == [{"target": "movieId=9", "queue_ids": [1, 2], "titles": ["A", "A again"]}]
+    assert "0 MB left" in out["items"][0]["warning"]
+    assert out["items"][1]["warning"] == "" and out["items"][2]["warning"] == ""
+
+
+async def test_prowlarr_search_returns_handles(monkeypatch):
+    patch_http(monkeypatch, arr, {"/api/v1/search": [
+        {"title": "T", "indexer": "geek", "indexerId": 3, "guid": "https://x/details/1",
+         "size": 10 * 1024**3, "downloadUrl": "http://prowlarr/3/download?apikey=SECRET"},
+    ]})
+    out = await load_tools(arr)["prowlarr_search"](query="blues", kind="movie", runtime_min=133)
+    assert out[0]["guid"] == "https://x/details/1" and out[0]["indexer_id"] == 3
+    assert out[0]["est_mbps"] == round(10 * 1024**3 * 8 / (133 * 60) / 1e6, 1)
+    assert "SECRET" not in str(out)

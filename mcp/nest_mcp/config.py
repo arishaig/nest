@@ -73,6 +73,15 @@ class ArrSettings(BaseSettings):
     prowlarr_key: str = ""
 
 
+class SabnzbdSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NEST_SABNZBD_")
+    # nest-mcp runs in-cluster; reach SABnzbd via its ClusterIP Service. The
+    # API key lives in sabnzbd.ini on the PVC and is copied into all.sops.yaml
+    # as sabnzbd_api_key (docs/secrets.md).
+    url: str = "http://sabnzbd.media.svc.cluster.local:8080"
+    key: str = ""
+
+
 class JellyfinSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NEST_JELLYFIN_")
     # nest-mcp runs in-cluster; reach jellyfin via its ClusterIP Service
@@ -179,6 +188,7 @@ grafana = GrafanaSettings()
 scrutiny = ScrutinySettings()
 traefik = TraefikSettings()
 arr = ArrSettings()
+sabnzbd = SabnzbdSettings()
 jellyfin = JellyfinSettings()
 tunarr = TunarrSettings()
 dispatcharr = DispatcharrSettings()

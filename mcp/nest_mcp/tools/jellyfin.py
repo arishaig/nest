@@ -11,11 +11,98 @@ def _headers() -> dict:
     return {"Authorization": f'MediaBrowser Token="{config.jellyfin.key}"'}
 
 
+# Audio the Tizen/webOS/Android TV decoders commonly cannot play, so Jellyfin has to convert it.
+_RISKY_AUDIO = ("dts", "truehd", "mlp")
+# Bitmap subtitles cannot be sent as text: selecting one forces a burn-in video transcode.
+_BITMAP_SUBS = ("pgssub", "pgs", "dvdsub", "dvbsub", "vobsub", "hdmv_pgs_subtitle", "dvd_subtitle")
+
+
+def _mbps(bits) -> float | None:
+    return round(bits / 1_000_000, 1) if bits else None
+
+
+def _source_view(src: dict) -> dict:
+    """One Jellyfin MediaSource (one file/version) with its streams and playback-risk flags."""
+    video, audio, subs = [], [], []
+    for st in src.get("MediaStreams", []):
+        kind, codec = st.get("Type"), (st.get("Codec") or "").lower()
+        if kind == "Video":
+            video.append({
+                "codec": codec, "profile": st.get("Profile", ""),
+                "resolution": f"{st.get('Width')}x{st.get('Height')}",
+                "range": st.get("VideoRangeType") or st.get("VideoRange", ""),
+                "fps": st.get("RealFrameRate") or st.get("AverageFrameRate"),
+                "bitrate_mbps": _mbps(st.get("BitRate")),
+            })
+        elif kind == "Audio":
+            risky = any(codec.startswith(c) for c in _RISKY_AUDIO)
+            audio.append({
+                "codec": codec, "profile": st.get("Profile", ""), "channels": st.get("Channels"),
+                "language": st.get("Language", ""), "default": st.get("IsDefault", False),
+                "title": st.get("DisplayTitle", ""),
+                "note": "likely to be converted on many TVs" if risky else "",
+            })
+        elif kind == "Subtitle":
+            bitmap = codec in _BITMAP_SUBS
+            subs.append({
+                "codec": codec, "language": st.get("Language", ""), "forced": st.get("IsForced", False),
+                "external": st.get("IsExternal", False), "text": st.get("IsTextSubtitleStream", not bitmap),
+                "note": "forces a burn-in transcode if selected" if bitmap else "",
+            })
+    ticks = src.get("RunTimeTicks") or 0
+    return {
+        "source_id": src.get("Id", ""), "name": src.get("Name", ""), "path": src.get("Path", ""),
+        "container": src.get("Container", ""),
+        "size_gb": round((src.get("Size") or 0) / 1024**3, 2),
+        "bitrate_mbps": _mbps(src.get("Bitrate")),
+        "runtime_min": round(ticks / 600_000_000) if ticks else None,
+        "video": video, "audio": audio, "subtitles": subs,
+    }
+
+
+def _transcode_view(t: dict | None) -> dict | None:
+    if not t:
+        return None
+    return {
+        "video_codec": t.get("VideoCodec", ""), "audio_codec": t.get("AudioCodec", ""),
+        "video_direct": t.get("IsVideoDirect"), "audio_direct": t.get("IsAudioDirect"),
+        "container": t.get("Container", ""), "bitrate_mbps": _mbps(t.get("Bitrate")),
+        "hw_accel": t.get("HardwareAccelerationType", ""), "reasons": t.get("TranscodeReasons") or [],
+    }
+
+
 def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
+    async def jellyfin_media_info(item_id: str = "", search: str = "", year: int = 0) -> list[dict]:
+        """What is really in a movie's file(s): one entry per media source (version) with path, container, size, overall bitrate, runtime, and per-stream details: video codec/profile/resolution/HDR range (SDR, HDR10, DV...), audio codec/channels/profile (DTS and TrueHD flagged as likely converted on many TVs) and subtitles (PGS/VobSub flagged as forcing a burn-in transcode). Find by `item_id`, or by title `search` (+ optional `year`). A movie with two versions shows two sources. Read-only."""
+        if not item_id and not search:
+            raise ValueError("Pass item_id or search")
+        params = {
+            "IncludeItemTypes": "Movie,Episode", "Recursive": "true",
+            "Fields": "MediaSources,MediaStreams,Path,ProductionYear", "Limit": 10,
+        }
+        if item_id:
+            params["Ids"] = item_id
+        else:
+            params["searchTerm"] = search
+        async with make_client(config.jellyfin.url, headers=_headers()) as client:
+            resp = await client.get("/Items", params=params)
+            resp.raise_for_status()
+            items = resp.json().get("Items", [])
+        if year:
+            items = [i for i in items if i.get("ProductionYear") == year]
+        return [
+            {
+                "id": i.get("Id"), "name": i.get("Name"), "year": i.get("ProductionYear"), "type": i.get("Type"),
+                "sources": [_source_view(src) for src in i.get("MediaSources", [])],
+            }
+            for i in items
+        ]
+
+    @mcp.tool()
     async def jellyfin_sessions() -> list[dict]:
-        """List active Jellyfin playback sessions: who is watching what and their progress."""
+        """List active Jellyfin playback sessions: who is watching what and their progress, on which client/device, with the play method (DirectPlay / DirectStream / Transcode) and, when transcoding, the video/audio codec, whether each stream is passed through, bitrate, hardware acceleration and the `reasons` (e.g. AudioCodecNotSupported, ContainerBitrateExceedsLimit): the "did it direct-play on that TV" check."""
         async with make_client(config.jellyfin.url, headers=_headers()) as client:
             resp = await client.get("/Sessions")
             resp.raise_for_status()
@@ -35,6 +122,9 @@ def register(mcp: MCPServer) -> None:
                     ),
                     "is_paused": s.get("PlayState", {}).get("IsPaused", False),
                     "transcoding": s.get("TranscodingInfo") is not None,
+                    "client_version": s.get("ApplicationVersion", ""),
+                    "play_method": s.get("PlayState", {}).get("PlayMethod", ""),
+                    "transcode": _transcode_view(s.get("TranscodingInfo")),
                 }
                 for s in active
             ]
