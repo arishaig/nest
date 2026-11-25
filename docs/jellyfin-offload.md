@@ -123,13 +123,6 @@ omega being down.
 
 - **Git wins.** Changes made in Dashboard > Playback last until the next pod
   restart. To keep one, edit `encoding.xml` in git.
-- **Subtitle extraction must stay on.** `EnableSubtitleExtraction` is `true`.
-  With it off, Jellyfin cannot deliver an embedded text track to the client as
-  a separate subtitle, so any transcode of a file with embedded subs burns them
-  into the video (forcing a full GPU re-encode and a slow first segment) instead
-  of copying the video and transcoding only the audio. The first play of a file
-  extracts its tracks once (reads the whole file over NFS) and caches them in
-  `/config/data/subtitles`.
 - **Applying a change.** The ConfigMap has no name hash, so restart Jellyfin after
   editing it (`kubectl -n media rollout restart deploy/jellyfin`).
 - **Re-capturing from the UI.** Change the setting in the dashboard, copy the file
