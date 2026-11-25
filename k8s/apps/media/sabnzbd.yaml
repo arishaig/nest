@@ -33,8 +33,19 @@ spec:
                     values: [general]
     controllers:
       sabnzbd:
-        strategy: Recreate
+        # TEMPORARY (2026-11-25): RollingUpdate with surge so a pod wedged in
+        # NFS D-state (project_sabnzbd_nfs_dstate_hang) cannot block the
+        # rollout; Recreate waits for the old pod to finish terminating, which
+        # never happens. Revert to Recreate once the restart has landed (the
+        # init container below assumes nothing else writes sabnzbd.ini).
+        strategy: RollingUpdate
+        rollingUpdate:
+          surge: 1
+          unavailable: 0
         pod:
+          annotations:
+            # Bump to force a restart.
+            nest.arishaig.site/restart-rev: "2026-11-25"
           securityContext:
             runAsUser: 0
             runAsGroup: 0
