@@ -537,6 +537,85 @@ def register_write(mcp: MCPServer) -> None:
                 "prowlarr_search can find releases while Radarr is wedged."
             )}
 
+    @mcp.tool()
+    async def radarr_grab(guid: str, indexer_id: int) -> dict:
+        """[DESTRUCTIVE] Grab one release from radarr_releases (its `guid` + `indexer_id`) and send it to Radarr's download client. Radarr only keeps search results in its cache for about 30 minutes, so call this soon after radarr_releases (an expired cache gives a clear error: search again). Radarr tracks ONE file per movie: if the import is accepted it REPLACES the current file. A lighter file is a downgrade, so Radarr usually rejects it as "Not an upgrade" and it sits in arr_queue until radarr_manual_import(force=True). To keep the current file and add a second version, use prowlarr_grab + media_place_version instead. Watch progress with sabnzbd_queue / arr_queue. Confirm with the user first."""
+        async with _arr_client("radarr", timeout=60.0) as client:
+            resp = await client.post("/api/v3/release", json={"guid": guid, "indexerId": indexer_id})
+            if resp.status_code == 404:
+                return {"error": "Radarr no longer has that release in its search cache (about 30 minutes). Run radarr_releases again and grab right away."}
+            resp.raise_for_status()
+            d = resp.json()
+            return {"grabbed": d.get("title", ""), "indexer": d.get("indexer", ""), "size_mb": round((d.get("size") or 0) / 1024 / 1024),
+                    "replaces_current_file": True, "next": "watch sabnzbd_queue / arr_queue"}
+
+    @mcp.tool()
+    async def radarr_rename_files(movie_id: int, apply: bool = False) -> dict:
+        """[DESTRUCTIVE when apply=True] Preview (default) or run Radarr's rename for one movie's tracked file, so Radarr's own file name follows its naming format. Needed before media_place_version when the existing file's name does not follow the folder name (Jellyfin only groups versions named `Name (Year)` + optional ` - label`). The preview lists current -> new paths, and reports Radarr's file and folder formats, whether 'Rename Movies' is enabled (if off the preview is empty), and whether the format would produce names Jellyfin groups. Changing those Radarr settings is the user's decision, not this tool's. Confirm with the user before apply=True."""
+        async with _arr_client("radarr", timeout=60.0) as client:
+            naming = await client.get("/api/v3/config/naming")
+            naming.raise_for_status()
+            nd = naming.json()
+            fmt, folder_fmt = nd.get("standardMovieFormat", ""), nd.get("movieFolderFormat", "")
+            rest = fmt[len(folder_fmt):].strip() if folder_fmt and fmt.lower().startswith(folder_fmt.lower()) else None
+            # Same test Jellyfin applies to a file name vs its folder: nothing, or "-", "_", "." or "[" after it.
+            ok = rest is not None and (rest == "" or rest[0] in "-_.[")
+            prev = await client.get("/api/v3/rename", params={"movieId": movie_id})
+            prev.raise_for_status()
+            changes = [{"movie_file_id": r.get("movieFileId"), "from": r.get("existingPath", ""), "to": r.get("newPath", "")} for r in prev.json()]
+            out = {"naming_format": fmt, "folder_format": folder_fmt, "rename_movies_enabled": nd.get("renameMovies", False),
+                   "format_groups_in_jellyfin": ok, "changes": changes, "applied": False}
+            if not nd.get("renameMovies", False):
+                out["warning"] = ("Radarr's 'Rename Movies' is OFF, so it keeps scene file names and the preview stays empty. "
+                                  "Turning it on (Settings > Media Management) is a global setting that affects every future import: the user's call.")
+            if not ok:
+                out["warning2"] = ("The file format does not continue the folder format with ' - ', '[', '_' or '.', so renamed files would NOT group as Jellyfin versions; "
+                                   "change the movie file format first, e.g. '{Movie CleanTitle} ({Release Year}) - {Quality Full}'.")
+            if not apply:
+                return out
+            if not changes:
+                return {**out, "note": "Nothing to rename: the file already matches Radarr's naming format."}
+            cmd = await client.post("/api/v3/command", json={
+                "name": "RenameFiles", "movieId": movie_id, "files": [c["movie_file_id"] for c in changes]})
+            cmd.raise_for_status()
+            return {**out, "applied": True, "command_id": cmd.json().get("id"),
+                    "next": "jellyfin_refresh with the folder in created_paths/deleted_paths"}
+
+    @mcp.tool()
+    async def radarr_manual_import(
+        movie_id: int, folder: str, import_mode: Literal["move", "copy"] = "move", apply: bool = False, force: bool = False,
+    ) -> dict:
+        """[DESTRUCTIVE when apply=True] The "replace" path: have Radarr import a finished download as the movie's tracked file. `folder` is the completed download folder as Radarr sees it (/data/usenet/complete/...; see sabnzbd_history `storage`). apply=False (default) lists what Radarr would import and why anything is rejected. apply=True imports every candidate without rejections using import_mode (move or copy), replacing the movie's current file. A lighter file is a downgrade and is rejected as "Not an upgrade": force=True also imports candidates whose ONLY rejections are upgrade-related (other rejections, e.g. sample or unknown movie, are never forced). To keep the current file as well, use media_place_version instead. Confirm with the user first."""
+        if ".." in folder.split("/") or not folder.startswith("/data/usenet/"):
+            raise ValueError("folder must be a completed-download path under /data/usenet/ (see sabnzbd_history storage)")
+        async with _arr_client("radarr", timeout=120.0) as client:
+            resp = await client.get("/api/v3/manualimport", params={"folder": folder, "movieId": movie_id, "filterExistingFiles": "true"})
+            resp.raise_for_status()
+            cands = resp.json()
+            rows = [{
+                "path": c.get("path", ""), "size_gb": round((c.get("size") or 0) / 1024**3, 2),
+                "quality": (c.get("quality") or {}).get("quality", {}).get("name", ""),
+                "release_group": c.get("releaseGroup", ""),
+                "rejections": [r.get("reason", "") for r in (c.get("rejections") or [])],
+            } for c in cands]
+            if not apply:
+                return {"candidates": rows, "import_mode": import_mode, "applied": False}
+            def _forceable(c: dict) -> bool:
+                rej = [r.get("reason", "").lower() for r in (c.get("rejections") or [])]
+                return not rej or (force and all("upgrade" in r for r in rej))
+
+            ok = [c for c in cands if _forceable(c)]
+            if not ok:
+                return {"candidates": rows, "applied": False, "error": "Every candidate has rejections; nothing to import." + ("" if force else " If they are 'Not an upgrade' (a deliberate downgrade), retry with force=True.")}
+            files = [{k: v for k, v in {
+                "path": c.get("path"), "movieId": movie_id, "quality": c.get("quality"), "languages": c.get("languages"),
+                "releaseGroup": c.get("releaseGroup"), "downloadId": c.get("downloadId"), "indexerFlags": c.get("indexerFlags"),
+            }.items() if v is not None} for c in ok]
+            cmd = await client.post("/api/v3/command", json={"name": "ManualImport", "importMode": import_mode, "files": files})
+            cmd.raise_for_status()
+            return {"candidates": rows, "applied": True, "importing": [f["path"] for f in files],
+                    "import_mode": import_mode, "command_id": cmd.json().get("id")}
+
     # ── Prowlarr (read-only) ──────────────────────────────────────────────────
 
     @mcp.tool()
@@ -581,3 +660,34 @@ def register_write(mcp: MCPServer) -> None:
             ]
             rows.sort(key=lambda r: -(r["seeders"] or 0))
             return rows[:limit]
+
+    @mcp.tool()
+    async def prowlarr_grab(guid: str, indexer_id: int) -> dict:
+        """[DESTRUCTIVE] Send one prowlarr_search result (its `guid` + `indexer_id`) to Prowlarr's SABnzbd download client WITHOUT involving Radarr: the fallback when radarr_releases hangs, and the first half of "add a second version" (then media_place_version once it completes). Refuses unless Prowlarr has an enabled SABnzbd client whose category is not one Radarr/Sonarr watch (otherwise the arrs would import it over the current file): set a dedicated category such as `manual` on the Prowlarr client (Settings > Download Clients). Watch with sabnzbd_queue / sabnzbd_history (filter category). Confirm with the user first."""
+        async with _arr_client("prowlarr", timeout=60.0) as pclient:
+            dc = await pclient.get("/api/v1/downloadclient")
+            dc.raise_for_status()
+            sab = [c for c in dc.json() if c.get("enable") and "sabnzbd" in (c.get("implementation") or c.get("name") or "").lower()]
+            if not sab:
+                return {"error": "Prowlarr has no enabled SABnzbd download client. Add one in Prowlarr (Settings > Download Clients) with a dedicated category such as `manual`, then retry."}
+            cat = ""
+            for f in sab[0].get("fields", []):
+                if f.get("name") in ("category", "movieCategory"):
+                    cat = f.get("value") or ""
+            watched: set[str] = set()
+            for svc in ("radarr", "sonarr"):
+                async with _arr_client(svc) as aclient:
+                    r = await aclient.get(f"/api/{_API_VERSION[svc]}/downloadclient")
+                    if r.is_success:
+                        for c in r.json():
+                            for f in c.get("fields", []):
+                                if f.get("name") in ("movieCategory", "tvCategory", "category") and f.get("value"):
+                                    watched.add(f["value"])
+            if not cat or cat in watched:
+                return {"error": f"Prowlarr's SABnzbd client uses category {cat or '(none)'!r}, which Radarr/Sonarr also watch ({sorted(watched)}). "
+                                 "Give the Prowlarr client its own category (e.g. `manual`) so the arrs don't import this download over the current file."}
+            resp = await pclient.post("/api/v1/search", json={"guid": guid, "indexerId": indexer_id})
+            if resp.status_code == 404:
+                return {"error": "Prowlarr no longer knows that release; run prowlarr_search again and grab right away."}
+            resp.raise_for_status()
+            return {"sent_to": sab[0].get("name", "SABnzbd"), "category": cat, "next": "watch sabnzbd_queue / sabnzbd_history (category filter)"}

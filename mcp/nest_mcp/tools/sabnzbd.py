@@ -4,7 +4,9 @@ SABnzbd takes its API key as a query parameter, so every error raised from here
 is rewritten without the URL (httpx's own messages include it), and server.py
 silences httpx's INFO request logging.
 """
+import re
 import time
+from typing import Literal
 
 import httpx
 from mcp.server.mcpserver import MCPServer
@@ -122,3 +124,24 @@ def register(mcp: MCPServer) -> None:
             }
             for s in body.get("history", {}).get("slots", [])
         ]
+
+    @mcp.tool()
+    async def sabnzbd_job_action(
+        nzo_ids: list[str], action: Literal["delete", "pause", "resume", "priority"],
+        priority: Literal["Low", "Normal", "High", "Force"] = "Normal", del_files: bool = False,
+    ) -> dict:
+        """[DESTRUCTIVE] Act on SABnzbd queue jobs by nzo_id (from sabnzbd_queue): delete (del_files=True also removes the partial download), pause, resume, or priority (Low/Normal/High/Force). At most 20 ids per call. SABnzbd also accepts ids that are already gone, so check sabnzbd_queue afterwards. Does not touch history. Confirm with the user first."""
+        if not nzo_ids or len(nzo_ids) > 20:
+            raise ValueError("Pass 1-20 nzo_ids")
+        bad = [i for i in nzo_ids if not re.fullmatch(r"SABnzbd_nzo_[A-Za-z0-9_]+", i)]
+        if bad:
+            raise ValueError(f"Not SABnzbd job ids: {bad}")
+        if action == "delete":
+            await sab_call("queue", name="delete", value=",".join(nzo_ids), del_files=1 if del_files else 0)
+        else:
+            for nzo in nzo_ids:
+                if action == "priority":
+                    await sab_call("queue", name="priority", value=nzo, value2={"Low": -1, "Normal": 0, "High": 1, "Force": 2}[priority])
+                else:
+                    await sab_call("queue", name=action, value=nzo)
+        return {"action": action, "nzo_ids": nzo_ids, "deleted_files": bool(del_files and action == "delete")}
