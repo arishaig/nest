@@ -101,6 +101,8 @@ async def test_job_action_delete_batches_and_validates(monkeypatch):
     assert seen[1]["name"] == "priority" and seen[1]["value2"] == "2"
     await t(nzo_ids=["SABnzbd_nzo_a", "SABnzbd_nzo_b"], action="pause")
     assert [c["name"] for c in seen[2:]] == ["pause", "pause"]
+    await t(nzo_ids=["93ef1339-f354-4e14-ae53-3f55bfa0f76b"], action="delete")  # newer SABnzbd uses UUID ids
+    assert seen[-1]["value"] == "93ef1339-f354-4e14-ae53-3f55bfa0f76b"
     with pytest.raises(ValueError):
         await t(nzo_ids=["not-an-id"], action="delete")
     with pytest.raises(ValueError):

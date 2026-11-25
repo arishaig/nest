@@ -133,7 +133,7 @@ def register(mcp: MCPServer) -> None:
         """[DESTRUCTIVE] Act on SABnzbd queue jobs by nzo_id (from sabnzbd_queue): delete (del_files=True also removes the partial download), pause, resume, or priority (Low/Normal/High/Force). At most 20 ids per call. SABnzbd also accepts ids that are already gone, so check sabnzbd_queue afterwards. Does not touch history. Confirm with the user first."""
         if not nzo_ids or len(nzo_ids) > 20:
             raise ValueError("Pass 1-20 nzo_ids")
-        bad = [i for i in nzo_ids if not re.fullmatch(r"SABnzbd_nzo_[A-Za-z0-9_]+", i)]
+        bad = [i for i in nzo_ids if not re.fullmatch(r"(SABnzbd_nzo_[A-Za-z0-9_]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", i)]
         if bad:
             raise ValueError(f"Not SABnzbd job ids: {bad}")
         if action == "delete":
