@@ -293,3 +293,93 @@ async def test_place_folder_must_be_direct_child_of_movies(tree):
     out = await load_tools(media_files)["media_place_version"](
         source_path="/data/usenet/complete/Job.1080p", movie_folder="/data/usenet/complete/Job.1080p", version_label="x")
     assert "direct child of the movies directory" in out["error"]
+
+
+# ── media_verify_file: the remote script runs here against real temp files ────
+
+MKV_MAGIC = bytes.fromhex("1a45dfa3")
+
+
+@pytest.fixture
+def vtree(tree, tmp_path, monkeypatch):
+    """`tree` plus a PATH without ffprobe, so results do not depend on the dev machine."""
+    import sys
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    (bindir / "python3").symlink_to(sys.executable)
+    monkeypatch.setenv("PATH", f"{bindir}:/bin:/usr/bin" if not os.path.exists("/usr/bin/ffprobe") and not os.path.exists("/bin/ffprobe") else str(bindir))
+    return tree
+
+
+def _mkv(path, size=2_000_000, hole=None):
+    data = bytearray(os.urandom(size))
+    data[:4] = MKV_MAGIC
+    if hole:
+        data[hole[0]:hole[0] + hole[1]] = bytes(hole[1])
+    path.write_bytes(bytes(data))
+
+
+async def test_verify_ok_file_and_container_path(vtree):
+    f = vtree / "usenet/complete/Job.1080p/good.mkv"
+    _mkv(f)
+    out = await load_tools(media_files)["media_verify_file"](path="/data/usenet/complete/Job.1080p/good.mkv")
+    assert out["verdict"] == "ok" and out["header_ok"] and out["format"] == "matroska" and out["zero_blocks"] == 0
+    assert "unavailable" in out["ffprobe"]
+
+
+async def test_verify_flags_zeroed_head_as_bad(vtree):
+    f = vtree / "usenet/complete/Job.1080p/zero.mkv"
+    f.write_bytes(bytes(1_000_000))
+    out = await load_tools(media_files)["media_verify_file"](path="/data/usenet/complete/Job.1080p/zero.mkv")
+    assert out["verdict"] == "bad" and not out["header_ok"] and "zeros" in out["problems"][0]
+
+
+async def test_verify_deep_finds_a_hole_the_sample_misses(vtree):
+    f = vtree / "usenet/complete/Job.1080p/holey.mkv"
+    # 8 MiB with one 1 MiB hole at an aligned offset away from the 64 sample points' reach.
+    _mkv(f, size=8 * 1024 * 1024, hole=(3 * 1024 * 1024, 1024 * 1024))
+    t = load_tools(media_files)["media_verify_file"]
+    deep = await t(path="/data/usenet/complete/Job.1080p/holey.mkv", deep=True)
+    assert deep["zero_blocks"] == 4 and deep["longest_zero_run_blocks"] == 4 and deep["verdict"] == "suspect"
+    assert "first at byte 3145728" in deep["problems"][0]
+
+
+async def test_verify_mp4_header_and_wrong_header(vtree):
+    ok = vtree / "usenet/complete/Job.1080p/a.mp4"
+    ok.write_bytes(b"\x00\x00\x00\x20ftypisom" + os.urandom(5000))
+    bad = vtree / "usenet/complete/Job.1080p/b.mp4"
+    bad.write_bytes(os.urandom(5000))
+    t = load_tools(media_files)["media_verify_file"]
+    assert (await t(path="/data/usenet/complete/Job.1080p/a.mp4"))["verdict"] == "ok"
+    out = await t(path="/data/usenet/complete/Job.1080p/b.mp4")
+    assert out["verdict"] == "bad" and "header does not look like mp4" in out["problems"][0]
+
+
+async def test_verify_folder_uses_largest_video_and_expected_size(vtree):
+    _mkv(vtree / "usenet/complete/Job.1080p/movie.mkv", size=3_000_000)
+    out = await load_tools(media_files)["media_verify_file"](path="/data/usenet/complete/Job.1080p", expected_gb=1.0)
+    assert out["file"].endswith("Job.1080p/movie.mkv")  # the 5 KB sample is not larger, the nfo is not video
+    assert out["verdict"] == "suspect" and "below the expected" in out["problems"][-1]
+
+
+async def test_verify_rejects_paths_outside_the_share(vtree):
+    t = load_tools(media_files)["media_verify_file"]
+    with pytest.raises(ValueError):
+        await t(path="/etc/passwd")
+    with pytest.raises(ValueError):
+        await t(path="/data/../etc/passwd")
+    out = await t(path="/data/usenet/complete/missing.mkv")
+    assert "does not exist" in out["error"]
+
+
+async def test_media_ls_usenet_area_and_empty_exception_message(monkeypatch):
+    seen = {}
+
+    async def fake(host, cmd, **kw):
+        seen["cmd"] = cmd
+        raise TimeoutError()  # str() is empty: the old code returned {"error": ""}
+
+    monkeypatch.setattr(media_files, "ssh_run", fake)
+    out = await load_tools(media_files)["media_ls"](path="complete/Job", area="usenet")
+    assert "/media_root/usenet/complete/Job" in seen["cmd"]
+    assert "TimeoutError" in out["error"]

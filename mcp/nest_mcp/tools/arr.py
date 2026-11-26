@@ -1,9 +1,11 @@
 import datetime
+import re
 from typing import Literal
 import httpx
 from mcp.server.mcpserver import MCPServer
 from nest_mcp import config
 from nest_mcp.http_client import make_client
+from nest_mcp.tools.sabnzbd import sab_call
 
 ArrService = Literal["sonarr", "radarr", "lidarr", "prowlarr"]
 
@@ -167,6 +169,54 @@ def _est_mbps(size_bytes: int, runtime_min: int) -> float | None:
     if not runtime_min or not size_bytes:
         return None
     return round(size_bytes * 8 / (runtime_min * 60) / 1_000_000, 1)
+
+
+def _parse_release(title: str) -> dict:
+    """Pull resolution / HDR / video / audio / source / cut out of a scene-style release title."""
+    t = re.sub(r"[\s_]+", ".", title.lower())
+
+    def has(pattern: str) -> bool:
+        return re.search(r"(?<![a-z0-9])(?:" + pattern + r")(?![a-z0-9])", t) is not None
+
+    resolution = "2160p" if has(r"2160p|4k|uhd") else next((r for r in ("1080p", "720p", "480p") if has(r)), "")
+    hdr = "DV" if has(r"dv|dovi|dolby\.?vision") else "HDR10+" if has(r"hdr10\+|hdr10plus") else "HDR" if has(r"hdr10?|hdr") else "SDR" if has(r"sdr") else ""
+    video = "remux" if has("remux") else "x265" if has(r"x265|h\.?265|hevc") else "x264" if has(r"x264|h\.?264|avc") else "av1" if has("av1") else ""
+    audio = []
+    if has(r"dts[-.]?x"):
+        audio.append("DTS:X")
+    elif has(r"dts[-.]?hd(?:[-.]?ma)?"):
+        audio.append("DTS-HD")
+    elif has("dts"):
+        audio.append("DTS")
+    if has("truehd"):
+        audio.append("TrueHD")
+    if has("atmos"):
+        audio.append("Atmos")
+    if has(r"ddp\d?(?:\.\d)?|dd\+(?:\.?\d)*|e-?ac-?3"):
+        audio.append("DD+")
+    elif has(r"dd\.?[1257](?:\.\d)?|ac-?3"):
+        audio.append("DD")
+    if has("aac"):
+        audio.append("AAC")
+    source = "remux" if video == "remux" else "WEB-DL" if has(r"web[-.]?dl|amzn|nf|dsnp") else "WEBRip" if has("webrip") else "BluRay" if has(r"blu[-.]?ray|bdrip|brrip") else "HDTV" if has("hdtv") else ""
+    cut = next((c for c in ("extended", "theatrical", "unrated", "directors", "uncut", "imax") if has(c)), "")
+    return {"resolution": resolution, "hdr": hdr, "video": video, "audio": audio, "source": source, "cut": cut}
+
+
+def _norm_name(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", s.lower())
+
+
+async def _failed_releases() -> dict[str, str]:
+    """normalised release name -> SABnzbd fail message, for recent Failed jobs. Best effort: {} if SABnzbd is unreachable."""
+    try:
+        body = await sab_call("history", limit=200)
+    except Exception:
+        return {}
+    return {
+        _norm_name(s.get("name", "")): s.get("fail_message", "") or "failed"
+        for s in body.get("history", {}).get("slots", []) if s.get("status") == "Failed"
+    }
 
 
 def _queue_warning(r: dict) -> str:
@@ -644,22 +694,39 @@ def register_write(mcp: MCPServer) -> None:
         query: str, kind: Literal["search", "tvsearch", "movie"] = "search", limit: int = 15, runtime_min: int = 0,
         protocol: Literal["any", "usenet", "torrent"] = "any",
     ) -> list[dict]:
-        """Search every Prowlarr indexer for a release (kind: search, tvsearch or movie). Read-only: shows what the indexers have (title, size, seeders, age, `guid` + `indexer_id` for prowlarr_grab) without grabbing anything; use it to tell a wrong indexer or category from a release that simply does not exist, or as the fallback when radarr_releases hangs. Pass `runtime_min` (the movie's runtime) to get `est_mbps` per result. `protocol="usenet"` drops torrent results (the only ones prowlarr_grab can use; torrent guids are also huge magnet links). Download URLs are deliberately not shown (they carry an API key)."""
+        """Search every Prowlarr indexer for a release (kind: search, tvsearch or movie). Read-only: shows what the indexers have (title, size, seeders, age, `guid` + `indexer_id` for prowlarr_grab) without grabbing anything; use it to tell a wrong indexer or category from a release that simply does not exist, or as the fallback when radarr_releases hangs. Pass `runtime_min` (the movie's runtime) to get `est_mbps` per result. Duplicate listings are collapsed (`copies`, with `alt_guids` to try if the first fails), each row carries parsed `resolution` / `hdr` / `video` / `audio` / `source` / `cut`, and `failed_before` is the SABnzbd fail message if that exact release already failed (the cause may have been environmental, such as a restart mid-download). `protocol="usenet"` drops torrent results (the only ones prowlarr_grab can use; torrent guids are also huge magnet links). Download URLs are deliberately not shown (they carry an API key)."""
         async with _arr_client("prowlarr", timeout=60.0) as client:
             resp = await client.get("/api/v1/search", params={"query": query, "type": kind, "limit": limit * 3})
             resp.raise_for_status()
-            rows = [
-                {
-                    "title": r.get("title", ""), "indexer": r.get("indexer", ""), "protocol": r.get("protocol", ""),
-                    "size_mb": round((r.get("size") or 0) / 1024 / 1024), "seeders": r.get("seeders"),
+            failed = await _failed_releases()
+            rows: list[dict] = []
+            seen: dict[tuple, dict] = {}
+            for r in resp.json():
+                if protocol != "any" and r.get("protocol") != protocol:
+                    continue
+                title = r.get("title", "")
+                size_mb = round((r.get("size") or 0) / 1024 / 1024)
+                # Indexers often list one release several times (re-posts, same NZB under new GUIDs):
+                # collapse them, but keep the other GUIDs as fallbacks if the first copy fails.
+                key = (r.get("indexerId"), title.lower(), size_mb)
+                if key in seen:
+                    seen[key]["copies"] += 1
+                    if len(seen[key]["alt_guids"]) < 3 and r.get("guid", "") != seen[key]["guid"]:
+                        seen[key]["alt_guids"].append(r.get("guid", ""))
+                    continue
+                row = {
+                    "title": title, "indexer": r.get("indexer", ""), "protocol": r.get("protocol", ""),
+                    "size_mb": size_mb, "seeders": r.get("seeders"),
                     "age_days": r.get("age"),
                     "categories": [c.get("name") for c in (r.get("categories") or [])][:3],
                     "guid": r.get("guid", ""), "indexer_id": r.get("indexerId"),
                     "est_mbps": _est_mbps(r.get("size") or 0, runtime_min),
+                    **_parse_release(title),
+                    "failed_before": failed.get(_norm_name(title), ""),
+                    "copies": 1, "alt_guids": [],
                 }
-                for r in resp.json()
-                if protocol == "any" or r.get("protocol") == protocol
-            ]
+                seen[key] = row
+                rows.append(row)
             rows.sort(key=lambda r: -(r["seeders"] or 0))
             return rows[:limit]
 

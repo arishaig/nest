@@ -1,3 +1,4 @@
+import pytest
 from nest_mcp.tools import arr
 from helpers import load_tools, patch_http
 
@@ -587,3 +588,55 @@ async def test_prowlarr_search_protocol_filter_and_grab_refuses_torrents(monkeyp
     grab = load_tools(arr)["prowlarr_grab"]
     assert "usenet-only" in (await grab(guid="magnet:?xt=1", indexer_id=7))["error"]
     assert "usenet-only" in (await grab(guid="https://y.pw/t/1", indexer_id=6, protocol="torrent"))["error"]
+
+
+async def test_prowlarr_search_dedupes_parses_and_flags_failed(monkeypatch):
+    # Real shape from 2026-11-25: Usenet Crawler listed the same hallowed release twice under different GUIDs.
+    hallowed = "The.Blues.Brothers.1980.Extended.Cut.UHD.BluRay.2160p.DDP.7.1.HDR.x265-hallowed"
+    lama = "The.Blues.Brothers.1980.EXTENDED.2160p.UHD.BluRay.x265.10bit.HDR.DDP5.1-LAMA"
+    patch_http(monkeypatch, arr, {"/api/v1/search": [
+        {"title": hallowed, "indexer": "Usenet Crawler", "indexerId": 1, "guid": "g1", "protocol": "usenet", "size": 22097 * 1024**2},
+        {"title": hallowed, "indexer": "Usenet Crawler", "indexerId": 1, "guid": "g2", "protocol": "usenet", "size": 22097 * 1024**2},
+        {"title": hallowed, "indexer": "NZBgeek", "indexerId": 2, "guid": "g3", "protocol": "usenet", "size": 21434 * 1024**2},
+        {"title": lama, "indexer": "NZBgeek", "indexerId": 2, "guid": "g4", "protocol": "usenet", "size": 9628 * 1024**2},
+    ]})
+
+    async def fake_sab(mode, **p):
+        return {"history": {"slots": [
+            {"name": lama, "status": "Failed", "fail_message": "Repair failed, not enough repair blocks (2877 short)"},
+            {"name": hallowed, "status": "Completed", "fail_message": ""},
+        ]}}
+
+    monkeypatch.setattr(arr, "sab_call", fake_sab)
+    out = await load_tools(arr)["prowlarr_search"](query="blues", protocol="usenet", runtime_min=148)
+    assert len(out) == 3  # the exact repeat collapsed; the other indexer's copy kept
+    dup = next(r for r in out if r["guid"] == "g1")
+    assert dup["copies"] == 2 and dup["alt_guids"] == ["g2"]
+    assert dup["resolution"] == "2160p" and dup["audio"] == ["DD+"] and dup["cut"] == "extended" and dup["video"] == "x265"
+    flagged = next(r for r in out if r["guid"] == "g4")
+    assert "2877 short" in flagged["failed_before"]
+    assert dup["failed_before"] == ""  # Completed is not a failure
+
+
+async def test_prowlarr_search_still_works_when_sabnzbd_is_down(monkeypatch):
+    patch_http(monkeypatch, arr, {"/api/v1/search": [{"title": "T.2160p", "indexerId": 1, "guid": "g", "protocol": "usenet", "size": 1}]})
+
+    async def boom(mode, **p):
+        raise RuntimeError("SABnzbd unreachable")
+
+    monkeypatch.setattr(arr, "sab_call", boom)
+    out = await load_tools(arr)["prowlarr_search"](query="x")
+    assert out[0]["failed_before"] == ""
+
+
+@pytest.mark.parametrize("title,expect", [
+    ("The.Blues.Brothers.1980.EXTENDED.2160p.UHD.BluRay.x265.10bit.HDR.DTS-X.7.1-LAMA", {"audio": ["DTS:X"], "hdr": "HDR", "source": "BluRay"}),
+    ("The Blues Brothers 1980 1080p AMZN WEB-DL DDP5 1 H 264-GPRS", {"audio": ["DD+"], "video": "x264", "source": "WEB-DL", "hdr": ""}),
+    ("The.Blues.Brothers.1980.Extended.UHD.BluRay.2160p.DTS-X.7.1.HEVC.REMUX-FraMeSToR", {"video": "remux", "source": "remux", "resolution": "2160p"}),
+    ("Spider-Man.2026.2160p.UHD.BluRay.TrueHD.Atmos.7.1.DV.HDR10P.x265-TRUNKS", {"audio": ["TrueHD", "Atmos"], "hdr": "DV"}),
+    ("The Blues Brothers 1980 Extended 1080p BluRay DD 7 1 X265-Ralphy", {"audio": ["DD"], "resolution": "1080p", "video": "x265"}),
+    ("The.Blues.Brothers.1980.EXTENDED.1080p.BluRay.x265-LAMA", {"audio": [], "resolution": "1080p"}),
+])
+def test_parse_release(title, expect):
+    got = arr._parse_release(title)
+    assert all(got[k] == v for k, v in expect.items()), got
