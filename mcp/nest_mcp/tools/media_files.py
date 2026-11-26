@@ -1,6 +1,7 @@
 import json
 import re
 import shlex
+from typing import Literal
 
 from mcp.server.mcpserver import MCPServer
 
@@ -104,6 +105,86 @@ out({**plan, "status": "placed", "completed": done})
 """
 
 
+# Runs on PVE as root (python3 -c SCRIPT JSON_ARGS). Self-contained so it can be tested locally.
+_VERIFY_SCRIPT = r"""
+import json, os, shutil, subprocess, sys
+a = json.loads(sys.argv[1])
+VID = (".mkv", ".mp4", ".m4v", ".avi", ".mov", ".ts", ".m2ts")
+def out(d):
+    print(json.dumps(d)); sys.exit(0)
+root = os.path.realpath(a["root"])
+p = os.path.realpath(a["path"])
+if not p.startswith(root + os.sep): out({"error": "path is outside the media share"})
+if not os.path.exists(p): out({"error": "does not exist: " + a["path"]})
+if os.path.isdir(p):
+    c = []
+    for d, _, fs in os.walk(p):
+        for f in fs:
+            fp = os.path.join(d, f)
+            if f.lower().endswith(VID) and not os.path.islink(fp): c.append((os.path.getsize(fp), fp))
+    if not c: out({"error": "no video file in that folder"})
+    p = max(c)[1]
+size = os.path.getsize(p)
+if size == 0: out({"file": p, "size_bytes": 0, "verdict": "bad", "problems": ["file is empty"]})
+BS = 256 * 1024
+problems = []
+with open(p, "rb") as f:
+    head = f.read(4096)
+    ext = os.path.splitext(p)[1].lower()
+    if ext in (".mkv", ".webm"): fmt, ok = "matroska", head[:4] == bytes.fromhex("1a45dfa3")
+    elif ext in (".mp4", ".m4v", ".mov"): fmt, ok = "mp4", head[4:8] == b"ftyp"
+    elif ext == ".avi": fmt, ok = "avi", head[:4] == b"RIFF" and head[8:12] == b"AVI "
+    elif ext in (".ts", ".m2ts"): fmt, ok = "mpegts", head[:1] == b"G" or head[4:5] == b"G"
+    else: fmt, ok = ext, True
+    if not any(head): problems.append("file starts with zeros (a restart-damaged download)")
+    elif not ok: problems.append("header does not look like " + fmt)
+    nblocks = (size + BS - 1) // BS
+    zero_blocks, longest, run, first = 0, 0, 0, None
+    deep = bool(a["deep"])
+    if deep:
+        f.seek(0); i = 0
+        while True:
+            b = f.read(BS)
+            if not b: break
+            if not any(b) and len(b) == BS:
+                zero_blocks += 1; run += 1; longest = max(longest, run)
+                if first is None: first = i * BS
+            else: run = 0
+            i += 1
+        checked = nblocks
+    else:
+        n = min(nblocks, 64); checked = 0
+        for k in range(n):
+            off = (nblocks - 1) * BS * k // max(n - 1, 1) // BS * BS
+            f.seek(off); b = f.read(BS); checked += 1
+            if len(b) == BS and not any(b):
+                zero_blocks += 1
+                if first is None: first = off
+if zero_blocks: problems.append(("%d of %d checked 256 KiB blocks are all zeros (first at byte %d)" % (zero_blocks, checked, first)) + ("" if deep else "; run with deep=True for the full count"))
+res = {"file": p, "size_bytes": size, "size_gb": round(size / 1e9, 2), "format": fmt, "header_ok": bool(ok) and bool(any(head)),
+       "deep": deep, "blocks_checked": checked, "zero_blocks": zero_blocks, "longest_zero_run_blocks": longest}
+exp = a.get("expected_gb") or 0
+if exp and size < exp * 1e9 * 0.85: problems.append("size %.2f GB is more than 15%% below the expected %.2f GB" % (size / 1e9, exp))
+fp = shutil.which("ffprobe")
+if fp:
+    try:
+        r = subprocess.run([fp, "-v", "error", "-show_entries", "format=format_name,duration,bit_rate:stream=codec_type,codec_name", "-of", "json", p],
+                           capture_output=True, text=True, timeout=90)
+        j = json.loads(r.stdout or "{}")
+        res["ffprobe"] = {"duration_s": round(float(j.get("format", {}).get("duration", 0) or 0)), "bit_rate": j.get("format", {}).get("bit_rate"),
+                          "streams": [s.get("codec_type", "") + ":" + s.get("codec_name", "") for s in j.get("streams", [])]}
+        if r.returncode or r.stderr.strip(): problems.append("ffprobe: " + (r.stderr.strip()[:200] or "exit %d" % r.returncode))
+    except Exception as e:
+        problems.append("ffprobe failed: " + str(e)[:120])
+else:
+    res["ffprobe"] = "unavailable on this host (Jellyfin's own probe after refresh is the next check)"
+bad = any(("starts with zeros" in x) or ("header does not" in x) for x in problems)
+res["problems"] = problems
+res["verdict"] = "bad" if bad else ("suspect" if problems else "ok")
+out(res)
+"""
+
+
 def _host_path(p: str) -> str:
     """Container path (/data/...) or host path -> host path under media_root; reject anything else."""
     if "\x00" in p or ".." in p.split("/"):
@@ -156,7 +237,7 @@ def _parse_ncdu(node: list, depth: int, current: int = 0, prefix: str = "") -> l
 def register(mcp: MCPServer) -> None:
 
     @mcp.tool()
-    async def media_ls(path: str = "", depth: int = 1) -> dict:
+    async def media_ls(path: str = "", depth: int = 1, area: Literal["media", "usenet"] = "media") -> dict:
         """List files and directories on the media NFS share with cumulative directory sizes.
 
         Runs ncdu on PVE (the ZFS/NFS source) and returns a structured view of the
@@ -166,6 +247,8 @@ def register(mcp: MCPServer) -> None:
         Args:
             path:  Relative path under the media root (e.g. "tv", "tv/Star Trek",
                    "movies/Dune (2021)"). Defaults to the media root itself.
+            area:  "media" (default; tv/movies library) or "usenet" (SABnzbd's incomplete/
+                   and complete/ download dirs, e.g. path="complete/Some.Release").
             depth: Levels to descend (1 = immediate children only, max 3).
                    Scanning a broad path at depth > 1 (e.g. all of tv/) can take 10-30s
                    while ncdu traverses every file; narrow the path first.
@@ -177,7 +260,7 @@ def register(mcp: MCPServer) -> None:
 
         depth = min(max(1, depth), _MAX_DEPTH)
 
-        root = _media_subtree_root()
+        root = f"{config.fileserver.media_root.rstrip('/')}/usenet" if area == "usenet" else _media_subtree_root()
         target = f"{root}/{path}".rstrip("/") if path else root
 
         # stderr stays attached (2>&1) so a bad path shows ncdu's own message instead of empty output.
@@ -189,7 +272,7 @@ def register(mcp: MCPServer) -> None:
                 timeout=60,
             )
         except Exception as e:
-            return {"error": str(e)}
+            return {"error": str(e) or f"{type(e).__name__} (no message) running ncdu on {target}"}
 
         if not raw.lstrip().startswith("["):
             return {"error": f"ncdu failed: {raw[:300] or 'no output'}"}
@@ -372,3 +455,19 @@ def register(mcp: MCPServer) -> None:
         if out.get("status") == "placed":
             out["next"] = f'jellyfin_refresh(created_paths=["{out["movie_folder_container_path"]}"]), then jellyfin_media_info to confirm two sources'
         return out
+
+    @mcp.tool()
+    async def media_verify_file(path: str, deep: bool = False, expected_gb: float = 0) -> dict:
+        """Check that a video file (or the largest video in a folder) is not damaged, before placing or trusting it. `path`: /data/... as containers see it (e.g. a SABnzbd `storage` path) or the host path; anything under the media share, including usenet/complete. Reports the container magic (MKV `1a45dfa3`, MP4 `ftyp`, ...), whether the file starts with zeros, size, ffprobe's view (if installed on PVE), and a `verdict` of ok / suspect / bad. Zeroed holes are what a SABnzbd restart or an NFS hang leaves in a job that still says "Completed". The default check samples 64 spots; `deep=True` reads the whole file and counts all-zero 256 KiB blocks (the real hole check: about the disk's read speed, so a 46 GB remux takes minutes). `expected_gb` flags a file more than 15% smaller than expected. Read-only."""
+        args = {"path": _host_path(path), "root": config.fileserver.media_root, "deep": deep, "expected_gb": expected_gb}
+        cmd = f"python3 -c {shlex.quote(_VERIFY_SCRIPT)} {shlex.quote(json.dumps(args))}"
+        try:
+            raw = await ssh_run(config.fileserver.host, cmd, key=config.fileserver.ssh_key, timeout=900 if deep else 120)
+        except TimeoutError:
+            return {"error": "Verification timed out; try deep=False or a smaller file."}
+        except Exception as e:
+            return {"error": (str(e) or type(e).__name__)[:300]}
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {"error": "Unexpected output from PVE", "raw_preview": raw[:300]}

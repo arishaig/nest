@@ -107,3 +107,127 @@ async def test_job_action_delete_batches_and_validates(monkeypatch):
         await t(nzo_ids=["not-an-id"], action="delete")
     with pytest.raises(ValueError):
         await t(nzo_ids=[], action="resume")
+
+
+UUID = "93ef1339-f354-4e14-ae53-3f55bfa0f76b"
+
+
+def test_check_nzo_ids_accepts_both_id_formats():
+    sabnzbd.check_nzo_ids(["SABnzbd_nzo_a1", UUID])
+    for bad in (["not-an-id"], [], [UUID.upper()], ["x"] * 21):
+        with pytest.raises(ValueError):
+            sabnzbd.check_nzo_ids(bad)
+
+
+async def test_status_flags_jobs_stuck_at_zero_mb_left(monkeypatch):
+    # Shape seen live on 2026-11-25: DIG episodes at 100% / 0 MB left but still "Downloading".
+    def handler(request):
+        mode = request.url.params["mode"]
+        if mode == "queue":
+            return {"queue": {"status": "Downloading", "paused": False, "mbleft": "0", "slots": [
+                {"nzo_id": UUID, "filename": "DIG.S01E01", "cat": "tv", "status": "Downloading", "mb": "4042", "mbleft": "0"},
+                {"nzo_id": "b", "filename": "Fresh", "cat": "tv", "status": "Downloading", "mb": "4000", "mbleft": "100"},
+                {"nzo_id": "c", "filename": "Paused one", "cat": "tv", "status": "Paused", "mb": "4000", "mbleft": "0"},
+            ]}}
+        if mode == "warnings":
+            return {"warnings": []}
+        return {"config": {"misc": {"download_dir": "/i", "complete_dir": "/c"}}}
+
+    monkeypatch.setattr(sabnzbd.config.sabnzbd, "key", "k")
+    patch_http(monkeypatch, sabnzbd, {"/api": handler})
+    out = await load_tools(sabnzbd)["sabnzbd_status"]()
+    assert [j["name"] for j in out["suspected_stuck"]] == ["DIG.S01E01"]
+    assert "0 MB left" in out["stuck_note"] and "restart" in out["stuck_note"]
+
+
+async def test_status_has_no_stuck_note_when_healthy(monkeypatch):
+    def handler(request):
+        mode = request.url.params["mode"]
+        if mode == "queue":
+            return {"queue": {"status": "Idle", "slots": []}}
+        return {"warnings": []} if mode == "warnings" else {"config": {"misc": {}}}
+
+    monkeypatch.setattr(sabnzbd.config.sabnzbd, "key", "k")
+    patch_http(monkeypatch, sabnzbd, {"/api": handler})
+    out = await load_tools(sabnzbd)["sabnzbd_status"]()
+    assert out["suspected_stuck"] == [] and out["stuck_note"] == ""
+
+
+async def test_history_action_delete_and_retry(monkeypatch):
+    seen = []
+
+    def handler(request):
+        seen.append(dict(request.url.params))
+        return {"status": True}
+
+    monkeypatch.setattr(sabnzbd.config.sabnzbd, "key", "k")
+    patch_http(monkeypatch, sabnzbd, {"/api": handler})
+    t = load_tools(sabnzbd)["sabnzbd_history_action"]
+    out = await t(nzo_ids=[UUID, "SABnzbd_nzo_old"], action="delete", del_files=True)
+    assert seen[0]["mode"] == "history" and seen[0]["name"] == "delete"
+    assert seen[0]["value"] == f"{UUID},SABnzbd_nzo_old" and seen[0]["del_files"] == "1" and out["deleted_files"]
+    await t(nzo_ids=[UUID, "SABnzbd_nzo_old"], action="retry")
+    assert [(c["mode"], c["value"]) for c in seen[1:]] == [("retry", UUID), ("retry", "SABnzbd_nzo_old")]
+    with pytest.raises(ValueError):
+        await t(nzo_ids=["nope"], action="delete")
+
+
+def _sab_state(queue_slots, history_slots):
+    def handler(request):
+        mode = request.url.params["mode"]
+        if mode == "queue":
+            return {"queue": {"slots": queue_slots}}
+        return {"history": {"slots": history_slots}}
+    return handler
+
+
+async def test_wait_returns_on_completed_with_storage(monkeypatch):
+    monkeypatch.setattr(sabnzbd.config.sabnzbd, "key", "k")
+    hist = [{"nzo_id": UUID, "name": "Job", "status": "Completed", "storage": "/data/usenet/complete/Job", "size": "9.7 GB", "fail_message": ""}]
+    patch_http(monkeypatch, sabnzbd, {"/api": _sab_state([], hist)})
+    out = await load_tools(sabnzbd)["sabnzbd_wait"](nzo_id=UUID, timeout_s=30)
+    assert out["done"] and out["state"] == "Completed" and out["storage"] == "/data/usenet/complete/Job"
+
+
+async def test_wait_returns_failed_with_message(monkeypatch):
+    monkeypatch.setattr(sabnzbd.config.sabnzbd, "key", "k")
+    hist = [{"nzo_id": UUID, "name": "Job", "status": "Failed", "storage": "", "fail_message": "Repair failed, not enough repair blocks (2877 short)"}]
+    patch_http(monkeypatch, sabnzbd, {"/api": _sab_state([], hist)})
+    out = await load_tools(sabnzbd)["sabnzbd_wait"](nzo_id=UUID)
+    assert out["done"] and out["state"] == "Failed" and "2877 short" in out["fail_message"]
+
+
+async def test_wait_polls_through_verifying_then_completes(monkeypatch):
+    monkeypatch.setattr(sabnzbd.config.sabnzbd, "key", "k")
+    monkeypatch.setattr(sabnzbd, "_WAIT_POLL_S", 0)
+    states = iter(["Verifying", "Extracting", "Completed"])
+    cur = {"s": next(states)}
+
+    def handler(request):
+        mode = request.url.params["mode"]
+        if mode == "queue":
+            return {"queue": {"slots": []}}
+        slot = {"nzo_id": UUID, "name": "Job", "status": cur["s"], "storage": "/p", "fail_message": ""}
+        if cur["s"] != "Completed":
+            cur["s"] = next(states)
+        return {"history": {"slots": [slot]}}
+
+    patch_http(monkeypatch, sabnzbd, {"/api": handler})
+    out = await load_tools(sabnzbd)["sabnzbd_wait"](nzo_id=UUID, timeout_s=30)
+    assert out["done"] and out["state"] == "Completed"
+
+
+async def test_wait_times_out_and_reports_stuck(monkeypatch):
+    monkeypatch.setattr(sabnzbd.config.sabnzbd, "key", "k")
+    monkeypatch.setattr(sabnzbd, "_WAIT_POLL_S", 0)
+    q = [{"nzo_id": UUID, "filename": "Job", "status": "Downloading", "mb": "100", "mbleft": "0", "percentage": "100"}]
+    patch_http(monkeypatch, sabnzbd, {"/api": _sab_state(q, [])})
+    out = await load_tools(sabnzbd)["sabnzbd_wait"](nzo_id=UUID, timeout_s=0)
+    assert out["done"] is False and out["stuck_suspected"] is True and out["where"] == "queue"
+
+
+async def test_wait_unknown_job(monkeypatch):
+    monkeypatch.setattr(sabnzbd.config.sabnzbd, "key", "k")
+    patch_http(monkeypatch, sabnzbd, {"/api": _sab_state([], [])})
+    out = await load_tools(sabnzbd)["sabnzbd_wait"](nzo_id=UUID)
+    assert out["state"] == "not_found"
