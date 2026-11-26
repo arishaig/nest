@@ -29,6 +29,33 @@ subjects:
     name: nest-mcp
     namespace: nest-mcp
 ---
+# Write access for nest-mcp's k8s_restart_pod tool, deliberately NOT part of the cluster-wide read-only
+# ClusterRole above: namespaced to `media` only, and limited to deleting pods (a controller recreates them).
+# No pods/exec: RBAC cannot restrict which command exec runs, so nest-mcp does not get it.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nest-mcp-media-ops
+  namespace: media
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nest-mcp-media-ops
+  namespace: media
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nest-mcp-media-ops
+subjects:
+  - kind: ServiceAccount
+    name: nest-mcp
+    namespace: nest-mcp
+---
 # k8s 1.24+ does not auto-create SA tokens; explicit Secret generates a long-lived token.
 # After deploy: kubectl get secret nest-mcp-token -n nest-mcp -o jsonpath='{.data.token}' | base64 -d
 # Store the decoded value as k8s_mcp_sa_token in ansible vault.

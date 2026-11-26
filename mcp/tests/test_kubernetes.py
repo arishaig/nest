@@ -206,3 +206,66 @@ async def test_pod_logs_wrong_container_names_the_real_ones(monkeypatch):
     _logs_client(monkeypatch, pod)
     out = await load_tools(kubernetes)["k8s_pod_logs"](namespace="media", pod="sabnzbd-1", container="sabnzbd")
     assert "Container 'sabnzbd' not found" in out and "Containers: app" in out
+
+
+# ── k8s_restart_pod ────────────────────────────────────────────────────────────
+
+import pytest
+
+POD = "sabnzbd-5d8446798d-spsp8"
+POD_PATH = f"/api/v1/namespaces/media/pods/{POD}"
+
+
+def _ops_client(monkeypatch, pod_obj, delete_status=200):
+    seen = {"deleted": None}
+
+    def handler(req):
+        if req.method == "GET" and req.url.path == POD_PATH:
+            return httpx.Response(200, json=pod_obj) if pod_obj is not None else httpx.Response(404, json={})
+        if req.method == "DELETE":
+            seen["deleted"] = (req.url.path, dict(req.url.params))
+            return httpx.Response(delete_status, json={})
+        return httpx.Response(404, json={})
+
+    monkeypatch.setattr(kubernetes, "_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="https://k8s"))
+    return seen
+
+
+def _owned(kind="ReplicaSet"):
+    return {"metadata": {"name": POD, "ownerReferences": [{"kind": kind, "name": "x"}]}}
+
+
+async def test_restart_pod_deletes_owned_pod_with_clamped_grace(monkeypatch):
+    seen = _ops_client(monkeypatch, _owned())
+    t = load_tools(kubernetes)["k8s_restart_pod"]
+    out = await t(pod=POD)
+    assert out["deleted"] == f"media/{POD}" and out["controller"] == "ReplicaSet"
+    assert seen["deleted"] == (POD_PATH, {"gracePeriodSeconds": "30"})
+    await t(pod=POD, grace_period_seconds=0)
+    assert seen["deleted"][1] == {"gracePeriodSeconds": "0"}
+    await t(pod=POD, grace_period_seconds=99999)
+    assert seen["deleted"][1] == {"gracePeriodSeconds": "300"}
+
+
+async def test_restart_pod_refuses_unsafe_targets(monkeypatch):
+    seen = _ops_client(monkeypatch, {"metadata": {"name": POD}})
+    t = load_tools(kubernetes)["k8s_restart_pod"]
+    assert "no controller" in (await t(pod=POD))["error"] and seen["deleted"] is None
+    _ops_client(monkeypatch, _owned("Job"))
+    assert "Job" in (await t(pod=POD))["error"]
+    out = await t(pod="postgres-867d67864d-2pjjq")
+    assert "database" in out["error"]
+    out = await t(pod="audiomuse-postgres-5d6bf79946-5zkq4")
+    assert "database" in out["error"]
+    with pytest.raises(ValueError):
+        await t(pod=POD, namespace="kube-system")
+    with pytest.raises(ValueError):
+        await t(pod="../x")
+
+
+async def test_restart_pod_missing_pod_and_rbac_denied(monkeypatch):
+    _ops_client(monkeypatch, None)
+    t = load_tools(kubernetes)["k8s_restart_pod"]
+    assert "re-read k8s_pods" in (await t(pod=POD))["error"]
+    _ops_client(monkeypatch, _owned(), delete_status=403)
+    assert "nest-mcp-media-ops" in (await t(pod=POD))["error"]

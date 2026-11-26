@@ -13,6 +13,20 @@ from nest_mcp import config
 _K8S_NAME_RE = re.compile(r"^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$")
 
 
+# The restart tool below only works in these namespaces. The RBAC Role that grants pod delete
+# (k8s/apps/mcp-rbac/rbac.yaml) is namespaced to the same list, so this is a second lock.
+_OPS_NAMESPACES = ("media",)
+# Databases: a pod delete is an outage, and these are not what this tool is for. Use a proper maintenance window.
+_NO_RESTART_PREFIXES = ("postgres-", "audiomuse-postgres-")
+
+
+def _check_target(namespace: str, pod: str) -> None:
+    if namespace not in _OPS_NAMESPACES:
+        raise ValueError(f"Only these namespaces are allowed here: {', '.join(_OPS_NAMESPACES)}")
+    if not _K8S_NAME_RE.match(pod):
+        raise ValueError(f"Invalid pod name {pod!r}")
+
+
 def _verify() -> str | bool:
     """CA bundle for the API server: the in-pod service-account CA by default."""
     ca = config.kubernetes.ca_file
@@ -308,3 +322,29 @@ def register(mcp: MCPServer) -> None:
             })
 
         return sorted(nodes, key=lambda n: n["name"])
+
+    @mcp.tool()
+    async def k8s_restart_pod(pod: str, namespace: str = "media", grace_period_seconds: int = 30) -> dict:
+        """[DESTRUCTIVE] Restart a workload by deleting one of its pods; its ReplicaSet/StatefulSet starts a replacement immediately, whatever the rollout strategy. Only the `media` namespace; refuses pods with no controller (they would not come back), Job pods, and the PostgreSQL pods. Use it for a wedged app such as SABnzbd stuck on NFS (see sabnzbd_status `suspected_stuck`; the Loki log spam `Found idle job` is the other tell). BEFORE restarting a downloader, delete its in-flight jobs (sabnzbd_job_action): a restart turns cached articles into silent zeroed holes in jobs that then report Completed; verify finished files with media_verify_file deep=True. `grace_period_seconds` (0-300, default 30); 0 force-removes the pod object even if the node has not stopped it, which is only for a pod already stuck Terminating (the old container can linger on the node, still holding its NFS mounts). Afterwards check k8s_pods. Confirm with the user first."""
+        _check_target(namespace, pod)
+        if pod.startswith(_NO_RESTART_PREFIXES):
+            return {"error": f"{pod} is a database pod; restarting it is an outage and is not done through this tool."}
+        grace = max(0, min(int(grace_period_seconds), 300))
+        path = f"/api/v1/namespaces/{namespace}/pods/{pod}"
+        async with _client() as c:
+            r = await c.get(path)
+            if r.status_code == 404:
+                return {"error": f"No pod {namespace}/{pod}; names change on every restart, so re-read k8s_pods."}
+            r.raise_for_status()
+            meta = r.json().get("metadata", {})
+            owners = [o.get("kind", "") for o in meta.get("ownerReferences", [])]
+            if not owners:
+                return {"error": f"{pod} has no controller; deleting it would not bring it back."}
+            if "Job" in owners:
+                return {"error": f"{pod} belongs to a Job; restarting it re-runs the job. Not done through this tool."}
+            d = await c.delete(path, params={"gracePeriodSeconds": grace})
+            if d.status_code == 403:
+                return {"error": "The nest-mcp service account may not delete pods here (Role nest-mcp-media-ops in k8s/apps/mcp-rbac/rbac.yaml)."}
+            d.raise_for_status()
+        return {"deleted": f"{namespace}/{pod}", "controller": owners[0], "grace_period_seconds": grace,
+                "next": "k8s_pods namespace=media: the replacement should be Running 1/1 in about a minute; the old pod may sit Terminating if its node is wedged."}
