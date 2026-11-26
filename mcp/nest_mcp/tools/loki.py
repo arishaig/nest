@@ -46,7 +46,7 @@ def register(mcp: MCPServer) -> None:
                        "monitoring", "fileserver", "mcp",
                        "backup", "adguard", "dns-secondary", "vps-proxy").
             unit:      Filter by systemd unit for journal logs (e.g. "sshd.service").
-            query:     Raw LogQL query — overrides container/host/unit filters.
+            query:     A FULL LogQL query, e.g. `{namespace="media", pod=~"sabnzbd(-.*)?"} |~ "idle job"`; when set it replaces ALL the other filters (container/host/unit/namespace/pod/app), so a bare search word is invalid (HTTP 400). To search one pod's lines, write the selector and the line filter yourself.
             lines:     Maximum log lines to return (default 50, max 500).
             since_minutes: How far back to look (default 60, max 10080 = 7 days).
         """
