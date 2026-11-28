@@ -27,7 +27,7 @@ tests:
               manager: apt
             exp_annotations:
               summary: "stale-host has had OS updates pending for a week"
-              description: "stale-host hasn't been fully up to date at any point in the last 7 days (at least 5 apt updates pending throughout). Debian hosts: run update_apt.yml. PiKVM: run pikvm-update on it by hand."
+              description: "stale-host hasn't been fully up to date at any point in the last 7 days (at least 5 apt updates pending throughout). Guests: run the Maintenance workflow (target guests). PVE/PBS: Maintenance workflow, target proxmox. PiKVM: run pikvm-update on it by hand."
 
   - interval: 1h
     input_series:
@@ -46,7 +46,7 @@ tests:
               manager: apt
             exp_annotations:
               summary: "host has had security updates pending for 2 days"
-              description: "host has had updates from a -security suite pending for at least 2 days (at least 2 throughout). Run update_apt.yml."
+              description: "host has had updates from a -security suite pending for at least 2 days (at least 2 throughout). Run the Maintenance workflow (guests, or proxmox for PVE/PBS)."
 
   # Rebooting (flag back to 0) inside the window clears it.
   - interval: 1h
