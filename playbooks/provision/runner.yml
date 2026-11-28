@@ -22,7 +22,7 @@
     # opentofu/promtool/amtool/kustomize/kubeconform back CI jobs (lint.yml,
     # deploy.yml). Versions are renovate-managed; bumping them re-installs via
     # the checksum-aware copy.
-    opentofu_version: "1.13.9"
+    opentofu_version: "1.13.10"
     prometheus_version: "3.16.0"
     alertmanager_version: "0.35.0"
     kubectl_version: "1.37.2"
