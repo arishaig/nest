@@ -1,6 +1,6 @@
 ---
-# Pending OS update metrics for the Debian hosts (LXCs, the AdGuard Pi and
-# dns-secondary). An hourly timer writes os_updates_pending,
+# Pending OS update metrics for the Debian hosts (LXCs, the AdGuard Pi,
+# dns-secondary, and the PVE host and PBS VM). An hourly timer writes os_updates_pending,
 # os_updates_pending_security and, on hosts with their own kernel,
 # os_reboot_required to node_exporter's textfile collector. Prometheus alerts
 # on them (the `updates` group in rules/nest.yml).
@@ -8,10 +8,11 @@
 # The VPS (dns-tertiary / vps-proxy) is out of scope: vps.yml owns its
 # node_exporter unit. The PiKVM has its own pacman-based version in pikvm.yml.
 #
-# Nothing here installs or upgrades packages; update_apt.yml still does that.
+# Nothing here installs or upgrades packages; update_apt.yml (guests) and
+# update_proxmox.yml (PVE, PBS) still do that.
 
 - name: Pending OS update metrics
-  hosts: lxcs:dns:!dns-tertiary
+  hosts: lxcs:dns:proxmox:pbs:!dns-tertiary
   become: true
   gather_facts: false
 
@@ -44,6 +45,19 @@
         dest: /etc/systemd/system/node_exporter.service
         mode: "0644"
       notify: Restart node_exporter
+
+    # PVE and PBS never get unattended-upgrades.yml, so nothing sets
+    # APT::Periodic::Update-Package-Lists and apt-daily.timer fires without
+    # refreshing. Their lists would only be as fresh as the last manual
+    # maintenance run, and the pending counts would undercount. This only
+    # refreshes lists; it installs nothing.
+    - name: Refresh apt lists daily on PVE and PBS
+      ansible.builtin.copy:
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+        dest: /etc/apt/apt.conf.d/20update-lists
+        mode: "0644"
+      when: inventory_hostname in groups['proxmox'] or inventory_hostname in groups['pbs']
 
     - name: Install pending-updates script
       ansible.builtin.copy:

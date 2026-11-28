@@ -118,7 +118,7 @@ groups:
           severity: warning
         annotations:
           summary: "{{ $labels.instance }} has had OS updates pending for a week"
-          description: "{{ $labels.instance }} hasn't been fully up to date at any point in the last 7 days (at least {{ $value }} {{ $labels.manager }} updates pending throughout). Debian hosts: run update_apt.yml. PiKVM: run pikvm-update on it by hand."
+          description: "{{ $labels.instance }} hasn't been fully up to date at any point in the last 7 days (at least {{ $value }} {{ $labels.manager }} updates pending throughout). Guests: run the Maintenance workflow (target guests). PVE/PBS: Maintenance workflow, target proxmox. PiKVM: run pikvm-update on it by hand."
 
       - alert: OSSecurityUpdatesPending
         expr: min_over_time(os_updates_pending_security[2d]) > 0
@@ -127,7 +127,7 @@ groups:
           severity: warning
         annotations:
           summary: "{{ $labels.instance }} has had security updates pending for 2 days"
-          description: "{{ $labels.instance }} has had updates from a -security suite pending for at least 2 days (at least {{ $value }} throughout). Run update_apt.yml."
+          description: "{{ $labels.instance }} has had updates from a -security suite pending for at least 2 days (at least {{ $value }} throughout). Run the Maintenance workflow (guests, or proxmox for PVE/PBS)."
 
       - alert: OSRebootRequired
         expr: min_over_time(os_reboot_required[2d]) == 1
