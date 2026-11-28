@@ -735,3 +735,34 @@ async def test_delete_dashboard(monkeypatch):
     for path, match in (("", "default"), ("nope-dash", "no dashboard"), ("yaml-dash", "YAML")):
         with pytest.raises(homeassistant.HARefusal, match=match):
             await tool(url_path=path)
+
+
+_REGISTRY = [
+    {"entity_id": "light.vanity", "unique_id": "5_light_zigbee2mqtt", "platform": "mqtt", "original_name": "Vanity"},
+    {"entity_id": "light.bulb_1", "unique_id": "0xa1_light_zigbee2mqtt", "platform": "mqtt", "name": "Bulb 1",
+     "device_id": "d1"},
+    {"entity_id": "sensor.bulb_1_linkquality", "unique_id": "0xa1_linkquality_zigbee2mqtt", "platform": "mqtt"},
+    {"entity_id": "light.kauf", "unique_id": "abc", "platform": "esphome", "disabled_by": "user"},
+]
+
+
+async def test_entity_registry_filters_and_exposes_unique_id(monkeypatch):
+    _fake_registry_ws_with(monkeypatch, _REGISTRY)
+    tool = load_tools(homeassistant)["ha_entity_registry"]
+    out = await tool(platform="mqtt", domain="light")
+    assert [e["entity_id"] for e in out["entities"]] == ["light.bulb_1", "light.vanity"]
+    assert out["entities"][0]["unique_id"] == "0xa1_light_zigbee2mqtt" and out["entities"][0]["name"] == "Bulb 1"
+    assert (await tool(search="LINKQUALITY"))["matched"] == 1  # case-insensitive, across unique_id
+    assert (await tool(platform="esphome"))["entities"][0]["disabled_by"] == "user"
+    capped = await tool(limit=1)
+    assert capped["matched"] == 4 and capped["returned"] == 1
+
+
+def _fake_registry_ws_with(monkeypatch, registry):
+    @contextlib.asynccontextmanager
+    async def session():
+        async def call(payload):
+            assert payload["type"] == "config/entity_registry/list"
+            return registry
+        yield call
+    monkeypatch.setattr(homeassistant, "_ws_session", session)

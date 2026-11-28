@@ -80,7 +80,7 @@ mcp = NestMCPServer(
     lifespan=lifespan,
 )
 
-from nest_mcp.tools import proxmox, adguard, adguard_host, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, media_pipeline, sabnzbd, kubernetes, infra, tunarr, dispatcharr, floorplan  # noqa: E402
+from nest_mcp.tools import proxmox, adguard, adguard_host, homeassistant, arr, prometheus, scrutiny, unifi, jellyfin, jellyseerr, vps, docker_host, pbs, local, summary, mealie, seedbox, certs, loki, media_files, media_pipeline, sabnzbd, kubernetes, infra, tunarr, dispatcharr, floorplan, zigbee2mqtt  # noqa: E402
 
 proxmox.register(mcp)
 adguard.register(mcp)
@@ -109,3 +109,4 @@ infra.register(mcp)
 tunarr.register(mcp)
 dispatcharr.register(mcp)
 floorplan.register(mcp)
+zigbee2mqtt.register(mcp)
