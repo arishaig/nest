@@ -692,6 +692,30 @@ def register(mcp: MCPServer) -> None:
             await call({"type": "config/entity_registry/remove", "entity_id": entity_id})
         return {"entity_id": entity_id, "removed": True}
 
+    @mcp.tool()
+    async def ha_entity_registry(platform: str = "", domain: str = "", search: str = "", limit: int = 100) -> dict:
+        """Read-only dump of Home Assistant's entity registry, including each entity's `unique_id` (not shown by ha_list_entities or ha_get_state). Filter by `platform` (the integration, e.g. 'mqtt', 'esphome'), by `domain` (e.g. 'light'), and/or a case-insensitive `search` over entity_id, unique_id and names. Use it to see how an integration identifies its entities, e.g. whether Zigbee2MQTT unique_ids look like '<ieee>_light_zigbee2mqtt'."""
+        needle = search.lower()
+        async with _ws_session() as call:
+            entities = await call({"type": "config/entity_registry/list"})
+        rows = []
+        for ent in entities:
+            if platform and ent.get("platform") != platform:
+                continue
+            if domain and not ent["entity_id"].startswith(domain + "."):
+                continue
+            hay = " ".join(str(ent.get(k) or "") for k in ("entity_id", "unique_id", "name", "original_name")).lower()
+            if needle and needle not in hay:
+                continue
+            rows.append({
+                "entity_id": ent["entity_id"], "unique_id": ent.get("unique_id"), "platform": ent.get("platform"),
+                "device_id": ent.get("device_id"), "name": ent.get("name") or ent.get("original_name"),
+                "disabled_by": ent.get("disabled_by"),
+            })
+        rows.sort(key=lambda r: r["entity_id"])
+        limit = min(max(1, limit), 1000)
+        return {"matched": len(rows), "returned": min(len(rows), limit), "entities": rows[:limit]}
+
     # --- Dashboards (Lovelace) ---------------------------------------------
     # Dashboard configs live only in HA's .storage and are only reachable over
     # the WebSocket API. Storage-mode dashboards can be read and saved; YAML-mode
